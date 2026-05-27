@@ -220,9 +220,13 @@ async function init() {
       const api = await getApiClient();
 
       // 1. Create alasql tables (basic schema)
+      // NOTE: `id` is plain INT (no PRIMARY KEY). Bulk load below does
+      // `alasql.tables[t].data = inserts` which bypasses alasql's PK index,
+      // leaving it inconsistent and causing "Something wrong with primary key
+      // index on table" on later INSERTs. Uniqueness is managed via _nextId.
       for (const t of TABLE_NAMES) {
         const colsSql = SCHEMA[t].cols
-          .map(c => `\`${c}\` ${c==='id' ? 'INT PRIMARY KEY' : 'STRING'}`)
+          .map(c => `\`${c}\` ${c==='id' ? 'INT' : 'STRING'}`)
           .join(', ');
         alasql(`CREATE TABLE IF NOT EXISTS ${t} (${colsSql})`);
       }
@@ -795,7 +799,7 @@ async function writeTablesToSheet(tables) {
 async function _testInit() {
   for (const t of TABLE_NAMES) {
     const colsSql = SCHEMA[t].cols
-      .map(c => `\`${c}\` ${c==='id' ? 'INT PRIMARY KEY' : 'STRING'}`)
+      .map(c => `\`${c}\` ${c==='id' ? 'INT' : 'STRING'}`)
       .join(', ');
     alasql(`CREATE TABLE IF NOT EXISTS ${t} (${colsSql})`);
     _nextId[t] = 1;
