@@ -1772,6 +1772,10 @@ app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
 app.delete('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     await db.query('DELETE FROM fms_sheets WHERE id=?', [req.params.id]);
+    // On serverless (Vercel), the debounced background flush is killed when the
+    // function instance is reaped — so the delete never reaches Google Sheets
+    // and the FMS reappears on next page load. Force a synchronous flush here.
+    await db.flushNow();
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
