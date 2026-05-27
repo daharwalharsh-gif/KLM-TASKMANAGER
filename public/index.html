@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SHPL Task Manager</title>
+<link rel="icon" type="image/webp" href="/shpl-logo.webp"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+
+  body{
+    font-family:'Inter',sans-serif;
+    background: linear-gradient(135deg,#e0f7fa 0%,#e8f5e9 50%,#e3f2fd 100%);
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+  }
+
+  /* ── Animated background circles ── */
+  body::before, body::after {
+    content:'';
+    position:fixed;
+    border-radius:50%;
+    pointer-events:none;
+    z-index:0;
+  }
+  body::before {
+    width:400px;height:400px;
+    top:-100px;left:-100px;
+    background:radial-gradient(circle, #00BCD422, transparent 70%);
+    animation: bgFloat1 8s ease-in-out infinite;
+  }
+  body::after {
+    width:300px;height:300px;
+    bottom:-80px;right:-80px;
+    background:radial-gradient(circle, #4CAF5022, transparent 70%);
+    animation: bgFloat2 10s ease-in-out infinite;
+  }
+
+  @keyframes bgFloat1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(30px,20px)} }
+  @keyframes bgFloat2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-20px,-30px)} }
+
+  /* ── Card ── */
+  .login-wrap{
+    background:#fff;
+    border-radius:20px;
+    padding:44px 40px;
+    width:420px;
+    box-shadow:0 20px 60px rgba(0,188,212,.12), 0 4px 20px rgba(0,0,0,.08);
+    position:relative;
+    z-index:1;
+    animation: cardIn .6s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  @keyframes cardIn {
+    from { opacity:0; transform:translateY(30px) scale(.96); }
+    to   { opacity:1; transform:translateY(0)    scale(1);   }
+  }
+
+  /* ── Logo section ── */
+  .logo-section {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    margin-bottom:28px;
+  }
+
+  .logo-img-wrap {
+    position:relative;
+    display:inline-block;
+    animation: logoIn .8s ease .2s both;
+  }
+  @keyframes logoIn {
+    from { opacity:0; transform:translateY(-20px) scale(.9); }
+    to   { opacity:1; transform:translateY(0)     scale(1);  }
+  }
+
+  .logo-img-wrap img {
+    width:200px;
+    display:block;
+    filter: drop-shadow(0 4px 16px rgba(0,188,212,.25));
+    animation: logoFloat 3.5s ease-in-out 1s infinite;
+  }
+  @keyframes logoFloat {
+    0%,100% { transform:translateY(0px);   filter:drop-shadow(0 4px 16px rgba(0,188,212,.25)); }
+    50%      { transform:translateY(-7px); filter:drop-shadow(0 12px 24px rgba(0,188,212,.4));  }
+  }
+
+  /* Shimmer sweep over logo */
+  .logo-img-wrap::after {
+    content:'';
+    position:absolute;
+    top:0;left:-100%;
+    width:60%;height:100%;
+    background:linear-gradient(100deg, transparent 20%, rgba(255,255,255,.7) 50%, transparent 80%);
+    animation: shimmer 2.5s ease .8s 2;
+    pointer-events:none;
+  }
+  @keyframes shimmer {
+    0%   { left:-100%; }
+    100% { left:160%;  }
+  }
+
+  .logo-tagline {
+    margin-top:10px;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:3px;
+    color:#00BCD4;
+    text-transform:uppercase;
+    animation: tagIn .5s ease .9s both;
+  }
+  @keyframes tagIn {
+    from { opacity:0; transform:translateY(8px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  /* Decorative dots */
+  .logo-dots {
+    display:flex;gap:6px;margin-top:8px;
+    animation: fadeIn .4s ease 1.2s both;
+  }
+  .logo-dots span {
+    width:5px;height:5px;border-radius:50%;
+    animation: dotPop .4s ease both;
+  }
+  .logo-dots span:nth-child(1){ background:#4CAF50; animation-delay:1.2s; }
+  .logo-dots span:nth-child(2){ background:#00BCD4; animation-delay:1.35s;}
+  .logo-dots span:nth-child(3){ background:#4CAF50; animation-delay:1.5s; }
+  @keyframes dotPop {
+    0%  { opacity:0; transform:scale(0); }
+    70% { transform:scale(1.4); }
+    100%{ opacity:1; transform:scale(1); }
+  }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+  /* ── Form ── */
+  h2{font-size:21px;font-weight:700;color:#1e293b;margin-bottom:4px;text-align:center;}
+  p.sub{font-size:13px;color:#64748b;margin-bottom:24px;text-align:center;}
+
+  .form-group{margin-bottom:16px;}
+  label{font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;}
+
+  .input-wrap { position:relative; }
+  .input-wrap .icon {
+    position:absolute;left:12px;top:50%;transform:translateY(-50%);
+    font-size:15px;color:#94a3b8;pointer-events:none;
+  }
+  input{
+    width:100%;
+    padding:11px 14px 11px 38px;
+    border:1.5px solid #e2e8f0;
+    border-radius:10px;
+    font-size:14px;
+    font-family:'Inter',sans-serif;
+    outline:none;
+    transition:border .2s, box-shadow .2s;
+    color:#1e293b;
+    background:#fafafa;
+  }
+  input:focus{
+    border-color:#00BCD4;
+    box-shadow:0 0 0 3px rgba(0,188,212,.12);
+    background:#fff;
+  }
+
+  .btn-login{
+    width:100%;
+    padding:13px;
+    background:linear-gradient(135deg,#00ACC1,#00BCD4);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    font-size:15px;
+    font-weight:600;
+    font-family:'Inter',sans-serif;
+    cursor:pointer;
+    transition:all .2s;
+    margin-top:6px;
+    letter-spacing:.3px;
+    box-shadow:0 4px 16px rgba(0,188,212,.3);
+  }
+  .btn-login:hover{
+    transform:translateY(-2px);
+    box-shadow:0 8px 24px rgba(0,188,212,.4);
+  }
+  .btn-login:active{ transform:translateY(0); }
+
+  .error{
+    background:#fef2f2;border:1px solid #fecaca;
+    color:#dc2626;padding:10px 14px;
+    border-radius:8px;font-size:13px;
+    margin-bottom:14px;display:none;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    display:flex;align-items:center;gap:10px;
+    margin:20px 0 16px;
+  }
+  .divider::before,.divider::after {
+    content:'';flex:1;height:1px;background:#e2e8f0;
+  }
+  .divider span { font-size:11px;color:#94a3b8;white-space:nowrap; }
+
+  /* ── Footer ── */
+  .footer-text {
+    text-align:center;
+    font-size:11px;
+    color:#94a3b8;
+    margin-top:20px;
+  }
+  .footer-text strong { color:#00BCD4; }
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+
+  <!-- Logo -->
+  <div class="logo-section">
+    <div class="logo-img-wrap">
+      <img src="shpl-logo.webp" alt="SHPL Logo"
+           onerror="this.style.display='none';document.getElementById('fallbackLogo').style.display='flex'"/>
+      <!-- Fallback if image not found -->
+      <div id="fallbackLogo" style="display:none;width:200px;height:70px;align-items:center;justify-content:center;gap:8px">
+        <div style="width:44px;height:44px;background:linear-gradient(135deg,#00ACC1,#4CAF50);border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:20px">S</div>
+        <div>
+          <div style="font-size:22px;font-weight:800;color:#00BCD4;line-height:1">SHPL</div>
+          <div style="font-size:11px;color:#4CAF50;font-weight:600">Sohan Healthcare Pvt. Ltd</div>
+        </div>
+      </div>
+    </div>
+    <div class="logo-tagline">Task Manager</div>
+    <div class="logo-dots">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+
+  <!-- Form -->
+  <h2>Welcome back 👋</h2>
+  <p class="sub">Sign in to your account</p>
+
+  <div class="error" id="err"></div>
+
+  <div class="form-group">
+    <label>Email Address</label>
+    <div class="input-wrap">
+      <span class="icon">✉</span>
+      <input type="email" id="email" placeholder="Enter your email"/>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Password</label>
+    <div class="input-wrap">
+      <span class="icon">🔒</span>
+      <input type="password" id="password" placeholder="Enter your password"
+             onkeydown="if(event.key==='Enter')login()"/>
+    </div>
+  </div>
+
+  <button class="btn-login" onclick="login()">Sign In →</button>
+
+  <div class="footer-text">
+    <strong>SHPL Task Manager</strong> &nbsp;·&nbsp; Sohan Healthcare Pvt. Ltd
+  </div>
+</div>
+
+<script>
+// Agar already logged in hai toh seedha /app pe bhejo
+(async function checkExistingSession() {
+  try {
+    const r = await fetch('/api/me', { credentials: 'include' });
+    if (r.ok) { window.location.replace('/app'); }
+  } catch(e) {}
+})();
+
+async function login(){
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('password').value;
+  const err=document.getElementById('err');
+  err.style.display='none';
+  if(!email||!password){err.textContent='Please fill all fields';err.style.display='block';return;}
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email,password})});
+    const d=await r.json();
+    if(!r.ok){err.textContent=d.error||'Login failed';err.style.display='block';return;}
+    // Token ko localStorage mein bhi save karo as backup (cookie block hone ki condition mein)
+    if(d.token) localStorage.setItem('authToken', d.token);
+    window.location.replace('/app');
+  }catch(e){err.textContent='Server error. Try again.';err.style.display='block';}
+}
+</script>
+</body>
+</html>
