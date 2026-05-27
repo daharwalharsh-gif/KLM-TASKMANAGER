@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 180" aria-label="Invincible Logo">
+  <!-- INVINCIBLE text -->
+  <text x="0" y="105"
+        font-family="Arial Black, Impact, Helvetica, sans-serif"
+        font-weight="900" font-size="105" fill="#1a1a1a"
+        letter-spacing="-3">INVINCIBLE</text>
+
+  <!-- Buffalo horns icon -->
+  <g transform="translate(460, 30)" fill="#1a1a1a">
+    <!-- Left horn -->
+    <path d="M 50 38 Q 22 -4 0 8 Q 6 32 36 52 Q 46 46 50 38 Z"/>
+    <!-- Right horn -->
+    <path d="M 50 38 Q 78 -4 100 8 Q 94 32 64 52 Q 54 46 50 38 Z"/>
+    <!-- Center triangle / muzzle -->
+    <path d="M 40 50 L 50 70 L 60 50 Z"/>
+  </g>
+
+  <!-- Saffron (orange) bar — left half -->
+  <rect x="0"   y="132" width="240" height="12" fill="#f57c00"/>
+  <!-- Green bar — right half -->
+  <rect x="350" y="132" width="240" height="12" fill="#2e7d32"/>
+</svg>
