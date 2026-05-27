@@ -1771,13 +1771,32 @@ app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
 
 app.delete('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    await db.query('DELETE FROM fms_sheets WHERE id=?', [req.params.id]);
-    // On serverless (Vercel), the debounced background flush is killed when the
-    // function instance is reaped — so the delete never reaches Google Sheets
-    // and the FMS reappears on next page load. Force a synchronous flush here.
+    // On Vercel cold start the request can arrive before db.init() has finished
+    // loading the sheet into memory — querying then matches 0 rows and the
+    // delete silently no-ops. init() is idempotent so this is safe.
+    await db.init();
+    const fmsId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(fmsId)) return res.status(400).json({ error: 'Invalid FMS id' });
+
+    // Cascade: clean up orphan rows in related tables first
+    const [steps] = await db.query('SELECT id FROM fms_steps WHERE fms_id=?', [fmsId]);
+    for (const s of steps) {
+      await db.query('DELETE FROM fms_step_doers WHERE step_id=?', [s.id]);
+      await db.query('DELETE FROM fms_extra_rows WHERE step_id=?', [s.id]);
+    }
+    await db.query('DELETE FROM fms_steps WHERE fms_id=?', [fmsId]);
+    const [delResult] = await db.query('DELETE FROM fms_sheets WHERE id=?', [fmsId]);
+
+    // Force a synchronous flush — the debounced background flush gets killed
+    // when the Vercel function instance is reaped, so the deletion would never
+    // reach Google Sheets and the FMS would reappear on next page load.
     await db.flushNow();
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+    res.json({ success: true, deleted: delResult?.affectedRows ?? 0 });
+  } catch (err) {
+    console.error('FMS delete failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Fetch headers ONLY (fast — just one row from sheet) ──
