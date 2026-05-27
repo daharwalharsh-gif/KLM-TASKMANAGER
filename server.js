@@ -105,6 +105,28 @@ const _dbReady = db.init()
   });
 
 // ══════════════════════════════════════════════════════
+// SERVERLESS FLUSH MIDDLEWARE
+// On Vercel, the debounced background flush (1.5 s) is killed when the
+// function instance is reaped — so writes never reach Google Sheets and
+// the UI shows stale data on the next cold start. We hook res.json so
+// every request flushes any pending writes before the response is sent.
+// One flush per request → bulk operations (e.g. FMS with many steps)
+// still only pay one Sheets write call.
+// ══════════════════════════════════════════════════════
+if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  app.use((req, res, next) => {
+    const origJson = res.json.bind(res);
+    res.json = function (body) {
+      db.flushNow()
+        .catch(err => console.error('  ❌ Pre-response flush failed:', err.message))
+        .finally(() => origJson(body));
+      return res;
+    };
+    next();
+  });
+}
+
+// ══════════════════════════════════════════════════════
 // EMAIL CONFIGURATION (Gmail SMTP via Nodemailer)
 // ══════════════════════════════════════════════════════
 const mailTransporter = nodemailer.createTransport({
@@ -1771,9 +1793,6 @@ app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
 
 app.delete('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    // On Vercel cold start the request can arrive before db.init() has finished
-    // loading the sheet into memory — querying then matches 0 rows and the
-    // delete silently no-ops. init() is idempotent so this is safe.
     await db.init();
     const fmsId = parseInt(req.params.id, 10);
     if (!Number.isFinite(fmsId)) return res.status(400).json({ error: 'Invalid FMS id' });
@@ -1786,11 +1805,6 @@ app.delete('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
     }
     await db.query('DELETE FROM fms_steps WHERE fms_id=?', [fmsId]);
     const [delResult] = await db.query('DELETE FROM fms_sheets WHERE id=?', [fmsId]);
-
-    // Force a synchronous flush — the debounced background flush gets killed
-    // when the Vercel function instance is reaped, so the deletion would never
-    // reach Google Sheets and the FMS would reappear on next page load.
-    await db.flushNow();
 
     res.json({ success: true, deleted: delResult?.affectedRows ?? 0 });
   } catch (err) {
