@@ -209,6 +209,70 @@ function getSpreadsheetId() {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// LOAD — read every tab from the sheet and (re)populate alasql.
+// Used by init() on boot and by reload() per-request on serverless to
+// avoid stale in-memory state across function instances. Returns the
+// total row count loaded.
+// ══════════════════════════════════════════════════════════════════
+async function loadAllTables(api) {
+  const ranges = TABLE_NAMES.map(t => `${t}!A:ZZ`);
+  const batchResp = await api.spreadsheets.values.batchGet({
+    spreadsheetId: _spreadsheetId,
+    ranges
+  });
+  const valueRanges = batchResp.data.valueRanges || [];
+
+  let totalRows = 0;
+  for (let i = 0; i < TABLE_NAMES.length; i++) {
+    const table = TABLE_NAMES[i];
+    const cols = SCHEMA[table].cols;
+    const rows = (valueRanges[i] && valueRanges[i].values) || [];
+    if (rows.length <= 1) {
+      // Empty or header-only — clear any stale in-memory rows.
+      if (alasql.tables[table]) alasql.tables[table].data = [];
+      _nextId[table] = 1;
+      continue;
+    }
+    const headerRow = rows[0];
+    // Map sheet column index -> schema column name (handles any order)
+    const colIndex = {};
+    for (let c = 0; c < headerRow.length; c++) {
+      colIndex[String(headerRow[c]).trim()] = c;
+    }
+    let maxId = 0;
+    const inserts = [];
+    for (let r = 1; r < rows.length; r++) {
+      const sheetRow = rows[r];
+      if (!sheetRow || sheetRow.every(x => x === '' || x == null)) continue;
+      const obj = {};
+      for (const col of cols) {
+        const idx = colIndex[col];
+        obj[col] = parseCellValue(col, idx == null ? '' : sheetRow[idx]);
+      }
+      if (obj.id && typeof obj.id === 'number' && obj.id > maxId) maxId = obj.id;
+      inserts.push(obj);
+    }
+    // Direct injection (faster than INSERT loop)
+    alasql.tables[table].data = inserts;
+    _nextId[table] = maxId + 1;
+    totalRows += inserts.length;
+  }
+  return totalRows;
+}
+
+// Force a fresh reload from the sheet. On Vercel each request calls this
+// so a warm function instance never serves a stale in-memory snapshot.
+// Skips while a flush is mid-flight or there are unsaved writes, so we
+// don't clobber pending changes.
+async function reload() {
+  if (!_initialized) return init();
+  if (_testMode) return;
+  if (_flushInProgress || _dirtyTables.size > 0) return;
+  const api = await getApiClient();
+  await loadAllTables(api);
+}
+
+// ══════════════════════════════════════════════════════════════════
 // INIT — load all tables from Sheets into alasql
 // ══════════════════════════════════════════════════════════════════
 async function init() {
@@ -269,51 +333,8 @@ async function init() {
         });
       }
 
-      // 4. Bulk load all tabs in ONE API call
-      const ranges = TABLE_NAMES.map(t => `${t}!A:ZZ`);
-      const batchResp = await api.spreadsheets.values.batchGet({
-        spreadsheetId: _spreadsheetId,
-        ranges
-      });
-      const valueRanges = batchResp.data.valueRanges || [];
-
-      // 5. Populate alasql tables
-      let totalRows = 0;
-      for (let i = 0; i < TABLE_NAMES.length; i++) {
-        const table = TABLE_NAMES[i];
-        const cols = SCHEMA[table].cols;
-        const rows = (valueRanges[i] && valueRanges[i].values) || [];
-        if (rows.length <= 1) {
-          // Either empty or only header. Ensure header row exists for clean future writes.
-          _nextId[table] = 1;
-          continue;
-        }
-        const headerRow = rows[0];
-        // Map sheet column index -> schema column name (handles any order)
-        const colIndex = {};
-        for (let c = 0; c < headerRow.length; c++) {
-          colIndex[String(headerRow[c]).trim()] = c;
-        }
-        let maxId = 0;
-        const inserts = [];
-        for (let r = 1; r < rows.length; r++) {
-          const sheetRow = rows[r];
-          if (!sheetRow || sheetRow.every(x => x === '' || x == null)) continue;
-          const obj = {};
-          for (const col of cols) {
-            const idx = colIndex[col];
-            obj[col] = parseCellValue(col, idx == null ? '' : sheetRow[idx]);
-          }
-          if (obj.id && typeof obj.id === 'number' && obj.id > maxId) maxId = obj.id;
-          inserts.push(obj);
-        }
-        // Insert all rows in one alasql call (very fast)
-        if (inserts.length) {
-          alasql.tables[table].data = inserts; // direct injection (faster than INSERT loop)
-        }
-        _nextId[table] = maxId + 1;
-        totalRows += inserts.length;
-      }
+      // 4 + 5. Bulk load all tabs in ONE API call and populate alasql
+      const totalRows = await loadAllTables(api);
       console.log(`  ✅ Sheets DB loaded: ${totalRows} rows across ${TABLE_NAMES.length} tables`);
 
       // 6. Seed default admin if users table is empty (PLAIN TEXT password)
@@ -812,6 +833,7 @@ async function _testInit() {
 
 module.exports = {
   init,
+  reload,
   query,
   execute: query,
   getConnection,

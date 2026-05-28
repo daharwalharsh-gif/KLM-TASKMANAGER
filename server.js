@@ -105,6 +105,42 @@ const _dbReady = db.init()
   });
 
 // ══════════════════════════════════════════════════════
+// SERVERLESS CONSISTENCY (Vercel / Lambda)
+// The in-memory alasql store is designed for ONE long-lived process. On
+// serverless, many short-lived instances each hold their own frozen
+// snapshot: writes from instance A never reach instance B, and the
+// debounced 1.5 s flush is killed before it runs. Result: deleted/edited
+// data reappears, new rows vanish, "step not found", etc.
+// Fix: make every /api request behave statelessly —
+//   1. reload fresh data from the sheet BEFORE the handler runs, and
+//   2. flush pending writes to the sheet BEFORE the response is sent.
+// Costs one extra Sheets round-trip per request; acceptable for an
+// internal tool, and the only way in-memory caching can stay correct
+// across serverless instances.
+// ══════════════════════════════════════════════════════
+if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  // 1. Reload-before — only for data routes (skip static assets).
+  app.use('/api', async (req, res, next) => {
+    try { await db.reload(); }
+    catch (err) { console.error('  ❌ Pre-request reload failed:', err.message); }
+    next();
+  });
+
+  // 2. Flush-after — wrap res.json so pending writes hit the sheet
+  //    before the response is sent and the instance is reaped.
+  app.use((req, res, next) => {
+    const origJson = res.json.bind(res);
+    res.json = function (body) {
+      db.flushNow()
+        .catch(err => console.error('  ❌ Pre-response flush failed:', err.message))
+        .finally(() => origJson(body));
+      return res;
+    };
+    next();
+  });
+}
+
+// ══════════════════════════════════════════════════════
 // EMAIL CONFIGURATION (Gmail SMTP via Nodemailer)
 // ══════════════════════════════════════════════════════
 const mailTransporter = nodemailer.createTransport({
