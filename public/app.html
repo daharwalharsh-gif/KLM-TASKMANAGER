@@ -5538,7 +5538,9 @@ async function saveFMSDone() {
   if (r.error) { errEl.textContent = r.error; errEl.style.display = 'block'; return; }
 
   closeModal('fmsDoneModal');
-  showToast('✅ Saved to Google Sheet!');
+  // Diagnostic: show exactly where it wrote + how many cells updated
+  const where = (r.wroteTo && r.wroteTo.length) ? r.wroteTo.join(', ') : '?';
+  showToast(`✅ Saved! ${r.updatedCells || 0} cell(s) → ${where}`);
 
   // ── OPTIMISTIC REMOVE: Google Sheet se dobara load karne ki zaroorat nahi ──
   // Done hua row ko seedha memory se hataao aur table re-render karo

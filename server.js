@@ -2026,7 +2026,7 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
     }
 
     // Single batchUpdate API call — replaces N sequential calls
-    await sheetsApi.spreadsheets.values.batchUpdate({
+    const writeResp = await sheetsApi.spreadsheets.values.batchUpdate({
       spreadsheetId,
       requestBody: {
         valueInputOption: 'USER_ENTERED',
@@ -2034,8 +2034,24 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
       }
     });
 
-    res.json({ success: true });
+    const updated = writeResp.data || {};
+    console.log('FMS done write →', JSON.stringify({
+      spreadsheetId,
+      tabName,
+      actualCol,
+      rowNumber,
+      ranges: batchData.map(d => d.range),
+      totalUpdatedCells: updated.totalUpdatedCells || 0,
+      responses: (updated.responses || []).map(r => r.updatedRange)
+    }));
+
+    res.json({
+      success: true,
+      updatedCells: updated.totalUpdatedCells || 0,
+      wroteTo: batchData.map(d => d.range)
+    });
   } catch (err) {
+    console.error('FMS done write FAILED:', err.code, err.message);
     if (err.code === 403) return res.status(400).json({ error: 'Access denied. Sheet write permission needed.' });
     res.status(500).json({ error: err.message });
   }
