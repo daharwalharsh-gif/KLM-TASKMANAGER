@@ -291,6 +291,31 @@ tbody tr:last-child td{border-bottom:none;}
 .fms-search-bar .fms-search-clear:hover{background:#e2e8f0;color:#1e293b;}
 .fms-search-bar .fms-search-count{font-size:12px;color:#64748b;font-weight:600;white-space:nowrap;}
 
+/* Google Sheets-style per-column filter dropdown */
+.fms-col-filter-icon{display:inline-flex;align-items:center;justify-content:center;margin-left:6px;width:18px;height:18px;border-radius:4px;cursor:pointer;color:#94a3b8;font-size:9px;border:1px solid transparent;vertical-align:middle;transition:all .15s;user-select:none;}
+.fms-col-filter-icon:hover{background:#e2e8f0;color:#1e293b;}
+.fms-col-filter-icon.active{background:#3b82f6;color:#fff;border-color:#3b82f6;}
+.fms-col-filter-popup{position:absolute;background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 12px 40px rgba(15,23,42,.22);padding:12px;width:280px;z-index:9999;font-family:'Inter',sans-serif;}
+.fms-col-filter-popup .ff-title{font-size:11px;font-weight:700;color:#64748b;letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px;}
+.fms-col-filter-popup .ff-search{width:100%;padding:7px 10px;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;outline:none;margin-bottom:8px;font-family:'Inter',sans-serif;color:#1e293b;background:#fff;box-sizing:border-box;}
+.fms-col-filter-popup .ff-search:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15);}
+.fms-col-filter-popup .ff-actions{display:flex;gap:6px;margin-bottom:8px;}
+.fms-col-filter-popup .ff-actions button{flex:1;padding:5px 8px;font-size:11px;border:1px solid #cbd5e1;background:#f8fafc;color:#1e293b;border-radius:6px;cursor:pointer;font-weight:600;font-family:'Inter',sans-serif;}
+.fms-col-filter-popup .ff-actions button:hover{background:#e2e8f0;}
+.fms-col-filter-popup .ff-values{max-height:240px;overflow-y:auto;border:1px solid #f1f5f9;border-radius:6px;padding:4px;background:#fafbfc;}
+.fms-col-filter-popup .ff-val-item{display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:12px;color:#1e293b;cursor:pointer;border-radius:4px;font-weight:500;text-transform:none;letter-spacing:normal;}
+.fms-col-filter-popup .ff-val-item:hover{background:#fff;}
+.fms-col-filter-popup .ff-val-item input{cursor:pointer;flex-shrink:0;}
+.fms-col-filter-popup .ff-val-item .ff-val-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fms-col-filter-popup .ff-footer{display:flex;gap:6px;margin-top:10px;justify-content:flex-end;}
+.fms-col-filter-popup .ff-footer button{padding:6px 14px;font-size:12px;border-radius:6px;cursor:pointer;font-weight:700;font-family:'Inter',sans-serif;}
+.fms-col-filter-popup .ff-footer .ff-cancel{background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;}
+.fms-col-filter-popup .ff-footer .ff-cancel:hover{background:#e2e8f0;}
+.fms-col-filter-popup .ff-footer .ff-apply{background:#3b82f6;color:#fff;border:1px solid #3b82f6;}
+.fms-col-filter-popup .ff-footer .ff-apply:hover{background:#2563eb;}
+.fms-col-filter-popup .ff-empty{padding:18px;text-align:center;color:#94a3b8;font-size:12px;}
+.fms-col-filter-popup .ff-count{font-size:10px;color:#94a3b8;font-weight:600;margin-bottom:6px;text-align:right;}
+
 /* Header select dropdowns in step config */
 .header-select{width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;background:#fff;color:#1e293b;}
 .header-select:focus{border-color:#3b82f6;}
@@ -681,7 +706,8 @@ tbody tr:last-child td{border-bottom:none;}
   <div id="page-fms-tasks" class="page">
     <div class="page-header">
       <h2>FMS Tasks</h2>
-      <div id="fmsTasksRefreshBtn" style="display:none">
+      <div id="fmsTasksRefreshBtn" style="display:none;gap:8px;align-items:center">
+        <button class="btn btn-outline btn-sm" onclick="downloadAllStepsCSV()" id="fmsTaskCSVBtn" title="Download CSV of all steps' pending tasks">📥 CSV (All Steps)</button>
         <button class="btn btn-outline btn-sm" onclick="loadFMSTasks()">🔄 Refresh</button>
       </div>
     </div>
@@ -3324,13 +3350,13 @@ async function logout() {
   window.location.replace('/');
 }
 
-function showToast(msg,type='success') {
+function showToast(msg,type='success',duration=3000) {
   const t=document.createElement('div');
   const bg=type==='error'?'#dc2626':'#1e293b';
-  t.style.cssText=`position:fixed;bottom:24px;right:24px;background:${bg};color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.2);animation:fadeIn .3s ease`;
+  t.style.cssText=`position:fixed;bottom:24px;right:24px;max-width:90vw;word-break:break-all;background:${bg};color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.2);animation:fadeIn .3s ease`;
   t.textContent=msg;
   document.body.appendChild(t);
-  setTimeout(()=>t.remove(),3000);
+  setTimeout(()=>t.remove(),duration);
 }
 
 // ══════════════════════════════════════════════════════
@@ -5161,7 +5187,7 @@ let fmsTasksActiveStepData = null;
 let fmsTrainPaused = false;
 
 async function loadFMSTasks() {
-  document.getElementById('fmsTasksRefreshBtn').style.display = 'block';
+  document.getElementById('fmsTasksRefreshBtn').style.display = 'flex';
   const sel = document.getElementById('fmsTasksSelect');
   const trainContainer = document.getElementById('fmsTrainContainer');
   const stepPanel = document.getElementById('fmsTaskStepPanel');
@@ -5314,6 +5340,8 @@ async function loadFMSTaskRows() {
   // Store rows in memory for modal + search
   window._fmsCurrentRows = r.rows;
   window._fmsCurrentColKeys = colKeys;
+  // Reset per-column filters on every fresh load
+  window._fmsColFilters = {};
 
   document.getElementById('fmsTaskRowsContainer').innerHTML = `
     <div class="fms-search-bar">
@@ -5326,11 +5354,17 @@ async function loadFMSTaskRows() {
     <div class="fms-step-rows-table">
       <div class="fms-step-rows-scroll" id="fmsRowsScroll">
         <table>
-          <thead><tr>
-            <th>Action</th>
-            ${colKeys.map(k => `<th>${k}</th>`).join('')}
-            <th>Status</th>
-          </tr></thead>
+          <thead>
+            <tr>
+              <th>Action</th>
+              ${colKeys.map(k => {
+                const text = _fmsEscHtml(k);
+                const attr = _fmsEscAttr(k);
+                return `<th>${text}<span class="fms-col-filter-icon" data-col="${attr}" onclick="openFMSColFilter(event,this.dataset.col)" title="Filter ${attr}">▾</span></th>`;
+              }).join('')}
+              <th>Status</th>
+            </tr>
+          </thead>
           <tbody id="fmsRowsTbody"></tbody>
         </table>
       </div>
@@ -5360,13 +5394,28 @@ function renderFMSTaskRows(rowsToShow) {
   }).join('');
 }
 
-// Filter rows by search query (matches any data value, plan/actual value, header name)
+// Convert a cell value to the canonical string used by the per-column
+// filter (empty → "(blank)" so users can include/exclude empty cells).
+function _fmsCellKey(v) {
+  if (v == null) return '(blank)';
+  const s = String(v);
+  return s === '' ? '(blank)' : s;
+}
+
+// Filter rows by global search AND per-column dropdown filters. Both apply
+// together — a row must pass the global query AND every active column
+// filter (each column filter is a Set of accepted values, Sheets-style).
 function filterFMSTaskRows() {
   const q = (document.getElementById('fmsRowSearch')?.value || '').trim().toLowerCase();
   const all = window._fmsCurrentRows || [];
   const clearBtn = document.getElementById('fmsRowSearchClearBtn');
   if (clearBtn) clearBtn.style.display = q ? 'inline-block' : 'none';
-  const filtered = !q ? all : all.filter(row => {
+
+  const colFilters = window._fmsColFilters || {};
+  const colFilterKeys = Object.keys(colFilters);
+
+  const matchesGlobal = (row) => {
+    if (!q) return true;
     if ((row.planValue || '').toLowerCase().includes(q)) return true;
     if ((row.actualValue || '').toLowerCase().includes(q)) return true;
     const data = row.data || {};
@@ -5375,17 +5424,266 @@ function filterFMSTaskRows() {
       if (String(data[k] || '').toLowerCase().includes(q)) return true;
     }
     return false;
-  });
+  };
+  const matchesColumns = (row) => {
+    if (!colFilterKeys.length) return true;
+    const data = row.data || {};
+    for (const col of colFilterKeys) {
+      const allowedSet = colFilters[col];
+      if (!allowedSet.has(_fmsCellKey(data[col]))) return false;
+    }
+    return true;
+  };
+
+  const filtered = all.filter(r => matchesGlobal(r) && matchesColumns(r));
+  const anyFilter = !!q || colFilterKeys.length > 0;
   const countEl = document.getElementById('fmsRowSearchCount');
-  if (countEl) countEl.textContent = q
+  if (countEl) countEl.textContent = anyFilter
     ? `${filtered.length} of ${all.length} match`
     : `${all.length} row(s)`;
+  // Reflect active filters on the header icons (blue pill when filtered)
+  document.querySelectorAll('.fms-col-filter-icon').forEach(ic => {
+    ic.classList.toggle('active', !!colFilters[ic.dataset.col]);
+  });
   renderFMSTaskRows(filtered);
 }
 
 function clearFMSRowSearch() {
   const input = document.getElementById('fmsRowSearch');
   if (input) { input.value = ''; filterFMSTaskRows(); input.focus(); }
+}
+
+// ══════════════════════════════════════════════════════
+// Google Sheets-style per-column filter dropdown
+// State: window._fmsColFilters = { colName: Set<canonicalValue> }
+//        absent col = no filter (show all rows for that column)
+// ══════════════════════════════════════════════════════
+let _fmsCurrentFilterCol = null;
+let _fmsCurrentFilterDraft = null;       // Set being edited inside the popup
+let _fmsCurrentFilterUniqueValues = [];  // canonical sorted unique values
+
+// HTML text-content escape — safe for innerHTML insertion
+function _fmsEscHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+// HTML attribute-value escape — safe inside double-quoted attributes
+function _fmsEscAttr(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function openFMSColFilter(ev, col) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  // Lazy-bind the delegated change listener: the popup div is parsed AFTER
+  // the <script> block, so setupFMSColFilterListeners() ran too early at
+  // script-end. Calling it here (idempotent) guarantees it's wired up.
+  setupFMSColFilterListeners();
+  _fmsCurrentFilterCol = col;
+
+  // Unique values for this column across ALL loaded rows (not the currently-
+  // filtered view) — so toggling one filter doesn't shrink another's choices.
+  const allRows = window._fmsCurrentRows || [];
+  const valueSet = new Set();
+  for (const row of allRows) valueSet.add(_fmsCellKey((row.data || {})[col]));
+  _fmsCurrentFilterUniqueValues = Array.from(valueSet).sort((a,b) => {
+    if (a === '(blank)') return 1;
+    if (b === '(blank)') return -1;
+    return a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'});
+  });
+
+  // Initial draft = existing filter if any, otherwise everything ticked
+  const existing = (window._fmsColFilters || {})[col];
+  _fmsCurrentFilterDraft = new Set(existing ? existing : _fmsCurrentFilterUniqueValues);
+
+  const popup = document.getElementById('fmsColFilterPopup');
+  const iconRect = ev && ev.target ? ev.target.getBoundingClientRect() : null;
+  popup.style.display = 'block';
+  if (iconRect) {
+    const popupWidth = 280;
+    const left = Math.max(8, Math.min(iconRect.left, window.innerWidth - popupWidth - 8));
+    const top  = iconRect.bottom + window.scrollY + 4;
+    popup.style.left = left + 'px';
+    popup.style.top  = top  + 'px';
+  }
+
+  document.getElementById('fmsColFilterTitle').textContent = `Filter: ${col}`;
+  const searchInp = document.getElementById('fmsColFilterSearch');
+  searchInp.value = '';
+  renderFMSColFilterValues();
+  // Focus the search input for instant typing — mirrors Google Sheets UX
+  setTimeout(() => searchInp.focus(), 0);
+
+  // Click-outside to close (one-shot listener, removed on close)
+  setTimeout(() => document.addEventListener('mousedown', _fmsColFilterOutsideClick), 0);
+}
+
+function _fmsColFilterOutsideClick(e) {
+  const popup = document.getElementById('fmsColFilterPopup');
+  if (!popup || popup.style.display === 'none') return;
+  if (popup.contains(e.target)) return;
+  // Clicking another filter icon should open that one — let openFMSColFilter handle it
+  if (e.target.classList && e.target.classList.contains('fms-col-filter-icon')) return;
+  closeFMSColFilter();
+}
+
+function renderFMSColFilterValues() {
+  const q = (document.getElementById('fmsColFilterSearch')?.value || '').trim().toLowerCase();
+  const all = _fmsCurrentFilterUniqueValues;
+  const visible = q ? all.filter(v => v.toLowerCase().includes(q)) : all;
+  const container = document.getElementById('fmsColFilterValues');
+  const countEl = document.getElementById('fmsColFilterCount');
+  const selectedVisible = visible.filter(v => _fmsCurrentFilterDraft.has(v)).length;
+  if (countEl) countEl.textContent = `${selectedVisible} of ${visible.length} selected${q ? ' (filtered)' : ''}`;
+  if (!visible.length) {
+    container.innerHTML = '<div class="ff-empty">No matching values</div>';
+    return;
+  }
+  // Values go into a data-val attribute (always safe via _fmsEscAttr) and
+  // changes are picked up by the one-time delegated 'change' listener set
+  // on the values container in setupFMSColFilterListeners() — no fragile
+  // inline JS that has to escape user-data into a string literal.
+  container.innerHTML = visible.map(v => {
+    const checked = _fmsCurrentFilterDraft.has(v) ? 'checked' : '';
+    const valAttr = _fmsEscAttr(v);
+    const display = v === '(blank)'
+      ? '<i style="color:#94a3b8">(blank)</i>'
+      : _fmsEscHtml(v);
+    return `<label class="ff-val-item"><input type="checkbox" data-val="${valAttr}" ${checked}/><span class="ff-val-text" title="${valAttr}">${display}</span></label>`;
+  }).join('');
+}
+
+function toggleFMSColFilterValue(val, checked) {
+  if (checked) _fmsCurrentFilterDraft.add(val);
+  else _fmsCurrentFilterDraft.delete(val);
+  // Live update the "X of Y selected" count
+  const q = (document.getElementById('fmsColFilterSearch')?.value || '').trim().toLowerCase();
+  const all = _fmsCurrentFilterUniqueValues;
+  const visible = q ? all.filter(v => v.toLowerCase().includes(q)) : all;
+  const selectedVisible = visible.filter(v => _fmsCurrentFilterDraft.has(v)).length;
+  const countEl = document.getElementById('fmsColFilterCount');
+  if (countEl) countEl.textContent = `${selectedVisible} of ${visible.length} selected${q ? ' (filtered)' : ''}`;
+}
+
+function fmsColFilterSelectAll() {
+  const q = (document.getElementById('fmsColFilterSearch')?.value || '').trim().toLowerCase();
+  const all = _fmsCurrentFilterUniqueValues;
+  const visible = q ? all.filter(v => v.toLowerCase().includes(q)) : all;
+  for (const v of visible) _fmsCurrentFilterDraft.add(v);
+  renderFMSColFilterValues();
+}
+
+function fmsColFilterClear() {
+  const q = (document.getElementById('fmsColFilterSearch')?.value || '').trim().toLowerCase();
+  const all = _fmsCurrentFilterUniqueValues;
+  const visible = q ? all.filter(v => v.toLowerCase().includes(q)) : all;
+  for (const v of visible) _fmsCurrentFilterDraft.delete(v);
+  renderFMSColFilterValues();
+}
+
+function applyFMSColFilter() {
+  if (!_fmsCurrentFilterCol) return closeFMSColFilter();
+  if (!window._fmsColFilters) window._fmsColFilters = {};
+  // If everything is selected, it's the same as no filter — drop the key
+  // so the column icon goes back to the unfiltered (gray) state.
+  if (_fmsCurrentFilterDraft.size === _fmsCurrentFilterUniqueValues.length) {
+    delete window._fmsColFilters[_fmsCurrentFilterCol];
+  } else {
+    window._fmsColFilters[_fmsCurrentFilterCol] = new Set(_fmsCurrentFilterDraft);
+  }
+  closeFMSColFilter();
+  filterFMSTaskRows();
+}
+
+function closeFMSColFilter() {
+  const popup = document.getElementById('fmsColFilterPopup');
+  if (popup) popup.style.display = 'none';
+  document.removeEventListener('mousedown', _fmsColFilterOutsideClick);
+  _fmsCurrentFilterCol = null;
+  _fmsCurrentFilterDraft = null;
+}
+
+// Download a CSV combining pending rows from ALL steps of the current FMS.
+// Iterates window._fmsAllSteps and calls /rows for each; rows that error
+// (e.g. step missing actual_col) are skipped silently and counted.
+async function downloadAllStepsCSV() {
+  if (!fmsTasksActiveFmsId) { showToast('No FMS selected', 'error'); return; }
+  const steps = window._fmsAllSteps || [];
+  if (!steps.length) { showToast('No steps found for this FMS', 'error'); return; }
+
+  const btn = document.getElementById('fmsTaskCSVBtn');
+  const origText = btn.textContent;
+  btn.textContent = '⏳ Fetching...';
+  btn.disabled = true;
+
+  try {
+    // Fetch rows for every step in parallel
+    const results = await Promise.all(steps.map(async step => {
+      try {
+        const r = await api(`/api/fms-tasks/${fmsTasksActiveFmsId}/steps/${step.id}/rows`);
+        if (r.error || !Array.isArray(r.rows)) return { step, rows: [], err: r.error || 'no rows' };
+        return { step, rows: r.rows };
+      } catch (e) { return { step, rows: [], err: e.message }; }
+    }));
+
+    // Build the union of data column keys across all steps
+    const colSet = new Set();
+    for (const { rows } of results) {
+      for (const row of rows) {
+        for (const k of Object.keys(row.data || {})) colSet.add(k);
+      }
+    }
+    const cols = Array.from(colSet);
+
+    // RFC 4180-style CSV escaping
+    const esc = (v) => {
+      const s = String(v == null ? '' : v);
+      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+    };
+
+    const header = ['Step', 'Sheet Row', 'Plan', 'Actual', ...cols];
+    const lines = [header.map(esc).join(',')];
+    let totalRows = 0;
+    for (const { step, rows } of results) {
+      for (const row of rows) {
+        const data = row.data || {};
+        const line = [
+          step.step_name || '',
+          row.sheetRowNumber || '',
+          row.planValue || '',
+          row.actualValue || '',
+          ...cols.map(c => data[c] == null ? '' : data[c])
+        ];
+        lines.push(line.map(esc).join(','));
+        totalRows++;
+      }
+    }
+
+    // Prepend UTF-8 BOM so Excel opens the file with correct encoding
+    const csv = '﻿' + lines.join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    a.href = url;
+    a.download = `fms-all-steps-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    const failed = results.filter(r => r.err).length;
+    const msg = failed
+      ? `📥 Downloaded ${totalRows} rows from ${results.length - failed}/${results.length} steps (${failed} skipped)`
+      : `📥 Downloaded ${totalRows} rows across ${results.length} steps`;
+    showToast(msg);
+  } catch (err) {
+    showToast('CSV download failed: ' + err.message, 'error');
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
 }
 
 function openFMSDoneModal(rowIdx) {
@@ -5540,7 +5838,9 @@ async function saveFMSDone() {
   closeModal('fmsDoneModal');
   // Diagnostic: show exactly where it wrote + how many cells updated
   const where = (r.wroteTo && r.wroteTo.length) ? r.wroteTo.join(', ') : '?';
-  showToast(`✅ Saved! ${r.updatedCells || 0} cell(s) → ${where}`);
+  const sid = r.spreadsheetId ? r.spreadsheetId : '?';
+  showToast(`✅ ${r.updatedCells || 0} cell → ${where} | sheetID: ${sid}`, 'success', 12000);
+  console.log('FMS done write result:', JSON.stringify(r));
 
   // ── OPTIMISTIC REMOVE: Google Sheet se dobara load karne ki zaroorat nahi ──
   // Done hua row ko seedha memory se hataao aur table re-render karo
@@ -5956,8 +6256,39 @@ async function handleTransfer(id, action) {
   loadTransferBadge();
 }
 
+// Delegated listener for the FMS column-filter popup checkboxes — set up
+// once so values aren't escaped into inline onchange handlers.
+function setupFMSColFilterListeners() {
+  const valuesEl = document.getElementById('fmsColFilterValues');
+  if (!valuesEl || valuesEl._fmsBound) return;
+  valuesEl.addEventListener('change', (e) => {
+    const cb = e.target;
+    if (!cb || cb.tagName !== 'INPUT' || cb.type !== 'checkbox') return;
+    if (!('val' in cb.dataset)) return;
+    toggleFMSColFilterValue(cb.dataset.val, cb.checked);
+  });
+  valuesEl._fmsBound = true;
+}
+
 init();
 setDefaultMISDates();
+setupFMSColFilterListeners();
 </script>
+
+<!-- Google Sheets-style column filter popup (one shared instance, body-level) -->
+<div id="fmsColFilterPopup" class="fms-col-filter-popup" style="display:none" onclick="event.stopPropagation()">
+  <div class="ff-title" id="fmsColFilterTitle">Filter</div>
+  <input type="text" class="ff-search" id="fmsColFilterSearch" placeholder="🔍 Search values..." oninput="renderFMSColFilterValues()" autocomplete="off"/>
+  <div class="ff-actions">
+    <button onclick="fmsColFilterSelectAll()">✓ Select All</button>
+    <button onclick="fmsColFilterClear()">✕ Clear</button>
+  </div>
+  <div class="ff-count" id="fmsColFilterCount"></div>
+  <div class="ff-values" id="fmsColFilterValues"></div>
+  <div class="ff-footer">
+    <button class="ff-cancel" onclick="closeFMSColFilter()">Cancel</button>
+    <button class="ff-apply" onclick="applyFMSColFilter()">Apply</button>
+  </div>
+</div>
 </body>
 </html>

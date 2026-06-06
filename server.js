@@ -2048,7 +2048,9 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
     res.json({
       success: true,
       updatedCells: updated.totalUpdatedCells || 0,
-      wroteTo: batchData.map(d => d.range)
+      wroteTo: batchData.map(d => d.range),
+      spreadsheetId,
+      tabName
     });
   } catch (err) {
     console.error('FMS done write FAILED:', err.code, err.message);
