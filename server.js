@@ -396,6 +396,14 @@ setTimeout(() => {
 // ══════════════════════════════════════════════════════
 // MIDDLEWARE
 // ══════════════════════════════════════════════════════
+// Sirf YYYY-MM-DD format ki valid date return karta hai, warna null.
+// Iska use SQL me date interpolate karne se pehle hota hai taaki SQL
+// injection na ho (alasql ko raw string milti hai).
+function safeDate(v) {
+  if (typeof v !== 'string') return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+}
+
 function requireAuth(req, res, next) {
   const token = req.cookies?.token || req.headers['authorization']?.replace('Bearer ','');
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
@@ -526,6 +534,20 @@ async function computeFmsStats(hodDept = '', collectPending = false) {
   const [sheets] = await db.query('SELECT * FROM fms_sheets ORDER BY fms_name ASC');
   if (!sheets.length) return result;
 
+  // ── Har FMS sheet ke rows ko PARALLEL me pre-fetch karo ──
+  // Pehle ye loop ke andar ek-ek karke (sequentially) hota tha => 10-15
+  // sheets par 30+ sec lagta tha aur UI "Loading..." par atak jaati thi.
+  // Ab saari reads ek saath chalti hain (har read 60s cache me rehti hai).
+  // Calculation logic NEECHE bilkul same hai — sirf fetch parallel hua.
+  const rowsBySheet = new Map(); // sheet.id -> { rows } | { error: true }
+  await Promise.all(sheets.map(async sheet => {
+    try {
+      rowsBySheet.set(sheet.id, { rows: await fetchSheetRows(sheet) });
+    } catch (e) {
+      rowsBySheet.set(sheet.id, { error: true });
+    }
+  }));
+
   for (const sheet of sheets) {
     const fmsName = sheet.fms_name || sheet.sheet_name;
     const [steps] = await db.query('SELECT * FROM fms_steps WHERE fms_id=? ORDER BY step_order ASC', [sheet.id]);
@@ -544,15 +566,15 @@ async function computeFmsStats(hodDept = '', collectPending = false) {
       : steps;
     if (!activeSteps.length) continue;
 
-    let rows;
-    try {
-      rows = await fetchSheetRows(sheet);
-    } catch (e) {
+    // Pre-fetched rows uthao (upar parallel me fetch ho chuke).
+    const fetched = rowsBySheet.get(sheet.id);
+    if (!fetched || fetched.error) {
       // Silent 0 NAHI — error report karo taaki total achanak na badle
       result.errors.push(fmsName);
       result.perFms.push({ fmsId: sheet.id, fmsName, pending: 0, done: 0, total: 0, steps: [], error: 'Sheet read failed (try again)' });
       continue;
     }
+    const rows = fetched.rows;
 
     let fmsPending = 0, fmsDone = 0;
     const perStep = [];
@@ -731,8 +753,9 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
 
     // Stats + Table: aaj aur usse pehle ki pending tasks (due_date <= CURDATE())
     // PC: agar date range diya hai toh woh use karo
-    const dateClause = isPC && dateFrom && dateTo
-      ? `AND t.due_date BETWEEN '${dateFrom}' AND '${dateTo}'`
+    const df = safeDate(dateFrom), dt = safeDate(dateTo);
+    const dateClause = isPC && df && dt
+      ? `AND t.due_date BETWEEN '${df}' AND '${dt}'`
       : `AND t.due_date <= CURDATE()`;
 
     const taskType = req.query.taskType || 'both';
@@ -1409,6 +1432,26 @@ app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Export full MIS report into a Google Sheet tab ──
+// Frontend builds the report rows (reusing the same /api/mis* data the
+// page already renders) and sends them here. The tab name is FIXED
+// server-side ('MIS Report') so this endpoint can NEVER overwrite a DB
+// tab (users, tasks, fms_*, etc.). Admin/HOD/PC only.
+app.post('/api/mis/export-sheet', requireAuth, requireAdminOrHod, async (req, res) => {
+  try {
+    const { rows } = req.body || {};
+    if (!Array.isArray(rows) || !rows.length) {
+      return res.status(400).json({ error: 'No report rows provided' });
+    }
+    const TAB = 'MIS Report';
+    const result = await db.writeReportTab(TAB, rows);
+    res.json({ ok: true, tab: TAB, rows: result.rows });
+  } catch (err) {
+    console.error('MIS export-sheet error:', err);
+    res.status(500).json({ error: err.message || 'Sheet write failed' });
+  }
+});
+
 // ══════════════════════════════════════════════════════
 // EMPLOYEE RECORDS  (Admin / HOD / PC) — Plan vs Done
 // ──────────────────────────────────────────────────────
@@ -1594,9 +1637,9 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
 // ── PC: Users with pending tasks (for smart dropdown) ──
 app.get('/api/users/with-pending-tasks', requireAuth, async (req, res) => {
   try {
-    const { dateFrom, dateTo } = req.query;
+    const df = safeDate(req.query.dateFrom), dt = safeDate(req.query.dateTo);
     let dateFilter = 'AND t.due_date <= CURDATE()';
-    if (dateFrom && dateTo) dateFilter = `AND t.due_date BETWEEN '${dateFrom}' AND '${dateTo}'`;
+    if (df && dt) dateFilter = `AND t.due_date BETWEEN '${df}' AND '${dt}'`;
     const [rows] = await db.query(`
       SELECT DISTINCT u.id, u.name FROM users u
       WHERE u.id IN (
@@ -2236,7 +2279,7 @@ app.post('/api/week-plan', requireAuth, requireAdminOrHod, async (req, res) => {
   try {
     const { employeeId, startDate, targetCount, hodId, improvementPct } = req.body;
     if (!employeeId || !startDate) {
-      return res.json({ error: 'employeeId and startDate required' });
+      return res.status(400).json({ error: 'employeeId and startDate required' });
     }
     const impPct = (improvementPct !== undefined && improvementPct !== null && improvementPct !== '') ? parseInt(improvementPct) : null;
     const tCount = (targetCount !== undefined && targetCount !== null && targetCount !== '') ? parseInt(targetCount) : 0;
@@ -2305,7 +2348,7 @@ app.post('/api/week-plan', requireAuth, requireAdminOrHod, async (req, res) => {
       return res.json({ success: true });
     }
     console.error('  ❌ Week Plan save failed:', e);
-    res.json({ error: 'Failed to save plan' });
+    res.status(500).json({ error: 'Failed to save plan' });
   }
 });
 
@@ -2350,7 +2393,7 @@ app.get('/api/week-plan', requireAuth, requireAdminOrHod, async (req, res) => {
     res.json(rows);
   } catch (e) {
     console.error('  ❌ Week Plan fetch failed:', e.message);
-    res.json([]);
+    res.status(500).json([]);
   }
 });
 
@@ -2360,7 +2403,7 @@ app.get('/api/week-plan', requireAuth, requireAdminOrHod, async (req, res) => {
 app.get('/api/week-plan/history/:employeeId', requireAuth, requireAdminOrHod, async (req, res) => {
   try {
     const empId = parseInt(req.params.employeeId);
-    if (!empId) return res.json({ error: 'Invalid employeeId' });
+    if (!empId) return res.status(400).json({ error: 'Invalid employeeId' });
     // HOD sirf apne dept ke user ka history dekh sake
     if (req.session.role === 'hod') {
       const [me]  = await db.query('SELECT department FROM users WHERE id=?', [req.session.userId]);
@@ -2390,14 +2433,14 @@ app.get('/api/week-plan/history/:employeeId', requireAuth, requireAdminOrHod, as
     });
   } catch (e) {
     console.error('  ❌ Week Plan history fetch failed:', e.message);
-    res.json({ error: 'Failed to fetch history', plans: [] });
+    res.status(500).json({ error: 'Failed to fetch history', plans: [] });
   }
 });
 
 // ══════════════════════════════════════════════════════
 // DEBUG ENDPOINT (remove after fixing)
 // ══════════════════════════════════════════════════════
-app.get('/api/debug', async (req, res) => {
+app.get('/api/debug', requireAuth, requireAdmin, async (req, res) => {
   const result = { time: new Date().toISOString(), env: {}, db: {}, tables: {} };
   result.env = {
     NODE_ENV: process.env.NODE_ENV || '(not set)',

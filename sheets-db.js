@@ -767,8 +767,12 @@ async function flushNow() {
   try {
     while (_dirtyTables.size > 0) {
       const snapshot = Array.from(_dirtyTables);
-      _dirtyTables.clear();
+      // Pehle write karo; SUCCESS hone par hi dirty se hatao. Agar write
+      // fail hui (network/quota/auth) to ye tables dirty rehti hain taaki
+      // data lost na ho aur agle flush par dobara try ho. (Serverless par
+      // ye crucial hai — warna unflushed rows hamesha ke liye gayab.)
       await writeTablesToSheet(snapshot);
+      snapshot.forEach(t => _dirtyTables.delete(t));
     }
   } finally {
     _flushInProgress = false;
@@ -805,13 +809,63 @@ async function writeTablesToSheet(tables) {
     spreadsheetId: _spreadsheetId,
     requestBody: { valueInputOption: 'RAW', data }
   });
-  // Clear excess (only if there's any chance of leftover; quick API call)
-  try {
-    await api.spreadsheets.values.batchClear({
-      spreadsheetId: _spreadsheetId,
-      requestBody: { ranges: clearRanges }
+  // Clear excess trailing rows (jo purani table me the par ab nahi).
+  // Agar ye fail hua to SILENTLY swallow NAHI karte — warna delete kiye
+  // gaye rows sheet me reh jaate hain aur agle reload() par "resurrect" ho
+  // jaate hain. Throw karte hain taaki table dirty rahe aur flush retry kare
+  // (upar ka data write idempotent hai, dobara safe hai).
+  await api.spreadsheets.values.batchClear({
+    spreadsheetId: _spreadsheetId,
+    requestBody: { ranges: clearRanges }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// WRITE REPORT TAB — dump a 2D array into a standalone tab (e.g.
+// "MIS Report"). This tab is NOT part of the DB schema/TABLE_NAMES, so
+// init() / reload() / flush() never read or overwrite it. The tab is
+// created if missing, fully cleared, then filled. Safe to call anytime.
+// ══════════════════════════════════════════════════════════════════
+async function writeReportTab(title, rows) {
+  if (!_initialized) await init();
+  const api = await getApiClient();
+  const spreadsheetId = _spreadsheetId || getSpreadsheetId();
+  // A1 notation: tab names with spaces must be single-quoted (' escaped as '')
+  const quoted = `'${String(title).replace(/'/g, "''")}'`;
+
+  // Ensure the tab exists (re-check live metadata first in case it was
+  // created out-of-band, then create it if still missing).
+  if (!(title in _tabIdByName)) {
+    const meta = await api.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties' });
+    for (const s of meta.data.sheets || []) _tabIdByName[s.properties.title] = s.properties.sheetId;
+    if (!(title in _tabIdByName)) {
+      const resp = await api.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests: [{ addSheet: { properties: { title } } }] }
+      });
+      for (const reply of resp.data.replies || []) {
+        if (reply.addSheet) _tabIdByName[reply.addSheet.properties.title] = reply.addSheet.properties.sheetId;
+      }
+    }
+  }
+
+  // Clear old content, then write fresh values.
+  await api.spreadsheets.values.clear({ spreadsheetId, range: `${quoted}!A:ZZ` });
+  const safe = (rows || []).map(row => (Array.isArray(row) ? row : [row]).map(cell => {
+    if (cell === null || cell === undefined) return '';
+    let s = String(cell);
+    if (s.length > MAX_CELL_CHARS) s = s.slice(0, MAX_CELL_CHARS);
+    return s;
+  }));
+  if (safe.length) {
+    await api.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${quoted}!A1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: safe }
     });
-  } catch (_) { /* non-critical */ }
+  }
+  return { rows: safe.length };
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -838,6 +892,7 @@ module.exports = {
   execute: query,
   getConnection,
   flushNow,
+  writeReportTab,
   // Test / debug helpers
   _alasql: alasql,
   _schema: SCHEMA,

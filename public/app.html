@@ -802,6 +802,9 @@ tbody tr:last-child td{border-bottom:none;}
         <div style="align-self:flex-end">
           <button class="btn btn-outline" onclick="exportMIS()">⬇ Export CSV</button>
         </div>
+        <div style="align-self:flex-end">
+          <button id="misSheetBtn" class="btn btn-outline" onclick="exportMISToSheet()" title="Write the full MIS report into a 'MIS Report' tab in the Google Sheet">📄 Export to Google Sheet</button>
+        </div>
       </div>
       <div style="display:flex;gap:6px;margin-top:14px;">
         <div class="tab-group">
@@ -3781,6 +3784,105 @@ function exportMIS() {
     ].join(','));
   });
   downloadCSV(lines.join('\n'), `MIS_${misType}_${dateSuffix}.csv`);
+}
+
+// ── Export the FULL MIS report into a 'MIS Report' tab in the Google Sheet ──
+// Yahan hum saari MIS data (Delegation + Checklist + FMS + All) HAMESHA fresh
+// fetch karte hain — taaki kaunsa tab abhi khula hai us par depend na kare.
+// Phir ek 2D array (sections ke saath) bana ke server ko bhejte hain, jo use
+// sheet ke 'MIS Report' tab me likh deta hai.
+async function exportMISToSheet() {
+  const start = document.getElementById('misStart').value;
+  const end   = document.getElementById('misEnd').value;
+  if (!start || !end) { showToast('Please select start and end date','error'); return; }
+  if (start > end) { showToast('Start date must be before end date','error'); return; }
+
+  const btn = document.getElementById('misSheetBtn');
+  const oldText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Writing to Sheet…'; }
+
+  try {
+    // Saare datasets parallel fetch (existing tested endpoints reuse).
+    const [del, fms, all] = await Promise.all([
+      api(`/api/mis?start=${start}&end=${end}`),
+      api(`/api/mis/fms?start=${start}&end=${end}`),
+      api(`/api/mis/all?start=${start}&end=${end}`)
+    ]);
+
+    const firstErr = [del, fms, all].find(d => d && d.error);
+    if (firstErr) { showToast(firstErr.error, 'error'); return; }
+
+    const sc = v => (v === null || v === undefined) ? '—' : `${v}%`;
+    const rows = [];
+    rows.push([`MIS REPORT  —  ${start} to ${end}`]);
+    rows.push([`Generated: ${new Date().toLocaleString()}`]);
+    rows.push([]);
+
+    // ── Delegation MIS ──
+    rows.push(['DELEGATION MIS']);
+    rows.push(['Name','Total','Pending','Completed','Revised','Delayed','Score %']);
+    (del.delegation || []).forEach(r => {
+      rows.push([r.name, r.total||0, r.pending||0, r.completed||0, r.revised||0, r.delayed||0, sc(r.score)]);
+    });
+    if (!(del.delegation || []).length) rows.push(['No data found for this date range']);
+    rows.push([]);
+
+    // ── Checklist MIS ──
+    rows.push(['CHECKLIST MIS']);
+    rows.push(['Name','Total','Pending','Completed','Delayed','Score %']);
+    (del.checklist || []).forEach(r => {
+      rows.push([r.name, r.total||0, r.pending||0, r.completed||0, r.delayed||0, sc(r.score)]);
+    });
+    if (!(del.checklist || []).length) rows.push(['No data found for this date range']);
+    rows.push([]);
+
+    // ── FMS MIS (step-wise, jaise screenshot me) ──
+    rows.push(['FMS MIS']);
+    const fmsArr = Array.isArray(fms) ? fms : [];
+    if (!fmsArr.length) rows.push(['No FMS data found']);
+    fmsArr.forEach(f => {
+      rows.push([`📊 ${f.fmsName}`, '', `Total: ${f.total||0}`, `Pending: ${f.pending||0}`, `Done: ${f.done||0}`]);
+      rows.push(['Step','Doer(s)','Total','Pending','Done','Progress %']);
+      (f.steps || []).forEach(s => {
+        const prog = s.total > 0 ? Math.round((s.done/s.total)*100) + '%' : '—';
+        rows.push([`Step ${s.stepOrder}: ${s.stepName}`, s.doers||'', s.total||0, s.pending||0, s.done||0, prog]);
+      });
+      rows.push([]);
+    });
+    rows.push([]);
+
+    // ── All MIS (per-employee combined) ──
+    rows.push(['ALL MIS']);
+    rows.push([
+      'Employee','Department',
+      'Del Total','Del Pending','Del Completed','Del Revised','Del Delayed','Del Score %',
+      'Checklist Total','Checklist Pending','Checklist Completed','Checklist Delayed','Checklist Score %',
+      'FMS Total','FMS Pending','FMS Done','FMS Score %',
+      'Total All','Pending All','Completed All','Revised All','Delayed All','Overall Score %'
+    ]);
+    const allRows = Array.isArray(all) ? all : (all && Array.isArray(all.rows) ? all.rows : []);
+    allRows.forEach(emp => {
+      const d = emp.delegation || {}, c = emp.checklist || {}, f = emp.fms || {};
+      rows.push([
+        emp.name, emp.department || '',
+        d.total||0, d.pending||0, d.completed||0, d.revised||0, d.overdue||0, d.total>0?sc(d.score):'—',
+        c.total||0, c.pending||0, c.completed||0, c.overdue||0, c.total>0?sc(c.score):'—',
+        f.total||0, f.pending||0, f.done||0, (f.total>0 && f.score!=null)?sc(f.score):'—',
+        emp.totalAll||0, emp.pendingAll||0, emp.completedAll||0, emp.revisedAll||0, emp.overdueAll||0,
+        (emp.overallScore==null)?'—':`${emp.overallScore}%`
+      ]);
+    });
+    if (!allRows.length) rows.push(['No data found for this date range']);
+
+    const resp = await api('/api/mis/export-sheet', 'POST', { rows });
+    if (resp && resp.error) { showToast(resp.error, 'error'); return; }
+    showToast(`✅ MIS report Google Sheet ke "MIS Report" tab me likh diya (${resp.rows} rows)`);
+  } catch (e) {
+    console.error('exportMISToSheet error:', e);
+    showToast('Google Sheet me likhne me dikkat: ' + (e.message || 'unknown error'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = oldText; }
+  }
 }
 
 function renderFMSMIS(data) {
