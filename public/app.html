@@ -327,6 +327,44 @@ tbody tr:last-child td{border-bottom:none;}
 .flat-tasks-table{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow-x:auto;}
 .bulk-section{margin-top:20px;padding-top:16px;border-top:1px solid #f1f5f9;}
 .file-row{display:flex;align-items:center;gap:8px;margin-top:6px;}
+
+/* ══════════════════════════════════════
+   MOBILE RESPONSIVE  (≤768px)
+   Sirf mobile/phone pe asar karta hai — desktop bilkul same rehta hai.
+   (Auto-detect: chhoti screen = mobile view, badi screen = desktop view.)
+══════════════════════════════════════ */
+@media (max-width:768px){
+  /* Sidebar: patli icon-rail; touch par hover-expand band (warna aadhi screen dhak leta) */
+  .sidebar{width:54px;}
+  .sidebar:hover{width:54px;}
+  .logo-text,.nav-label-text,.su-info,.logout-label{display:none!important;}
+  .main{margin-left:54px;overflow-x:hidden;}
+  .topbar{padding:0 12px;height:54px;}
+  .topbar-title{font-size:16px;}
+  .page{padding:14px 12px;}
+  .page-header{flex-wrap:wrap;gap:10px;}
+  .page-header h2{font-size:18px;}
+
+  /* Dashboard: 3-col cards aur 2-col bottom ek column me stack */
+  .overview-cards{grid-template-columns:1fr;gap:10px;}
+  .ov-card{padding:14px 16px;}
+  .ov-card .number{font-size:26px;}
+  .dash-bottom{grid-template-columns:1fr;}
+  .dash-topbar{flex-wrap:wrap;gap:10px;}
+
+  /* Wide tables squish na hon — card ke andar horizontal scroll */
+  .task-table-card,.users-grid,.flat-tasks-table{overflow-x:auto;}
+  .task-table-card table,.users-grid table,.flat-tasks-table table{min-width:560px;}
+
+  /* Modals full-width + scrollable (inline max-width override karne ko !important) */
+  .modal{max-width:95vw!important;width:95vw;max-height:88vh;overflow-y:auto;}
+
+  /* Leave Tracker: search full-width ho jaaye apni line par */
+  #leaveSearch{min-width:0;width:100%;}
+  #leaveTeamFilters{gap:8px;}
+
+  .profile-card{padding:18px;}
+}
 </style>
 </head>
 <body>
@@ -376,6 +414,10 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="nav-item" id="nav-fms-tasks" onclick="navigate('fms-tasks',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M3 6h18M3 18h18"/></svg>
       <span class="nav-label-text">FMS Tasks</span>
+    </div>
+    <div class="nav-item" id="nav-leaves" onclick="navigate('leaves',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      <span class="nav-label-text">Leave Tracker</span>
     </div>
     <div class="nav-divider"></div>
     <div class="nav-item" onclick="navigate('profile',this)">
@@ -868,6 +910,106 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
   </div>
 
+  <!-- ── LEAVE TRACKER ── -->
+  <style>
+    .leave-chip{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #e2e8f0;background:#fff;color:#64748b;transition:all .15s;font-family:'Inter',sans-serif}
+    .leave-chip:hover{border-color:#cbd5e1}
+    .leave-chip.active{background:#fffbeb;border-color:#f59e0b;color:#b45309}
+    .leave-type-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:14px;display:inline-flex;align-items:center;gap:4px}
+    .leave-group{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:16px}
+    .leave-group-head{background:linear-gradient(90deg,#fef3c7,#fef9e7);padding:12px 18px;display:flex;justify-content:space-between;align-items:center}
+    .leave-row{padding:14px 18px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    .leave-input{padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;box-sizing:border-box}
+  </style>
+  <div id="page-leaves" class="page">
+    <div class="page-header">
+      <h2>Leave Tracker</h2>
+      <button class="btn btn-primary" onclick="openLeaveModal()" style="background:#f59e0b;border-color:#f59e0b">+ Apply for Leave</button>
+    </div>
+
+    <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:18px 20px">
+      <div style="font-size:13px;color:#64748b;margin-bottom:16px">
+        Apply for leave, work-from-home, or extra working.
+        <strong style="color:#b45309">Your approver: <span id="leaveApprover">—</span></strong>
+      </div>
+
+      <!-- My / Team tabs -->
+      <div style="display:flex;gap:4px;background:#f1f5f9;padding:3px;border-radius:8px;width:fit-content;margin-bottom:16px">
+        <div class="tab active" id="leaveTabMine" onclick="switchLeaveScope('mine',this)">👤 My Leaves</div>
+        <div class="tab" id="leaveTabTeam" onclick="switchLeaveScope('team',this)" style="display:none">👥 Team Leaves</div>
+      </div>
+
+      <!-- Status chips + search -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="leave-chip active" data-status="all" onclick="setLeaveStatus('all',this)">All</button>
+          <button class="leave-chip" data-status="pending" onclick="setLeaveStatus('pending',this)">🟡 Pending</button>
+          <button class="leave-chip" data-status="approved" onclick="setLeaveStatus('approved',this)">🟢 Approved</button>
+          <button class="leave-chip" data-status="rejected" onclick="setLeaveStatus('rejected',this)">🔴 Rejected</button>
+        </div>
+        <input type="text" id="leaveSearch" placeholder="🔍 Search by name / reason / type…" oninput="renderLeaves()"
+          class="leave-input" style="min-width:260px;border-radius:20px"/>
+      </div>
+
+      <!-- Team filter bar (admin only) -->
+      <div id="leaveTeamFilters" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;margin-bottom:14px">
+        <select id="leaveEmpFilter" onchange="renderLeaves()" class="leave-input" style="min-width:170px;background:#fff;cursor:pointer">
+          <option value="all">All Employees</option>
+        </select>
+        <input type="date" id="leaveDateFrom" onchange="renderLeaves()" class="leave-input"/>
+        <span style="color:#94a3b8;font-size:13px">to</span>
+        <input type="date" id="leaveDateTo" onchange="renderLeaves()" class="leave-input"/>
+        <button class="btn btn-outline btn-sm" onclick="clearLeaveFilters()">✕ Clear</button>
+        <span id="leaveSummary" style="margin-left:auto;font-size:12px;color:#64748b;font-weight:600"></span>
+      </div>
+
+      <div id="leavesList">
+        <div class="empty">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════
+     APPLY FOR LEAVE MODAL
+══════════════════════════════════════ -->
+<div class="modal-overlay" id="leaveModal">
+  <div class="modal" style="max-width:480px">
+    <h3>📅 Apply for Leave</h3>
+    <div class="alert error" id="leaveErr" style="display:none"></div>
+    <div style="margin-top:6px">
+      <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px">Type</label>
+      <select id="leaveType" onchange="onLeaveTypeChange()" class="leave-input" style="width:100%;background:#fff;cursor:pointer">
+        <option value="full_day">🛏️ Full Day Leave</option>
+        <option value="half_day">🌤️ Half Day Leave</option>
+        <option value="wfh">🏠 Work From Home</option>
+        <option value="extra_working">⚡ Extra Working</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:12px">
+      <div style="flex:1">
+        <label id="leaveStartLabel" style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px">From Date</label>
+        <input type="date" id="leaveStart" class="leave-input" style="width:100%"/>
+      </div>
+      <div style="flex:1" id="leaveEndWrap">
+        <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px">To Date</label>
+        <input type="date" id="leaveEnd" class="leave-input" style="width:100%"/>
+      </div>
+      <div style="flex:1;display:none" id="leaveHoursWrap">
+        <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px">Hours</label>
+        <input type="number" id="leaveHours" min="1" max="24" placeholder="e.g. 8" class="leave-input" style="width:100%"/>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:5px">Reason</label>
+      <textarea id="leaveReason" rows="3" placeholder="Reason likho…" class="leave-input" style="width:100%;resize:vertical"></textarea>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between;margin-top:18px">
+      <button class="btn btn-outline" onclick="closeModal('leaveModal')">Cancel</button>
+      <button class="btn btn-primary" id="leaveSubmitBtn" onclick="submitLeave()">Send Request</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -1834,7 +1976,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records'};
+const pageTitles = {dashboard:'Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1850,7 +1992,224 @@ function navigate(page, el) {
   if (page==='fms-tasks') loadFMSTasks();
   if (page==='mis') initMISDeptFilter();
   if (page==='records') loadRecords();
+  if (page==='leaves') loadLeaves();
   window.scrollTo(0,0);
+}
+
+// ══════════════════════════════════════════════════════
+// LEAVE TRACKER
+// ══════════════════════════════════════════════════════
+let _leaveData = [];
+let _leaveScope = 'mine';   // mine | team
+let _leaveStatus = 'all';
+let _leaveIsAdmin = false;
+
+const LEAVE_TYPES = {
+  full_day:      { label:'Full Day Leave', icon:'🛏️', bg:'#fef2f2', color:'#dc2626', border:'#fecaca' },
+  half_day:      { label:'Half Day Leave', icon:'🌤️', bg:'#fffbeb', color:'#d97706', border:'#fde68a' },
+  wfh:           { label:'Work From Home', icon:'🏠', bg:'#eff6ff', color:'#1d4ed8', border:'#bfdbfe' },
+  extra_working: { label:'Extra Working',  icon:'⚡', bg:'#f0fdf4', color:'#16a34a', border:'#bbf7d0' }
+};
+
+async function loadLeaves() {
+  const list = document.getElementById('leavesList');
+  list.innerHTML = `<div class="empty" style="padding:30px;color:#94a3b8">Loading…</div>`;
+  const r = await api('/api/leaves');
+  if (r.error) { list.innerHTML = `<div class="empty" style="padding:30px;color:#dc2626">${r.error}</div>`; return; }
+  _leaveData = r.leaves || [];
+  _leaveIsAdmin = !!r.isAdmin;
+  document.getElementById('leaveApprover').textContent = r.approverName || 'Admin';
+  document.getElementById('leaveTabTeam').style.display = _leaveIsAdmin ? '' : 'none';
+  if (!_leaveIsAdmin) _leaveScope = 'mine';
+  // Admin employee filter dropdown — distinct users jinki leaves hain
+  if (_leaveIsAdmin) {
+    const sel = document.getElementById('leaveEmpFilter');
+    const cur = sel.value;
+    const seen = new Map();
+    _leaveData.forEach(l => { if (!seen.has(l.user_id)) seen.set(l.user_id, l.user_name); });
+    sel.innerHTML = '<option value="all">All Employees</option>' +
+      [...seen.entries()].sort((a,b)=>String(a[1]||'').localeCompare(String(b[1]||'')))
+        .map(([id,name])=>`<option value="${id}">${name||'Unknown'}</option>`).join('');
+    if ([...sel.options].some(o=>o.value===cur)) sel.value = cur;
+  }
+  renderLeaves();
+}
+
+function switchLeaveScope(scope, el) {
+  _leaveScope = scope;
+  document.getElementById('leaveTabMine').classList.toggle('active', scope==='mine');
+  document.getElementById('leaveTabTeam').classList.toggle('active', scope==='team');
+  document.getElementById('leaveTeamFilters').style.display = (scope==='team' && _leaveIsAdmin) ? 'flex' : 'none';
+  renderLeaves();
+}
+
+function setLeaveStatus(status, el) {
+  _leaveStatus = status;
+  document.querySelectorAll('.leave-chip').forEach(c=>c.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderLeaves();
+}
+
+function clearLeaveFilters() {
+  document.getElementById('leaveEmpFilter').value = 'all';
+  document.getElementById('leaveDateFrom').value = '';
+  document.getElementById('leaveDateTo').value = '';
+  renderLeaves();
+}
+
+function leaveDays(l) {
+  if (l.type === 'extra_working') return 0;
+  if (l.type === 'half_day') return 0.5;
+  const d1 = new Date((l.start_date||'')+'T00:00:00');
+  const d2 = new Date((l.end_date||l.start_date||'')+'T00:00:00');
+  let n = Math.round((d2-d1)/86400000) + 1;
+  return (isNaN(n) || n < 1) ? 1 : n;
+}
+
+function leaveDuration(l) {
+  if (l.type === 'extra_working') { const h = parseInt(l.hours)||0; return h ? `${h}h` : '—'; }
+  if (l.type === 'half_day') return 'Half day';
+  const n = leaveDays(l);
+  return n === 1 ? '1 day' : `${n} days`;
+}
+
+function renderLeaves() {
+  let rows = _leaveData.slice();
+  if (_leaveScope === 'mine') rows = rows.filter(l => String(l.user_id) === String(ME.id));
+  if (_leaveStatus !== 'all') rows = rows.filter(l => (l.status||'pending') === _leaveStatus);
+  if (_leaveScope === 'team' && _leaveIsAdmin) {
+    const emp = document.getElementById('leaveEmpFilter').value;
+    const from = document.getElementById('leaveDateFrom').value;
+    const to = document.getElementById('leaveDateTo').value;
+    if (emp && emp !== 'all') rows = rows.filter(l => String(l.user_id) === String(emp));
+    if (from) rows = rows.filter(l => (l.start_date||'') >= from);
+    if (to) rows = rows.filter(l => (l.start_date||'') <= to);
+  }
+  const q = (document.getElementById('leaveSearch').value||'').toLowerCase().trim();
+  if (q) rows = rows.filter(l =>
+    (l.user_name||'').toLowerCase().includes(q) ||
+    (l.reason||'').toLowerCase().includes(q) ||
+    ((LEAVE_TYPES[l.type]&&LEAVE_TYPES[l.type].label)||'').toLowerCase().includes(q)
+  );
+
+  const summ = document.getElementById('leaveSummary');
+  if (_leaveScope === 'team' && _leaveIsAdmin) {
+    const emps = new Set(rows.map(l=>l.user_id)).size;
+    const totalDays = rows.reduce((a,l)=>a+leaveDays(l),0);
+    summ.textContent = `${rows.length} leaves · ${emps} employees · ${totalDays} days`;
+  } else summ.textContent = '';
+
+  const list = document.getElementById('leavesList');
+  if (!rows.length) { list.innerHTML = `<div class="empty" style="padding:40px;color:#94a3b8;background:#fff;border-radius:12px;border:1px solid #e2e8f0">No leaves found</div>`; return; }
+
+  const groups = new Map();
+  rows.forEach(l => {
+    if (!groups.has(l.user_id)) groups.set(l.user_id, { name:l.user_name, dept:l.department, items:[] });
+    groups.get(l.user_id).items.push(l);
+  });
+
+  list.innerHTML = [...groups.values()].map(g => `
+    <div class="leave-group">
+      <div class="leave-group-head">
+        <strong style="font-size:14px;color:#1e293b">${g.name||'Unknown'}</strong>
+        <span style="font-size:12px;color:#92400e;font-weight:600">${g.dept||''}</span>
+      </div>
+      ${g.items.map(renderLeaveRow).join('')}
+    </div>`).join('');
+}
+
+function renderLeaveRow(l) {
+  const t = LEAVE_TYPES[l.type] || { label:l.type, icon:'📅', bg:'#f1f5f9', color:'#475569', border:'#e2e8f0' };
+  const st = (l.status||'pending');
+  const stColors = { pending:['#fef3c7','#b45309'], approved:['#dcfce7','#16a34a'], rejected:['#fee2e2','#dc2626'] };
+  const sc = stColors[st] || stColors.pending;
+  const canDelete = _leaveIsAdmin || String(l.user_id) === String(ME.id);
+  const single = (l.type==='extra_working' || l.type==='half_day' || l.start_date===l.end_date);
+  const dateRange = single ? fmtDate(l.start_date) : `${fmtDate(l.start_date)} · ${fmtDate(l.end_date)}`;
+  let meta = `Applied: ${l.applied_at||'—'}`;
+  if (st === 'pending') meta += ` · Approver: ${document.getElementById('leaveApprover').textContent}`;
+  else meta += ` · Decided by: ${l.decided_by_name||'—'}${l.decided_at?` · Decided: ${l.decided_at}`:''}`;
+  if (l.decision_note) meta += ` · Note: ${l.decision_note}`;
+
+  const adminActions = (_leaveIsAdmin && st==='pending') ? `
+    <button class="btn btn-sm" style="background:#16a34a;color:#fff" onclick="decideLeave(${l.id},'approved')">✓ Approve</button>
+    <button class="btn btn-sm" style="background:#dc2626;color:#fff;margin-left:6px" onclick="decideLeave(${l.id},'rejected')">✕ Reject</button>` : '';
+
+  return `
+    <div class="leave-row">
+      <div style="flex:1;min-width:240px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+          <span class="leave-type-badge" style="background:${t.bg};color:${t.color};border:1px solid ${t.border}">${t.icon} ${t.label}</span>
+          <span class="leave-type-badge" style="background:${sc[0]};color:${sc[1]};text-transform:uppercase">${st}</span>
+        </div>
+        <div style="font-size:14px;color:#1e293b;margin-bottom:4px">${l.reason||'—'}</div>
+        <div style="font-size:11px;color:#94a3b8">${meta}</div>
+      </div>
+      <div style="text-align:right;min-width:150px">
+        <div style="font-size:13px;font-weight:700;color:#b45309;margin-bottom:6px">${dateRange} <span style="background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:10px;font-size:11px;margin-left:4px">${leaveDuration(l)}</span></div>
+        <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+          ${adminActions}
+          ${canDelete ? `<button class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#fecaca" onclick="deleteLeave(${l.id})">🗑 Delete</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+function openLeaveModal() {
+  document.getElementById('leaveErr').style.display = 'none';
+  document.getElementById('leaveType').value = 'full_day';
+  document.getElementById('leaveStart').value = '';
+  document.getElementById('leaveEnd').value = '';
+  document.getElementById('leaveHours').value = '';
+  document.getElementById('leaveReason').value = '';
+  onLeaveTypeChange();
+  document.getElementById('leaveModal').classList.add('open');
+}
+
+function onLeaveTypeChange() {
+  const type = document.getElementById('leaveType').value;
+  const single = (type==='half_day' || type==='extra_working');
+  document.getElementById('leaveEndWrap').style.display = single ? 'none' : '';
+  document.getElementById('leaveHoursWrap').style.display = (type==='extra_working') ? '' : 'none';
+  document.getElementById('leaveStartLabel').textContent = single ? 'Date' : 'From Date';
+}
+
+async function submitLeave() {
+  const err = document.getElementById('leaveErr');
+  err.style.display = 'none';
+  const type = document.getElementById('leaveType').value;
+  const startDate = document.getElementById('leaveStart').value;
+  const endDate = document.getElementById('leaveEnd').value;
+  const hours = document.getElementById('leaveHours').value;
+  const reason = document.getElementById('leaveReason').value.trim();
+  const single = (type==='half_day' || type==='extra_working');
+  if (!startDate) { err.textContent='Date select karein'; err.style.display='block'; return; }
+  if (type==='extra_working' && !hours) { err.textContent='Hours bharein'; err.style.display='block'; return; }
+  if (!reason) { err.textContent='Reason likhein'; err.style.display='block'; return; }
+  if (!single && endDate && endDate < startDate) { err.textContent='To date, From se pehle nahi ho sakti'; err.style.display='block'; return; }
+  const btn = document.getElementById('leaveSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const r = await api('/api/leaves','POST',{ type, reason, startDate, endDate: single ? startDate : (endDate||startDate), hours });
+  btn.disabled = false; btn.textContent = 'Send Request';
+  if (r.error) { err.textContent = r.error; err.style.display='block'; return; }
+  closeModal('leaveModal');
+  showToast('✅ Leave request bhej di gayi!');
+  loadLeaves();
+}
+
+async function decideLeave(id, decision) {
+  const r = await api(`/api/leaves/${id}/decision`,'PUT',{ decision });
+  if (r.error) { showToast(r.error,'error'); return; }
+  showToast(decision==='approved' ? '✅ Approved' : '❌ Rejected');
+  loadLeaves();
+}
+
+async function deleteLeave(id) {
+  if (!confirm('Ye leave request delete karein?')) return;
+  const r = await api(`/api/leaves/${id}`,'DELETE');
+  if (r.error) { showToast(r.error,'error'); return; }
+  showToast('🗑 Deleted');
+  loadLeaves();
 }
 
 // ══════════════════════════════════════════════════════
@@ -1920,12 +2279,11 @@ async function loadDashboard() {
         <button class="btn btn-green" onclick="openChecklist()">+ Checklist</button>
         <button class="btn btn-primary" onclick="openDelegate()">+ Delegate</button>`;
     } else if (isHod) {
+      // Delegation sirf admin kar sakta hai — HOD ke paas sirf Checklist.
       document.getElementById('dashBtns').innerHTML = `
-        <button class="btn btn-green" onclick="openChecklist()">+ Checklist</button>
-        <button class="btn btn-primary" onclick="openDelegate()">+ Delegate</button>`;
+        <button class="btn btn-green" onclick="openChecklist()">+ Checklist</button>`;
     } else if (ME.role === 'user') {
-      document.getElementById('dashBtns').innerHTML = `
-        <button class="btn btn-primary" onclick="openDelegate()">+ Assign Task</button>`;
+      document.getElementById('dashBtns').innerHTML = ``;
     }
   }
 
@@ -2267,10 +2625,10 @@ function renderDashTable(tasks, type) {
       <td>
         ${t.waiting_approval==1 ? `
           <span style="font-size:11px;color:#f59e0b;font-weight:600">⏳ Waiting Approval</span>
-          ${(!isPC || t.type==='checklist') ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}')">Done</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin') ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}')">Done</button>` : ''}
         ` : `
-          ${(!isPC || t.type==='checklist') ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}')">Done</button>` : ''}
-          ${(!isPC && t.type!=='checklist') ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${t.type}')">Revise</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin') ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}')">Done</button>` : ''}
+          ${(t.type!=='checklist' && ME.role==='admin') ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${t.type}')">Revise</button>` : ''}
         `}
       </td>
     </tr>`).join('');
@@ -2292,9 +2650,9 @@ async function loadAllTasks() {
   const isUser = ME.role==='user';
   const isDesktop = window.innerWidth >= 768;
 
-  // Show/hide assign task button based on role
+  // Show/hide assign task button — delegation sirf admin kar sakta hai
   const assignBtn = document.getElementById('tasksAssignBtn');
-  if (assignBtn) assignBtn.style.display = (isAdmin || isHod || isUser) ? '' : 'none';
+  if (assignBtn) assignBtn.style.display = isAdmin ? '' : 'none';
 
   // Delegate by Me button — sirf un users ko dikhao jo task assign kar sakte hain
   const dbmBtn = document.getElementById('delegateByMeBtn');
@@ -2404,13 +2762,17 @@ function renderTasksTable() {
     const isCompleted = t.status === 'completed';
     const isWaiting = t.waiting_approval == 1;
     const isChecklist = tasksType === 'checklist';
+    // Delegation task ko "Done" sirf admin kar sakta hai; checklist sab ke liye.
+    const canDone = isChecklist || ME.role === 'admin';
+    // Revise sirf delegation pe hota hai, aur ab wo bhi sirf admin kar sakta hai.
+    const canRevise = !isChecklist && ME.role === 'admin';
 
     const actionBtns = isAdmin ? `
       <button class="action-btn edit" style="padding:4px 7px" onclick="openEditTask(${t.id},'${tasksType}')" title="Edit">✏️</button>
       <button class="action-btn delete" style="padding:4px 7px;margin-left:3px" onclick="deleteTask(${t.id},'${tasksType}')" title="Delete">🗑</button>
       <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px;margin-left:3px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
-      ${!isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>` : ''}
-      ${!isChecklist && !isCompleted && !isWaiting ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
+      ${canDone && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>` : ''}
+      ${canRevise && !isCompleted && !isWaiting ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
       ${isWaiting ? `<span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     ` : (ME.role==='pc') ? `
       <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
@@ -2419,11 +2781,11 @@ function renderTasksTable() {
     ` : `
       <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
       ${!isCompleted && !isWaiting ? `
-        <button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>
-        ${!isChecklist ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
+        ${canDone ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>` : ''}
+        ${canRevise ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
       ` : ''}
       ${isWaiting ? `
-        <button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>
+        ${canDone ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>` : ''}
         <span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     `;
     return `<tr>
@@ -5815,24 +6177,8 @@ function openFMSDoneModal(rowIdx) {
   const actualStr = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   document.getElementById('fmsDoneActualDisplay').textContent = actualStr;
 
-  // Check delay: actual > plan = delayed
-  const planVal = (row.planValue || '').trim();
-  let isDelayed = false;
-  try {
-    // Try various date formats: DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, DD-MM-YYYY HH:MM:SS
-    let planDate;
-    const ddmmyyyy = planVal.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(.*)?$/);
-    const yyyymmdd = planVal.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(.*)?$/);
-    if (ddmmyyyy) {
-      const [, d, m, y, time=''] = ddmmyyyy;
-      planDate = new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}${time.replace(' ','T')||'T23:59:59'}`);
-    } else if (yyyymmdd) {
-      planDate = new Date(planVal);
-    }
-    if (planDate && !isNaN(planDate.getTime()) && now > planDate) isDelayed = true;
-  } catch(e) {}
-
-  document.getElementById('fmsDoneDelaySection').style.display = isDelayed ? 'block' : 'none';
+  // Delay reason ab nahi poochte — delay section hamesha hidden.
+  document.getElementById('fmsDoneDelaySection').style.display = 'none';
   document.getElementById('fmsDoneDelayReason').value = '';
 
   // Populate extra input fields based on step configuration
@@ -5890,12 +6236,8 @@ async function saveFMSDone() {
   const errEl = document.getElementById('fmsDoneErr');
   errEl.style.display = 'none';
 
-  const delaySection = document.getElementById('fmsDoneDelaySection');
-  let delayReason = '';
-  if (delaySection.style.display !== 'none') {
-    delayReason = document.getElementById('fmsDoneDelayReason').value.trim();
-    if (!delayReason) { errEl.textContent = 'Delay reason likhna zaroori hai!'; errEl.style.display = 'block'; return; }
-  }
+  // Delay reason ab optional/hata diya gaya — hamesha khaali bhejte hain.
+  const delayReason = '';
 
   const saveBtn = document.getElementById('fmsDoneSaveBtn') || document.querySelector('#fmsDoneModal .btn-green');
   saveBtn.textContent = '⏳ Saving...';

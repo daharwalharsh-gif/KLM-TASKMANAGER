@@ -46,10 +46,16 @@
     border-radius:20px;
     padding:44px 40px;
     width:420px;
+    max-width:92vw;
     box-shadow:0 20px 60px rgba(0,188,212,.12), 0 4px 20px rgba(0,0,0,.08);
     position:relative;
     z-index:1;
     animation: cardIn .6s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  /* Mobile: card padding kam taaki chhoti screen par theek dikhe */
+  @media (max-width:480px){
+    .login-wrap{ padding:30px 22px; }
+    .logo-img-wrap img{ width:160px; }
   }
   @keyframes cardIn {
     from { opacity:0; transform:translateY(30px) scale(.96); }

@@ -858,6 +858,10 @@ app.post('/api/tasks', requireAuth, async (req, res) => {
     // Admin, HOD and regular users can all assign to others; fallback to self if not specified
     const targetUser = (isAdmin || isHod || isUser) && assignedTo ? parseInt(assignedTo) : req.session.userId;
     if (!desc || !date) return res.status(400).json({ error: 'Description and date required' });
+    // Delegation tasks SIRF admin create kar sakta hai (checklist sab ke liye open).
+    if ((type||'checklist') === 'delegation' && !isAdmin) {
+      return res.status(403).json({ error: 'Only admin can delegate tasks' });
+    }
     if ((type||'checklist') === 'delegation') {
       // Approver: agar approverEmail diya hai to usse dhundo, warna logged-in user
       let assignedBy = req.session.userId;
@@ -910,6 +914,10 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
     const isAdmin = req.session.role === 'admin';
     const isPC = req.session.role === 'pc';
     const uid = req.session.userId;
+    // Delegation task ko Done/Revise (koi bhi status change) SIRF admin kar sakta hai.
+    if ((type||'delegation') === 'delegation' && !isAdmin) {
+      return res.status(403).json({ error: 'Only admin can manage delegation tasks' });
+    }
     const [rows] = await db.query(`SELECT * FROM ${table} WHERE id=?`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Task not found' });
     const task = rows[0];
@@ -2435,6 +2443,91 @@ app.get('/api/week-plan/history/:employeeId', requireAuth, requireAdminOrHod, as
     console.error('  ❌ Week Plan history fetch failed:', e.message);
     res.status(500).json({ error: 'Failed to fetch history', plans: [] });
   }
+});
+
+// ══════════════════════════════════════════════════════
+// LEAVE TRACKER  (apply / approve / list / delete)
+// Data Google Sheet ke "leave_tracker" tab me store hota hai.
+// type: full_day | half_day | wfh | extra_working
+// status: pending | approved | rejected
+// ──────────────────────────────────────────────────────
+
+// List leaves. Admin: sabki (filter ?employee= & ?status=). Baaki: sirf apni.
+app.get('/api/leaves', requireAuth, async (req, res) => {
+  try {
+    const isAdmin = req.session.role === 'admin';
+    const uid = req.session.userId;
+    const { employee, status } = req.query;
+    const where = [];
+    const params = [];
+    if (!isAdmin) { where.push('l.user_id = ?'); params.push(uid); }
+    else if (employee && employee !== 'all') { where.push('l.user_id = ?'); params.push(parseInt(employee)); }
+    if (status && status !== 'all') { where.push('l.status = ?'); params.push(status); }
+    const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const [rows] = await db.query(`
+      SELECT l.id, l.user_id, l.type, l.reason,
+             DATE_FORMAT(l.start_date,'%Y-%m-%d') AS start_date,
+             DATE_FORMAT(l.end_date,'%Y-%m-%d') AS end_date,
+             l.hours, l.status, l.applied_at, l.decided_by, l.decided_at, l.decision_note,
+             u.name AS user_name, u.department AS department,
+             d.name AS decided_by_name
+      FROM leave_tracker l
+      JOIN users u ON l.user_id = u.id
+      LEFT JOIN users d ON l.decided_by = d.id
+      ${whereSql}
+      ORDER BY l.applied_at DESC, l.id DESC`, params);
+    // "Your approver" = pehla admin
+    const [admins] = await db.query("SELECT name FROM users WHERE role='admin' ORDER BY id ASC LIMIT 1");
+    const approverName = (admins[0] && admins[0].name) || 'Admin';
+    res.json({ leaves: rows, approverName, isAdmin });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Apply for leave (koi bhi logged-in user apne liye)
+app.post('/api/leaves', requireAuth, async (req, res) => {
+  try {
+    const { type, reason, startDate, endDate, hours } = req.body;
+    const validTypes = ['full_day','half_day','wfh','extra_working'];
+    if (!validTypes.includes(type)) return res.status(400).json({ error: 'Invalid leave type' });
+    if (!startDate) return res.status(400).json({ error: 'Start date required' });
+    // half_day aur extra_working single-date hote hain; baaki me end_date optional (default start).
+    const end = (type === 'half_day' || type === 'extra_working') ? startDate : (endDate || startDate);
+    const hrs = type === 'extra_working' ? (parseInt(hours) || 0) : '';
+    if (type === 'extra_working' && !hrs) return res.status(400).json({ error: 'Hours required for extra working' });
+    await db.query(
+      `INSERT INTO leave_tracker (user_id,type,reason,start_date,end_date,hours,status) VALUES (?,?,?,?,?,?,?)`,
+      [req.session.userId, type, reason||'', startDate, end, String(hrs), 'pending']
+    );
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Approve / Reject — SIRF Admin
+app.put('/api/leaves/:id/decision', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { decision, note } = req.body;
+    if (!['approved','rejected'].includes(decision)) return res.status(400).json({ error: 'Invalid decision' });
+    const [r] = await db.query(`SELECT id FROM leave_tracker WHERE id=?`, [req.params.id]);
+    if (!r[0]) return res.status(404).json({ error: 'Leave not found' });
+    const nowTs = new Date().toISOString().slice(0,19).replace('T',' ');
+    await db.query(
+      `UPDATE leave_tracker SET status=?, decided_by=?, decided_at=?, decision_note=? WHERE id=?`,
+      [decision, req.session.userId, nowTs, note||'', req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Delete — owner apni ya admin koi bhi
+app.delete('/api/leaves/:id', requireAuth, async (req, res) => {
+  try {
+    const isAdmin = req.session.role === 'admin';
+    const [r] = await db.query(`SELECT user_id FROM leave_tracker WHERE id=?`, [req.params.id]);
+    if (!r[0]) return res.status(404).json({ error: 'Leave not found' });
+    if (!isAdmin && r[0].user_id !== req.session.userId) return res.status(403).json({ error: 'Not allowed' });
+    await db.query(`DELETE FROM leave_tracker WHERE id=?`, [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ══════════════════════════════════════════════════════

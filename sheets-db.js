@@ -73,6 +73,13 @@ const SCHEMA = {
   fms_extra_rows: {
     cols: ['id','step_id','row_label','col_letter','field_type','dropdown_options'],
     autoFill: {}
+  },
+  // Leave Tracker — user leave/WFH/extra-working applications. Admin approves.
+  // type: full_day | half_day | wfh | extra_working
+  // status: pending | approved | rejected
+  leave_tracker: {
+    cols: ['id','user_id','type','reason','start_date','end_date','hours','status','applied_at','decided_by','decided_at','decision_note'],
+    autoFill: { applied_at: 'NOW' }
   }
 };
 
@@ -95,7 +102,7 @@ const SHEET_DERIVED = {
 const INT_COLS = new Set([
   'id','assigned_to','assigned_by','user_id','task_id','requested_by','requested_to',
   'employee_id','hod_id','target_count','improvement_pct','fms_id','step_id','step_order',
-  'total_steps','header_row','from_user','to_user','waiting_approval','created_by'
+  'total_steps','header_row','from_user','to_user','waiting_approval','created_by','decided_by'
 ]);
 
 // ══════════════════════════════════════════════════════════════════
