@@ -85,6 +85,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#1e293b;min-height:
 }
 .topbar-title{font-size:18px;font-weight:700;color:#1e293b;}
 .topbar-right{display:flex;align-items:center;gap:8px;}
+/* Hamburger button — sirf mobile pe dikhta hai (media query me) */
+.mobile-menu-btn{display:none;background:none;border:none;font-size:22px;line-height:1;color:#1e293b;cursor:pointer;padding:4px 10px 4px 0;margin-right:4px;}
+/* Drawer backdrop — sirf mobile pe sidebar open hone par */
+.sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1050;}
+.sidebar-backdrop.open{display:block;}
 
 .btn{padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s;border:none;display:inline-flex;align-items:center;gap:6px;}
 .btn-primary{background:#1a56db;color:#fff;}.btn-primary:hover{background:#1648c0;}
@@ -334,12 +339,20 @@ tbody tr:last-child td{border-bottom:none;}
    (Auto-detect: chhoti screen = mobile view, badi screen = desktop view.)
 ══════════════════════════════════════ */
 @media (max-width:768px){
-  /* Sidebar: patli icon-rail; touch par hover-expand band (warna aadhi screen dhak leta) */
-  .sidebar{width:54px;}
-  .sidebar:hover{width:54px;}
-  .logo-text,.nav-label-text,.su-info,.logout-label{display:none!important;}
-  .main{margin-left:54px;overflow-x:hidden;}
-  .topbar{padding:0 12px;height:54px;}
+  /* Hamburger button dikhao */
+  .mobile-menu-btn{display:inline-flex;align-items:center;}
+
+  /* Sidebar -> professional slide-in drawer (poore labels ke saath, default off-screen) */
+  .sidebar{width:250px;transform:translateX(-100%);transition:transform .25s ease;z-index:1100;box-shadow:2px 0 18px rgba(0,0,0,.3);}
+  .sidebar.open{transform:translateX(0);}
+  .sidebar:hover{width:250px;}
+  /* Drawer ke andar saare labels hamesha visible (desktop ka hover-opacity override) */
+  .logo-text,.nav-label-text,.su-info,.logout-label{opacity:1!important;}
+  .nav-item{padding:12px 13px;font-size:14px;}
+
+  /* Main poori width le (sidebar ab overlay hai) */
+  .main{margin-left:0;overflow-x:hidden;}
+  .topbar{padding:0 12px;height:56px;}
   .topbar-title{font-size:16px;}
   .page{padding:14px 12px;}
   .page-header{flex-wrap:wrap;gap:10px;}
@@ -362,6 +375,8 @@ tbody tr:last-child td{border-bottom:none;}
   /* Leave Tracker: search full-width ho jaaye apni line par */
   #leaveSearch{min-width:0;width:100%;}
   #leaveTeamFilters{gap:8px;}
+  .leave-row{flex-direction:column;}
+  .leave-row > div:last-child{text-align:left!important;}
 
   .profile-card{padding:18px;}
 }
@@ -443,8 +458,10 @@ tbody tr:last-child td{border-bottom:none;}
 <!-- ══════════════════════════════════════
      MAIN
 ══════════════════════════════════════ -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
 <div class="main" id="mainContent">
   <div class="topbar">
+    <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Menu">☰</button>
     <div class="topbar-title" id="topbarTitle">Dashboard</div>
     <div class="topbar-right" id="topbarActions"></div>
   </div>
@@ -1993,7 +2010,22 @@ function navigate(page, el) {
   if (page==='mis') initMISDeptFilter();
   if (page==='records') loadRecords();
   if (page==='leaves') loadLeaves();
+  closeSidebar();   // mobile drawer band karo nav ke baad
   window.scrollTo(0,0);
+}
+
+// ── Mobile sidebar drawer toggle ──
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const bd = document.getElementById('sidebarBackdrop');
+  const open = sb.classList.toggle('open');
+  bd.classList.toggle('open', open);
+}
+function closeSidebar() {
+  const sb = document.getElementById('sidebar');
+  const bd = document.getElementById('sidebarBackdrop');
+  if (sb) sb.classList.remove('open');
+  if (bd) bd.classList.remove('open');
 }
 
 // ══════════════════════════════════════════════════════
