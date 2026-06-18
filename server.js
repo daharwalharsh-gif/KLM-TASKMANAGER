@@ -869,7 +869,10 @@ app.post('/api/tasks', requireAuth, async (req, res) => {
         const [aprRows] = await db.query('SELECT id FROM users WHERE email=? LIMIT 1', [approverEmail]);
         if (aprRows.length) assignedBy = aprRows[0].id;
       }
-      await db.query(`INSERT INTO delegation_tasks (description,assigned_to,assigned_by,due_date,status,priority,approval,remarks) VALUES (?,?,?,?,?,?,?,?)`, [desc, targetUser, assignedBy, date, 'pending', priority||'low', approval||'no', remarks||'']);
+      // created_at = sirf assigned DATE (timestamp nahi) — delegation ke liye.
+      // Explicitly diya hai taaki autoFill ka NOW (full timestamp) na lage.
+      const assignedDate = new Date().toISOString().slice(0,10);
+      await db.query(`INSERT INTO delegation_tasks (description,assigned_to,assigned_by,due_date,status,priority,approval,remarks,created_at) VALUES (?,?,?,?,?,?,?,?,?)`, [desc, targetUser, assignedBy, date, 'pending', priority||'low', approval||'no', remarks||'', assignedDate]);
       // 📧 Send delegation email (non-blocking — fire and forget)
       (async () => {
         const target = await getNotifyTarget(targetUser);
