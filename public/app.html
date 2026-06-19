@@ -2906,11 +2906,51 @@ function toggleBlock(header) { header.nextElementSibling.classList.toggle('open'
 // TASK ACTIONS
 // ══════════════════════════════════════════════════════
 async function updateStatus(id, status, from, type) {
-  const r = await api(`/api/tasks/${id}/status`,'PUT',{status, type: type || dashType});
+  const tType = type || dashType;
+
+  // Non-completed (safety) — purana behaviour (reload).
+  if (status !== 'completed') {
+    const r0 = await api(`/api/tasks/${id}/status`,'PUT',{status, type: tType});
+    if (r0.needsApproval) showToast('✅ Approval request sent to your manager!');
+    if (from==='dashboard') loadDashboard(); else loadAllTasks();
+    loadApprovalBadge();
+    return;
+  }
+
+  // ── OPTIMISTIC UI: row ko TURANT hatao/update karo, server ko background me bhejo ──
+  // Pehle har "Done" click pe poora dashboard/all-tasks reload hota tha (Google Sheets
+  // se 2-3 baar data aata tha) — isliye slow lagta tha. Ab click instant feel hota hai.
+  if (from === 'dashboard') {
+    if (window._lastDashTasks) {
+      window._lastDashTasks = window._lastDashTasks.filter(t => !(String(t.id) === String(id) && t.type === tType));
+      renderDashTable(window._lastDashTasks, dashType);
+    }
+    const pEl = document.getElementById('dPending'), cEl = document.getElementById('dCompleted');
+    if (pEl) pEl.textContent = Math.max(0, (parseInt(pEl.textContent) || 0) - 1);
+    if (cEl) cEl.textContent = (parseInt(cEl.textContent) || 0) + 1;
+    if (dashChartInst && dashChartInst.data && dashChartInst.data.datasets[0]) {
+      const dd = dashChartInst.data.datasets[0].data; // [completed, pending, revised]
+      dd[0] = (dd[0] || 0) + 1;
+      dd[1] = Math.max(0, (dd[1] || 0) - 1);
+      dashChartInst.update();
+    }
+  } else {
+    const t = allTasksData.find(x => String(x.id) === String(id));
+    if (t) { t.status = 'completed'; renderTasksTable(); }
+  }
+
+  // Server update background me (UI already update ho chuka hai).
+  const r = await api(`/api/tasks/${id}/status`,'PUT',{status, type: tType});
+  if (r.error) {
+    showToast(r.error, 'error');
+    if (from==='dashboard') loadDashboard(); else loadAllTasks(); // sahi state wapas laao
+    return;
+  }
   if (r.needsApproval) {
     showToast('✅ Approval request sent to your manager!');
+    if (from==='dashboard') loadDashboard(); else loadAllTasks(); // waiting state dikhao
+    return;
   }
-  if (from==='dashboard') loadDashboard(); else loadAllTasks();
   loadApprovalBadge();
 }
 
