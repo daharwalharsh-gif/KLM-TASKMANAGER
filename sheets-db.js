@@ -630,7 +630,15 @@ function injectAutoId(table, sql, params) {
     else if (ch === ')') depth--;
   }
   const tuples = tupleStarts.length || 1;
-  const startId = _nextId[table] || 1;
+  // Safety net: _nextId stale ho sakta hai (serverless per-request reload race).
+  // Naya id hamesha table ke ACTUAL max id se aage rakho taaki kisi existing id
+  // ko reuse na karein — warna duplicate id wale rows ban jaate the.
+  let actualMax = 0;
+  const _rows = alasql.tables[table] && alasql.tables[table].data;
+  if (_rows && _rows.length) {
+    for (const r of _rows) { const v = parseInt(r.id, 10); if (v > actualMax) actualMax = v; }
+  }
+  const startId = Math.max(_nextId[table] || 1, actualMax + 1);
   const newColsList = ['id', ...colsList];
 
   // Build new VALUES with id prepended in each tuple

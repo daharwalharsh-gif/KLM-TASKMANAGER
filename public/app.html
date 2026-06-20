@@ -1118,7 +1118,7 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <div class="modal-footer" style="justify-content:space-between;align-items:center">
       <button class="btn btn-outline" onclick="closeModal('delegateModal')">Close</button>
-      <button class="btn btn-primary" onclick="saveDelegate()">Assign</button>
+      <button class="btn btn-primary" onclick="saveDelegate()" id="delegateAssignBtn">Assign</button>
     </div>
     <!-- Bulk Upload -->
     <div class="bulk-section">
@@ -2956,8 +2956,14 @@ async function updateStatus(id, status, from, type) {
 
 async function deleteTask(id, type) {
   if (!confirm('Delete this task?')) return;
-  await api(`/api/tasks/${id}?type=${type||tasksType}`,'DELETE');
-  loadAllTasks();
+  const tType = type || tasksType;
+  // Optimistic: row ko TURANT view se hatao (pehle full reload hota tha — slow lagta
+  // tha jaise delete hi nahi hua). Server delete background me.
+  allTasksData = allTasksData.filter(t => String(t.id) !== String(id));
+  renderTasksTable();
+  const r = await api(`/api/tasks/${id}?type=${tType}`,'DELETE');
+  if (r && r.error) { showToast(r.error,'error'); loadAllTasks(); return; }
+  showToast('🗑 Task deleted');
 }
 
 // ══════════════════════════════════════════════════════
@@ -3161,7 +3167,13 @@ async function saveDelegate() {
   if (!date) { err.textContent='Please select a due date'; err.style.display='block'; return; }
   if (!assignedDate) { err.textContent='Please select an assigned date'; err.style.display='block'; return; }
   if (!desc) { err.textContent='Description is required'; err.style.display='block'; return; }
-  await api('/api/tasks','POST',{type:'delegation',desc,assignedTo:doer,date,priority,approval,approver,remarks,assignedDate});
+  // Button ko disable karo jab tak task ban na jaaye — double-click se DUPLICATE
+  // task ban jaate the (do POST request ek saath), wahi root problem thi.
+  const btn = document.getElementById('delegateAssignBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Assigning…'; }
+  const r = await api('/api/tasks','POST',{type:'delegation',desc,assignedTo:doer,date,priority,approval,approver,remarks,assignedDate});
+  if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
+  if (r && r.error) { err.textContent = r.error; err.style.display='block'; return; }
   closeModal('delegateModal');
   showToast('Task delegated successfully!');
   loadDashboard();
