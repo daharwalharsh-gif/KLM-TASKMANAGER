@@ -2534,6 +2534,32 @@ app.delete('/api/leaves/:id', requireAuth, async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════
+// ADMIN: Clear ALL delegation + checklist tasks (data wipe)
+// ──────────────────────────────────────────────────────
+// IMPORTANT: Manual Google-Sheet editing se data wapas aa jaata hai (app apni
+// in-memory copy ko sheet me overwrite kar deta hai). Isliye clearing app ke
+// through hi karni chahiye — tab serving instance ki memory bhi clear hoti hai
+// aur flush khaali sheet likhta hai. Admin-only + typed confirmation zaroori.
+app.post('/api/admin/clear-tasks', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { confirm, scope } = req.body || {};
+    if (confirm !== 'DELETE ALL') return res.status(400).json({ error: 'Type "DELETE ALL" to confirm' });
+    const result = {};
+    if (!scope || scope === 'both' || scope === 'delegation') {
+      const [d] = await db.query('SELECT COUNT(*) AS c FROM delegation_tasks');
+      await db.query('DELETE FROM delegation_tasks');
+      result.delegationDeleted = d[0].c;
+    }
+    if (!scope || scope === 'both' || scope === 'checklist') {
+      const [c] = await db.query('SELECT COUNT(*) AS c FROM checklist_tasks');
+      await db.query('DELETE FROM checklist_tasks');
+      result.checklistDeleted = c[0].c;
+    }
+    res.json({ success: true, ...result });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
 // DEBUG ENDPOINT (remove after fixing)
 // ══════════════════════════════════════════════════════
 app.get('/api/debug', requireAuth, requireAdmin, async (req, res) => {

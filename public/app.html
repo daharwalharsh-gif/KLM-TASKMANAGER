@@ -650,6 +650,8 @@ tbody tr:last-child td{border-bottom:none;}
         <button class="btn btn-primary" id="tasksAssignBtn" onclick="openDelegate()" style="display:none">+ Assign Task</button>
         <button class="btn btn-outline" id="bulkDeleteBtn" onclick="openBulkDeleteModal()"
           style="color:#dc2626;border-color:#fecaca;display:none">🗑 Bulk Delete</button>
+        <button class="btn btn-outline" id="clearAllBtn" onclick="clearAllTasks()"
+          style="color:#fff;background:#dc2626;border-color:#dc2626;display:none">⚠️ Clear ALL Data</button>
       </div>
     </div>
     <!-- Status filter tabs -->
@@ -1931,6 +1933,7 @@ async function init() {
       document.getElementById('nav-mis').style.display = 'flex';
       document.getElementById('nav-fms').style.display = 'flex';
       document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
+      const cab = document.getElementById('clearAllBtn'); if (cab) cab.style.display = 'inline-flex';
     }
     if (ME.role === 'hod') {
       // HOD ko MIS dikhta hai (apne department ka)
@@ -2952,6 +2955,18 @@ async function updateStatus(id, status, from, type) {
     return;
   }
   loadApprovalBadge();
+}
+
+// Admin: SAARA delegation + checklist data clear karo (app ke through, taaki
+// serving instance ki memory bhi clear ho aur Sheet me wapas restore na ho).
+async function clearAllTasks() {
+  const ans = prompt('⚠️ Ye SAARE Delegation + Checklist tasks PERMANENTLY delete kar dega.\n\nConfirm karne ke liye niche "DELETE ALL" type karein:');
+  if (ans !== 'DELETE ALL') { if (ans !== null) showToast('Confirmation match nahi hua — kuch delete nahi hua', 'error'); return; }
+  const r = await api('/api/admin/clear-tasks', 'POST', { confirm: 'DELETE ALL', scope: 'both' });
+  if (r.error) { showToast(r.error, 'error'); return; }
+  showToast(`✅ Cleared — delegation: ${r.delegationDeleted||0}, checklist: ${r.checklistDeleted||0}`, 'success', 8000);
+  loadAllTasks();
+  loadDashboard();
 }
 
 async function deleteTask(id, type) {
