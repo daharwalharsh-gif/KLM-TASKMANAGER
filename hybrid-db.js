@@ -1,9 +1,10 @@
 // ══════════════════════════════════════════════════════════════════
-// hybrid-db.js — split backend: some tables in PostgreSQL, rest in Sheets
+// hybrid-db.js — split backend: FMS in Sheets, everything else in Postgres
 // ──────────────────────────────────────────────────────────────────
-// • users + checklist_tasks  → PostgreSQL   (pg-db.js)
-// • everything else (FMS, delegation, approvals, week_plans, leave, …)
-//                            → Google Sheets (sheets-db.js)
+// • FMS tables (fms_sheets/steps/step_doers/extra_rows) → Google Sheets
+//   (they mirror external FMS process sheets — kept on Sheets on purpose)
+// • EVERYTHING else (users, checklist_tasks, delegation_tasks, approvals,
+//   comments, transfers, week_plans, leave_tracker) → PostgreSQL
 //
 // Both adapters share the SAME alasql in-memory singleton, so a query
 // can freely JOIN a Postgres table with a Sheets table — reads just run
@@ -22,10 +23,10 @@
 const pg = require('./pg-db');
 const sheets = require('./sheets-db');
 
-// Tables that live in PostgreSQL. Everything else lives in Google Sheets.
-const PG_TABLES = ['users', 'checklist_tasks'];
+// FMS tables stay on Google Sheets; everything else lives in PostgreSQL.
+const SHEET_TABLES = ['fms_sheets', 'fms_steps', 'fms_step_doers', 'fms_extra_rows'];
 const ALL_TABLES = Object.keys(pg._schema);
-const SHEET_TABLES = ALL_TABLES.filter(t => !PG_TABLES.includes(t));
+const PG_TABLES = ALL_TABLES.filter(t => !SHEET_TABLES.includes(t));
 const _pgSet = new Set(PG_TABLES);
 
 // Reuse the (identical) mutation-table detector from pg-db.

@@ -1,11 +1,11 @@
 // ══════════════════════════════════════════════════════════════════
 // migrate-sheets-to-pg.js — ONE-TIME migration for the hybrid split.
-// Copies the existing `users` and `checklist_tasks` data from the Google
-// Sheet into PostgreSQL (KLM-DB) so real users can still log in and see
-// their checklist after switching DB_BACKEND=hybrid.
+// Copies every NON-FMS table from the Google Sheet into PostgreSQL
+// (KLM-DB) so existing users, checklist, delegation, approvals, comments,
+// transfers, week-plans and leave data survive the switch to hybrid.
+// FMS tables are left untouched (they stay on Google Sheets).
 //
-// Safe to re-run: it does DELETE + re-INSERT of just these two tables.
-// FMS / delegation / everything else is NOT touched (stays in Sheets).
+// Safe to re-run: it does DELETE + re-INSERT of each migrated table.
 //
 // Run:  node migrate-sheets-to-pg.js
 // ══════════════════════════════════════════════════════════════════
@@ -13,8 +13,10 @@ require('dotenv').config();
 const sheets = require('./sheets-db');
 const { Pool } = require('pg');
 
-const TABLES = ['users', 'checklist_tasks'];
 const SCHEMA = sheets._schema;
+// Migrate everything except the FMS tables (those live on Sheets).
+const FMS_TABLES = ['fms_sheets', 'fms_steps', 'fms_step_doers', 'fms_extra_rows'];
+const TABLES = Object.keys(SCHEMA).filter(t => !FMS_TABLES.includes(t));
 
 function pgPool() {
   return new Pool({
@@ -52,6 +54,15 @@ const qIdent = n => '"' + String(n).replace(/"/g, '""') + '"';
         await client.query(`ALTER TABLE ${qIdent(table)} ADD COLUMN IF NOT EXISTS ${qIdent(c)} TEXT`);
       }
 
+      // SAFETY: agar PG me is table ka data pehle se hai to use OVERWRITE mat
+      // karo (warna deployed app se aaya naya data ud sakta hai). Sirf khaali
+      // tables migrate hote hain.
+      const existing = (await client.query(`SELECT COUNT(*)::int AS c FROM ${qIdent(table)}`)).rows[0].c;
+      if (existing > 0) {
+        console.log(`  ⏭️  ${table}: PG me pehle se ${existing} rows — skip (safe)`);
+        continue;
+      }
+
       // Replace contents.
       await client.query(`DELETE FROM ${qIdent(table)}`);
       const colSql = cols.map(qIdent).join(', ');
@@ -78,7 +89,7 @@ const qIdent = n => '"' + String(n).replace(/"/g, '""') + '"';
       console.log(`  ✅ ${table}: ${inserted} rows migrated to Postgres`);
     }
     await client.query('COMMIT');
-    console.log('\n  🎉 Migration complete. users + checklist_tasks are now in KLM-DB.');
+    console.log('\n  🎉 Migration complete. All non-FMS tables are now in KLM-DB.');
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('  ❌ Migration failed (rolled back):', err.message);
