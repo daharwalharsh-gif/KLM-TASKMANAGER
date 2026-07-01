@@ -85,6 +85,15 @@ const SCHEMA = {
 
 const TABLE_NAMES = Object.keys(SCHEMA);
 
+// Which tables THIS adapter owns (loads from + flushes to Google Sheets).
+// Default = all. In hybrid mode (hybrid-db.js) this is narrowed so that some
+// tables (e.g. users, checklist_tasks) live in Postgres instead. alasql is a
+// shared singleton so cross-backend JOINs still work — only load/flush scoped.
+let _managed = TABLE_NAMES.slice();
+function setManagedTables(list) {
+  if (Array.isArray(list) && list.length) _managed = list.filter(t => SCHEMA[t]);
+}
+
 // Derived "display" columns — sheet me extra dikhte hain par alasql me store nahi hote.
 // User-facing readability ke liye (e.g. YES/NO instead of 'completed'/'pending').
 // Init-time pe ignore hote hain (load only reads SCHEMA cols).
@@ -222,7 +231,7 @@ function getSpreadsheetId() {
 // total row count loaded.
 // ══════════════════════════════════════════════════════════════════
 async function loadAllTables(api) {
-  const ranges = TABLE_NAMES.map(t => `${t}!A:ZZ`);
+  const ranges = _managed.map(t => `${t}!A:ZZ`);
   const batchResp = await api.spreadsheets.values.batchGet({
     spreadsheetId: _spreadsheetId,
     ranges
@@ -230,8 +239,8 @@ async function loadAllTables(api) {
   const valueRanges = batchResp.data.valueRanges || [];
 
   let totalRows = 0;
-  for (let i = 0; i < TABLE_NAMES.length; i++) {
-    const table = TABLE_NAMES[i];
+  for (let i = 0; i < _managed.length; i++) {
+    const table = _managed[i];
     const cols = SCHEMA[table].cols;
     const rows = (valueRanges[i] && valueRanges[i].values) || [];
     if (rows.length <= 1) {
@@ -296,7 +305,7 @@ async function init() {
       // leaving it inconsistent and throwing "Something wrong with primary key
       // index on table" on later INSERTs (e.g. saving FMS steps). Uniqueness
       // is managed manually via the _nextId counter.
-      for (const t of TABLE_NAMES) {
+      for (const t of _managed) {
         const colsSql = SCHEMA[t].cols
           .map(c => `\`${c}\` ${c==='id' ? 'INT' : 'STRING'}`)
           .join(', ');
@@ -314,7 +323,7 @@ async function init() {
       }
 
       // 3. Missing tabs auto-create with headers
-      const missing = TABLE_NAMES.filter(t => !(t in _tabIdByName));
+      const missing = _managed.filter(t => !(t in _tabIdByName));
       if (missing.length) {
         console.log(`  📊 Creating ${missing.length} missing tab(s): ${missing.join(', ')}`);
         const requests = missing.map(t => ({
@@ -342,10 +351,11 @@ async function init() {
 
       // 4 + 5. Bulk load all tabs in ONE API call and populate alasql
       const totalRows = await loadAllTables(api);
-      console.log(`  ✅ Sheets DB loaded: ${totalRows} rows across ${TABLE_NAMES.length} tables`);
+      console.log(`  ✅ Sheets DB loaded: ${totalRows} rows across ${_managed.length} tables`);
 
       // 6. Seed default admin if users table is empty (PLAIN TEXT password)
-      const userCount = alasql('SELECT COUNT(*) AS c FROM users')[0].c;
+      //    Only when THIS adapter owns the users table (skip in hybrid where PG owns it).
+      const userCount = _managed.includes('users') ? alasql('SELECT COUNT(*) AS c FROM users')[0].c : 1;
       if (userCount === 0) {
         alasql(
           'INSERT INTO users (id,name,email,notification_email,password,role,phone,profile_image,department,week_off,extra_off) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
@@ -360,7 +370,7 @@ async function init() {
 
       // Mark derived-column tables dirty so existing sheets get the new
       // is_done column populated on first flush after deployment.
-      for (const t of Object.keys(SHEET_DERIVED)) markDirty(t);
+      for (const t of Object.keys(SHEET_DERIVED)) if (_managed.includes(t)) markDirty(t);
 
       // 7. Flush-on-exit — best-effort save before process exits
       const flushAndExit = async (sig) => {
@@ -908,6 +918,8 @@ module.exports = {
   getConnection,
   flushNow,
   writeReportTab,
+  setManagedTables,
+  detectMutationTable,
   // Test / debug helpers
   _alasql: alasql,
   _schema: SCHEMA,

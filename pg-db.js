@@ -83,6 +83,16 @@ const SCHEMA = {
 
 const TABLE_NAMES = Object.keys(SCHEMA);
 
+// Which tables THIS adapter owns (loads from + flushes to Postgres). Default
+// = all. In hybrid mode (hybrid-db.js) this is narrowed to e.g.
+// ['users','checklist_tasks'] so the rest can live on Google Sheets. The
+// alasql in-memory engine is a shared singleton, so cross-backend JOINs still
+// work — only load/flush is scoped to these tables.
+let _managed = TABLE_NAMES.slice();
+function setManagedTables(list) {
+  if (Array.isArray(list) && list.length) _managed = list.filter(t => SCHEMA[t]);
+}
+
 // Integer columns — DB se text/numeric aa sakti hain, alasql me daalne se
 // pehle parse karte hain taaki SQL me arithmetic/IN comparisons sahi chalein.
 const INT_COLS = new Set([
@@ -214,7 +224,7 @@ function qIdent(name) { return '"' + String(name).replace(/"/g, '""') + '"'; }
 // ══════════════════════════════════════════════════════════════════
 async function loadAllTables(pool) {
   let totalRows = 0;
-  for (const table of TABLE_NAMES) {
+  for (const table of _managed) {
     const cols = SCHEMA[table].cols;
     const colList = cols.map(qIdent).join(', ');
     let rows = [];
@@ -254,7 +264,7 @@ async function reload() {
 // INIT — ensure tables exist in PG, then load into alasql
 // ══════════════════════════════════════════════════════════════════
 async function ensureSchema(pool) {
-  for (const table of TABLE_NAMES) {
+  for (const table of _managed) {
     const cols = SCHEMA[table].cols;
     const colDefs = cols.map(c => {
       if (c === 'id') return `${qIdent(c)} INTEGER PRIMARY KEY`;
@@ -279,7 +289,7 @@ async function init() {
       // 1. Create alasql in-memory tables (id INT, rest STRING) — same as
       //    sheets-db: bulk load bypasses the PK index so `id` stays plain INT
       //    and uniqueness is managed via the _nextId counter.
-      for (const t of TABLE_NAMES) {
+      for (const t of _managed) {
         const colsSql = SCHEMA[t].cols
           .map(c => `\`${c}\` ${c==='id' ? 'INT' : 'STRING'}`)
           .join(', ');
@@ -289,12 +299,13 @@ async function init() {
       // 2. Ensure PG tables + columns exist
       await ensureSchema(pool);
 
-      // 3. Load all tables into alasql
+      // 3. Load managed tables into alasql
       const totalRows = await loadAllTables(pool);
-      console.log(`  ✅ PostgreSQL DB loaded: ${totalRows} rows across ${TABLE_NAMES.length} tables`);
+      console.log(`  ✅ PostgreSQL DB loaded: ${totalRows} rows across ${_managed.length} tables (${_managed.join(', ')})`);
 
       // 4. Seed default admin if users table is empty (PLAIN TEXT password)
-      const userCount = alasql('SELECT COUNT(*) AS c FROM users')[0].c;
+      //    Only when THIS adapter owns the users table.
+      const userCount = _managed.includes('users') ? alasql('SELECT COUNT(*) AS c FROM users')[0].c : 1;
       if (userCount === 0) {
         alasql(
           'INSERT INTO users (id,name,email,notification_email,password,role,phone,profile_image,department,week_off,extra_off) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
@@ -804,6 +815,8 @@ module.exports = {
   flushNow,
   writeReportTab,
   end,
+  setManagedTables,
+  detectMutationTable,
   // Test / debug helpers
   _alasql: alasql,
   _schema: SCHEMA,

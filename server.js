@@ -92,12 +92,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ══════════════════════════════════════════════════════
 // DATABASE — in-memory alasql engine backed by a persistence layer.
-// Default backend is PostgreSQL (pg-db.js). Set DB_BACKEND=sheets in .env
-// to fall back to the old Google Sheets adapter. Both expose the SAME
-// db.query / db.execute / db.getConnection API — server code is identical.
+// DB_BACKEND options:
+//   'hybrid' (default) — users + checklist_tasks in PostgreSQL, everything
+//                        else (FMS, delegation, approvals, …) in Google Sheets
+//   'pg'               — all tables in PostgreSQL
+//   'sheets'           — all tables in Google Sheets (original)
+// All three expose the SAME db.query / db.execute / db.getConnection API —
+// server code below is identical regardless of backend.
 // ══════════════════════════════════════════════════════
-const DB_BACKEND = (process.env.DB_BACKEND || 'pg').toLowerCase();
-const db = DB_BACKEND === 'sheets' ? require('./sheets-db') : require('./pg-db');
+const DB_BACKEND = (process.env.DB_BACKEND || 'hybrid').toLowerCase();
+const db = DB_BACKEND === 'sheets' ? require('./sheets-db')
+         : DB_BACKEND === 'pg'     ? require('./pg-db')
+         :                           require('./hybrid-db');
 // Schema is defined in the adapter — no runtime migrations needed.
 // init() loads all tables into the in-memory store on boot.
 const _dbReady = db.init()
