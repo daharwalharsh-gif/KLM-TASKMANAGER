@@ -2920,9 +2920,22 @@ async function updateStatus(id, status, from, type) {
     return;
   }
 
-  // ── OPTIMISTIC UI: row ko TURANT hatao/update karo, server ko background me bhejo ──
-  // Pehle har "Done" click pe poora dashboard/all-tasks reload hota tha (Google Sheets
-  // se 2-3 baar data aata tha) — isliye slow lagta tha. Ab click instant feel hota hai.
+  // ── SERVER-FIRST, phir INSTANT UI update ──
+  // Pehle row optimistically hataya jaata tha, phir background me PUT bheja
+  // jaata tha. Problem: agar PUT slow ho ya beech me dashboard reload ho jaaye
+  // to task DB me 'pending' hi rehta tha => "wapas" aa jaata tha ("done nahi
+  // hua / bar bar aata hai"). Ab pehle server CONFIRM karta hai (PUT khud fast
+  // hai — slow to sirf FMS reload tha jo Done par ab hota hi nahi), tab row
+  // turant hata dete hain. Koi race nahi, reappear nahi.
+  const r = await api(`/api/tasks/${id}/status`,'PUT',{status, type: tType});
+  if (r.error) { showToast(r.error, 'error'); return; }   // fail => row jaisi thi waisi rahe
+  if (r.needsApproval) {
+    showToast('✅ Approval request sent to your manager!');
+    if (from==='dashboard') loadDashboard(); else loadAllTasks(); // waiting state dikhao
+    loadApprovalBadge();
+    return;
+  }
+
   if (from === 'dashboard') {
     if (window._lastDashTasks) {
       window._lastDashTasks = window._lastDashTasks.filter(t => !(String(t.id) === String(id) && t.type === tType));
@@ -2939,20 +2952,7 @@ async function updateStatus(id, status, from, type) {
     }
   } else {
     const t = allTasksData.find(x => String(x.id) === String(id));
-    if (t) { t.status = 'completed'; renderTasksTable(); }
-  }
-
-  // Server update background me (UI already update ho chuka hai).
-  const r = await api(`/api/tasks/${id}/status`,'PUT',{status, type: tType});
-  if (r.error) {
-    showToast(r.error, 'error');
-    if (from==='dashboard') loadDashboard(); else loadAllTasks(); // sahi state wapas laao
-    return;
-  }
-  if (r.needsApproval) {
-    showToast('✅ Approval request sent to your manager!');
-    if (from==='dashboard') loadDashboard(); else loadAllTasks(); // waiting state dikhao
-    return;
+    if (t) { t.status = 'completed'; t.waiting_approval = 0; renderTasksTable(); }
   }
   loadApprovalBadge();
 }
