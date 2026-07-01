@@ -91,17 +91,24 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ══════════════════════════════════════════════════════
-// SHEETS DB — Google Sheets backed in-memory adapter
-// (drop-in replacement for mysql2 — same db.query / db.execute / db.getConnection API)
+// DATABASE — in-memory alasql engine backed by a persistence layer.
+// Default backend is PostgreSQL (pg-db.js). Set DB_BACKEND=sheets in .env
+// to fall back to the old Google Sheets adapter. Both expose the SAME
+// db.query / db.execute / db.getConnection API — server code is identical.
 // ══════════════════════════════════════════════════════
-const db = require('./sheets-db');
-// Schema is defined in sheets-db.js — no runtime migrations needed for Sheets.
-// init() loads all tabs into in-memory store on boot.
+const DB_BACKEND = (process.env.DB_BACKEND || 'pg').toLowerCase();
+const db = DB_BACKEND === 'sheets' ? require('./sheets-db') : require('./pg-db');
+// Schema is defined in the adapter — no runtime migrations needed.
+// init() loads all tables into the in-memory store on boot.
 const _dbReady = db.init()
-  .then(() => console.log('  ✅ Sheets DB ready'))
+  .then(() => console.log(`  ✅ Database ready (backend: ${DB_BACKEND})`))
   .catch(err => {
-    console.error('  ❌ Sheets DB init failed:', err.message);
-    console.error('  💡 Set GOOGLE_SHEET_ID in .env and share the sheet with the service account.');
+    console.error(`  ❌ Database init failed (backend: ${DB_BACKEND}):`, err.message);
+    if (DB_BACKEND === 'sheets') {
+      console.error('  💡 Set GOOGLE_SHEET_ID in .env and share the sheet with the service account.');
+    } else {
+      console.error('  💡 Set PG_HOST / PG_PORT / PG_USER / PG_PASSWORD / PG_DATABASE in .env.');
+    }
   });
 
 // ══════════════════════════════════════════════════════
