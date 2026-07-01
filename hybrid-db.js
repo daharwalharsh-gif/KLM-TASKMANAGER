@@ -29,27 +29,53 @@ const ALL_TABLES = Object.keys(pg._schema);
 const PG_TABLES = ALL_TABLES.filter(t => !SHEET_TABLES.includes(t));
 const _pgSet = new Set(PG_TABLES);
 
-// Reuse the (identical) mutation-table detector from pg-db.
+// Reuse the (identical) mutation-table detector + shared engine from pg-db.
 const detectMutationTable = pg.detectMutationTable;
+const alasql = pg._alasql;
+const SCHEMA = pg._schema;
+
+// Create the given tables in alasql (empty) so a query never throws
+// "table not found" while a backend is still loading in the background.
+function ensureAlasqlTables(tables) {
+  for (const t of tables) {
+    const cols = SCHEMA[t].cols.map(c => `\`${c}\` ${c === 'id' ? 'INT' : 'STRING'}`).join(', ');
+    alasql(`CREATE TABLE IF NOT EXISTS ${t} (${cols})`);
+  }
+}
 
 let _initPromise = null;
+let _sheetsReady = null;
 function init() {
   if (_initPromise) return _initPromise;
   _initPromise = (async () => {
     // Scope each adapter to the tables it owns BEFORE init runs.
     pg.setManagedTables(PG_TABLES);
     sheets.setManagedTables(SHEET_TABLES);
-    // Order matters only cosmetically; tables are disjoint. Run pg first so
-    // the admin-seed check (users) happens on the Postgres side.
+
+    // Pre-create ALL alasql tables (empty) so FMS queries return empty instead
+    // of erroring while the Sheets side is still loading below.
+    ensureAlasqlTables(ALL_TABLES);
+
+    // 1) PostgreSQL loads SYNCHRONOUSLY — the dashboard and every task table
+    //    live here and it's fast. This is all the first request waits on, so
+    //    it stays well under the Vercel serverless function timeout.
     await pg.init();
-    await sheets.init();
-    console.log(`  🔗 Hybrid DB ready — PG: [${PG_TABLES.join(', ')}]  Sheets: [${SHEET_TABLES.length} tables]`);
+
+    // 2) FMS (Google Sheets) is comparatively slow (~seconds) and rarely
+    //    changes. Load it in the BACKGROUND so it never blocks a request or
+    //    trips the serverless timeout. The FMS section fills in once ready.
+    _sheetsReady = sheets.init().catch(e => console.error('  ⚠️ Sheets (FMS) init failed:', e.message));
+    console.log(`  🔗 Hybrid DB ready — PG(${PG_TABLES.length} tables) sync, Sheets/FMS(${SHEET_TABLES.length}) loading in background`);
   })();
   return _initPromise;
 }
 
+// Per-request refresh (used on Vercel before each /api call). Only reload
+// Postgres — it holds all the task data and a DB read is fast. FMS metadata
+// rarely changes and lives on Sheets; reloading it every request would be slow
+// and burn Google quota, so we deliberately skip it here.
 async function reload() {
-  await Promise.all([pg.reload(), sheets.reload()]);
+  await pg.reload();
 }
 
 async function flushNow() {
