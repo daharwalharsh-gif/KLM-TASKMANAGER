@@ -133,8 +133,12 @@ const _dbReady = db.init()
 // ══════════════════════════════════════════════════════
 if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
   // 1. Reload-before — only for data routes (skip static assets).
+  //    Mutations (POST/PUT/DELETE/PATCH) pe force=true → TTL ignore, hamesha
+  //    fresh PG state se shuru ho (warna stale memory ka full-rewrite flush
+  //    dusre instance ka data mita deta — CSV bulk upload adhoora reh jaata tha).
   app.use('/api', async (req, res, next) => {
-    try { await db.reload(); }
+    const isMutation = req.method !== 'GET' && req.method !== 'HEAD';
+    try { await db.reload(isMutation); }
     catch (err) { console.error('  ❌ Pre-request reload failed:', err.message); }
     next();
   });

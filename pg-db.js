@@ -263,13 +263,17 @@ let _lastReloadTs = 0;
 
 // Force a fresh reload from PG. Skips while a flush is mid-flight or there
 // are unsaved writes, so we don't clobber pending changes.
-async function reload() {
+// force=true  → TTL ignore (mutations se pehle ZAROORI: flush full-table-rewrite
+//   hai, isliye stale memory se overwrite na ho — warna dusre instance ka data
+//   mit jaata hai). force=false (reads) → TTL throttle se fast.
+async function reload(force) {
   if (!_initialized) return init();
   if (_testMode) return;
   if (_flushInProgress || _dirtyTables.size > 0) return;
-  // Recently reload kiya to skip — burst traffic pe har request DB hit na kare.
-  const ttl = parseInt(process.env.PG_RELOAD_TTL_MS || '3000', 10);
-  if (ttl > 0 && (Date.now() - _lastReloadTs) < ttl) return;
+  if (!force) {
+    const ttl = parseInt(process.env.PG_RELOAD_TTL_MS || '3000', 10);
+    if (ttl > 0 && (Date.now() - _lastReloadTs) < ttl) return;
+  }
   const pool = getPool();
   await loadAllTables(pool);
 }

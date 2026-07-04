@@ -76,8 +76,8 @@ function init() {
 // EK baar poora load ho chuka hai. Serverless pe background load function freeze
 // se pehle adhoora reh jaata tha → FMS khaali dikhta tha. Ab pehli request uske
 // complete hone ka intezaar karti hai (one-time ~2-3s), baaki instant.
-async function reload() {
-  await pg.reload();
+async function reload(force) {
+  await pg.reload(force); // mutations pe force=true → hamesha fresh (data-loss se bacho)
   if (!_sheetsReady) {
     _sheetsReady = sheets.init().catch(e => console.error('  ⚠️ Sheets (FMS) init failed:', e.message));
   }

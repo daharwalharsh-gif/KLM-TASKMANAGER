@@ -2687,9 +2687,9 @@ function renderDashTable(tasks, type) {
       <td>
         ${t.waiting_approval==1 ? `
           <span style="font-size:11px;color:#f59e0b;font-weight:600">⏳ Waiting Approval</span>
-          ${(t.type==='checklist' || ME.role==='admin') ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}')">Done</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin') ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
         ` : `
-          ${(t.type==='checklist' || ME.role==='admin') ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}')">Done</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin') ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
           ${(t.type!=='checklist' && ME.role==='admin') ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${t.type}')">Revise</button>` : ''}
         `}
       </td>
@@ -2833,21 +2833,21 @@ function renderTasksTable() {
       <button class="action-btn edit" style="padding:4px 7px" onclick="openEditTask(${t.id},'${tasksType}')" title="Edit">✏️</button>
       <button class="action-btn delete" style="padding:4px 7px;margin-left:3px" onclick="deleteTask(${t.id},'${tasksType}')" title="Delete">🗑</button>
       <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px;margin-left:3px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
-      ${canDone && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>` : ''}
+      ${canDone && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
       ${canRevise && !isCompleted && !isWaiting ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
       ${isWaiting ? `<span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     ` : (ME.role==='pc') ? `
       <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
-      ${isChecklist && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>` : ''}
+      ${isChecklist && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
       ${isWaiting ? `<span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     ` : `
       <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
       ${!isCompleted && !isWaiting ? `
-        ${canDone ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>` : ''}
+        ${canDone ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
         ${canRevise ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
       ` : ''}
       ${isWaiting ? `
-        ${canDone ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}')">Done</button>` : ''}
+        ${canDone ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
         <span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     `;
     return `<tr>
@@ -2908,13 +2908,14 @@ function toggleBlock(header) { header.nextElementSibling.classList.toggle('open'
 // ══════════════════════════════════════════════════════
 // TASK ACTIONS
 // ══════════════════════════════════════════════════════
-async function updateStatus(id, status, from, type) {
+async function updateStatus(id, status, from, type, btnEl) {
   const tType = type || dashType;
 
   // Jis button pe click hua use TURANT disable karo — double-click / dobara save
   // na ho. Success pe row re-render ho jaata hai (button gayab); fail pe wapas
-  // enable kar dete hain (_restore).
-  const _btn = (window.event && (window.event.currentTarget || window.event.target)) || null;
+  // enable kar dete hain (_restore). btnEl onclick se seedha aata hai (this);
+  // fallback window.event.
+  const _btn = btnEl || (window.event && (window.event.currentTarget || window.event.target)) || null;
   const _isBtn = _btn && _btn.tagName === 'BUTTON';
   const _restore = () => {
     if (_isBtn) {
