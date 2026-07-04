@@ -2029,10 +2029,9 @@ async function init() {
       // PC: can view all tasks + approve, but cannot edit/delete
       // Nav items same as employee (dashboard, alltasks, approvals, profile, fms-tasks)
     }
-    // Records tab — Admin, HOD aur PC teeno ko dikhta hai (shared single source of truth)
-    if (ME.role === 'admin' || ME.role === 'hod' || ME.role === 'pc') {
-      document.getElementById('nav-records').style.display = 'flex';
-    }
+    // Records tab — HIDDEN (user request). Owner Dashboard isi ka behtar version hai.
+    // Dobara dikhana ho to neeche wali line uncomment kar do:
+    // if (ME.role === 'admin' || ME.role === 'hod' || ME.role === 'pc') document.getElementById('nav-records').style.display = 'flex';
     setMinDates();
     loadDashboard();
     loadApprovalBadge();
@@ -2180,7 +2179,10 @@ function ownBuildQS() {
 
 async function loadOwnerDashboard() {
   const loading = document.getElementById('ownLoading');
-  if (loading) loading.style.display = 'block';
+  // Sirf PEHLI baar (jab koi data nahi) halka loading dikhao; filter change pe
+  // purana data screen pe rehta hai aur naya aate hi chupke se update ho jaata hai
+  // (koi "Loading…" text nahi).
+  if (loading) loading.style.display = _ownData ? 'none' : 'block';
   const reqId = ++_ownReqId;
   const qs = ownBuildQS();
   const data = await api('/api/owner-dashboard' + (qs ? '?'+qs : ''));   // FAST: FMS skip
