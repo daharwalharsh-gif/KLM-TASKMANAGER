@@ -223,8 +223,10 @@ function qIdent(name) { return '"' + String(name).replace(/"/g, '""') + '"'; }
 // LOAD — read every table from PG and (re)populate alasql.
 // ══════════════════════════════════════════════════════════════════
 async function loadAllTables(pool) {
-  let totalRows = 0;
-  for (const table of _managed) {
+  // PARALLEL load — saari managed tables ka SELECT ek saath. Serverless pe
+  // har request se pehle reload hota hai, isliye 8 sequential round-trips ki
+  // jagah ~1 round-trip = har request bahut fast.
+  const results = await Promise.all(_managed.map(async (table) => {
     const cols = SCHEMA[table].cols;
     const colList = cols.map(qIdent).join(', ');
     let rows = [];
@@ -243,12 +245,21 @@ async function loadAllTables(pool) {
       if (obj.id && typeof obj.id === 'number' && obj.id > maxId) maxId = obj.id;
       inserts.push(obj);
     }
+    return { table, inserts, maxId };
+  }));
+  let totalRows = 0;
+  for (const { table, inserts, maxId } of results) {
     if (alasql.tables[table]) alasql.tables[table].data = inserts;
     _nextId[table] = maxId + 1;
     totalRows += inserts.length;
   }
+  _lastReloadTs = Date.now();
   return totalRows;
 }
+
+// Per-request reload ko throttle karne ke liye — warm instance pe 3 sec ke
+// andar aayi requests dobara DB load nahi karti (PG_RELOAD_TTL_MS se tunable).
+let _lastReloadTs = 0;
 
 // Force a fresh reload from PG. Skips while a flush is mid-flight or there
 // are unsaved writes, so we don't clobber pending changes.
@@ -256,6 +267,9 @@ async function reload() {
   if (!_initialized) return init();
   if (_testMode) return;
   if (_flushInProgress || _dirtyTables.size > 0) return;
+  // Recently reload kiya to skip — burst traffic pe har request DB hit na kare.
+  const ttl = parseInt(process.env.PG_RELOAD_TTL_MS || '3000', 10);
+  if (ttl > 0 && (Date.now() - _lastReloadTs) < ttl) return;
   const pool = getPool();
   await loadAllTables(pool);
 }
@@ -264,17 +278,30 @@ async function reload() {
 // INIT — ensure tables exist in PG, then load into alasql
 // ══════════════════════════════════════════════════════════════════
 async function ensureSchema(pool) {
-  for (const table of _managed) {
+  // FAST PATH: ek hi query se check karo kaunsi tables pehle se hain. Sab maujood
+  // ho (aur PG_MIGRATE nahi) to koi DDL nahi — cold start pe ~80 ALTER round-trips
+  // bach jaate hain. DDL sirf tab jab table missing ho ya PG_MIGRATE=1 diya ho.
+  const wantMigrate = /^(1|true|yes)$/i.test(process.env.PG_MIGRATE || '');
+  const { rows } = await pool.query(
+    `SELECT table_name FROM information_schema.tables
+     WHERE table_schema='public' AND table_name = ANY($1)`, [_managed]);
+  const have = new Set(rows.map(r => r.table_name));
+  const missing = _managed.filter(t => !have.has(t));
+  if (!missing.length && !wantMigrate) return; // sab maujood — turant nikal jao
+
+  for (const table of (wantMigrate ? _managed : missing)) {
     const cols = SCHEMA[table].cols;
     const colDefs = cols.map(c => {
       if (c === 'id') return `${qIdent(c)} INTEGER PRIMARY KEY`;
       return `${qIdent(c)} TEXT`;
     }).join(', ');
     await pool.query(`CREATE TABLE IF NOT EXISTS ${qIdent(table)} (${colDefs})`);
-    // Make sure every schema column exists (in case an older table is present)
-    for (const c of cols) {
-      if (c === 'id') continue;
-      await pool.query(`ALTER TABLE ${qIdent(table)} ADD COLUMN IF NOT EXISTS ${qIdent(c)} TEXT`);
+    if (wantMigrate) {
+      // Missing columns add karo — sirf explicit migrate pe (schema evolve hua ho).
+      for (const c of cols) {
+        if (c === 'id') continue;
+        await pool.query(`ALTER TABLE ${qIdent(table)} ADD COLUMN IF NOT EXISTS ${qIdent(c)} TEXT`);
+      }
     }
   }
 }
