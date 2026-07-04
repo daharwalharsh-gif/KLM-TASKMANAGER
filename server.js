@@ -516,7 +516,7 @@ function idxToCol(idx) {
 //   • HOD ke liye department filter dono jagah EK jaisa lagta hai.
 
 const _fmsSheetCache = new Map(); // key: spreadsheetId|range  -> { rows, ts }
-const FMS_CACHE_TTL_MS = 60 * 1000;
+const FMS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min — FMS sheets slowly change; kam baar heavy read
 
 async function fetchSheetRows(sheet) {
   const spreadsheetId = extractSpreadsheetId(sheet.sheet_id);
@@ -1142,6 +1142,151 @@ app.get('/api/mis', requireAuth, requireAdminOrHod, async (req, res) => {
     const [delRows] = await db.query(`SELECT u.id AS userId,u.name,COUNT(*) AS total,SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,SUM(CASE WHEN t.status='revised' THEN 1 ELSE 0 END) AS revised,SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue FROM delegation_tasks t JOIN users u ON t.assigned_to=u.id WHERE t.due_date BETWEEN ? AND ? ${deptFilter} GROUP BY u.id,u.name ORDER BY u.name`, deptParams);
     const [chlRows] = await db.query(`SELECT u.id AS userId,u.name,COUNT(*) AS total,SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,0 AS revised,SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue FROM checklist_tasks t JOIN users u ON t.assigned_to=u.id WHERE t.due_date BETWEEN ? AND ? ${deptFilter} GROUP BY u.id,u.name ORDER BY u.name`, deptParams);
     res.json({ delegation: calc(delRows), checklist: calc(chlRows) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
+// OWNER DASHBOARD — company-wide aggregate report
+// FMS + Delegation + Checklist + Leave, ek hi call me.
+// Filters: start, end (due_date range), department.
+// ══════════════════════════════════════════════════════
+app.get('/api/owner-dashboard', requireAuth, async (req, res) => {
+  try {
+    if (req.session.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    const { start, end, department } = req.query;
+    const s = start || '2000-01-01';
+    const e = end || '2100-01-01';
+    const useDept = department && department !== 'all';
+    const dC = useDept ? 'AND u.department = ?' : '';
+    const dP = useDept ? [department] : [];
+    const num = v => parseInt(v) || 0;
+    // Frequency filter — SIRF checklist_tasks pe (delegation me frequency column nahi).
+    const freq = req.query.frequency;
+    const useFreq = freq && freq !== 'all';
+    const fC = (table) => (useFreq && table === 'checklist_tasks') ? 'AND t.frequency = ?' : '';
+    const fP = (table) => (useFreq && table === 'checklist_tasks') ? [freq] : [];
+
+    // ── Per-table aggregate (delegation / checklist) ──
+    const taskTotals = async (table) => {
+      const [r] = await db.query(
+        `SELECT COUNT(*) AS total,
+           SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,
+           SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,
+           SUM(CASE WHEN t.status='revised' THEN 1 ELSE 0 END) AS revised,
+           SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
+         FROM ${table} t JOIN users u ON t.assigned_to=u.id
+         WHERE t.due_date BETWEEN ? AND ? ${dC} ${fC(table)}`, [s, e, ...dP, ...fP(table)]);
+      const x = r[0] || {};
+      return { total:num(x.total), pending:num(x.pending), completed:num(x.completed), revised:num(x.revised), overdue:num(x.overdue) };
+    };
+    const delegation = await taskTotals('delegation_tasks');
+    const checklist  = await taskTotals('checklist_tasks');
+
+    // ── By department (merge del + chl) ──
+    const deptAgg = async (table) => {
+      const [r] = await db.query(
+        `SELECT u.department AS dept, COUNT(*) AS total,
+           SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,
+           SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,
+           SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
+         FROM ${table} t JOIN users u ON t.assigned_to=u.id
+         WHERE t.due_date BETWEEN ? AND ? ${dC} ${fC(table)} GROUP BY u.department`, [s, e, ...dP, ...fP(table)]);
+      return r;
+    };
+    const deptMap = {};
+    for (const src of [await deptAgg('delegation_tasks'), await deptAgg('checklist_tasks')]) {
+      for (const row of src) {
+        const d = row.dept || '(none)';
+        deptMap[d] = deptMap[d] || { department:d, total:0, pending:0, completed:0, overdue:0 };
+        deptMap[d].total+=num(row.total); deptMap[d].pending+=num(row.pending);
+        deptMap[d].completed+=num(row.completed); deptMap[d].overdue+=num(row.overdue);
+      }
+    }
+    const byDepartment = Object.values(deptMap).sort((a,b)=>b.total-a.total);
+
+    // ── Monthly trend (merge del + chl) ──
+    const trendAgg = async (table) => {
+      const [r] = await db.query(
+        `SELECT DATE_FORMAT(t.due_date,'%Y-%m') AS ym,
+           SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,
+           SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending
+         FROM ${table} t JOIN users u ON t.assigned_to=u.id
+         WHERE t.due_date BETWEEN ? AND ? ${dC} ${fC(table)} GROUP BY DATE_FORMAT(t.due_date,'%Y-%m')`, [s, e, ...dP, ...fP(table)]);
+      return r;
+    };
+    const trendMap = {};
+    for (const src of [await trendAgg('delegation_tasks'), await trendAgg('checklist_tasks')]) {
+      for (const row of src) {
+        const m = row.ym; if (!m) continue;
+        trendMap[m] = trendMap[m] || { month:m, completed:0, pending:0 };
+        trendMap[m].completed+=num(row.completed); trendMap[m].pending+=num(row.pending);
+      }
+    }
+    const trend = Object.values(trendMap).sort((a,b)=>a.month.localeCompare(b.month)).slice(-12);
+
+    // ── Top users (merge del + chl) ──
+    const userAgg = async (table) => {
+      const [r] = await db.query(
+        `SELECT u.id, u.name, u.department AS dept, COUNT(*) AS total,
+           SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,
+           SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,
+           SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
+         FROM ${table} t JOIN users u ON t.assigned_to=u.id
+         WHERE t.due_date BETWEEN ? AND ? ${dC} ${fC(table)} GROUP BY u.id, u.name, u.department`, [s, e, ...dP, ...fP(table)]);
+      return r;
+    };
+    const uMap = {};
+    for (const src of [await userAgg('delegation_tasks'), await userAgg('checklist_tasks')]) {
+      for (const row of src) {
+        const id = row.id;
+        uMap[id] = uMap[id] || { id, name:row.name, department:row.dept||'(none)', total:0, pending:0, completed:0, overdue:0 };
+        uMap[id].total+=num(row.total); uMap[id].pending+=num(row.pending);
+        uMap[id].completed+=num(row.completed); uMap[id].overdue+=num(row.overdue);
+      }
+    }
+    const topUsers = Object.values(uMap).map(u => ({
+      ...u, score: u.total > 0 ? Math.round((u.completed / u.total) * 100) : 0
+    })).sort((a,b)=>b.total-a.total).slice(0, 20);
+
+    // ── Leave ──
+    const leaveDeptC = useDept ? 'AND u.department = ?' : '';
+    const [lvR] = await db.query(
+      `SELECT COUNT(*) AS total,
+         SUM(CASE WHEN l.status='pending' THEN 1 ELSE 0 END) AS pending,
+         SUM(CASE WHEN l.status='approved' THEN 1 ELSE 0 END) AS approved,
+         SUM(CASE WHEN l.status='rejected' THEN 1 ELSE 0 END) AS rejected
+       FROM leave_tracker l JOIN users u ON l.user_id=u.id WHERE 1=1 ${leaveDeptC}`, dP);
+    const lv = lvR[0] || {};
+    const leave = { total:num(lv.total), pending:num(lv.pending), approved:num(lv.approved), rejected:num(lv.rejected) };
+    const [lvTypeR] = await db.query(
+      `SELECT l.type AS type, COUNT(*) AS n FROM leave_tracker l JOIN users u ON l.user_id=u.id WHERE 1=1 ${leaveDeptC} GROUP BY l.type`, dP);
+    const leaveByType = {};
+    for (const row of lvTypeR) leaveByType[row.type || 'other'] = num(row.n);
+
+    // ── FMS (Google Sheets — SLOW: 10 sheets read hoti hain). Isliye default me
+    //    SKIP karte hain (loading:true) taaki dashboard turant render ho; frontend
+    //    alag se ?fms=1 se ise background me maangta hai. ──
+    let fms = { total:0, pending:0, done:0, sheets:0, error:null, loading:true };
+    if (req.query.fms === '1') {
+      fms.loading = false;
+      try {
+        const stats = await computeFmsStats(useDept ? department : '');
+        const perFms = stats.perFms || [];
+        fms.sheets = perFms.length;
+        for (const f of perFms) { fms.pending += num(f.pending); fms.done += num(f.done); fms.total += num(f.total); }
+        if (stats.errors && stats.errors.length) fms.error = stats.errors.join(', ');
+      } catch (e) { fms.error = 'FMS data unavailable'; }
+    }
+
+    // ── Department list for the filter dropdown ──
+    const [deptList] = await db.query(`SELECT DISTINCT department FROM users WHERE department IS NOT NULL AND department != '' ORDER BY department`);
+
+    res.json({
+      totals: { delegation, checklist, fms, leave },
+      byDepartment, trend, topUsers, leaveByType,
+      departments: deptList.map(d => d.department),
+      generatedAt: new Date().toISOString()
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
