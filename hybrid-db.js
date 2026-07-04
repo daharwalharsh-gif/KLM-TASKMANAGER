@@ -70,12 +70,18 @@ function init() {
   return _initPromise;
 }
 
-// Per-request refresh (used on Vercel before each /api call). Only reload
-// Postgres — it holds all the task data and a DB read is fast. FMS metadata
-// rarely changes and lives on Sheets; reloading it every request would be slow
-// and burn Google quota, so we deliberately skip it here.
+// Per-request refresh (used on Vercel before each /api call). Postgres reload
+// fast hai (parallel). FMS (Sheets) ko HAR request pe reload NAHI karte (slow +
+// Google quota), PAR ye GUARANTEE karte hain ki wo is instance pe kam-se-kam
+// EK baar poora load ho chuka hai. Serverless pe background load function freeze
+// se pehle adhoora reh jaata tha → FMS khaali dikhta tha. Ab pehli request uske
+// complete hone ka intezaar karti hai (one-time ~2-3s), baaki instant.
 async function reload() {
   await pg.reload();
+  if (!_sheetsReady) {
+    _sheetsReady = sheets.init().catch(e => console.error('  ⚠️ Sheets (FMS) init failed:', e.message));
+  }
+  await _sheetsReady; // resolved promise = turant; pehli baar hi wait hota hai
 }
 
 async function flushNow() {
