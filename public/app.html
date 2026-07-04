@@ -2911,6 +2911,27 @@ function toggleBlock(header) { header.nextElementSibling.classList.toggle('open'
 async function updateStatus(id, status, from, type) {
   const tType = type || dashType;
 
+  // Jis button pe click hua use TURANT disable karo — double-click / dobara save
+  // na ho. Success pe row re-render ho jaata hai (button gayab); fail pe wapas
+  // enable kar dete hain (_restore).
+  const _btn = (window.event && (window.event.currentTarget || window.event.target)) || null;
+  const _isBtn = _btn && _btn.tagName === 'BUTTON';
+  const _restore = () => {
+    if (_isBtn) {
+      _btn.disabled = false;
+      _btn.textContent = _btn.dataset._orig || 'Done';
+      _btn.style.opacity = '';
+      _btn.style.cursor = '';
+    }
+  };
+  if (_isBtn) {
+    _btn.dataset._orig = _btn.textContent;
+    _btn.disabled = true;
+    _btn.textContent = '⏳ Saving...';
+    _btn.style.opacity = '0.6';
+    _btn.style.cursor = 'not-allowed';
+  }
+
   // Non-completed (safety) — purana behaviour (reload).
   if (status !== 'completed') {
     const r0 = await api(`/api/tasks/${id}/status`,'PUT',{status, type: tType});
@@ -2928,7 +2949,7 @@ async function updateStatus(id, status, from, type) {
   // hai — slow to sirf FMS reload tha jo Done par ab hota hi nahi), tab row
   // turant hata dete hain. Koi race nahi, reappear nahi.
   const r = await api(`/api/tasks/${id}/status`,'PUT',{status, type: tType});
-  if (r.error) { showToast(r.error, 'error'); return; }   // fail => row jaisi thi waisi rahe
+  if (r.error) { _restore(); showToast(r.error, 'error'); return; }   // fail => button wapas enable, row jaisi thi waisi rahe
   if (r.needsApproval) {
     showToast('✅ Approval request sent to your manager!');
     if (from==='dashboard') loadDashboard(); else loadAllTasks(); // waiting state dikhao
