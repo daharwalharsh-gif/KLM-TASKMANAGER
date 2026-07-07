@@ -1149,10 +1149,19 @@ app.get('/api/mis', requireAuth, requireAdminOrHod, async (req, res) => {
 // OWNER DASHBOARD — company-wide aggregate report
 // FMS + Delegation + Checklist + Leave, ek hi call me.
 // Filters: start, end (due_date range), department.
+// SIRF in emails ko access (owner-only):
 // ══════════════════════════════════════════════════════
+const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'owner@gmail.com'];
+async function isOwnerUser(req) {
+  try {
+    const [u] = await db.query('SELECT email FROM users WHERE id=?', [req.session.userId]);
+    return OWNER_EMAILS.includes(String(u[0]?.email || '').trim().toLowerCase());
+  } catch { return false; }
+}
+
 app.get('/api/owner-dashboard', requireAuth, async (req, res) => {
   try {
-    if (req.session.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    if (!(await isOwnerUser(req))) return res.status(403).json({ error: 'Owner access only' });
     const { start, end, department } = req.query;
     const s = start || '2000-01-01';
     const e = end || '2100-01-01';
@@ -1287,6 +1296,69 @@ app.get('/api/owner-dashboard', requireAuth, async (req, res) => {
       departments: deptList.map(d => d.department),
       generatedAt: new Date().toISOString()
     });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── OWNER DASHBOARD DETAILS — ek module ke pending items + doer ka naam ──
+// module = delegation | checklist | fms | leave. Card click par popup me dikhta hai.
+app.get('/api/owner-dashboard/details', requireAuth, async (req, res) => {
+  try {
+    if (!(await isOwnerUser(req))) return res.status(403).json({ error: 'Owner access only' });
+    const { module, start, end, department, frequency } = req.query;
+    const s = start || '2000-01-01';
+    const e = end || '2100-01-01';
+    const useDept = department && department !== 'all';
+    const dC = useDept ? 'AND u.department = ?' : '';
+    const dP = useDept ? [department] : [];
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (module === 'delegation' || module === 'checklist') {
+      const table = module === 'delegation' ? 'delegation_tasks' : 'checklist_tasks';
+      const isChl = module === 'checklist';
+      const useFreq = isChl && frequency && frequency !== 'all';
+      const fC = useFreq ? 'AND t.frequency = ?' : '';
+      const fP = useFreq ? [frequency] : [];
+      const [rows] = await db.query(
+        `SELECT t.description, u.name AS doer, u.department AS dept,
+           DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date, t.status${isChl ? ', t.frequency' : ''}
+         FROM ${table} t JOIN users u ON t.assigned_to=u.id
+         WHERE t.status='pending' AND t.due_date BETWEEN ? AND ? ${dC} ${fC}
+         ORDER BY t.due_date ASC`, [s, e, ...dP, ...fP]);
+      rows.forEach(r => { r.overdue = (r.due_date || '') < today; });
+      return res.json({ module, count: rows.length, rows });
+    }
+
+    if (module === 'leave') {
+      const [rows] = await db.query(
+        `SELECT u.name AS doer, u.department AS dept, l.type, l.status,
+           DATE_FORMAT(l.start_date,'%Y-%m-%d') AS start_date,
+           DATE_FORMAT(l.end_date,'%Y-%m-%d') AS end_date, l.reason
+         FROM leave_tracker l JOIN users u ON l.user_id=u.id
+         WHERE 1=1 ${dC} ORDER BY l.applied_at DESC`, dP);
+      return res.json({ module, count: rows.length, rows });
+    }
+
+    if (module === 'fms') {
+      const stats = await computeFmsStats(useDept ? department : '', true);
+      const perUserPending = stats.perUserPending || {};
+      const uids = Object.keys(perUserPending).map(x => parseInt(x)).filter(Boolean);
+      const nameMap = {};
+      if (uids.length) {
+        const [us] = await db.query(`SELECT id,name,department FROM users WHERE id IN (${uids.map(() => '?').join(',')})`, uids);
+        us.forEach(u => { nameMap[u.id] = u; });
+      }
+      const rows = [];
+      for (const uid of Object.keys(perUserPending)) {
+        const u = nameMap[uid] || { name: '(unknown)', department: '' };
+        for (const item of perUserPending[uid]) {
+          rows.push({ doer: u.name, dept: u.department, fmsName: item.fmsName, stepName: item.stepName, planValue: item.planValue, overdue: !!item.isLate });
+        }
+      }
+      rows.sort((a, b) => (b.overdue - a.overdue) || String(a.doer).localeCompare(String(b.doer)));
+      return res.json({ module, count: rows.length, rows, error: (stats.errors && stats.errors.length) ? stats.errors.join(', ') : null });
+    }
+
+    return res.status(400).json({ error: 'Unknown module' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

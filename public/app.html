@@ -1100,6 +1100,20 @@ tbody tr:last-child td{border-bottom:none;}
 <!-- ══════════════════════════════════════
      APPLY FOR LEAVE MODAL
 ══════════════════════════════════════ -->
+<!-- Owner Dashboard — module details popup -->
+<div class="modal-overlay" id="ownDetailModal">
+  <div style="background:#fff;border-radius:16px;max-width:920px;width:94%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(30,58,138,.35);overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #dbeafe;background:linear-gradient(135deg,#f5f9ff,#eff6ff)">
+      <div>
+        <div id="ownDetailTitle" style="font-size:17px;font-weight:800;color:#1e3a8a">Details</div>
+        <div id="ownDetailSub" style="font-size:12px;color:#64748b;margin-top:2px"></div>
+      </div>
+      <button onclick="document.getElementById('ownDetailModal').classList.remove('open')" style="background:#dbeafe;border:none;color:#1d4ed8;width:34px;height:34px;border-radius:9px;font-size:20px;line-height:1;cursor:pointer;font-weight:700">×</button>
+    </div>
+    <div style="padding:10px 16px 16px;overflow:auto" id="ownDetailBody"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="leaveModal">
   <div class="modal" style="max-width:480px">
     <h3>📅 Apply for Leave</h3>
@@ -2012,8 +2026,12 @@ async function init() {
 
     setAvatarDisplay(ME.profile_image, initials);
 
-    if (ME.role === 'admin') {
+    // Owner Dashboard — SIRF in emails ko dikhe (owner-only)
+    const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'owner@gmail.com'];
+    if (OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
       document.getElementById('nav-owner').style.display = 'flex';
+    }
+    if (ME.role === 'admin') {
       document.getElementById('nav-users').style.display = 'flex';
       document.getElementById('nav-mis').style.display = 'flex';
       document.getElementById('nav-fms').style.display = 'flex';
@@ -2032,8 +2050,17 @@ async function init() {
     // Records tab — HIDDEN (user request). Owner Dashboard isi ka behtar version hai.
     // Dobara dikhana ho to neeche wali line uncomment kar do:
     // if (ME.role === 'admin' || ME.role === 'hod' || ME.role === 'pc') document.getElementById('nav-records').style.display = 'flex';
+
+    // owner@gmail.com — SIRF Owner Dashboard dikhe; poora baaki sidebar hide + seedha wahi khule
+    const isOwnerOnly = String(ME.email || '').trim().toLowerCase() === 'owner@gmail.com';
+    if (isOwnerOnly) {
+      document.querySelectorAll('.nav-item').forEach(n => { if (n.id !== 'nav-owner') n.style.display = 'none'; });
+      const navOwn = document.getElementById('nav-owner'); if (navOwn) navOwn.style.display = 'flex';
+      const nd = document.querySelector('.nav-divider'); if (nd) nd.style.display = 'none';
+    }
     setMinDates();
-    loadDashboard();
+    if (isOwnerOnly) navigate('owner', document.getElementById('nav-owner'));
+    else loadDashboard();
     loadApprovalBadge();
     loadTransferBadge();
     // Refresh badges every 30 seconds
@@ -2162,6 +2189,49 @@ function ownDestroyCharts() {
   _ownCharts = {};
 }
 
+// Card click par module ke pending items + doer name popup me dikhao
+async function openOwnDetail(module) {
+  const modal = document.getElementById('ownDetailModal');
+  const titleEl = document.getElementById('ownDetailTitle');
+  const subEl = document.getElementById('ownDetailSub');
+  const body = document.getElementById('ownDetailBody');
+  const NAMES = { delegation:'📋 Delegation — Pending Tasks', checklist:'✅ Checklist — Pending Tasks', fms:'🔄 FMS — Pending Steps', leave:'🌴 Leave Requests' };
+  titleEl.textContent = NAMES[module] || 'Details';
+  subEl.textContent = 'Loading…';
+  body.innerHTML = '<div style="padding:34px;text-align:center;color:#94a3b8">⏳ Loading…</div>';
+  modal.classList.add('open');
+
+  const qs = ownBuildQS();  // same filters (dept / frequency / date)
+  const data = await api('/api/owner-dashboard/details?module=' + module + (qs ? '&'+qs : ''));
+  if (!data || data.error) { subEl.textContent=''; body.innerHTML = '<div style="padding:30px;text-align:center;color:#ef4444">'+((data&&data.error)||'Failed to load')+'</div>'; return; }
+  const rows = data.rows || [];
+  subEl.textContent = data.count + ' record(s)' + (data.error ? ' — ⚠️ '+data.error : '');
+  if (!rows.length) { body.innerHTML = '<div style="padding:34px;text-align:center;color:#94a3b8">No pending records 🎉</div>'; return; }
+
+  const od = r => r.overdue ? '<span class="own-pill" style="background:#fee2e2;color:#dc2626">Overdue</span>' : '<span class="own-pill" style="background:#dcfce7;color:#16a34a">On time</span>';
+  let head, rowHtml;
+  if (module === 'delegation') {
+    head = '<th>Doer</th><th>Dept</th><th>Task</th><th>Due</th><th>Status</th>';
+    rowHtml = r => `<tr><td style="font-weight:600;color:#1e3a8a">${r.doer}</td><td>${r.dept||'—'}</td><td>${r.description||''}</td><td>${fmtDate(r.due_date)}</td><td>${od(r)}</td></tr>`;
+  } else if (module === 'checklist') {
+    head = '<th>Doer</th><th>Dept</th><th>Task</th><th>Frequency</th><th>Due</th><th>Status</th>';
+    rowHtml = r => `<tr><td style="font-weight:600;color:#1e3a8a">${r.doer}</td><td>${r.dept||'—'}</td><td>${r.description||''}</td><td>${r.frequency||'—'}</td><td>${fmtDate(r.due_date)}</td><td>${od(r)}</td></tr>`;
+  } else if (module === 'fms') {
+    head = '<th>Doer</th><th>Dept</th><th>FMS</th><th>Step</th><th>Plan</th><th>Status</th>';
+    rowHtml = r => `<tr><td style="font-weight:600;color:#1e3a8a">${r.doer}</td><td>${r.dept||'—'}</td><td>${r.fmsName||''}</td><td>${r.stepName||''}</td><td>${r.planValue||''}</td><td>${od(r)}</td></tr>`;
+  } else { // leave
+    head = '<th>Doer</th><th>Dept</th><th>Type</th><th>From</th><th>To</th><th>Status</th><th>Reason</th>';
+    const ls = s => { const c=s==='approved'?['#dcfce7','#16a34a']:s==='rejected'?['#fee2e2','#dc2626']:['#fef9c3','#a16207']; return `<span class="own-pill" style="background:${c[0]};color:${c[1]}">${s||''}</span>`; };
+    rowHtml = r => `<tr><td style="font-weight:600;color:#1e3a8a">${r.doer}</td><td>${r.dept||'—'}</td><td>${r.type||''}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td>${ls(r.status)}</td><td>${r.reason||'—'}</td></tr>`;
+  }
+  // Saare records dikhao (koi cap nahi) — pending + overdue sab. Overdue upar
+  // aayein isliye sort: overdue pehle, phir due-date ke hisaab se.
+  rows.sort((a,b) => (b.overdue?1:0)-(a.overdue?1:0) || String(a.due_date||a.start_date||'').localeCompare(String(b.due_date||b.start_date||'')));
+  const overdueN = rows.filter(r => r.overdue).length;
+  subEl.textContent = `${data.count.toLocaleString()} record(s)` + (overdueN?` · ${overdueN.toLocaleString()} overdue`:'') + (data.error ? ' — ⚠️ '+data.error : '');
+  body.innerHTML = `<table class="own-tbl"><thead><tr>${head}</tr></thead><tbody>${rows.map(rowHtml).join('')}</tbody></table>`;
+}
+
 let _ownData = null;
 let _ownReqId = 0;
 function ownBuildQS() {
@@ -2218,29 +2288,32 @@ function renderOwner(data) {
   const totalOverdue = t.delegation.overdue + t.checklist.overdue;
 
   // ── KPI cards ──
-  const kpi = (label,val,sub,color) => `<div class="own-kpi"><div class="k-bar" style="background:${color}"></div><div class="k-label">${label}</div><div class="k-val" style="color:${color}">${(typeof val==='number'?val.toLocaleString():val)}</div><div class="k-sub">${sub}</div></div>`;
+  const kpi = (label,val,sub,color,onclick) => `<div class="own-kpi"${onclick?` style="cursor:pointer" onclick="${onclick}"`:''}><div class="k-bar" style="background:${color}"></div><div class="k-label">${label}${onclick?' <span style="font-size:9px;color:#2563eb;background:#eff6ff;padding:1px 5px;border-radius:8px">›</span>':''}</div><div class="k-val" style="color:${color}">${(typeof val==='number'?val.toLocaleString():val)}</div><div class="k-sub">${sub}</div></div>`;
   document.getElementById('ownKPIs').innerHTML =
     kpi('Total Tasks', totalTasks, 'Delegation + Checklist + FMS', '#1d4ed8') +
     kpi('Completed', totalDone, ownPct(totalDone,totalTasks)+'% completion', '#10b981') +
     kpi('Pending', totalPending, ownPct(totalPending,totalTasks)+'% pending', '#06b6d4') +
     kpi('Overdue', totalOverdue, 'tasks past due date', '#f59e0b') +
     kpi('FMS Pending', t.fms.loading ? '⏳' : t.fms.pending, t.fms.loading ? 'calculating…' : (t.fms.sheets+' FMS processes'), '#3b82f6') +
-    kpi('Leaves Pending', t.leave.pending, t.leave.total+' total requests', '#0ea5e9');
+    kpi('Leaves Pending', t.leave.pending, t.leave.total+' total requests', '#0ea5e9', "openOwnDetail('leave')");
 
   // ── Per-module breakdown cards (saaf: kiska kitna) ──
   const miniStat = (label,val,color) => `<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#94a3b8">${label}</div><div style="font-size:20px;font-weight:800;color:${color};line-height:1.1;margin-top:2px">${(typeof val==='number'?val.toLocaleString():val)}</div></div>`;
-  const moduleCard = (icon,name,color,m) => `<div class="own-card" style="border-top:3px solid ${color}">
-      <div style="font-size:14px;font-weight:800;color:#1e3a8a;margin-bottom:12px">${icon} ${name}</div>
+  const moduleCard = (icon,name,color,m,mod) => `<div class="own-card" style="border-top:3px solid ${color};cursor:pointer" onclick="openOwnDetail('${mod}')" title="Click karke pending tasks + doer dekho">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-size:14px;font-weight:800;color:#1e3a8a">${icon} ${name}</div>
+        <span style="font-size:10px;color:#2563eb;font-weight:700;background:#eff6ff;padding:2px 8px;border-radius:10px">details ›</span>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 8px">
         ${miniStat('Total', m.total, '#1d4ed8')}${miniStat('Pending', m.pending, '#0891b2')}
         ${miniStat('Completed', m.done, '#2563eb')}${miniStat('Overdue', m.overdue, '#ea580c')}
       </div></div>`;
   const fmsCard = t.fms.loading
     ? `<div class="own-card" style="border-top:3px solid #3b82f6"><div style="font-size:14px;font-weight:800;color:#1e3a8a;margin-bottom:12px">🔄 FMS</div><div style="color:#93b4e0;font-size:13px;padding:14px 0;display:flex;align-items:center;gap:8px"><span style="width:16px;height:16px;border:2px solid #bfdbfe;border-top-color:#2563eb;border-radius:50%;display:inline-block;animation:ownspin .7s linear infinite"></span> Google Sheets se nikaal rahe…</div></div>`
-    : moduleCard('🔄','FMS','#3b82f6',{total:t.fms.total,pending:t.fms.pending,done:t.fms.done,overdue:'—'});
+    : moduleCard('🔄','FMS','#3b82f6',{total:t.fms.total,pending:t.fms.pending,done:t.fms.done,overdue:'—'}, 'fms');
   document.getElementById('ownModuleCards').innerHTML =
-    moduleCard('📋','Delegation','#2563eb',{total:t.delegation.total,pending:t.delegation.pending,done:t.delegation.completed,overdue:t.delegation.overdue}) +
-    moduleCard('✅','Checklist','#06b6d4',{total:t.checklist.total,pending:t.checklist.pending,done:t.checklist.completed,overdue:t.checklist.overdue}) +
+    moduleCard('📋','Delegation','#2563eb',{total:t.delegation.total,pending:t.delegation.pending,done:t.delegation.completed,overdue:t.delegation.overdue}, 'delegation') +
+    moduleCard('✅','Checklist','#06b6d4',{total:t.checklist.total,pending:t.checklist.pending,done:t.checklist.completed,overdue:t.checklist.overdue}, 'checklist') +
     fmsCard;
 
   const warn = document.getElementById('ownFmsWarn');
