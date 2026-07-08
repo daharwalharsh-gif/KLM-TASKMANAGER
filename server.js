@@ -542,13 +542,29 @@ async function fetchSheetRows(sheet) {
   return rows;
 }
 
+// Plan cell se date nikaalo — 'YYYY-MM-DD' ya 'DD/MM/YYYY' / 'DD-MM-YYYY' formats.
+function parsePlanDate(planVal) {
+  const dateMatch = String(planVal || '').match(/(\d{4}-\d{2}-\d{2})|(\d{2}[\/\-]\d{2}[\/\-]\d{4})/);
+  if (!dateMatch) return '';
+  const raw = dateMatch[0];
+  if (raw.includes('-') && raw.length === 10 && raw[4] === '-') return raw;
+  const parts = raw.split(/[\/\-]/);
+  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : '';
+}
+
 // Returns { perFms: [...], perUser: { uid: {pending,done,total} }, errors: [name] }
 // hodDept '' => admin/pc (sab kuch). hodDept set => sirf un steps jinme us dept ka doer hai.
-async function computeFmsStats(hodDept = '', collectPending = false) {
+// opts (sirf Owner Dashboard use karta hai — MIS/FMS tabs pe koi asar nahi):
+//   • minPlanDate: 'YYYY-MM-DD' — is date se pehle ke plan wale rows count NAHI hote
+//   • excludeSpreadsheetIds: [id] — ye spreadsheets poori tarah skip
+async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) {
   const result = { perFms: [], perUser: {}, errors: [] };
   if (collectPending) result.perUserPending = {}; // uid -> [ {fmsName, stepName, planValue, planDate, isLate} ]
   const _today = new Date().toISOString().split('T')[0];
-  const [sheets] = await db.query('SELECT * FROM fms_sheets ORDER BY fms_name ASC');
+  let [sheets] = await db.query('SELECT * FROM fms_sheets ORDER BY fms_name ASC');
+  if (opts.excludeSpreadsheetIds && opts.excludeSpreadsheetIds.length) {
+    sheets = sheets.filter(sh => !opts.excludeSpreadsheetIds.includes(extractSpreadsheetId(sh.sheet_id)));
+  }
   if (!sheets.length) return result;
 
   // ── Har FMS sheet ke rows ko PARALLEL me pre-fetch karo ──
@@ -606,17 +622,16 @@ async function computeFmsStats(hodDept = '', collectPending = false) {
       for (const row of rows) {
         const planVal = (row[planIdx] || '').trim();
         const actualVal = (row[actualIdx] || '').trim();
+        // Owner dashboard cutoff: plan date minPlanDate se pehle ho to row count NAHI
+        if (opts.minPlanDate && planVal) {
+          const pd = parsePlanDate(planVal);
+          if (pd && pd < opts.minPlanDate) continue;
+        }
         if (planVal && !actualVal) {
           stepPending++;
           if (collectPending) {
             // plan date parse (same logic as /api/fms-dashboard)
-            let planDate = '';
-            const dateMatch = planVal.match(/(\d{4}-\d{2}-\d{2})|(\d{2}[\/\-]\d{2}[\/\-]\d{4})/);
-            if (dateMatch) {
-              const raw = dateMatch[0];
-              if (raw.includes('-') && raw.length === 10 && raw[4] === '-') planDate = raw;
-              else { const parts = raw.split(/[\/\-]/); if (parts.length === 3) planDate = `${parts[2]}-${parts[1]}-${parts[0]}`; }
-            }
+            const planDate = parsePlanDate(planVal);
             stepPendingRows.push({
               fmsName, stepName: step.step_name, planValue: planVal,
               planDate, isLate: !!(planDate && planDate < _today)
@@ -1151,7 +1166,7 @@ app.get('/api/mis', requireAuth, requireAdminOrHod, async (req, res) => {
 // Filters: start, end (due_date range), department.
 // SIRF in emails ko access (owner-only):
 // ══════════════════════════════════════════════════════
-const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'owner@gmail.com'];
+const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'manik@klmahajan.com'];
 async function isOwnerUser(req) {
   try {
     const [u] = await db.query('SELECT email FROM users WHERE id=?', [req.session.userId]);
@@ -1159,11 +1174,22 @@ async function isOwnerUser(req) {
   } catch { return false; }
 }
 
+// Owner Dashboard — 1 April (current financial year start) se pehle ka data NAHI dikhana.
+// Jul 2026 me => '2026-04-01'; Jan-Mar me pichhle saal ka 1 April.
+function ownerFyStart() {
+  const now = new Date();
+  const y = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${y}-04-01`;
+}
+// Ye FMS sheets owner dashboard me NAHI ginni ("Sales NBD FMS Incoming export")
+const OWNER_FMS_EXCLUDE_IDS = ['1TM0wK9cvvE9MWNS_gF1I_JdTmgLTAEycexrJccibkhM'];
+
 app.get('/api/owner-dashboard', requireAuth, async (req, res) => {
   try {
     if (!(await isOwnerUser(req))) return res.status(403).json({ error: 'Owner access only' });
     const { start, end, department } = req.query;
-    const s = start || '2000-01-01';
+    const fyStart = ownerFyStart();
+    const s = (start && start > fyStart) ? start : fyStart;   // 1 April se pehle ka data hide
     const e = end || '2100-01-01';
     const useDept = department && department !== 'all';
     const dC = useDept ? 'AND u.department = ?' : '';
@@ -1257,18 +1283,18 @@ app.get('/api/owner-dashboard', requireAuth, async (req, res) => {
       ...u, score: u.total > 0 ? Math.round((u.completed / u.total) * 100) : 0
     })).sort((a,b)=>b.total-a.total).slice(0, 20);
 
-    // ── Leave ──
+    // ── Leave ── (1 April se pehle ki leaves owner dashboard me nahi)
     const leaveDeptC = useDept ? 'AND u.department = ?' : '';
     const [lvR] = await db.query(
       `SELECT COUNT(*) AS total,
          SUM(CASE WHEN l.status='pending' THEN 1 ELSE 0 END) AS pending,
          SUM(CASE WHEN l.status='approved' THEN 1 ELSE 0 END) AS approved,
          SUM(CASE WHEN l.status='rejected' THEN 1 ELSE 0 END) AS rejected
-       FROM leave_tracker l JOIN users u ON l.user_id=u.id WHERE 1=1 ${leaveDeptC}`, dP);
+       FROM leave_tracker l JOIN users u ON l.user_id=u.id WHERE l.start_date >= ? ${leaveDeptC}`, [fyStart, ...dP]);
     const lv = lvR[0] || {};
     const leave = { total:num(lv.total), pending:num(lv.pending), approved:num(lv.approved), rejected:num(lv.rejected) };
     const [lvTypeR] = await db.query(
-      `SELECT l.type AS type, COUNT(*) AS n FROM leave_tracker l JOIN users u ON l.user_id=u.id WHERE 1=1 ${leaveDeptC} GROUP BY l.type`, dP);
+      `SELECT l.type AS type, COUNT(*) AS n FROM leave_tracker l JOIN users u ON l.user_id=u.id WHERE l.start_date >= ? ${leaveDeptC} GROUP BY l.type`, [fyStart, ...dP]);
     const leaveByType = {};
     for (const row of lvTypeR) leaveByType[row.type || 'other'] = num(row.n);
 
@@ -1279,7 +1305,7 @@ app.get('/api/owner-dashboard', requireAuth, async (req, res) => {
     if (req.query.fms === '1') {
       fms.loading = false;
       try {
-        const stats = await computeFmsStats(useDept ? department : '');
+        const stats = await computeFmsStats(useDept ? department : '', false, { minPlanDate: fyStart, excludeSpreadsheetIds: OWNER_FMS_EXCLUDE_IDS });
         const perFms = stats.perFms || [];
         fms.sheets = perFms.length;
         for (const f of perFms) { fms.pending += num(f.pending); fms.done += num(f.done); fms.total += num(f.total); }
@@ -1305,7 +1331,8 @@ app.get('/api/owner-dashboard/details', requireAuth, async (req, res) => {
   try {
     if (!(await isOwnerUser(req))) return res.status(403).json({ error: 'Owner access only' });
     const { module, start, end, department, frequency } = req.query;
-    const s = start || '2000-01-01';
+    const fyStart = ownerFyStart();
+    const s = (start && start > fyStart) ? start : fyStart;   // 1 April se pehle ka data hide
     const e = end || '2100-01-01';
     const useDept = department && department !== 'all';
     const dC = useDept ? 'AND u.department = ?' : '';
@@ -1334,12 +1361,12 @@ app.get('/api/owner-dashboard/details', requireAuth, async (req, res) => {
            DATE_FORMAT(l.start_date,'%Y-%m-%d') AS start_date,
            DATE_FORMAT(l.end_date,'%Y-%m-%d') AS end_date, l.reason
          FROM leave_tracker l JOIN users u ON l.user_id=u.id
-         WHERE 1=1 ${dC} ORDER BY l.applied_at DESC`, dP);
+         WHERE l.start_date >= ? ${dC} ORDER BY l.applied_at DESC`, [fyStart, ...dP]);
       return res.json({ module, count: rows.length, rows });
     }
 
     if (module === 'fms') {
-      const stats = await computeFmsStats(useDept ? department : '', true);
+      const stats = await computeFmsStats(useDept ? department : '', true, { minPlanDate: fyStart, excludeSpreadsheetIds: OWNER_FMS_EXCLUDE_IDS });
       const perUserPending = stats.perUserPending || {};
       const uids = Object.keys(perUserPending).map(x => parseInt(x)).filter(Boolean);
       const nameMap = {};

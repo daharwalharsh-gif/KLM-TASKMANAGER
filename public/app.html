@@ -887,6 +887,8 @@ tbody tr:last-child td{border-bottom:none;}
         style="flex:1;min-width:200px;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff">
         <option value="">-- Select an FMS --</option>
       </select>
+      <a id="fmsSheetLink" href="#" target="_blank" rel="noopener"
+        style="display:none;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#2563eb;background:#eff6ff;padding:6px 10px;border-radius:8px;text-decoration:none;white-space:nowrap">📄 Open Google Sheet ↗</a>
     </div>
 
     <!-- Train Container -->
@@ -2027,7 +2029,7 @@ async function init() {
     setAvatarDisplay(ME.profile_image, initials);
 
     // Owner Dashboard — SIRF in emails ko dikhe (owner-only)
-    const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'owner@gmail.com'];
+    const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'manik@klmahajan.com'];
     if (OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
       document.getElementById('nav-owner').style.display = 'flex';
     }
@@ -2051,8 +2053,8 @@ async function init() {
     // Dobara dikhana ho to neeche wali line uncomment kar do:
     // if (ME.role === 'admin' || ME.role === 'hod' || ME.role === 'pc') document.getElementById('nav-records').style.display = 'flex';
 
-    // owner@gmail.com — SIRF Owner Dashboard dikhe; poora baaki sidebar hide + seedha wahi khule
-    const isOwnerOnly = String(ME.email || '').trim().toLowerCase() === 'owner@gmail.com';
+    // manik@klmahajan.com (Owner) — SIRF Owner Dashboard dikhe; poora baaki sidebar hide + seedha wahi khule
+    const isOwnerOnly = String(ME.email || '').trim().toLowerCase() === 'manik@klmahajan.com';
     if (isOwnerOnly) {
       document.querySelectorAll('.nav-item').forEach(n => { if (n.id !== 'nav-owner') n.style.display = 'none'; });
       const navOwn = document.getElementById('nav-owner'); if (navOwn) navOwn.style.display = 'flex';
@@ -6149,6 +6151,33 @@ let fmsTasksActiveStepId = null;
 let fmsTasksActiveStepData = null;
 let fmsTrainPaused = false;
 
+// FMS Google Sheet links — gid ke saath taaki sahi tab khule.
+// Map key = spreadsheet ID; naya FMS ho to fallback generic /edit link banta hai.
+const FMS_SHEET_GID_LINKS = {
+  '1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY': 'https://docs.google.com/spreadsheets/d/1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY/edit?gid=314426419#gid=314426419',
+  '1Rqp2S6MqVqMhskj8CUcwipVoa601DwPNtzFhRrMkvvk': 'https://docs.google.com/spreadsheets/d/1Rqp2S6MqVqMhskj8CUcwipVoa601DwPNtzFhRrMkvvk/edit?gid=1340809505#gid=1340809505',
+  '1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg': 'https://docs.google.com/spreadsheets/d/1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg/edit?gid=1170872054#gid=1170872054',
+  '1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM': 'https://docs.google.com/spreadsheets/d/1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM/edit?gid=1879131640#gid=1879131640',
+  '1OgGmcoje36wEDdv5GNUtyiFXk-_yblz6DhQDz-eENkQ': 'https://docs.google.com/spreadsheets/d/1OgGmcoje36wEDdv5GNUtyiFXk-_yblz6DhQDz-eENkQ/edit?gid=1358184747#gid=1358184747',
+  '1kB5eTFJMnGChcSWka5BD9EM6PtMlaX_-jcxMI8ggsjI': 'https://docs.google.com/spreadsheets/d/1kB5eTFJMnGChcSWka5BD9EM6PtMlaX_-jcxMI8ggsjI/edit?gid=1497722633#gid=1497722633',
+  '1L4iqXDhauHC729_ifcCANiPpln0Kt0AjlZ8GjVb_J_A': 'https://docs.google.com/spreadsheets/d/1L4iqXDhauHC729_ifcCANiPpln0Kt0AjlZ8GjVb_J_A/edit?gid=1368961116#gid=1368961116',
+  '1NrXS-WHgR6ME3SDn6tau3Ty0O-4VR_KWNKm7maDaLnM': 'https://docs.google.com/spreadsheets/d/1NrXS-WHgR6ME3SDn6tau3Ty0O-4VR_KWNKm7maDaLnM/edit?gid=1357982796#gid=1357982796',
+  '1TM0wK9cvvE9MWNS_gF1I_JdTmgLTAEycexrJccibkhM': 'https://docs.google.com/spreadsheets/d/1TM0wK9cvvE9MWNS_gF1I_JdTmgLTAEycexrJccibkhM/edit?gid=118569529#gid=118569529',
+  '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw': 'https://docs.google.com/spreadsheets/d/1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw/edit?gid=271453502#gid=271453502'
+};
+let _fmsTasksList = [];
+function updateFmsSheetLink(fmsId) {
+  const linkEl = document.getElementById('fmsSheetLink');
+  if (!linkEl) return;
+  const f = _fmsTasksList.find(x => String(x.id) === String(fmsId));
+  const raw = f ? String(f.sheet_id || '').trim() : '';
+  const m = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  const sid = m ? m[1] : raw;
+  const url = sid ? (FMS_SHEET_GID_LINKS[sid] || `https://docs.google.com/spreadsheets/d/${sid}/edit`) : '';
+  if (url) { linkEl.href = url; linkEl.style.display = 'inline-flex'; }
+  else linkEl.style.display = 'none';
+}
+
 async function loadFMSTasks() {
   document.getElementById('fmsTasksRefreshBtn').style.display = 'flex';
   const sel = document.getElementById('fmsTasksSelect');
@@ -6160,6 +6189,7 @@ async function loadFMSTasks() {
   trainContainer.style.display = 'none';
   stepPanel.style.display = 'none';
   emptyEl.style.display = 'none';
+  document.getElementById('fmsSheetLink').style.display = 'none';
 
   const list = await api('/api/fms-tasks');
   if (list.error) {
@@ -6175,6 +6205,7 @@ async function loadFMSTasks() {
     return;
   }
 
+  _fmsTasksList = list;
   sel.innerHTML = '<option value="">-- Select an FMS --</option>' +
     list.map(f => `<option value="${f.id}">${f.fms_name || f.sheet_name}</option>`).join('');
 
@@ -6193,8 +6224,10 @@ async function onFMSTasksSelect() {
   if (!fmsId) {
     trainContainer.style.display = 'none';
     stepPanel.style.display = 'none';
+    updateFmsSheetLink('');
     return;
   }
+  updateFmsSheetLink(fmsId);
 
   fmsTasksActiveFmsId = parseInt(fmsId);
   fmsTasksActiveStepId = null;
