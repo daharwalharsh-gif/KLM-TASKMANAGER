@@ -3635,6 +3635,11 @@ function generateDates(startDate, freq, weekOffStr, extraOffStr) {
     return extraOff.some(e => e.day === dayOfWeek && e.weeks.includes(nth));
   }
 
+  // Aaj se pehle ki dates kabhi generate nahi hoti — past ke task na bante hain na dikhte hain.
+  // (Start date past me ho to schedule ka pattern wahi rehta hai, bas purani occurrences skip hoti hain.)
+  const _now = new Date();
+  const todayStr = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
+
   let added = 0;
   let safety = count * 14;
   while (added < count && safety-- > 0) {
@@ -3648,8 +3653,11 @@ function generateDates(startDate, freq, weekOffStr, extraOffStr) {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth()+1).padStart(2,'0');
     const dd = String(d.getDate()).padStart(2,'0');
-    dates.push(`${yyyy}-${mm}-${dd}`);
-    added++;
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    if (dateStr >= todayStr) {
+      dates.push(dateStr);
+      added++;
+    }
     if (freq==='daily')            d.setDate(d.getDate()+1);
     else if (freq==='weekly')      d.setDate(d.getDate()+7);
     else if (freq==='alternative_week') d.setDate(d.getDate()+14);
