@@ -473,6 +473,9 @@ async function getSheetsClient(scopes) {
 
 // ── Google Drive (FMS extra-input file uploads — image/PDF Drive folder me save, link sheet me) ──
 const DRIVE_UPLOAD_FOLDER_ID = process.env.DRIVE_UPLOAD_FOLDER_ID || '1qXC1QGafRf1QZ2R5WCZPbghb46zvx4xV';
+// Apps Script web app URL — set hone par uploads user ke apne Google account se hote hain
+// (setup: apps-script-drive-upload.gs dekho). Service accounts My Drive me upload nahi kar sakte (Google policy).
+const APPS_SCRIPT_UPLOAD_URL = process.env.APPS_SCRIPT_UPLOAD_URL || '';
 let _driveClient = null;
 async function getDriveClient() {
   if (_driveClient) return _driveClient;
@@ -2310,6 +2313,26 @@ app.post('/api/fms-tasks/upload-file', requireAuth, async (req, res) => {
     if (!buffer.length) return res.status(400).json({ error: 'File data empty hai' });
     if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'File 3MB se badi hai — chhoti file upload karein' });
 
+    // ── Preferred path: Apps Script web app (user ke apne account se upload —
+    //    Google ab service accounts ko My Drive me upload nahi karne deta) ──
+    if (APPS_SCRIPT_UPLOAD_URL) {
+      const scriptName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
+      const resp = await fetch(APPS_SCRIPT_UPLOAD_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ filename: scriptName, mimeType: mt, dataBase64 })
+      });
+      let out;
+      try { out = await resp.json(); } catch (e) { out = null; }
+      if (out && out.link) {
+        console.log('Drive upload OK (Apps Script) →', scriptName, out.link);
+        return res.json({ success: true, link: out.link, fileId: out.fileId || '' });
+      }
+      console.error('Apps Script upload FAILED:', resp.status, out && out.error);
+      return res.status(500).json({ error: (out && out.error) || `Apps Script upload failed (HTTP ${resp.status})` });
+    }
+
+    // ── Fallback: service account se direct Drive upload (Google policy se block ho sakta hai) ──
     const drive = await getDriveClient();
     const { Readable } = require('stream');
     const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
