@@ -473,19 +473,26 @@ async function getSheetsClient(scopes) {
 
 // ── Google Drive (FMS extra-input file uploads — image/PDF Drive folder me save, link sheet me) ──
 const DRIVE_UPLOAD_FOLDER_ID = process.env.DRIVE_UPLOAD_FOLDER_ID || '1qXC1QGafRf1QZ2R5WCZPbghb46zvx4xV';
-// Apps Script web app URL — set hone par uploads user ke apne Google account se hote hain
-// (setup: apps-script-drive-upload.gs dekho). Service accounts My Drive me upload nahi kar sakte (Google policy).
+// Apps Script web app URL — set hone par uploads user ke apne Google account se Drive folder me jaate hain
+// (setup: apps-script-drive-upload.gs dekho). Service accounts My Drive me upload nahi kar sakte (Google policy),
+// isliye bina Apps Script ke files Postgres me store hoti hain aur public /f/:id link sheet me jaata hai.
 const APPS_SCRIPT_UPLOAD_URL = process.env.APPS_SCRIPT_UPLOAD_URL || '';
-let _driveClient = null;
-async function getDriveClient() {
-  if (_driveClient) return _driveClient;
-  const { google } = require('googleapis');
-  const creds = process.env.GOOGLE_CREDENTIALS
-    ? JSON.parse(process.env.GOOGLE_CREDENTIALS)
-    : require('./credentials.json');
-  const auth = new google.auth.GoogleAuth({ credentials: creds, scopes: ['https://www.googleapis.com/auth/drive'] });
-  _driveClient = google.drive({ version: 'v3', auth: await auth.getClient() });
-  return _driveClient;
+
+// ── FMS file storage (Postgres, alasql layer ke BAHAR — bade blobs memory-engine me nahi rakhte) ──
+let _fmsFilesReady = false;
+async function fmsFilesPool() {
+  const pool = require('./pg-db')._getPool();
+  if (!_fmsFilesReady) {
+    await pool.query(`CREATE TABLE IF NOT EXISTS fms_files (
+      id TEXT PRIMARY KEY,
+      filename TEXT NOT NULL DEFAULT '',
+      mime TEXT NOT NULL DEFAULT 'application/octet-stream',
+      data BYTEA NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+    _fmsFilesReady = true;
+  }
+  return pool;
 }
 
 // Pre-warm Google auth on startup (reduces cold start time)
@@ -2313,48 +2320,54 @@ app.post('/api/fms-tasks/upload-file', requireAuth, async (req, res) => {
     if (!buffer.length) return res.status(400).json({ error: 'File data empty hai' });
     if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'File 3MB se badi hai — chhoti file upload karein' });
 
-    // ── Preferred path: Apps Script web app (user ke apne account se upload —
-    //    Google ab service accounts ko My Drive me upload nahi karne deta) ──
+    const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
+
+    // ── 1) Apps Script web app (Drive folder, user ke account se) — agar configured hai ──
     if (APPS_SCRIPT_UPLOAD_URL) {
-      const scriptName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
-      const resp = await fetch(APPS_SCRIPT_UPLOAD_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ filename: scriptName, mimeType: mt, dataBase64 })
-      });
-      let out;
-      try { out = await resp.json(); } catch (e) { out = null; }
-      if (out && out.link) {
-        console.log('Drive upload OK (Apps Script) →', scriptName, out.link);
-        return res.json({ success: true, link: out.link, fileId: out.fileId || '' });
+      try {
+        const resp = await fetch(APPS_SCRIPT_UPLOAD_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ filename: safeName, mimeType: mt, dataBase64 })
+        });
+        let out;
+        try { out = await resp.json(); } catch (e) { out = null; }
+        if (out && out.link) {
+          console.log('Drive upload OK (Apps Script) →', safeName, out.link);
+          return res.json({ success: true, link: out.link, fileId: out.fileId || '', storage: 'drive' });
+        }
+        console.error('Apps Script upload failed, DB fallback:', resp.status, out && out.error);
+      } catch (e) {
+        console.error('Apps Script upload error, DB fallback:', e.message);
       }
-      console.error('Apps Script upload FAILED:', resp.status, out && out.error);
-      return res.status(500).json({ error: (out && out.error) || `Apps Script upload failed (HTTP ${resp.status})` });
     }
 
-    // ── Fallback: service account se direct Drive upload (Google policy se block ho sakta hai) ──
-    const drive = await getDriveClient();
-    const { Readable } = require('stream');
-    const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
-    const created = await drive.files.create({
-      requestBody: { name: safeName, parents: [DRIVE_UPLOAD_FOLDER_ID] },
-      media: { mimeType: mt, body: Readable.from(buffer) },
-      fields: 'id, webViewLink',
-      supportsAllDrives: true
-    });
-    const fileId = created.data.id;
-    // Anyone-with-link viewer — taaki sheet ka link sabke liye khule
-    try {
-      await drive.permissions.create({ fileId, requestBody: { role: 'reader', type: 'anyone' }, supportsAllDrives: true });
-    } catch (permErr) { console.log('Drive permission set failed (non-fatal):', permErr.message); }
-    const link = created.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
-    console.log('Drive upload OK →', safeName, link);
-    res.json({ success: true, link, fileId });
+    // ── 2) Postgres — file DB me save, public /f/:id link sheet me jaata hai ──
+    const pool = await fmsFilesPool();
+    const fileId = require('crypto').randomBytes(18).toString('base64url');
+    await pool.query('INSERT INTO fms_files (id, filename, mime, data) VALUES ($1,$2,$3,$4)', [fileId, safeName, mt, buffer]);
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const link = `${proto}://${req.get('host')}/f/${fileId}`;
+    console.log('File upload OK (DB) →', safeName, link);
+    res.json({ success: true, link, fileId, storage: 'db' });
   } catch (err) {
-    console.error('Drive upload FAILED:', err.code, err.message);
-    if (err.code === 404) return res.status(400).json({ error: 'Drive folder nahi mila — folder ko service account se share karein' });
-    if (err.code === 403) return res.status(400).json({ error: 'Drive access denied — folder ko service account email se Editor access dein' });
+    console.error('File upload FAILED:', err.code, err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Public file serve — sheet ke link se photo/PDF khulta hai (random unguessable id, isliye no auth)
+app.get('/f/:id', async (req, res) => {
+  try {
+    const pool = await fmsFilesPool();
+    const { rows } = await pool.query('SELECT filename, mime, data FROM fms_files WHERE id=$1', [req.params.id]);
+    if (!rows[0]) return res.status(404).send('File not found');
+    res.set('Content-Type', rows[0].mime);
+    res.set('Content-Disposition', `inline; filename="${(rows[0].filename || 'file').replace(/"/g, '')}"`);
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(rows[0].data);
+  } catch (err) {
+    res.status(500).send('Error: ' + err.message);
   }
 });
 
