@@ -471,6 +471,20 @@ async function getSheetsClient(scopes) {
   }
 }
 
+// ── Google Drive (FMS extra-input file uploads — image/PDF Drive folder me save, link sheet me) ──
+const DRIVE_UPLOAD_FOLDER_ID = process.env.DRIVE_UPLOAD_FOLDER_ID || '1qXC1QGafRf1QZ2R5WCZPbghb46zvx4xV';
+let _driveClient = null;
+async function getDriveClient() {
+  if (_driveClient) return _driveClient;
+  const { google } = require('googleapis');
+  const creds = process.env.GOOGLE_CREDENTIALS
+    ? JSON.parse(process.env.GOOGLE_CREDENTIALS)
+    : require('./credentials.json');
+  const auth = new google.auth.GoogleAuth({ credentials: creds, scopes: ['https://www.googleapis.com/auth/drive'] });
+  _driveClient = google.drive({ version: 'v3', auth: await auth.getClient() });
+  return _driveClient;
+}
+
 // Pre-warm Google auth on startup (reduces cold start time)
 (async () => {
   try {
@@ -2281,6 +2295,42 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Access denied.' });
     if (err.code === 404) return res.status(400).json({ error: 'Sheet not found.' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Upload image/PDF to Drive folder — link return karta hai (extra input 'file' type ke liye)
+app.post('/api/fms-tasks/upload-file', requireAuth, async (req, res) => {
+  try {
+    const { filename, mimeType, dataBase64 } = req.body;
+    if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
+    const mt = (mimeType || '').toLowerCase();
+    if (!mt.startsWith('image/') && mt !== 'application/pdf') return res.status(400).json({ error: 'Sirf image ya PDF allowed hai' });
+    const buffer = Buffer.from(dataBase64, 'base64');
+    if (!buffer.length) return res.status(400).json({ error: 'File data empty hai' });
+    if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'File 3MB se badi hai — chhoti file upload karein' });
+
+    const drive = await getDriveClient();
+    const { Readable } = require('stream');
+    const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
+    const created = await drive.files.create({
+      requestBody: { name: safeName, parents: [DRIVE_UPLOAD_FOLDER_ID] },
+      media: { mimeType: mt, body: Readable.from(buffer) },
+      fields: 'id, webViewLink',
+      supportsAllDrives: true
+    });
+    const fileId = created.data.id;
+    // Anyone-with-link viewer — taaki sheet ka link sabke liye khule
+    try {
+      await drive.permissions.create({ fileId, requestBody: { role: 'reader', type: 'anyone' }, supportsAllDrives: true });
+    } catch (permErr) { console.log('Drive permission set failed (non-fatal):', permErr.message); }
+    const link = created.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+    console.log('Drive upload OK →', safeName, link);
+    res.json({ success: true, link, fileId });
+  } catch (err) {
+    console.error('Drive upload FAILED:', err.code, err.message);
+    if (err.code === 404) return res.status(400).json({ error: 'Drive folder nahi mila — folder ko service account se share karein' });
+    if (err.code === 403) return res.status(400).json({ error: 'Drive access denied — folder ko service account email se Editor access dein' });
     res.status(500).json({ error: err.message });
   }
 });

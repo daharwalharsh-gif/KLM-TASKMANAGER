@@ -5672,6 +5672,7 @@ function buildStepBoxHTML(idx) {
       <option value="date" ${r.field_type==='date'?'selected':''}>📅 Date</option>
       <option value="link" ${r.field_type==='link'?'selected':''}>🔗 Link</option>
       <option value="dropdown" ${r.field_type==='dropdown'?'selected':''}>🔽 Dropdown</option>
+      <option value="file" ${r.field_type==='file'?'selected':''}>🖼️ Image/PDF</option>
     </select>`;
     const dropSection = r.field_type==='dropdown' ? buildDropdownOptionsHTML(idx, ri, r) : '';
     return `<div class="extra-row-item" id="fmsExtraRow_${idx}_${ri}" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:10px">
@@ -5872,6 +5873,7 @@ function buildExtraRowHTML(idx, ri, headers) {
     <option value="date" ${r.field_type==='date'?'selected':''}>📅 Date</option>
     <option value="link" ${r.field_type==='link'?'selected':''}>🔗 Link</option>
     <option value="dropdown" ${r.field_type==='dropdown'?'selected':''}>🔽 Dropdown</option>
+    <option value="file" ${r.field_type==='file'?'selected':''}>🖼️ Image/PDF</option>
   </select>`;
   const dropOptsSection = r.field_type==='dropdown' ? buildDropdownOptionsHTML(idx, ri, r) : '';
   return `
@@ -6741,6 +6743,10 @@ function openFMSDoneModal(rowIdx) {
           inputHtml = `<select id="fmsExtra_${i}" style="${inputStyle};background:#fff"><option value="">-- Select --</option>${optionsList}</select>`;
           break;
         }
+        case 'file':
+          inputHtml = `<input type="file" id="fmsExtra_${i}" accept="image/*,application/pdf" style="${inputStyle};background:#fff"/>
+            <div style="font-size:11px;color:#94a3b8;margin-top:3px">Image ya PDF (max 3MB) — Drive me save hogi, link sheet me jayega</div>`;
+          break;
         default:
           inputHtml = `<input type="text" id="fmsExtra_${i}" placeholder="Enter value..." style="${inputStyle}"/>`;
       }
@@ -6794,10 +6800,47 @@ async function saveFMSDone() {
       if (el) el.style.border = '1.5px solid #e2e8f0';
     }
   }
-  const extraInputs = extraRows.map((r, i) => {
+  const extraInputs = [];
+  for (let i = 0; i < extraRows.length; i++) {
+    const r = extraRows[i];
     const el = document.getElementById(`fmsExtra_${i}`);
-    return { colLetter: r.col_letter, value: el ? el.value.trim() : '' };
-  }).filter(e => e.colLetter && e.value !== '');
+    if (!el || !r.col_letter) continue;
+    let value = '';
+    if ((r.field_type || 'text') === 'file') {
+      // File pehle Drive pe upload hoti hai, phir uska link sheet me save hota hai
+      const file = el.files && el.files[0];
+      if (!file) continue; // mandatory check upar ho chuka hai
+      if (file.size > 3 * 1024 * 1024) {
+        errEl.textContent = `"${r.label || r.row_label || r.col_letter}" — file 3MB se chhoti honi chahiye!`;
+        errEl.style.display = 'block';
+        saveBtn.textContent = '💾 Save to Sheet';
+        saveBtn.disabled = false;
+        return;
+      }
+      saveBtn.textContent = '⏳ Uploading file...';
+      const dataBase64 = await new Promise((resolve) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result).split(',')[1] || '');
+        fr.onerror = () => resolve('');
+        fr.readAsDataURL(file);
+      });
+      const up = dataBase64
+        ? await api('/api/fms-tasks/upload-file', 'POST', { filename: file.name, mimeType: file.type || 'application/octet-stream', dataBase64 })
+        : { error: 'File read nahi ho saki' };
+      if (!up || up.error || !up.link) {
+        errEl.textContent = `File upload failed: ${(up && up.error) || 'unknown error'}`;
+        errEl.style.display = 'block';
+        saveBtn.textContent = '💾 Save to Sheet';
+        saveBtn.disabled = false;
+        return;
+      }
+      value = up.link;
+      saveBtn.textContent = '⏳ Saving...';
+    } else {
+      value = el.value.trim();
+    }
+    if (value !== '') extraInputs.push({ colLetter: r.col_letter, value });
+  }
 
   const r = await api(`/api/fms-tasks/${fmsId}/steps/${stepId}/done`, 'POST', {
     rowNumber: parseInt(rowNum),
