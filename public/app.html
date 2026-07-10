@@ -6724,6 +6724,7 @@ function openFMSDoneModal(rowIdx) {
   document.getElementById('fmsDoneDelayReason').value = '';
 
   // Populate extra input fields based on step configuration
+  window._fmsChosenFiles = {}; // file-type extra inputs — choose karte hi base64 yahan store hota hai
   const activeStep = window._fmsActiveStepData;
   const extraRows = (activeStep && activeStep.extraRows) ? activeStep.extraRows.filter(r => r.col_letter) : [];
   const extraSection = document.getElementById('fmsDoneExtraSection');
@@ -6752,8 +6753,8 @@ function openFMSDoneModal(rowIdx) {
           break;
         }
         case 'file':
-          inputHtml = `<input type="file" id="fmsExtra_${i}" accept="image/*,application/pdf" style="${inputStyle};background:#fff"/>
-            <div style="font-size:11px;color:#94a3b8;margin-top:3px">Image ya PDF (max 3MB) — upload hogi aur link sheet me save hoga</div>`;
+          inputHtml = `<input type="file" id="fmsExtra_${i}" accept="image/*,application/pdf" onchange="fmsFileChosen(${i}, this)" style="${inputStyle};background:#fff"/>
+            <div id="fmsExtraFileMsg_${i}" style="font-size:11px;color:#94a3b8;margin-top:3px">Image ya PDF (max 3MB) — upload hogi aur link sheet me save hoga</div>`;
           break;
         default:
           inputHtml = `<input type="text" id="fmsExtra_${i}" placeholder="Enter value..." style="${inputStyle}"/>`;
@@ -6773,6 +6774,49 @@ function openFMSDoneModal(rowIdx) {
 }
 
 // (delay reason is now a plain text input — no dropdown listener needed)
+
+// File ko base64 me padho — pehle arrayBuffer (modern, reliable), fail ho to FileReader fallback
+async function fmsReadFileBase64(file) {
+  try {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (let j = 0; j < bytes.length; j += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(j, j + 0x8000));
+    const b64 = btoa(bin);
+    if (!b64) throw new Error('empty file data');
+    return b64;
+  } catch (e1) {
+    return await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => { const b = String(fr.result).split(',')[1] || ''; b ? resolve(b) : reject(new Error('empty file data')); };
+      fr.onerror = () => reject(fr.error || new Error('FileReader failed'));
+      fr.readAsDataURL(file);
+    });
+  }
+}
+
+// File choose hote hi TURANT padh ke store kar lete hain — save ke waqt tak file
+// lock/sync (OneDrive etc.) ho jaye to bhi data hamare paas already hota hai.
+async function fmsFileChosen(i, el) {
+  const msgEl = document.getElementById(`fmsExtraFileMsg_${i}`);
+  const setMsg = (t, c) => { if (msgEl) { msgEl.textContent = t; msgEl.style.color = c; } };
+  window._fmsChosenFiles = window._fmsChosenFiles || {};
+  delete window._fmsChosenFiles[i];
+  const file = el.files && el.files[0];
+  if (!file) { setMsg('Image ya PDF (max 3MB) — upload hogi aur link sheet me save hoga', '#94a3b8'); return; }
+  if (file.size > 3 * 1024 * 1024) { el.value = ''; setMsg(`❌ File ${(file.size/1024/1024).toFixed(1)}MB hai — max 3MB allowed, chhoti file chuno`, '#ef4444'); return; }
+  if (!file.size) { el.value = ''; setMsg('❌ File 0 KB hai — OneDrive/cloud wali file pehle download karke phir chuno', '#ef4444'); return; }
+  setMsg('⏳ File padh raha hai...', '#64748b');
+  try {
+    const b64 = await fmsReadFileBase64(file);
+    window._fmsChosenFiles[i] = { name: file.name, type: file.type || 'application/octet-stream', b64 };
+    setMsg(`✅ ${file.name} ready (${Math.max(1, Math.round(file.size/1024))} KB)`, '#16a34a');
+  } catch (e) {
+    console.error('FMS file read failed:', file.name, file.size, file.type, e);
+    el.value = '';
+    setMsg(`❌ File padh nahi paya (${(e && (e.name || e.message)) || 'unknown'}) — file dobara chuno. Agar OneDrive/cloud me hai to pehle local download karo`, '#ef4444');
+  }
+}
 
 async function saveFMSDone() {
   const fmsId = document.getElementById('fmsDoneFmsId').value;
@@ -6815,26 +6859,26 @@ async function saveFMSDone() {
     if (!el || !r.col_letter) continue;
     let value = '';
     if ((r.field_type || 'text') === 'file') {
-      // File pehle Drive pe upload hoti hai, phir uska link sheet me save hota hai
+      // File upload hoti hai, phir uska link sheet me save hota hai.
+      // Base64 choose ke waqt hi padha ja chuka hai (_fmsChosenFiles) — yahan sirf fallback re-read.
+      const label = r.label || r.row_label || r.col_letter || `Field ${i+1}`;
       const file = el.files && el.files[0];
-      if (!file) continue; // mandatory check upar ho chuka hai
-      if (file.size > 3 * 1024 * 1024) {
-        errEl.textContent = `"${r.label || r.row_label || r.col_letter}" — file 3MB se chhoti honi chahiye!`;
-        errEl.style.display = 'block';
-        saveBtn.textContent = '💾 Save to Sheet';
-        saveBtn.disabled = false;
-        return;
+      let chosen = (window._fmsChosenFiles || {})[i];
+      if (!chosen && !file) continue; // mandatory check upar ho chuka hai
+      if (!chosen && file) {
+        try {
+          chosen = { name: file.name, type: file.type || 'application/octet-stream', b64: await fmsReadFileBase64(file) };
+        } catch (e) {
+          console.error('FMS file re-read failed:', file.name, e);
+          errEl.textContent = `"${label}" file padh nahi paya (${(e && (e.name || e.message)) || 'unknown'}) — file dobara choose karke turant save karo. OneDrive/cloud wali file ho to pehle local download karo.`;
+          errEl.style.display = 'block';
+          saveBtn.textContent = '💾 Save to Sheet';
+          saveBtn.disabled = false;
+          return;
+        }
       }
       saveBtn.textContent = '⏳ Uploading file...';
-      const dataBase64 = await new Promise((resolve) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(String(fr.result).split(',')[1] || '');
-        fr.onerror = () => resolve('');
-        fr.readAsDataURL(file);
-      });
-      const up = dataBase64
-        ? await api('/api/fms-tasks/upload-file', 'POST', { filename: file.name, mimeType: file.type || 'application/octet-stream', dataBase64 })
-        : { error: 'File read nahi ho saki' };
+      const up = await api('/api/fms-tasks/upload-file', 'POST', { filename: chosen.name, mimeType: chosen.type, dataBase64: chosen.b64 });
       if (!up || up.error || !up.link) {
         errEl.textContent = `File upload failed: ${(up && up.error) || 'unknown error'}`;
         errEl.style.display = 'block';
