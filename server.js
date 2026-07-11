@@ -646,10 +646,11 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       for (const row of rows) {
         const planVal = (row[planIdx] || '').trim();
         const actualVal = (row[actualIdx] || '').trim();
-        // Owner dashboard cutoff: plan date minPlanDate se pehle ho to row count NAHI
-        if (opts.minPlanDate && planVal) {
+        // Owner dashboard cutoff: plan date minPlanDate se pehle ya maxPlanDate ke baad ho to row count NAHI
+        if ((opts.minPlanDate || opts.maxPlanDate) && planVal) {
           const pd = parsePlanDate(planVal);
-          if (pd && pd < opts.minPlanDate) continue;
+          if (pd && opts.minPlanDate && pd < opts.minPlanDate) continue;
+          if (pd && opts.maxPlanDate && pd > opts.maxPlanDate) continue;
         }
         if (planVal && !actualVal) {
           stepPending++;
@@ -1221,7 +1222,8 @@ app.get('/api/owner-dashboard', requireAuth, async (req, res) => {
     const { start, end, department } = req.query;
     const fyStart = ownerFyStart();
     const s = (start && start > fyStart) ? start : fyStart;   // 1 April se pehle ka data hide
-    const e = end || '2100-01-01';
+    // Default: sirf aaj tak ke task (current + overdue) — future wale tabhi jab user khud TO date de
+    const e = end || new Date().toISOString().split('T')[0];
     const useDept = department && department !== 'all';
     const dC = useDept ? 'AND u.department = ?' : '';
     const dP = useDept ? [department] : [];
@@ -1336,7 +1338,7 @@ app.get('/api/owner-dashboard', requireAuth, async (req, res) => {
     if (req.query.fms === '1') {
       fms.loading = false;
       try {
-        const stats = await computeFmsStats(useDept ? department : '', false, { minPlanDate: fyStart, excludeSpreadsheetIds: OWNER_FMS_EXCLUDE_IDS });
+        const stats = await computeFmsStats(useDept ? department : '', false, { minPlanDate: s, maxPlanDate: e, excludeSpreadsheetIds: OWNER_FMS_EXCLUDE_IDS });
         const perFms = stats.perFms || [];
         fms.sheets = perFms.length;
         for (const f of perFms) { fms.pending += num(f.pending); fms.done += num(f.done); fms.total += num(f.total); }
@@ -1364,7 +1366,8 @@ app.get('/api/owner-dashboard/details', requireAuth, async (req, res) => {
     const { module, start, end, department, frequency } = req.query;
     const fyStart = ownerFyStart();
     const s = (start && start > fyStart) ? start : fyStart;   // 1 April se pehle ka data hide
-    const e = end || '2100-01-01';
+    // Default: sirf aaj tak ke task (current + overdue) — future wale tabhi jab user khud TO date de
+    const e = end || new Date().toISOString().split('T')[0];
     const useDept = department && department !== 'all';
     const dC = useDept ? 'AND u.department = ?' : '';
     const dP = useDept ? [department] : [];
@@ -1397,7 +1400,7 @@ app.get('/api/owner-dashboard/details', requireAuth, async (req, res) => {
     }
 
     if (module === 'fms') {
-      const stats = await computeFmsStats(useDept ? department : '', true, { minPlanDate: fyStart, excludeSpreadsheetIds: OWNER_FMS_EXCLUDE_IDS });
+      const stats = await computeFmsStats(useDept ? department : '', true, { minPlanDate: s, maxPlanDate: e, excludeSpreadsheetIds: OWNER_FMS_EXCLUDE_IDS });
       const perUserPending = stats.perUserPending || {};
       const uids = Object.keys(perUserPending).map(x => parseInt(x)).filter(Boolean);
       const nameMap = {};
