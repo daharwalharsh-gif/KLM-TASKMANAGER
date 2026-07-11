@@ -1994,7 +1994,12 @@ app.put('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
 app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     if (parseInt(req.params.id) === req.session.userId) return res.status(400).json({ error: 'Cannot delete yourself' });
-    await db.query('DELETE FROM users WHERE id=?', [req.params.id]);
+    const uid = req.params.id;
+    // User ke saath uske saare task bhi delete — checklist, delegation aur FMS doer links
+    await db.query('DELETE FROM checklist_tasks WHERE assigned_to=?', [uid]);
+    await db.query('DELETE FROM delegation_tasks WHERE assigned_to=?', [uid]);
+    await db.query('DELETE FROM fms_step_doers WHERE user_id=?', [uid]);
+    await db.query('DELETE FROM users WHERE id=?', [uid]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

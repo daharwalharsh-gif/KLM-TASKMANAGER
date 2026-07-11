@@ -4143,7 +4143,7 @@ async function handleApproval(id, action) {
 }
 
 async function deleteUser(id) {
-  if (!confirm('Delete this user?')) return;
+  if (!confirm('Delete this user? Iske SAARE tasks (checklist + delegation + FMS doer) bhi delete ho jayenge!')) return;
   const r=await api(`/api/users/${id}`,'DELETE');
   if (r.error) return alert(r.error);
   loadUsers();
