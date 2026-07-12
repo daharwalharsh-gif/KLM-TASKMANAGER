@@ -2120,8 +2120,8 @@ app.post('/api/fms', requireAuth, requireAdmin, async (req, res) => {
     for (let i = 0; i < steps.length; i++) {
       const s = steps[i];
       const [sr] = await conn.query(
-        `INSERT INTO fms_steps (fms_id,step_order,step_name,plan_col,actual_col,extra_input,extra_col,show_cols,delay_reason_col,doer_name_col) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-        [fmsId,i+1,s.stepName,s.planCol||'',s.actualCol||'',s.extraInput||'no',s.extraCol||'',JSON.stringify(s.showCols||[]),s.delayReasonCol||'',s.doerNameCol||'']
+        `INSERT INTO fms_steps (fms_id,step_order,step_name,plan_col,actual_col,extra_input,extra_col,show_cols,delay_reason_col,doer_name_col,doer_filter_col,doer_filter_map) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [fmsId,i+1,s.stepName,s.planCol||'',s.actualCol||'',s.extraInput||'no',s.extraCol||'',JSON.stringify(s.showCols||[]),s.delayReasonCol||'',s.doerNameCol||'',s.doerFilterCol||'',JSON.stringify(s.doerFilterMap||{})]
       );
       const stepId = sr.insertId;
       if (s.doers?.length) for (const uid of s.doers) await conn.query('INSERT INTO fms_step_doers (step_id,user_id) VALUES (?,?)', [stepId, uid]);
@@ -2147,8 +2147,8 @@ app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
     for (let i=0; i<steps.length; i++) {
       const s = steps[i];
       const [sr] = await conn.query(
-        `INSERT INTO fms_steps (fms_id,step_order,step_name,plan_col,actual_col,extra_input,extra_col,show_cols,delay_reason_col,doer_name_col) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-        [req.params.id,i+1,s.stepName,s.planCol||'',s.actualCol||'',s.extraInput||'no',s.extraCol||'',JSON.stringify(s.showCols||[]),s.delayReasonCol||'',s.doerNameCol||'']
+        `INSERT INTO fms_steps (fms_id,step_order,step_name,plan_col,actual_col,extra_input,extra_col,show_cols,delay_reason_col,doer_name_col,doer_filter_col,doer_filter_map) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [req.params.id,i+1,s.stepName,s.planCol||'',s.actualCol||'',s.extraInput||'no',s.extraCol||'',JSON.stringify(s.showCols||[]),s.delayReasonCol||'',s.doerNameCol||'',s.doerFilterCol||'',JSON.stringify(s.doerFilterMap||{})]
       );
       const stepId = sr.insertId;
       if (s.doers?.length) for (const uid of s.doers) await conn.query('INSERT INTO fms_step_doers (step_id,user_id) VALUES (?,?)', [stepId, uid]);
@@ -2161,12 +2161,52 @@ app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
 
 app.delete('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
+    // Cascade: steps + doers + extra rows bhi delete — warna orphan rows sheet me reh jaati hain
+    // aur FMS id reuse hone par purane steps naye FMS me ghus jaate hain
+    const [steps] = await db.query('SELECT id FROM fms_steps WHERE fms_id=?', [req.params.id]);
+    for (const st of steps) {
+      await db.query('DELETE FROM fms_step_doers WHERE step_id=?', [st.id]);
+      await db.query('DELETE FROM fms_extra_rows WHERE step_id=?', [st.id]);
+    }
+    await db.query('DELETE FROM fms_steps WHERE fms_id=?', [req.params.id]);
     await db.query('DELETE FROM fms_sheets WHERE id=?', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Fetch headers ONLY (fast — just one row from sheet) ──
+// Ek column ke UNIQUE values (naam) — Row Filter mapping UI ke liye
+app.post('/api/fms/col-values', requireAuth, async (req, res) => {
+  try {
+    const { sheetId, sheetName, headerRow, col } = req.body;
+    if (!sheetId || !col) return res.status(400).json({ error: 'sheetId and col required' });
+    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    const spreadsheetId = extractSpreadsheetId(sheetId);
+    const hRow = parseInt(headerRow) || 1;
+    const c = String(col).toUpperCase().replace(/[^A-Z]/g, '');
+    if (!c) return res.status(400).json({ error: 'Invalid column' });
+    const range = sheetName ? `${sheetName}!${c}:${c}` : `${c}:${c}`;
+    const response = await sheetsApi.spreadsheets.values.get({ spreadsheetId, range, majorDimension: 'COLUMNS' });
+    const colVals = ((response.data.values || [[]])[0] || []).slice(hRow); // header ke baad ke values
+    const seen = new Set();
+    const values = [];
+    for (const v of colVals) {
+      const t = String(v ?? '').trim();
+      if (!t) continue;
+      const key = t.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      values.push(t);
+      if (values.length >= 100) break; // safety cap
+    }
+    res.json({ values });
+  } catch (err) {
+    if (err.code === 403) return res.status(400).json({ error: 'Access denied. Share sheet with service account.' });
+    if (err.code === 404) return res.status(400).json({ error: 'Sheet not found. Check Sheet ID.' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/fms/fetch-headers', requireAuth, async (req, res) => {
   try {
     const { sheetId, sheetName, headerRow } = req.body;
@@ -2279,12 +2319,26 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     let showCols = [];
     try { showCols = JSON.parse(step.show_cols||'[]'); } catch(e) {}
 
+    // Row filter column + mapping: admin ne column ke har naam pe doer map kiya hai
+    // (e.g. "Kiran" -> Aaradhna). Jis naam pe jo doer mapped, us naam wali rows sirf usi ko.
+    // Unmapped naam ya khaali cell = sab doers ko dikhe. Admin/PC ko sab rows dikhti hain.
+    const doerFilterIdx = colToIdx(step.doer_filter_col || '');
+    const isAdminView = req.session.role === 'admin' || req.session.role === 'pc';
+    let filterMap = {};
+    try { filterMap = JSON.parse(step.doer_filter_map || '{}') || {}; } catch (e) { filterMap = {}; }
+    // Normalized map: lowercase-name -> userId (string)
+    const nameToUid = {};
+    for (const [nm, u2] of Object.entries(filterMap)) {
+      if (u2 !== '' && u2 !== null && u2 !== undefined) nameToUid[String(nm).trim().toLowerCase()] = String(u2);
+    }
+    const myUid = String(req.session.userId);
+
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
     const spreadsheetId = extractSpreadsheetId(sheet.sheet_id);
     const tabName = sheet.sheet_name || 'Sheet1';
 
     // Optimized: fetch only up to the furthest needed column
-    const maxIdx = Math.max(planIdx, actualIdx, ...(showCols.length ? showCols : [0]));
+    const maxIdx = Math.max(planIdx, actualIdx, doerFilterIdx, ...(showCols.length ? showCols : [0]));
     const lastCol = maxIdx >= 0 ? idxToCol(maxIdx) : 'Z';
     const range = `${tabName}!A:${lastCol}`;
 
@@ -2298,6 +2352,16 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     dataRows.forEach((row, i) => {
       const planVal = planIdx >= 0 ? (row[planIdx]||'').trim() : '';
       const actualVal = actualIdx >= 0 ? (row[actualIdx]||'').trim() : '';
+      // Doer row filter (mapping): cell ka naam kisi doer ko mapped hai aur wo main nahi hoon to skip.
+      // (cell me multiple naam ho sakte hain: "Kiran, Isha" — comma/slash/& se split)
+      if (doerFilterIdx >= 0 && !isAdminView && Object.keys(nameToUid).length) {
+        const cellNames = (row[doerFilterIdx] || '').trim().toLowerCase().split(/[,/&+]/).map(x => x.trim()).filter(Boolean);
+        if (cellNames.length) {
+          const mappedNames = cellNames.filter(n => nameToUid[n] !== undefined);
+          const isMine = mappedNames.some(n => nameToUid[n] === myUid);
+          if (mappedNames.length && !isMine) return; // kisi aur doer ko mapped — mujhe nahi dikhna
+        }
+      }
       if (planVal && !actualVal) {
         const rowData = {};
         let colsToShow = showCols.length ? showCols : headers.map((_,hi) => hi);

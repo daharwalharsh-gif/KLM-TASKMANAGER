@@ -63,7 +63,7 @@ const SCHEMA = {
     autoFill: { created_at: 'NOW' }
   },
   fms_steps: {
-    cols: ['id','fms_id','step_order','step_name','plan_col','actual_col','extra_input','extra_col','show_cols','delay_reason_col','doer_name_col'],
+    cols: ['id','fms_id','step_order','step_name','plan_col','actual_col','extra_input','extra_col','show_cols','delay_reason_col','doer_name_col','doer_filter_col','doer_filter_map'],
     autoFill: {}
   },
   fms_step_doers: {

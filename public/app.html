@@ -5392,7 +5392,9 @@ async function openEditFMS() {
     extraRows: (s.extraRows||[]).map(r=>({col_letter:r.col_letter||'', field_type:r.field_type||'text', label:r.row_label||r.label||r.col_letter||'', dropdown_options:r.dropdown_options||''})),
     showCols: s.show_cols_parsed || [],
     delayReasonCol: s.delay_reason_col||'',
-    doerNameCol: s.doer_name_col||''
+    doerNameCol: s.doer_name_col||'',
+    doerFilterCol: s.doer_filter_col||'',
+    doerFilterMap: (()=>{ try { return JSON.parse(s.doer_filter_map||'{}')||{}; } catch(e){ return {}; } })()
   }));
 
   fmsDeleteMode = false;
@@ -5413,6 +5415,7 @@ async function openEditFMS() {
   fmsSheetHeaders = [];
   try {
     const payload = { sheetId: sheet.sheet_id, sheetName: sheet.sheet_name, headerRow: sheet.header_row };
+    window._fmsHdrPayload = payload; // Row Filter mapping (col-values) isi se sheet dhundta hai
     console.log('Fetching headers:', payload);
     const hRes = await api('/api/fms/fetch-headers','POST', payload);
     console.log('Headers response:', hRes);
@@ -5474,7 +5477,7 @@ async function saveEditFMS() {
   const r = await api(`/api/fms/${fmsActiveId}`,'PUT',{
     fmsName: fmsName || sheetName,
     sheetName, sheetId, headerRow,
-    steps: fmsSteps.map(s=>({...s, showCols:s.showCols||[], delayReasonCol:s.delayReasonCol||'', doerNameCol:s.doerNameCol||s.doer_name_col||'', extraRows:(s.extraRows||[]).map(r=>({...r,dropdown_options:r.dropdown_options||''}))}))
+    steps: fmsSteps.map(s=>({...s, showCols:s.showCols||[], delayReasonCol:s.delayReasonCol||'', doerNameCol:s.doerNameCol||s.doer_name_col||'', doerFilterCol:s.doerFilterCol||s.doer_filter_col||'', doerFilterMap:s.doerFilterMap||{}, extraRows:(s.extraRows||[]).map(r=>({...r,dropdown_options:r.dropdown_options||''}))}))
   });
   if (r.error) { err.textContent=r.error; err.style.display='block'; return; }
 
@@ -5603,7 +5606,7 @@ async function proceedToStepsConfig() {
   const container = document.getElementById('fmsStepsContainer');
   container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b">⏳ Loading headers...</div>';
   for (let i=0; i<fmsData.totalSteps; i++) {
-    fmsSteps.push({ stepName:`Step ${i+1}`, doers:[], planCol:'', actualCol:'', extraInput:'no', extraCol:'', extraRows:[], showCols:[], delayReasonCol:'', doerNameCol:'' }); // extraRows items: {col_letter, field_type, label}
+    fmsSteps.push({ stepName:`Step ${i+1}`, doers:[], planCol:'', actualCol:'', extraInput:'no', extraCol:'', extraRows:[], showCols:[], delayReasonCol:'', doerNameCol:'', doerFilterCol:'', doerFilterMap:{} }); // extraRows items: {col_letter, field_type, label}
   }
 
   fmsDeleteMode = false;
@@ -5616,6 +5619,7 @@ async function proceedToStepsConfig() {
   // Fetch headers after modal open
   fmsSheetHeaders = [];
   try {
+    window._fmsHdrPayload = { sheetId: fmsData.sheetId, sheetName: fmsData.sheetName, headerRow: fmsData.headerRow }; // Row Filter mapping ke liye
     const hRes = await api('/api/fms/fetch-headers', 'POST', {
       sheetId: fmsData.sheetId,
       sheetName: fmsData.sheetName,
@@ -5647,6 +5651,8 @@ function appendFMSStepBox(idx, containerId) {
   setupMultiSelect(idx);
   // Show existing doer tags
   updateFMSDoerTags(idx);
+  // Row Filter column pehle se set hai to mapping UI auto-load karo (saved mapping ke saath)
+  if (fmsSteps[idx] && fmsSteps[idx].doerFilterCol) loadFMSDoerFilterNames(idx);
 }
 
 function buildStepBoxHTML(idx) {
@@ -5801,6 +5807,21 @@ function buildStepBoxHTML(idx) {
         style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>`}
     </div>
 
+    <!-- Row Filter Column — column ke naam pe doer map hota hai, us naam wali rows sirf us doer ko dikhengi -->
+    <div class="form-group" style="margin:10px 0 0">
+      <label>Row Filter Column <span style="color:#94a3b8;font-weight:400;font-size:11px">(naam wala column chuno — usme jitne naam hain neeche pop honge, har naam pe doer select karo; us naam wali rows sirf usi doer ko dikhengi)</span></label>
+      ${headers.length ? `
+      <select class="header-select" onchange="fmsSteps[${idx}].doerFilterCol=this.value; fmsSteps[${idx}].doerFilterMap={}; loadFMSDoerFilterNames(${idx})">
+        <option value="">-- None (sab doers ko saari rows dikhen) --</option>
+        ${headers.map(h=>`<option value="${h.col}" ${(s.doerFilterCol||s.doer_filter_col||'')===h.col?'selected':''}>${h.name} (COL ${h.col})</option>`).join('')}
+      </select>` : `
+      <input type="text" value="${s.doerFilterCol||s.doer_filter_col||''}" placeholder="e.g. M"
+        oninput="fmsSteps[${idx}].doerFilterCol=this.value"
+        onchange="loadFMSDoerFilterNames(${idx})"
+        style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>`}
+      <div id="fmsDoerFilterMap_${idx}"></div>
+    </div>
+
     <div class="form-group" style="margin:10px 0 0">
       <label>Extra Input</label>
       <select onchange="toggleFMSExtra(${idx},this.value)"
@@ -5842,6 +5863,49 @@ function updateStepNum(idx, val) {
 function toggleFMSExtra(idx, val) {
   fmsSteps[idx].extraInput = val;
   document.getElementById(`fmsExtraSection_${idx}`).style.display = val==='yes'?'block':'none';
+}
+
+// ── Row Filter mapping: column ke unique naam fetch karke har naam pe doer dropdown ──
+async function loadFMSDoerFilterNames(idx) {
+  const s = fmsSteps[idx];
+  const box = document.getElementById(`fmsDoerFilterMap_${idx}`);
+  if (!box) return;
+  if (!s.doerFilterCol) { box.innerHTML = ''; s.doerFilterMap = {}; return; }
+  const payload = window._fmsHdrPayload;
+  if (!payload || !payload.sheetId) { box.innerHTML = '<div style="font-size:11px;color:#94a3b8;margin-top:4px">Sheet info nahi mili — pehle sheet/headers load hone do</div>'; return; }
+  box.innerHTML = '<div style="font-size:12px;color:#64748b;margin-top:6px">⏳ Column ke naam load ho rahe hain...</div>';
+  const r = await api('/api/fms/col-values','POST',{ sheetId: payload.sheetId, sheetName: payload.sheetName, headerRow: payload.headerRow, col: s.doerFilterCol });
+  if (r.error) { box.innerHTML = `<div style="font-size:11px;color:#ef4444;margin-top:4px">${r.error}</div>`; return; }
+  const names = r.values || [];
+  if (!names.length) { box.innerHTML = '<div style="font-size:11px;color:#94a3b8;margin-top:4px">Is column me koi naam nahi mila</div>'; return; }
+  s.doerFilterMap = s.doerFilterMap || {};
+  const doerIds = (s.doers||[]).map(d=>parseInt(d));
+  const doerUsers = (fmsAllUsers||[]).filter(u=>doerIds.includes(parseInt(u.id)));
+  const doerNote = doerUsers.length ? '' : '<div style="font-size:11px;color:#f59e0b;margin-bottom:6px">⚠️ Pehle Step Doer(s) select karo — tabhi yahan doer choose kar paoge</div>';
+  box.innerHTML = `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-top:8px">
+    <div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Naam → Doer mapping (jis naam pe jo doer, us naam wali rows sirf usi ko dikhengi; "-- Sabko --" = wo rows sab doers ko)</div>
+    ${doerNote}
+    ${names.map(nm => {
+      const key = String(nm).trim().toLowerCase();
+      const keyAttr = key.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      const nameSafe = String(nm).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+      const sel = s.doerFilterMap[key];
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="min-width:130px;font-size:12px;font-weight:600;color:#1e293b">${nameSafe}</span>
+        <select data-key="${keyAttr}" onchange="setFMSDoerMap(${idx}, this.dataset.key, this.value)"
+          style="flex:1;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:'Inter',sans-serif;outline:none;background:#fff">
+          <option value="">-- Sabko dikhe --</option>
+          ${doerUsers.map(u=>`<option value="${u.id}" ${String(sel)===String(u.id)?'selected':''}>${u.name}</option>`).join('')}
+        </select>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function setFMSDoerMap(idx, key, val) {
+  fmsSteps[idx].doerFilterMap = fmsSteps[idx].doerFilterMap || {};
+  if (val) fmsSteps[idx].doerFilterMap[key] = parseInt(val);
+  else delete fmsSteps[idx].doerFilterMap[key];
 }
 
 function addFMSExtraRow(idx) {
@@ -5969,6 +6033,8 @@ function toggleFMSDoer(e, idx, uid) {
     });
   }
   updateFMSDoerTags(idx);
+  // Doers badle to Row Filter mapping ke dropdowns bhi refresh karo
+  if (fmsSteps[idx].doerFilterCol) loadFMSDoerFilterNames(idx);
 }
 
 function updateFMSDoerTags(idx) {
@@ -5994,7 +6060,7 @@ function getActiveFMSContainer() {
 
 function addFMSStep() {
   const idx = fmsSteps.length;
-  fmsSteps.push({stepName:`Step ${idx+1}`, doers:[], planCol:'', actualCol:'', extraInput:'no', extraCol:'', extraRows:[], showCols:[], delayReasonCol:'', doerNameCol:''});
+  fmsSteps.push({stepName:`Step ${idx+1}`, doers:[], planCol:'', actualCol:'', extraInput:'no', extraCol:'', extraRows:[], showCols:[], delayReasonCol:'', doerNameCol:'', doerFilterCol:'', doerFilterMap:{}});
   appendFMSStepBox(idx, getActiveFMSContainer());
   updateEditStepNav();
 }
@@ -6140,7 +6206,7 @@ async function saveFMS() {
     sheetId: fmsData.sheetId,
     headerRow: fmsData.headerRow,
     totalSteps: fmsSteps.length,
-    steps: fmsSteps.map(s=>({...s, showCols: s.showCols||[], delayReasonCol: s.delayReasonCol||'', doerNameCol: s.doerNameCol||s.doer_name_col||'', extraRows: (s.extraRows||[]).map(r=>({...r, dropdown_options: r.dropdown_options||''}))}))
+    steps: fmsSteps.map(s=>({...s, showCols: s.showCols||[], delayReasonCol: s.delayReasonCol||'', doerNameCol: s.doerNameCol||s.doer_name_col||'', doerFilterCol: s.doerFilterCol||s.doer_filter_col||'', doerFilterMap: s.doerFilterMap||{}, extraRows: (s.extraRows||[]).map(r=>({...r, dropdown_options: r.dropdown_options||''}))}))
   };
 
   const r = await api('/api/fms', 'POST', body);
