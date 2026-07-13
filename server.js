@@ -808,12 +808,14 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
       userFilter = 'AND t.assigned_to = ?'; params = [uid];
     }
 
-    // Stats + Table: aaj aur usse pehle ki pending tasks (due_date <= CURDATE())
-    // PC: agar date range diya hai toh woh use karo
+    // Date rules alag-alag:
+    // • Delegation — assign hote hi dikhe (future due date wale bhi), koi date-cap nahi
+    // • Checklist  — sirf aaj tak ke (current + overdue), future usi din dikhega + FY (1 April) cutoff
+    // PC: agar date range diya hai toh dono pe wahi chalta hai
     const df = safeDate(dateFrom), dt = safeDate(dateTo);
-    const dateClause = isPC && df && dt
-      ? `AND t.due_date BETWEEN '${df}' AND '${dt}'`
-      : `AND t.due_date <= CURDATE()`;
+    const pcRange = (isPC && df && dt) ? `AND t.due_date BETWEEN '${df}' AND '${dt}'` : '';
+    const delegDateClause = pcRange; // delegation: default me koi cap nahi
+    const chkDateClause = pcRange || `AND t.due_date <= CURDATE()`;
 
     const taskType = req.query.taskType || 'both';
     let pending = 0, revised = 0, completed = 0;
@@ -822,21 +824,21 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
     const chkFyClause = ` AND t.due_date >= '${ownerFyStart()}'`;
 
     if (taskType === 'delegation' || taskType === 'both') {
-      const [d] = await db.query(`SELECT SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN status='revised' THEN 1 ELSE 0 END) AS revised,SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed FROM delegation_tasks t WHERE 1=1 ${userFilter} ${dateClause}`, params);
+      const [d] = await db.query(`SELECT SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN status='revised' THEN 1 ELSE 0 END) AS revised,SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed FROM delegation_tasks t WHERE 1=1 ${userFilter} ${delegDateClause}`, params);
       pending += parseInt(d[0].pending)||0; revised += parseInt(d[0].revised)||0; completed += parseInt(d[0].completed)||0;
     }
     if (taskType === 'checklist' || taskType === 'both') {
-      const [d] = await db.query(`SELECT SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN status='revised' THEN 1 ELSE 0 END) AS revised,SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed FROM checklist_tasks t WHERE 1=1 ${userFilter} ${dateClause}${chkFyClause}`, params);
+      const [d] = await db.query(`SELECT SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN status='revised' THEN 1 ELSE 0 END) AS revised,SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed FROM checklist_tasks t WHERE 1=1 ${userFilter} ${chkDateClause}${chkFyClause}`, params);
       pending += parseInt(d[0].pending)||0; revised += parseInt(d[0].revised)||0; completed += parseInt(d[0].completed)||0;
     }
 
     let delegationPending = [], checklistPending = [];
     if (taskType === 'delegation' || taskType === 'both') {
-      const [rows] = await db.query(`SELECT t.id,'delegation' AS type,t.description,t.status,t.assigned_to,COALESCE(t.priority,'low') AS priority,COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName FROM delegation_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${dateClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
+      const [rows] = await db.query(`SELECT t.id,'delegation' AS type,t.description,t.status,t.assigned_to,COALESCE(t.priority,'low') AS priority,COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName FROM delegation_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${delegDateClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
       delegationPending = rows;
     }
     if (taskType === 'checklist' || taskType === 'both') {
-      const [rows] = await db.query(`SELECT t.id,'checklist' AS type,t.description,t.status,t.assigned_to,COALESCE(t.priority,'low') AS priority,'no' AS approval,0 AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName FROM checklist_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${dateClause}${chkFyClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
+      const [rows] = await db.query(`SELECT t.id,'checklist' AS type,t.description,t.status,t.assigned_to,COALESCE(t.priority,'low') AS priority,'no' AS approval,0 AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName FROM checklist_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${chkDateClause}${chkFyClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
       checklistPending = rows;
     }
     res.json({ pending, revised, completed, todayPending: [...delegationPending, ...checklistPending] });
