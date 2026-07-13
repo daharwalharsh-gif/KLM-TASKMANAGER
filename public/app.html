@@ -2053,15 +2053,11 @@ async function init() {
     // Dobara dikhana ho to neeche wali line uncomment kar do:
     // if (ME.role === 'admin' || ME.role === 'hod' || ME.role === 'pc') document.getElementById('nav-records').style.display = 'flex';
 
-    // manik@klmahajan.com (Owner) — SIRF Owner Dashboard dikhe; poora baaki sidebar hide + seedha wahi khule
-    const isOwnerOnly = String(ME.email || '').trim().toLowerCase() === 'manik@klmahajan.com';
-    if (isOwnerOnly) {
-      document.querySelectorAll('.nav-item').forEach(n => { if (n.id !== 'nav-owner') n.style.display = 'none'; });
-      const navOwn = document.getElementById('nav-owner'); if (navOwn) navOwn.style.display = 'flex';
-      const nd = document.querySelector('.nav-divider'); if (nd) nd.style.display = 'none';
-    }
+    // manik@klmahajan.com (Owner) — poora sidebar dikhta hai (user request: owner-only hiding hata di),
+    // bas login pe seedha Owner Dashboard khulta hai
+    const isOwnerLanding = String(ME.email || '').trim().toLowerCase() === 'manik@klmahajan.com';
     setMinDates();
-    if (isOwnerOnly) navigate('owner', document.getElementById('nav-owner'));
+    if (isOwnerLanding) navigate('owner', document.getElementById('nav-owner'));
     else loadDashboard();
     loadApprovalBadge();
     loadTransferBadge();
