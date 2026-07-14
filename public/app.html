@@ -405,9 +405,57 @@ tbody tr:last-child td{border-bottom:none;}
   }
   .ov-card{background:linear-gradient(145deg,#ffffff,#eef2ff)!important;}
   .ov-card .number{text-shadow:0 1px 2px rgba(0,0,0,.06);}
-  .topbar{box-shadow:0 2px 12px rgba(15,23,42,.07);}
   .btn{box-shadow:0 2px 6px rgba(15,23,42,.12);}
+
+  /* ── MOBILE APP LOOK ──
+     Upar: coloured app bar (navy→indigo) | Neeche: app-style bottom navigation */
+  .topbar{
+    background:linear-gradient(120deg,#0f172a 0%,#1e3a8a 100%);
+    border-bottom:none;
+    box-shadow:0 2px 14px rgba(15,23,42,.28);
+  }
+  .topbar-title{color:#fff;letter-spacing:.2px;}
+  .mobile-menu-btn{color:#fff;}
+  #notifBell{background:rgba(255,255,255,.14);border-radius:10px;}
+
+  /* Bottom navigation bar — native app jaisa */
+  .bottom-nav{
+    display:flex;
+    position:fixed;bottom:0;left:0;right:0;z-index:1000;
+    background:#fff;
+    border-top:1px solid #e8edf3;
+    box-shadow:0 -6px 22px rgba(15,23,42,.10);
+    padding:7px 2px calc(9px + env(safe-area-inset-bottom,0px));
+    justify-content:space-around;
+  }
+  .bn-item{
+    flex:1;min-width:0;
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    padding:4px 2px;border:none;background:none;
+    color:#64748b;font-size:9.5px;font-weight:600;font-family:'Inter',sans-serif;
+    cursor:pointer;position:relative;-webkit-tap-highlight-color:transparent;
+    transition:color .15s, transform .1s;
+  }
+  .bn-item:active{transform:scale(.92);}
+  .bn-item svg{width:21px;height:21px;}
+  .bn-item span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .bn-item.active{color:#f57c00;}
+  .bn-item.active::before{
+    content:'';position:absolute;top:-8px;width:24px;height:3px;
+    border-radius:0 0 4px 4px;
+    background:linear-gradient(90deg,#f57c00,#2e7d32);
+  }
+  .bn-badge{
+    position:absolute;top:-3px;right:calc(50% - 19px);
+    background:#ef4444;color:#fff;border-radius:8px;
+    min-width:15px;height:15px;font-size:9px;font-weight:700;
+    display:none;align-items:center;justify-content:center;padding:0 3px;
+  }
+  /* Content bottom-nav ke peeche na chhupe */
+  .main{padding-bottom:78px;}
 }
+/* Desktop pe bottom nav kabhi nahi dikhta */
+@media (min-width:769px){ .bottom-nav{display:none!important;} }
 </style>
 </head>
 <body>
@@ -486,6 +534,9 @@ tbody tr:last-child td{border-bottom:none;}
     </button>
   </div>
 </aside>
+
+<!-- Mobile bottom navigation (sirf ≤768px pe dikhta hai; items role ke hisaab se JS banata hai) -->
+<nav class="bottom-nav" id="bottomNav" aria-label="Bottom navigation"></nav>
 
 <!-- ══════════════════════════════════════
      MAIN
@@ -2076,6 +2127,7 @@ async function init() {
     setMinDates();
     if (isOwnerLanding) navigate('owner', document.getElementById('nav-owner'));
     else loadDashboard();
+    buildMobileNav();
     loadApprovalBadge();
     loadTransferBadge();
     loadNotifications();
@@ -2083,6 +2135,7 @@ async function init() {
     setInterval(loadApprovalBadge, 30000);
     setInterval(loadTransferBadge, 30000);
     setInterval(loadNotifications, 60000);
+    setInterval(syncBottomNav, 30000);
   } catch(e) { console.error('Init error:', e); window.location.replace('/'); }
 }
 
@@ -4088,6 +4141,61 @@ async function uploadUsersCSV() {
   loadUsers();
 }
 
+
+// ══════════════════════════════════════════════════════
+// MOBILE BOTTOM NAV — sidebar ke visible items se app-style bottom bar banti hai
+function buildMobileNav() {
+  const bar = document.getElementById('bottomNav');
+  if (!bar) return;
+  // Max 5 items — app-style bottom bar (baaki items ☰ drawer me milte hain)
+  const wanted = [
+    { page: 'dashboard', label: 'Home' },
+    { page: 'alltasks',  label: 'Tasks' },
+    { page: 'fms-tasks', label: 'FMS' },
+    { page: 'approvals', label: 'Approvals' },
+    { page: 'profile',   label: 'Profile' }
+  ];
+  const items = [...document.querySelectorAll('.sidebar .nav-item')];
+  const byPage = {};
+  items.forEach(n => {
+    const m = (n.getAttribute('onclick') || '').match(/navigate\('([^']+)'/);
+    if (m) byPage[m[1]] = n;
+  });
+  bar.innerHTML = '';
+  for (const w of wanted) {
+    const src = byPage[w.page];
+    if (!src || src.style.display === 'none') continue; // role ke hisaab se hidden items skip
+    const svg = src.querySelector('svg');
+    const btn = document.createElement('button');
+    btn.className = 'bn-item' + (src.classList.contains('active') ? ' active' : '');
+    btn.dataset.page = w.page;
+    btn.innerHTML = (svg ? svg.outerHTML : '') +
+      (w.page === 'approvals' ? '<span class="bn-badge" id="bnApprovalBadge">0</span>' : '') +
+      `<span>${w.label}</span>`;
+    btn.onclick = () => { src.click(); if (typeof closeSidebar === 'function') closeSidebar(); syncBottomNav(); };
+    bar.appendChild(btn);
+  }
+  // Sidebar (drawer) se navigate karne par bhi bottom bar ka active sync ho
+  items.forEach(n => n.addEventListener('click', syncBottomNav));
+  syncBottomNav();
+}
+
+function syncBottomNav() {
+  setTimeout(() => {
+    const items = [...document.querySelectorAll('.sidebar .nav-item')];
+    const activeItem = items.find(n => n.classList.contains('active'));
+    const m = activeItem && (activeItem.getAttribute('onclick') || '').match(/navigate\('([^']+)'/);
+    const activePage = m ? m[1] : '';
+    document.querySelectorAll('#bottomNav .bn-item').forEach(b => b.classList.toggle('active', b.dataset.page === activePage));
+    // Approvals badge mirror
+    const srcBadge = document.getElementById('approvalBadge');
+    const bnBadge = document.getElementById('bnApprovalBadge');
+    if (srcBadge && bnBadge) {
+      bnBadge.textContent = srcBadge.textContent;
+      bnBadge.style.display = (srcBadge.style.display && srcBadge.style.display !== 'none') ? 'inline-flex' : 'none';
+    }
+  }, 60);
+}
 
 // ══════════════════════════════════════════════════════
 // NOTIFICATION BELL — overdue tasks + monthly/quarterly/yearly jo 2 din me due hain
