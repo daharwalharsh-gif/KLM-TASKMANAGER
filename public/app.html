@@ -363,10 +363,11 @@ tbody tr:last-child td{border-bottom:none;}
   .page-header{flex-wrap:wrap;gap:10px;}
   .page-header h2{font-size:18px;}
 
-  /* Dashboard: 3-col cards aur 2-col bottom ek column me stack */
-  .overview-cards{grid-template-columns:1fr;gap:10px;}
-  .ov-card{padding:14px 16px;}
-  .ov-card .number{font-size:26px;}
+  /* Dashboard: 3 stat cards EK row me compact (app jaisa), bottom sections stack */
+  .overview-cards{grid-template-columns:repeat(3,1fr);gap:8px;}
+  .ov-card{padding:12px 8px;text-align:center;}
+  .ov-card .label{font-size:10px;letter-spacing:.4px;}
+  .ov-card .number{font-size:22px;margin-top:2px;}
   .dash-bottom{grid-template-columns:1fr;}
   .dash-topbar{flex-wrap:wrap;gap:10px;}
 
@@ -418,7 +419,8 @@ tbody tr:last-child td{border-bottom:none;}
   .mobile-menu-btn{color:#fff;}
   #notifBell{background:rgba(255,255,255,.14);border-radius:10px;}
 
-  /* Bottom navigation bar — native app jaisa */
+  /* Bottom navigation bar — native app jaisa. Saare items dikhte hain:
+     kam items = poori width me fail jaate hain; zyada = smooth horizontal scroll */
   .bottom-nav{
     display:flex;
     position:fixed;bottom:0;left:0;right:0;z-index:1000;
@@ -426,10 +428,12 @@ tbody tr:last-child td{border-bottom:none;}
     border-top:1px solid #e8edf3;
     box-shadow:0 -6px 22px rgba(15,23,42,.10);
     padding:7px 2px calc(9px + env(safe-area-inset-bottom,0px));
-    justify-content:space-around;
+    justify-content:flex-start;
+    overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
   }
+  .bottom-nav::-webkit-scrollbar{display:none;}
   .bn-item{
-    flex:1;min-width:0;
+    flex:1 0 60px;min-width:0;
     display:flex;flex-direction:column;align-items:center;gap:3px;
     padding:4px 2px;border:none;background:none;
     color:#64748b;font-size:9.5px;font-weight:600;font-family:'Inter',sans-serif;
@@ -4147,12 +4151,17 @@ async function uploadUsersCSV() {
 function buildMobileNav() {
   const bar = document.getElementById('bottomNav');
   if (!bar) return;
-  // Max 5 items — app-style bottom bar (baaki items ☰ drawer me milte hain)
+  // SAARE visible sidebar items bottom bar me (kam ho to full-width fill, zyada ho to scroll)
   const wanted = [
     { page: 'dashboard', label: 'Home' },
+    { page: 'owner',     label: 'Owner' },
     { page: 'alltasks',  label: 'Tasks' },
-    { page: 'fms-tasks', label: 'FMS' },
     { page: 'approvals', label: 'Approvals' },
+    { page: 'users',     label: 'Users' },
+    { page: 'mis',       label: 'MIS' },
+    { page: 'fms',       label: 'FMS Admin' },
+    { page: 'fms-tasks', label: 'FMS' },
+    { page: 'leaves',    label: 'Leave' },
     { page: 'profile',   label: 'Profile' }
   ];
   const items = [...document.querySelectorAll('.sidebar .nav-item')];
