@@ -32,6 +32,9 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#1e293b;min-height:
 }
 .logo-text{font-size:15px;font-weight:700;color:#fff;opacity:0;transition:opacity .2s .1s;white-space:nowrap;}
 .sidebar:hover .logo-text{opacity:1;}
+/* Poora INVINCIBLE logo (white) — sidebar expand hone par dikhta hai */
+.logo-full{height:30px;width:auto;opacity:0;transition:opacity .2s .1s;flex-shrink:0;}
+.sidebar:hover .logo-full{opacity:1;}
 
 .nav{padding:10px 8px;flex:1;overflow:hidden;}
 .nav-item{
@@ -345,6 +348,8 @@ tbody tr:last-child td{border-bottom:none;}
   /* Sidebar -> professional slide-in drawer (poore labels ke saath, default off-screen) */
   .sidebar{width:250px;transform:translateX(-100%);transition:transform .25s ease;z-index:1100;box-shadow:2px 0 18px rgba(0,0,0,.3);}
   .sidebar.open{transform:translateX(0);}
+  .sidebar.open .logo-full{opacity:1;}
+  .sidebar.open .logo-text{opacity:1;}
   .sidebar:hover{width:250px;}
   /* Drawer ke andar saare labels hamesha visible (desktop ka hover-opacity override) */
   .logo-text,.nav-label-text,.su-info,.logout-label{opacity:1!important;}
@@ -412,11 +417,11 @@ tbody tr:last-child td{border-bottom:none;}
 ══════════════════════════════════════ -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
-    <img src="invincible-logo.svg" alt="Invincible"
-      style="width:34px;height:34px;object-fit:contain;border-radius:6px;flex-shrink:0"
+    <img src="invincible-mark-white.svg" alt="Invincible"
+      style="width:34px;height:34px;object-fit:contain;flex-shrink:0"
       onerror="this.style.display='none';document.getElementById('sidebarLogoFallback').style.display='grid'"/>
     <div id="sidebarLogoFallback" style="display:none;width:34px;height:34px;background:linear-gradient(135deg,#1a1a1a,#444);border-radius:8px;place-items:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0">I</div>
-    <div class="logo-text">KLM Tasks</div>
+    <img src="invincible-logo-white.svg" alt="Invincible" class="logo-full"/>
   </div>
   <nav class="nav">
     <div class="nav-item active" onclick="navigate('dashboard',this)">
