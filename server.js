@@ -846,6 +846,39 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════
+// NOTIFICATIONS — bell icon ke liye: user ke overdue tasks +
+// monthly/quarterly/yearly checklist jo 2 din me due hain
+// ══════════════════════════════════════════════════════
+app.get('/api/notifications', requireAuth, async (req, res) => {
+  try {
+    const uid = req.session.userId;
+    const fyStart = ownerFyStart();
+    const today = new Date().toISOString().slice(0, 10);
+    const plus2 = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+
+    // Overdue — delegation (sab) + checklist (FY ke andar, dashboard jaisa hi rule)
+    const [delOver] = await db.query(
+      `SELECT id,'delegation' AS type,description,DATE_FORMAT(due_date,'%Y-%m-%d') AS due_date,'' AS frequency
+       FROM delegation_tasks WHERE assigned_to=? AND status='pending' AND due_date < '${today}'
+       ORDER BY due_date ASC LIMIT 100`, [uid]);
+    const [chkOver] = await db.query(
+      `SELECT id,'checklist' AS type,description,DATE_FORMAT(due_date,'%Y-%m-%d') AS due_date,frequency
+       FROM checklist_tasks WHERE assigned_to=? AND status='pending' AND due_date < '${today}' AND due_date >= '${fyStart}'
+       ORDER BY due_date ASC LIMIT 100`, [uid]);
+
+    // Aane wale — monthly/quarterly/yearly, aaj ke baad se +2 din tak
+    const [upcoming] = await db.query(
+      `SELECT id,'checklist' AS type,description,DATE_FORMAT(due_date,'%Y-%m-%d') AS due_date,frequency
+       FROM checklist_tasks WHERE assigned_to=? AND status='pending'
+         AND frequency IN ('monthly','quarterly','yearly')
+         AND due_date > '${today}' AND due_date <= '${plus2}'
+       ORDER BY due_date ASC LIMIT 100`, [uid]);
+
+    res.json({ overdue: [...delOver, ...chkOver], upcoming });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
 // TASKS
 // ══════════════════════════════════════════════════════
 app.get('/api/tasks', requireAuth, async (req, res) => {

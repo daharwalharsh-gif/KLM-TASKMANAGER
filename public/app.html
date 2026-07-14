@@ -490,7 +490,19 @@ tbody tr:last-child td{border-bottom:none;}
   <div class="topbar">
     <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Menu">☰</button>
     <div class="topbar-title" id="topbarTitle">Dashboard</div>
-    <div class="topbar-right" id="topbarActions"></div>
+    <div class="topbar-right" id="topbarActions">
+      <div style="position:relative" id="notifBellWrap">
+        <button id="notifBell" onclick="toggleNotifPanel(event)" aria-label="Notifications"
+          style="position:relative;background:none;border:none;font-size:22px;cursor:pointer;padding:6px 8px;line-height:1;border-radius:8px">
+          🔔
+          <span id="notifBadge" style="display:none;position:absolute;top:0;right:0;min-width:18px;height:18px;padding:0 4px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;border-radius:9px;align-items:center;justify-content:center;line-height:18px;font-family:'Inter',sans-serif">0</span>
+        </button>
+        <div id="notifPanel" style="display:none;position:absolute;right:0;top:44px;width:min(360px,90vw);max-height:440px;overflow-y:auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.16);z-index:200">
+          <div style="padding:12px 14px;font-size:14px;font-weight:700;color:#1e293b;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:6px">🔔 Notifications</div>
+          <div id="notifPanelBody"><div style="padding:18px;text-align:center;color:#94a3b8;font-size:13px">Loading...</div></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ── DASHBOARD ── -->
@@ -2061,9 +2073,11 @@ async function init() {
     else loadDashboard();
     loadApprovalBadge();
     loadTransferBadge();
+    loadNotifications();
     // Refresh badges every 30 seconds
     setInterval(loadApprovalBadge, 30000);
     setInterval(loadTransferBadge, 30000);
+    setInterval(loadNotifications, 60000);
   } catch(e) { console.error('Init error:', e); window.location.replace('/'); }
 }
 
@@ -4069,6 +4083,63 @@ async function uploadUsersCSV() {
   loadUsers();
 }
 
+
+// ══════════════════════════════════════════════════════
+// NOTIFICATION BELL — overdue tasks + monthly/quarterly/yearly jo 2 din me due hain
+async function loadNotifications() {
+  try {
+    const r = await api('/api/notifications');
+    if (!r || r.error) return;
+    const over = r.overdue || [], up = r.upcoming || [];
+    const count = over.length + up.length;
+    const badge = document.getElementById('notifBadge');
+    if (badge) {
+      badge.textContent = count > 99 ? '99+' : String(count);
+      badge.style.display = count ? 'inline-flex' : 'none';
+    }
+    const body = document.getElementById('notifPanelBody');
+    if (!body) return;
+    const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const fmtD = d => { const p = String(d || '').split('-'); return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : d; };
+    if (!count) {
+      body.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px">🎉 Sab up-to-date — koi notification nahi</div>';
+      return;
+    }
+    const row = (icon, color, title, sub) => `
+      <div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f5f9;align-items:flex-start">
+        <div style="font-size:16px;flex-shrink:0">${icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:#1e293b;word-break:break-word">${title}</div>
+          <div style="font-size:11px;color:${color};font-weight:600;margin-top:2px">${sub}</div>
+        </div>
+      </div>`;
+    let html = '';
+    if (up.length) {
+      html += `<div style="padding:8px 14px;font-size:11px;font-weight:700;color:#d97706;background:#fffbeb;letter-spacing:.3px">⏳ AANE WALE — 2 DIN ME DUE (${up.length})</div>`;
+      html += up.map(t => row('📅', '#d97706', esc(t.description), `${t.frequency ? esc(t.frequency) + ' • ' : ''}due: ${fmtD(t.due_date)}`)).join('');
+    }
+    if (over.length) {
+      html += `<div style="padding:8px 14px;font-size:11px;font-weight:700;color:#dc2626;background:#fef2f2;letter-spacing:.3px">⚠️ OVERDUE (${over.length})</div>`;
+      html += over.map(t => row(t.type === 'delegation' ? '📋' : '✅', '#dc2626', esc(t.description), `${esc(t.type)} • due tha: ${fmtD(t.due_date)}`)).join('');
+    }
+    body.innerHTML = html;
+  } catch (e) { /* silent */ }
+}
+
+function toggleNotifPanel(e) {
+  e.stopPropagation();
+  const panel = document.getElementById('notifPanel');
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? 'block' : 'none';
+  if (opening) loadNotifications();
+}
+// Bahar click karne par panel band
+document.addEventListener('click', (e) => {
+  const panel = document.getElementById('notifPanel');
+  const wrap = document.getElementById('notifBellWrap');
+  if (panel && panel.style.display !== 'none' && wrap && !wrap.contains(e.target)) panel.style.display = 'none';
+});
 
 // ══════════════════════════════════════════════════════
 async function loadApprovalBadge() {
