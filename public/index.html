@@ -11,7 +11,7 @@
 
   body{
     font-family:'Inter',sans-serif;
-    background: linear-gradient(135deg,#e0f7fa 0%,#e8f5e9 50%,#e3f2fd 100%);
+    background: linear-gradient(135deg,#fff8ef 0%,#f2f8f1 50%,#fffdf6 100%);
     min-height:100vh;
     display:flex;align-items:center;justify-content:center;
   }
@@ -27,13 +27,13 @@
   body::before {
     width:400px;height:400px;
     top:-100px;left:-100px;
-    background:radial-gradient(circle, #00BCD422, transparent 70%);
+    background:radial-gradient(circle, #f57c0022, transparent 70%);
     animation: bgFloat1 8s ease-in-out infinite;
   }
   body::after {
     width:300px;height:300px;
     bottom:-80px;right:-80px;
-    background:radial-gradient(circle, #4CAF5022, transparent 70%);
+    background:radial-gradient(circle, #2e7d3222, transparent 70%);
     animation: bgFloat2 10s ease-in-out infinite;
   }
 
@@ -44,13 +44,20 @@
   .login-wrap{
     background:#fff;
     border-radius:20px;
-    padding:44px 40px;
+    padding:48px 40px 44px;
     width:420px;
     max-width:92vw;
-    box-shadow:0 20px 60px rgba(0,188,212,.12), 0 4px 20px rgba(0,0,0,.08);
+    box-shadow:0 20px 60px rgba(245,124,0,.12), 0 4px 20px rgba(0,0,0,.08);
     position:relative;
     z-index:1;
+    overflow:hidden;
     animation: cardIn .6s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  /* Card ke upar tricolor accent bar — logo ke colours se match */
+  .login-wrap::before{
+    content:'';
+    position:absolute;top:0;left:0;right:0;height:6px;
+    background:linear-gradient(90deg,#f57c00 0%,#ffb74d 42%,#ffffff 50%,#66bb6a 58%,#2e7d32 100%);
   }
   /* Mobile: card padding kam taaki chhoti screen par theek dikhe */
   @media (max-width:480px){
@@ -81,14 +88,14 @@
   }
 
   .logo-img-wrap img {
-    width:200px;
+    width:230px;
     display:block;
-    filter: drop-shadow(0 4px 16px rgba(0,188,212,.25));
+    filter: drop-shadow(0 4px 14px rgba(245,124,0,.22));
     animation: logoFloat 3.5s ease-in-out 1s infinite;
   }
   @keyframes logoFloat {
-    0%,100% { transform:translateY(0px);   filter:drop-shadow(0 4px 16px rgba(0,188,212,.25)); }
-    50%      { transform:translateY(-7px); filter:drop-shadow(0 12px 24px rgba(0,188,212,.4));  }
+    0%,100% { transform:translateY(0px);   filter:drop-shadow(0 4px 14px rgba(245,124,0,.22)); }
+    50%      { transform:translateY(-7px); filter:drop-shadow(0 12px 22px rgba(46,125,50,.30));  }
   }
 
   /* Shimmer sweep over logo */
@@ -107,11 +114,11 @@
   }
 
   .logo-tagline {
-    margin-top:10px;
+    margin-top:12px;
     font-size:12px;
-    font-weight:600;
+    font-weight:700;
     letter-spacing:3px;
-    color:#00BCD4;
+    color:#f57c00;
     text-transform:uppercase;
     animation: tagIn .5s ease .9s both;
   }
@@ -129,9 +136,9 @@
     width:5px;height:5px;border-radius:50%;
     animation: dotPop .4s ease both;
   }
-  .logo-dots span:nth-child(1){ background:#4CAF50; animation-delay:1.2s; }
-  .logo-dots span:nth-child(2){ background:#00BCD4; animation-delay:1.35s;}
-  .logo-dots span:nth-child(3){ background:#4CAF50; animation-delay:1.5s; }
+  .logo-dots span:nth-child(1){ background:#f57c00; animation-delay:1.2s; }
+  .logo-dots span:nth-child(2){ background:#1a1a1a; animation-delay:1.35s;}
+  .logo-dots span:nth-child(3){ background:#2e7d32; animation-delay:1.5s; }
   @keyframes dotPop {
     0%  { opacity:0; transform:scale(0); }
     70% { transform:scale(1.4); }
@@ -164,30 +171,31 @@
     background:#fafafa;
   }
   input:focus{
-    border-color:#00BCD4;
-    box-shadow:0 0 0 3px rgba(0,188,212,.12);
+    border-color:#f57c00;
+    box-shadow:0 0 0 3px rgba(245,124,0,.12);
     background:#fff;
   }
 
   .btn-login{
     width:100%;
     padding:13px;
-    background:linear-gradient(135deg,#00ACC1,#00BCD4);
+    background:linear-gradient(135deg,#f7871e,#ef6c00);
     color:#fff;
     border:none;
     border-radius:10px;
     font-size:15px;
-    font-weight:600;
+    font-weight:700;
     font-family:'Inter',sans-serif;
     cursor:pointer;
     transition:all .2s;
     margin-top:6px;
     letter-spacing:.3px;
-    box-shadow:0 4px 16px rgba(0,188,212,.3);
+    box-shadow:0 4px 16px rgba(245,124,0,.32);
   }
   .btn-login:hover{
     transform:translateY(-2px);
-    box-shadow:0 8px 24px rgba(0,188,212,.4);
+    background:linear-gradient(135deg,#2e7d32,#43a047);
+    box-shadow:0 8px 24px rgba(46,125,50,.38);
   }
   .btn-login:active{ transform:translateY(0); }
 
@@ -215,7 +223,7 @@
     color:#94a3b8;
     margin-top:20px;
   }
-  .footer-text strong { color:#00BCD4; }
+  .footer-text strong { color:#f57c00; }
 </style>
 </head>
 <body>
