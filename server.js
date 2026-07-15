@@ -866,11 +866,11 @@ app.get('/api/notifications', requireAuth, async (req, res) => {
        FROM checklist_tasks WHERE assigned_to=? AND status='pending' AND due_date < '${today}' AND due_date >= '${fyStart}'
        ORDER BY due_date ASC LIMIT 100`, [uid]);
 
-    // Aane wale — monthly/quarterly/yearly, aaj ke baad se +2 din tak
+    // Aane wale — DAILY chhod ke sab (weekly/monthly/quarterly/yearly/one-time), aaj ke baad se +2 din tak
     const [upcoming] = await db.query(
       `SELECT id,'checklist' AS type,description,DATE_FORMAT(due_date,'%Y-%m-%d') AS due_date,frequency
        FROM checklist_tasks WHERE assigned_to=? AND status='pending'
-         AND frequency IN ('monthly','quarterly','yearly')
+         AND COALESCE(frequency,'') <> 'daily'
          AND due_date > '${today}' AND due_date <= '${plus2}'
        ORDER BY due_date ASC LIMIT 100`, [uid]);
 
