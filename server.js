@@ -2361,10 +2361,12 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     const isAdminView = req.session.role === 'admin' || req.session.role === 'pc';
     let filterMap = {};
     try { filterMap = JSON.parse(step.doer_filter_map || '{}') || {}; } catch (e) { filterMap = {}; }
-    // Normalized map: lowercase-name -> userId (string)
-    const nameToUid = {};
+    // Normalized map: lowercase-name -> [userIds as strings] (ek naam pe multiple doers ho sakte hain;
+    // purane single-value maps bhi support — backward compatible)
+    const nameToUids = {};
     for (const [nm, u2] of Object.entries(filterMap)) {
-      if (u2 !== '' && u2 !== null && u2 !== undefined) nameToUid[String(nm).trim().toLowerCase()] = String(u2);
+      const arr = Array.isArray(u2) ? u2 : ((u2 !== '' && u2 !== null && u2 !== undefined) ? [u2] : []);
+      if (arr.length) nameToUids[String(nm).trim().toLowerCase()] = arr.map(String);
     }
     const myUid = String(req.session.userId);
 
@@ -2387,14 +2389,14 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     dataRows.forEach((row, i) => {
       const planVal = planIdx >= 0 ? (row[planIdx]||'').trim() : '';
       const actualVal = actualIdx >= 0 ? (row[actualIdx]||'').trim() : '';
-      // Doer row filter (mapping): cell ka naam kisi doer ko mapped hai aur wo main nahi hoon to skip.
+      // Doer row filter (mapping): cell ka naam jin doers ko mapped hai unme main nahi hoon to skip.
       // (cell me multiple naam ho sakte hain: "Kiran, Isha" — comma/slash/& se split)
-      if (doerFilterIdx >= 0 && !isAdminView && Object.keys(nameToUid).length) {
+      if (doerFilterIdx >= 0 && !isAdminView && Object.keys(nameToUids).length) {
         const cellNames = (row[doerFilterIdx] || '').trim().toLowerCase().split(/[,/&+]/).map(x => x.trim()).filter(Boolean);
         if (cellNames.length) {
-          const mappedNames = cellNames.filter(n => nameToUid[n] !== undefined);
-          const isMine = mappedNames.some(n => nameToUid[n] === myUid);
-          if (mappedNames.length && !isMine) return; // kisi aur doer ko mapped — mujhe nahi dikhna
+          const mappedNames = cellNames.filter(n => nameToUids[n] !== undefined);
+          const isMine = mappedNames.some(n => nameToUids[n].includes(myUid));
+          if (mappedNames.length && !isMine) return; // kisi aur doer(s) ko mapped — mujhe nahi dikhna
         }
       }
       if (planVal && !actualVal) {

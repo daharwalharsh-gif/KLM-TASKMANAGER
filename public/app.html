@@ -5583,7 +5583,7 @@ async function openEditFMS() {
     delayReasonCol: s.delay_reason_col||'',
     doerNameCol: s.doer_name_col||'',
     doerFilterCol: s.doer_filter_col||'',
-    doerFilterMap: (()=>{ try { return JSON.parse(s.doer_filter_map||'{}')||{}; } catch(e){ return {}; } })()
+    doerFilterMap: (()=>{ try { const m = JSON.parse(s.doer_filter_map||'{}')||{}; for (const k in m) { if (!Array.isArray(m[k])) m[k] = (m[k] === '' || m[k] == null) ? [] : [m[k]]; } return m; } catch(e){ return {}; } })()
   }));
 
   fmsDeleteMode = false;
@@ -6074,29 +6074,44 @@ async function loadFMSDoerFilterNames(idx) {
   const doerUsers = (fmsAllUsers||[]).filter(u=>doerIds.includes(parseInt(u.id)));
   const doerNote = doerUsers.length ? '' : '<div style="font-size:11px;color:#f59e0b;margin-bottom:6px">⚠️ Pehle Step Doer(s) select karo — tabhi yahan doer choose kar paoge</div>';
   setAll(`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-top:8px">
-    <div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Naam → Doer mapping (jis naam pe jo doer, us naam wali rows sirf usi ko dikhengi; "-- Sabko --" = wo rows sab doers ko)</div>
+    <div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Naam → Doer mapping (jitne doers tick karoge, us naam wali rows un SABKO dikhengi; koi tick nahi = wo rows SAB doers ko)</div>
     ${doerNote}
     ${names.map(nm => {
       const key = String(nm).trim().toLowerCase();
       const keyAttr = key.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
       const nameSafe = String(nm).replace(/&/g,'&amp;').replace(/</g,'&lt;');
-      const sel = s.doerFilterMap[key];
-      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="min-width:130px;font-size:12px;font-weight:600;color:#1e293b">${nameSafe}</span>
-        <select data-key="${keyAttr}" onchange="setFMSDoerMap(${idx}, this.dataset.key, this.value)"
-          style="flex:1;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;font-family:'Inter',sans-serif;outline:none;background:#fff">
-          <option value="">-- Sabko dikhe --</option>
-          ${doerUsers.map(u=>`<option value="${u.id}" ${String(sel)===String(u.id)?'selected':''}>${u.name}</option>`).join('')}
-        </select>
+      let sel = s.doerFilterMap[key];
+      if (!Array.isArray(sel)) sel = (sel === '' || sel == null) ? [] : [sel];
+      const selStr = sel.map(String);
+      return `<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
+        <span style="min-width:120px;font-size:12px;font-weight:600;color:#1e293b;padding-top:2px">${nameSafe}</span>
+        <div style="display:flex;flex-wrap:wrap;gap:6px 14px;flex:1">
+          ${doerUsers.map(u=>`<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#334155;cursor:pointer;user-select:none">
+            <input type="checkbox" data-key="${keyAttr}" data-uid="${u.id}" ${selStr.includes(String(u.id))?'checked':''}
+              onchange="toggleFMSDoerMap(${idx}, this.dataset.key, this.dataset.uid, this.checked)"
+              style="width:15px;height:15px;accent-color:#2563eb;cursor:pointer"/>${u.name}
+          </label>`).join('')}
+        </div>
       </div>`;
     }).join('')}
   </div>`);
 }
 
-function setFMSDoerMap(idx, key, val) {
-  fmsSteps[idx].doerFilterMap = fmsSteps[idx].doerFilterMap || {};
-  if (val) fmsSteps[idx].doerFilterMap[key] = parseInt(val);
-  else delete fmsSteps[idx].doerFilterMap[key];
+// Checkbox tick/untick — ek naam pe MULTIPLE doers map ho sakte hain (array)
+function toggleFMSDoerMap(idx, key, uid, checked) {
+  const s = fmsSteps[idx];
+  s.doerFilterMap = s.doerFilterMap || {};
+  let arr = s.doerFilterMap[key];
+  if (!Array.isArray(arr)) arr = (arr === '' || arr == null) ? [] : [arr];
+  arr = arr.map(x => parseInt(x)).filter(x => !isNaN(x));
+  uid = parseInt(uid);
+  if (checked) { if (!arr.includes(uid)) arr.push(uid); }
+  else { arr = arr.filter(x => x !== uid); }
+  if (arr.length) s.doerFilterMap[key] = arr; else delete s.doerFilterMap[key];
+  // Duplicate boxes (add/edit modal) ke checkboxes sync rakho
+  document.querySelectorAll(`[id="fmsDoerFilterMap_${idx}"] input[type=checkbox]`).forEach(cb => {
+    if (cb.dataset.key === key && String(cb.dataset.uid) === String(uid)) cb.checked = checked;
+  });
 }
 
 function addFMSExtraRow(idx) {
