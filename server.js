@@ -2389,14 +2389,22 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     dataRows.forEach((row, i) => {
       const planVal = planIdx >= 0 ? (row[planIdx]||'').trim() : '';
       const actualVal = actualIdx >= 0 ? (row[actualIdx]||'').trim() : '';
-      // Doer row filter (mapping): cell ka naam jin doers ko mapped hai unme main nahi hoon to skip.
-      // (cell me multiple naam ho sakte hain: "Kiran, Isha" — comma/slash/& se split)
+      // Doer row filter (mapping): cell ke naam jin doers ko ticked hain unme main nahi hoon to skip.
       if (doerFilterIdx >= 0 && !isAdminView && Object.keys(nameToUids).length) {
-        const cellNames = (row[doerFilterIdx] || '').trim().toLowerCase().split(/[,/&+]/).map(x => x.trim()).filter(Boolean);
-        if (cellNames.length) {
-          const mappedNames = cellNames.filter(n => nameToUids[n] !== undefined);
-          const isMine = mappedNames.some(n => nameToUids[n].includes(myUid));
-          if (mappedNames.length && !isMine) return; // kisi aur doer(s) ko mapped — mujhe nahi dikhna
+        const rawCell = (row[doerFilterIdx] || '').trim().toLowerCase();
+        if (rawCell) {
+          // 1) POORE cell value ka exact match — admin ne is poore naam pe jo ticks kiye wahi authoritative
+          //    (e.g. "Arti+Riya" ko admin ne alag map kiya ho to wahi chale, split se nahi)
+          if (nameToUids[rawCell] !== undefined) {
+            if (!nameToUids[rawCell].includes(myUid)) return;
+          } else {
+            // 2) Fallback: cell me multiple naam ho (e.g. "Kiran, Isha") aur poora value map na ho —
+            //    tab delimiters (comma/slash/&/+) se tod ke har naam alag match karo
+            const cellNames = rawCell.split(/[,/&+]/).map(x => x.trim()).filter(Boolean);
+            const mappedNames = cellNames.filter(n => nameToUids[n] !== undefined);
+            const isMine = mappedNames.some(n => nameToUids[n].includes(myUid));
+            if (mappedNames.length && !isMine) return; // kisi aur doer(s) ko mapped — mujhe nahi dikhna
+          }
         }
       }
       if (planVal && !actualVal) {
