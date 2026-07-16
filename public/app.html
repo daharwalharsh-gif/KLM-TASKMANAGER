@@ -6057,21 +6057,23 @@ function toggleFMSExtra(idx, val) {
 // ── Row Filter mapping: column ke unique naam fetch karke har naam pe doer dropdown ──
 async function loadFMSDoerFilterNames(idx) {
   const s = fmsSteps[idx];
-  const box = document.getElementById(`fmsDoerFilterMap_${idx}`);
-  if (!box) return;
-  if (!s.doerFilterCol) { box.innerHTML = ''; s.doerFilterMap = {}; return; }
+  // Duplicate IDs se bacho (add + edit dono modals ke boxes ho sakte hain) — SAB update karo
+  const boxes = [...document.querySelectorAll(`[id="fmsDoerFilterMap_${idx}"]`)];
+  if (!boxes.length) return;
+  const setAll = html => boxes.forEach(b => { b.innerHTML = html; });
+  if (!s.doerFilterCol) { setAll(''); s.doerFilterMap = {}; return; }
   const payload = window._fmsHdrPayload;
-  if (!payload || !payload.sheetId) { box.innerHTML = '<div style="font-size:11px;color:#94a3b8;margin-top:4px">Sheet info nahi mili — pehle sheet/headers load hone do</div>'; return; }
-  box.innerHTML = '<div style="font-size:12px;color:#64748b;margin-top:6px">⏳ Column ke naam load ho rahe hain...</div>';
+  if (!payload || !payload.sheetId) { setAll('<div style="font-size:11px;color:#94a3b8;margin-top:4px">Sheet info nahi mili — pehle sheet/headers load hone do</div>'); return; }
+  setAll('<div style="font-size:12px;color:#64748b;margin-top:6px">⏳ Column ke naam load ho rahe hain...</div>');
   const r = await api('/api/fms/col-values','POST',{ sheetId: payload.sheetId, sheetName: payload.sheetName, headerRow: payload.headerRow, col: s.doerFilterCol });
-  if (r.error) { box.innerHTML = `<div style="font-size:11px;color:#ef4444;margin-top:4px">${r.error}</div>`; return; }
+  if (r.error) { setAll(`<div style="font-size:11px;color:#ef4444;margin-top:4px">${r.error}</div>`); return; }
   const names = r.values || [];
-  if (!names.length) { box.innerHTML = '<div style="font-size:11px;color:#94a3b8;margin-top:4px">Is column me koi naam nahi mila</div>'; return; }
+  if (!names.length) { setAll('<div style="font-size:11px;color:#94a3b8;margin-top:4px">Is column me koi naam nahi mila</div>'); return; }
   s.doerFilterMap = s.doerFilterMap || {};
   const doerIds = (s.doers||[]).map(d=>parseInt(d));
   const doerUsers = (fmsAllUsers||[]).filter(u=>doerIds.includes(parseInt(u.id)));
   const doerNote = doerUsers.length ? '' : '<div style="font-size:11px;color:#f59e0b;margin-bottom:6px">⚠️ Pehle Step Doer(s) select karo — tabhi yahan doer choose kar paoge</div>';
-  box.innerHTML = `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-top:8px">
+  setAll(`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-top:8px">
     <div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">Naam → Doer mapping (jis naam pe jo doer, us naam wali rows sirf usi ko dikhengi; "-- Sabko --" = wo rows sab doers ko)</div>
     ${doerNote}
     ${names.map(nm => {
@@ -6088,7 +6090,7 @@ async function loadFMSDoerFilterNames(idx) {
         </select>
       </div>`;
     }).join('')}
-  </div>`;
+  </div>`);
 }
 
 function setFMSDoerMap(idx, key, val) {
