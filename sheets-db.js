@@ -280,12 +280,15 @@ async function loadAllTables(api) {
 // so a warm function instance never serves a stale in-memory snapshot.
 // Skips while a flush is mid-flight or there are unsaved writes, so we
 // don't clobber pending changes.
+// Returns TRUE only if a fresh load actually happened (caller uses this to
+// decide whether its "last loaded at" timestamp may be refreshed).
 async function reload() {
-  if (!_initialized) return init();
-  if (_testMode) return;
-  if (_flushInProgress || _dirtyTables.size > 0) return;
+  if (!_initialized) { await init(); return true; }
+  if (_testMode) return false;
+  if (_flushInProgress || _dirtyTables.size > 0) return false;
   const api = await getApiClient();
   await loadAllTables(api);
+  return true;
 }
 
 // ══════════════════════════════════════════════════════════════════

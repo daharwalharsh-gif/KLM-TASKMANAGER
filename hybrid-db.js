@@ -45,6 +45,11 @@ function ensureAlasqlTables(tables) {
 
 let _initPromise = null;
 let _sheetsReady = null;
+let _sheetsLoadedAt = 0;
+// FMS/Sheets memory kitni der "fresh" maani jaye (SIRF reads ke liye).
+// Mutations pe hamesha reload hota hai (TTL ignore) — data-loss se bachne ko.
+const SHEETS_TTL_MS = parseInt(process.env.SHEETS_RELOAD_TTL_MS || '15000', 10);
+
 function init() {
   if (_initPromise) return _initPromise;
   _initPromise = (async () => {
@@ -64,24 +69,43 @@ function init() {
     // 2) FMS (Google Sheets) is comparatively slow (~seconds) and rarely
     //    changes. Load it in the BACKGROUND so it never blocks a request or
     //    trips the serverless timeout. The FMS section fills in once ready.
-    _sheetsReady = sheets.init().catch(e => console.error('  ⚠️ Sheets (FMS) init failed:', e.message));
+    _sheetsReady = sheets.init()
+      .then(() => { _sheetsLoadedAt = Date.now(); })
+      .catch(e => console.error('  ⚠️ Sheets (FMS) init failed:', e.message));
     console.log(`  🔗 Hybrid DB ready — PG(${PG_TABLES.length} tables) sync, Sheets/FMS(${SHEET_TABLES.length}) loading in background`);
   })();
   return _initPromise;
 }
 
 // Per-request refresh (used on Vercel before each /api call). Postgres reload
-// fast hai (parallel). FMS (Sheets) ko HAR request pe reload NAHI karte (slow +
-// Google quota), PAR ye GUARANTEE karte hain ki wo is instance pe kam-se-kam
-// EK baar poora load ho chuka hai. Serverless pe background load function freeze
-// se pehle adhoora reh jaata tha → FMS khaali dikhta tha. Ab pehli request uske
-// complete hone ka intezaar karti hai (one-time ~2-3s), baaki instant.
+// fast hai (parallel). FMS (Sheets) pehle SIRF ek baar load hota tha aur uske
+// baad us instance pe kabhi refresh nahi hota tha — isse do bug the:
+//   1. Warm instance apni PURANI FMS memory serve karta tha → admin ka naya
+//      Row-Filter mapping/steps doer ko dikhte hi nahi the (filter lagta hi nahi).
+//   2. Flush = full-table rewrite THIS instance ki memory se. Stale memory se
+//      flush hone par dusre instance ka abhi-abhi kiya save MIT jaata tha
+//      ("save karne pe mapping hat gaya" wala bug).
+// Ab: mutations pe hamesha reload (data-loss se bacho), reads pe TTL-based
+// (~0.5s ka refresh, TTL ke andar instant). Ye wahi pattern hai jo pg-db use karta hai.
 async function reload(force) {
   await pg.reload(force); // mutations pe force=true → hamesha fresh (data-loss se bacho)
   if (!_sheetsReady) {
-    _sheetsReady = sheets.init().catch(e => console.error('  ⚠️ Sheets (FMS) init failed:', e.message));
+    _sheetsReady = sheets.init()
+      .then(() => { _sheetsLoadedAt = Date.now(); })
+      .catch(e => console.error('  ⚠️ Sheets (FMS) init failed:', e.message));
   }
   await _sheetsReady; // resolved promise = turant; pehli baar hi wait hota hai
+
+  const stale = (Date.now() - _sheetsLoadedAt) > SHEETS_TTL_MS;
+  if (force || stale) {
+    try {
+      // reload() true tabhi deta hai jab wo sach me fresh load kar paya
+      // (pending writes ke waqt skip karta hai — unhe clobber nahi karna).
+      if (await sheets.reload()) _sheetsLoadedAt = Date.now();
+    } catch (e) {
+      console.error('  ⚠️ Sheets (FMS) reload failed:', e.message);
+    }
+  }
 }
 
 async function flushNow() {
