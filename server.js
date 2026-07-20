@@ -643,8 +643,49 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       const actualIdx = colToIdx(step.actual_col);
       if (planIdx < 0 || actualIdx < 0) continue;
 
+      // Row Filter Column (Row Filter mapping — FMS Admin me "NAAM -> DOER MAPPING"):
+      // admin ne column ke har naam pe specific doer(s) tick kiye ho sakte hain. Jab set hai,
+      // per-DOER credit (pending/done/overdue/steps) sirf UN rows se ban na chahiye jo us doer
+      // ko mapped hain — poore step ka total sabko de dena galat hai (ye hi bug tha: Aaradhna
+      // ko Riya ki rows bhi count ho rahi thi). Row-level FMS Tasks page isi mapping ko already
+      // follow karti hai (/api/fms-tasks/.../rows) — yahan wahi matching logic reuse karte hain.
+      const doerFilterIdx = colToIdx(step.doer_filter_col || '');
+      let stepFilterMap = {};
+      try { stepFilterMap = JSON.parse(step.doer_filter_map || '{}') || {}; } catch (e) { stepFilterMap = {}; }
+      const nameToUids = {};
+      for (const [nm, u2] of Object.entries(stepFilterMap)) {
+        const arr = Array.isArray(u2) ? u2 : ((u2 !== '' && u2 !== null && u2 !== undefined) ? [u2] : []);
+        if (arr.length) nameToUids[String(nm).trim().toLowerCase()] = arr.map(String);
+      }
+      const hasFilterMap = doerFilterIdx >= 0 && Object.keys(nameToUids).length > 0;
+
+      // Per-user attribution: HOD view me sirf dept-doers ko credit (consistency)
+      const creditDoers = hodDept ? step.doers.filter(d => (d.department || '') === hodDept) : step.doers;
+      const creditDoerIds = creditDoers.map(d => String(d.id));
+
+      // Ek row ke liye — kaun-kaun doer(s) credited honge (row-filter na ho ya cell
+      // khaali/unmapped ho to SAB doers, jaisa pehle se hota tha).
+      function doersForRow(row) {
+        if (!hasFilterMap) return creditDoerIds;
+        const rawCell = (row[doerFilterIdx] || '').trim().toLowerCase();
+        if (!rawCell) return creditDoerIds;
+        let mappedUids;
+        if (nameToUids[rawCell] !== undefined) {
+          mappedUids = nameToUids[rawCell];
+        } else {
+          const cellNames = rawCell.split(/[,/&+]/).map(x => x.trim()).filter(Boolean);
+          const mapped = cellNames.filter(n => nameToUids[n] !== undefined);
+          if (!mapped.length) return creditDoerIds; // unmapped naam — sabko
+          mappedUids = [...new Set(mapped.flatMap(n => nameToUids[n]))];
+        }
+        return creditDoerIds.filter(id => mappedUids.includes(id));
+      }
+
       let stepPending = 0, stepDone = 0, stepOverdue = 0, stepDoneInRange = 0, stepPendingInRange = 0;
-      const stepPendingRows = []; // collectPending ke liye — pending row ka detail
+      const stepPendingRows = []; // collectPending ke liye — pending row ka detail (+ kis doer ko credited)
+      const perDoerStep = {}; // uid -> {pending,done,overdue,doneInRange,pendingInRange} — SIRF is doer ki rows se
+      for (const id of creditDoerIds) perDoerStep[id] = { pending: 0, done: 0, overdue: 0, doneInRange: 0, pendingInRange: 0 };
+
       for (const row of rows) {
         const planVal = (row[planIdx] || '').trim();
         const actualVal = (row[actualIdx] || '').trim();
@@ -654,25 +695,38 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
           if (pd && opts.minPlanDate && pd < opts.minPlanDate) continue;
           if (pd && opts.maxPlanDate && pd > opts.maxPlanDate) continue;
         }
+        const rowDoerIds = doersForRow(row);
         if (planVal && !actualVal) {
           stepPending++;
           const planDate = parsePlanDate(planVal);
+          const isOverdue = !!(planDate && planDate < _today);
+          const inRange = !!(opts.range && planDate && planDate >= opts.range.start && planDate <= opts.range.end);
           // OVERDUE = plan date nikal chuki aur abhi tak done nahi
-          if (planDate && planDate < _today) stepOverdue++;
-          if (opts.range && planDate && planDate >= opts.range.start && planDate <= opts.range.end) stepPendingInRange++;
+          if (isOverdue) stepOverdue++;
+          if (inRange) stepPendingInRange++;
+          for (const id of rowDoerIds) {
+            perDoerStep[id].pending++;
+            if (isOverdue) perDoerStep[id].overdue++;
+            if (inRange) perDoerStep[id].pendingInRange++;
+          }
           if (collectPending) {
             stepPendingRows.push({
               fmsName, stepName: step.step_name, planValue: planVal,
-              planDate, isLate: !!(planDate && planDate < _today)
+              planDate, isLate: isOverdue, creditUids: rowDoerIds
             });
           }
         }
         else if (planVal && actualVal) {
           stepDone++;
           // Range me hua done = actual (done hone ki) date is window me
+          let inRangeDone = false;
           if (opts.range) {
             const actualDate = parsePlanDate(actualVal);
-            if (actualDate && actualDate >= opts.range.start && actualDate <= opts.range.end) stepDoneInRange++;
+            if (actualDate && actualDate >= opts.range.start && actualDate <= opts.range.end) { stepDoneInRange++; inRangeDone = true; }
+          }
+          for (const id of rowDoerIds) {
+            perDoerStep[id].done++;
+            if (inRangeDone) perDoerStep[id].doneInRange++;
           }
         }
       }
@@ -683,28 +737,30 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       fmsDoneInRange += stepDoneInRange;
       fmsPendingInRange += stepPendingInRange;
 
-      // Per-user attribution: HOD view me sirf dept-doers ko credit (consistency)
-      const creditDoers = hodDept ? step.doers.filter(d => (d.department || '') === hodDept) : step.doers;
       for (const d of creditDoers) {
+        const ds = perDoerStep[String(d.id)];
         if (!result.perUser[d.id]) result.perUser[d.id] = { pending: 0, done: 0, total: 0, overdue: 0, doneInRange: 0, pendingInRange: 0 };
-        result.perUser[d.id].pending += stepPending;
-        result.perUser[d.id].done    += stepDone;
-        result.perUser[d.id].total   += stepPending + stepDone;
-        result.perUser[d.id].overdue        += stepOverdue;
-        result.perUser[d.id].doneInRange    += stepDoneInRange;
-        result.perUser[d.id].pendingInRange += stepPendingInRange;
-        // Step-wise reporting per user (MIS breakdown popup ke liye)
-        if (stepPending + stepDone + stepOverdue + stepDoneInRange > 0) {
+        result.perUser[d.id].pending += ds.pending;
+        result.perUser[d.id].done    += ds.done;
+        result.perUser[d.id].total   += ds.pending + ds.done;
+        result.perUser[d.id].overdue        += ds.overdue;
+        result.perUser[d.id].doneInRange    += ds.doneInRange;
+        result.perUser[d.id].pendingInRange += ds.pendingInRange;
+        // Step-wise reporting per user (MIS breakdown popup ke liye) — is doer ki apni rows ka hisaab
+        if (ds.pending + ds.done + ds.overdue + ds.doneInRange > 0) {
           if (!result.perUserSteps[d.id]) result.perUserSteps[d.id] = [];
           result.perUserSteps[d.id].push({
             fmsName, stepName: step.step_name, stepOrder: step.step_order,
-            pending: stepPending, done: stepDone, overdue: stepOverdue,
-            doneInRange: stepDoneInRange, pendingInRange: stepPendingInRange
+            pending: ds.pending, done: ds.done, overdue: ds.overdue,
+            doneInRange: ds.doneInRange, pendingInRange: ds.pendingInRange
           });
         }
         if (collectPending && stepPendingRows.length) {
-          if (!result.perUserPending[d.id]) result.perUserPending[d.id] = [];
-          for (const pr of stepPendingRows) result.perUserPending[d.id].push(pr);
+          const mine = stepPendingRows.filter(pr => pr.creditUids.includes(String(d.id)));
+          if (mine.length) {
+            if (!result.perUserPending[d.id]) result.perUserPending[d.id] = [];
+            for (const pr of mine) result.perUserPending[d.id].push({ fmsName: pr.fmsName, stepName: pr.stepName, planValue: pr.planValue, planDate: pr.planDate, isLate: pr.isLate });
+          }
         }
       }
 
