@@ -5171,42 +5171,11 @@ async function openAllMISDetail(userId, userName) {
   document.getElementById('misDetailTitle').textContent = `${userName} — All Tasks`;
   const fms = emp.fms || { total: 0, pending: 0, done: 0, overdue: 0, target: 0, due: 0, score: null };
   const completedTotal = (emp.delegation.completed||0) + (emp.checklist.completed||0) + (fms.done||0);
-  document.getElementById('misDetailScore').innerHTML = `
-    <div style="font-size:28px;font-weight:800;color:${scoreColor}">${score !== null ? (score>0?'+':'')+ score.toFixed(1)+'%' : '—'}</div>
-    <div style="display:flex;gap:16px;margin-top:10px;font-size:13px;flex-wrap:wrap">
-      <span>📋 Total: <strong>${emp.totalAll}</strong></span>
-      <span style="color:#10b981">✅ Done: <strong>${completedTotal}</strong></span>
-      <span style="color:#ef4444">⏳ Pending: <strong>${emp.pendingAll}</strong></span>
-      <span style="color:#dc2626">⏰ Delayed: <strong>${emp.overdueAll}</strong></span>
-      <span style="color:#f59e0b">🔄 Revised: <strong>${emp.revisedAll}</strong></span>
-    </div>
 
-    ${emp.delegation.total > 0 ? `
-    <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score > 0 ? '+' : ''}${emp.delegation.score.toFixed(1)}%
-        ${emp.delegation.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.delegation.overdue} Overdue</span>` : ''}</div>
-      <div style="overflow-x:auto">
-        <table style="font-size:12px">
-          <thead><tr><th>Task</th><th>Date</th><th>Status</th><th></th></tr></thead>
-          <tbody>${makeTaskRows(delDetail.tasks || [], true)}</tbody>
-        </table>
-      </div>
-    </div>` : ''}
-
-    ${emp.checklist.total > 0 ? `
-    <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score > 0 ? '+' : ''}${emp.checklist.score.toFixed(1)}%
-        ${emp.checklist.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.checklist.overdue} Overdue</span>` : ''}</div>
-      <div style="overflow-x:auto">
-        <table style="font-size:12px">
-          <thead><tr><th>Task</th><th>Date</th><th>Status</th><th></th></tr></thead>
-          <tbody>${makeTaskRows(chlDetail.tasks || [], false)}</tbody>
-        </table>
-      </div>
-    </div>` : ''}
-
-    ${(fms.isDoer || fms.total > 0) ? `
-    <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
+  // Order (user request): (1) FMS report pehle, (2) uske baad FMS+Delegation+Checklist combined summary,
+  // (3) Delegation detail, (4) Checklist detail
+  const fmsSectionHtml = (fms.isDoer || fms.total > 0) ? `
+    <div>
       <div style="font-size:13px;font-weight:700;color:#7c3aed;margin-bottom:8px">📊 FMS — is week ka target: ${fms.target || 20}/week
         ${fms.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${fms.overdue} Overdue</span>` : ''}
         ${(fms.due || 0) > 0
@@ -5234,7 +5203,47 @@ async function openAllMISDetail(userId, userName) {
             </tr>`).join('')}</tbody>
         </table>
       </div>` : ''}
-    </div>` : ''}`;
+    </div>` : '';
+
+  const combinedSummaryHtml = `
+    <div style="${fmsSectionHtml ? 'margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px;' : ''}">
+      <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.3px">📊 FMS + Delegation + Checklist — Combined</div>
+      <div style="font-size:28px;font-weight:800;color:${scoreColor}">${score !== null ? (score>0?'+':'')+ score.toFixed(1)+'%' : '—'}</div>
+      <div style="display:flex;gap:16px;margin-top:10px;font-size:13px;flex-wrap:wrap">
+        <span>📋 Total: <strong>${emp.totalAll}</strong></span>
+        <span style="color:#10b981">✅ Done: <strong>${completedTotal}</strong></span>
+        <span style="color:#ef4444">⏳ Pending: <strong>${emp.pendingAll}</strong></span>
+        <span style="color:#dc2626">⏰ Delayed: <strong>${emp.overdueAll}</strong></span>
+        <span style="color:#f59e0b">🔄 Revised: <strong>${emp.revisedAll}</strong></span>
+      </div>
+    </div>`;
+
+  const delegationSectionHtml = emp.delegation.total > 0 ? `
+    <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
+      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score > 0 ? '+' : ''}${emp.delegation.score.toFixed(1)}%
+        ${emp.delegation.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.delegation.overdue} Overdue</span>` : ''}</div>
+      <div style="overflow-x:auto">
+        <table style="font-size:12px">
+          <thead><tr><th>Task</th><th>Date</th><th>Status</th><th></th></tr></thead>
+          <tbody>${makeTaskRows(delDetail.tasks || [], true)}</tbody>
+        </table>
+      </div>
+    </div>` : '';
+
+  const checklistSectionHtml = emp.checklist.total > 0 ? `
+    <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
+      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score > 0 ? '+' : ''}${emp.checklist.score.toFixed(1)}%
+        ${emp.checklist.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.checklist.overdue} Overdue</span>` : ''}</div>
+      <div style="overflow-x:auto">
+        <table style="font-size:12px">
+          <thead><tr><th>Task</th><th>Date</th><th>Status</th><th></th></tr></thead>
+          <tbody>${makeTaskRows(chlDetail.tasks || [], false)}</tbody>
+        </table>
+      </div>
+    </div>` : '';
+
+  document.getElementById('misDetailScore').innerHTML =
+    fmsSectionHtml + combinedSummaryHtml + delegationSectionHtml + checklistSectionHtml;
 
   // Reuse existing misDetailBody (blank it since we put everything in score div)
   document.getElementById('misDetailBody').innerHTML = '';
