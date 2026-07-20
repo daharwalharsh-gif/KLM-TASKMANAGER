@@ -582,7 +582,9 @@ function parsePlanDate(planVal) {
 //   • minPlanDate: 'YYYY-MM-DD' — is date se pehle ke plan wale rows count NAHI hote
 //   • excludeSpreadsheetIds: [id] — ye spreadsheets poori tarah skip
 async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) {
-  const result = { perFms: [], perUser: {}, errors: [] };
+  // opts.range = {start:'YYYY-MM-DD', end:'YYYY-MM-DD'} — is window me hue "done"
+  // (actual date) aur is window ke plan wale pending alag se count hote hain (MIS ke liye).
+  const result = { perFms: [], perUser: {}, perUserSteps: {}, errors: [] };
   if (collectPending) result.perUserPending = {}; // uid -> [ {fmsName, stepName, planValue, planDate, isLate} ]
   const _today = new Date().toISOString().split('T')[0];
   let [sheets] = await db.query('SELECT * FROM fms_sheets ORDER BY fms_name ASC');
@@ -633,7 +635,7 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
     }
     const rows = fetched.rows;
 
-    let fmsPending = 0, fmsDone = 0;
+    let fmsPending = 0, fmsDone = 0, fmsOverdue = 0, fmsDoneInRange = 0, fmsPendingInRange = 0;
     const perStep = [];
 
     for (const step of activeSteps) {
@@ -641,7 +643,7 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       const actualIdx = colToIdx(step.actual_col);
       if (planIdx < 0 || actualIdx < 0) continue;
 
-      let stepPending = 0, stepDone = 0;
+      let stepPending = 0, stepDone = 0, stepOverdue = 0, stepDoneInRange = 0, stepPendingInRange = 0;
       const stepPendingRows = []; // collectPending ke liye — pending row ka detail
       for (const row of rows) {
         const planVal = (row[planIdx] || '').trim();
@@ -654,28 +656,52 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
         }
         if (planVal && !actualVal) {
           stepPending++;
+          const planDate = parsePlanDate(planVal);
+          // OVERDUE = plan date nikal chuki aur abhi tak done nahi
+          if (planDate && planDate < _today) stepOverdue++;
+          if (opts.range && planDate && planDate >= opts.range.start && planDate <= opts.range.end) stepPendingInRange++;
           if (collectPending) {
-            // plan date parse (same logic as /api/fms-dashboard)
-            const planDate = parsePlanDate(planVal);
             stepPendingRows.push({
               fmsName, stepName: step.step_name, planValue: planVal,
               planDate, isLate: !!(planDate && planDate < _today)
             });
           }
         }
-        else if (planVal && actualVal) stepDone++;
+        else if (planVal && actualVal) {
+          stepDone++;
+          // Range me hua done = actual (done hone ki) date is window me
+          if (opts.range) {
+            const actualDate = parsePlanDate(actualVal);
+            if (actualDate && actualDate >= opts.range.start && actualDate <= opts.range.end) stepDoneInRange++;
+          }
+        }
       }
 
       fmsPending += stepPending;
       fmsDone += stepDone;
+      fmsOverdue += stepOverdue;
+      fmsDoneInRange += stepDoneInRange;
+      fmsPendingInRange += stepPendingInRange;
 
       // Per-user attribution: HOD view me sirf dept-doers ko credit (consistency)
       const creditDoers = hodDept ? step.doers.filter(d => (d.department || '') === hodDept) : step.doers;
       for (const d of creditDoers) {
-        if (!result.perUser[d.id]) result.perUser[d.id] = { pending: 0, done: 0, total: 0 };
+        if (!result.perUser[d.id]) result.perUser[d.id] = { pending: 0, done: 0, total: 0, overdue: 0, doneInRange: 0, pendingInRange: 0 };
         result.perUser[d.id].pending += stepPending;
         result.perUser[d.id].done    += stepDone;
         result.perUser[d.id].total   += stepPending + stepDone;
+        result.perUser[d.id].overdue        += stepOverdue;
+        result.perUser[d.id].doneInRange    += stepDoneInRange;
+        result.perUser[d.id].pendingInRange += stepPendingInRange;
+        // Step-wise reporting per user (MIS breakdown popup ke liye)
+        if (stepPending + stepDone + stepOverdue + stepDoneInRange > 0) {
+          if (!result.perUserSteps[d.id]) result.perUserSteps[d.id] = [];
+          result.perUserSteps[d.id].push({
+            fmsName, stepName: step.step_name, stepOrder: step.step_order,
+            pending: stepPending, done: stepDone, overdue: stepOverdue,
+            doneInRange: stepDoneInRange, pendingInRange: stepPendingInRange
+          });
+        }
         if (collectPending && stepPendingRows.length) {
           if (!result.perUserPending[d.id]) result.perUserPending[d.id] = [];
           for (const pr of stepPendingRows) result.perUserPending[d.id].push(pr);
@@ -688,6 +714,9 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
         doers: step.doers.map(d => d.name).join(', ') || '—',
         pending: stepPending,
         done: stepDone,
+        overdue: stepOverdue,
+        doneInRange: stepDoneInRange,
+        pendingInRange: stepPendingInRange,
         total: stepPending + stepDone
       });
     }
@@ -697,6 +726,9 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       fmsName,
       pending: fmsPending,
       done: fmsDone,
+      overdue: fmsOverdue,
+      doneInRange: fmsDoneInRange,
+      pendingInRange: fmsPendingInRange,
       total: fmsPending + fmsDone,
       steps: perStep
     });
@@ -1697,15 +1729,22 @@ app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
     // FMS aur FMS Overview ke numbers ab HAMESHA match karte hain. HOD/admin dono
     // par EK jaisa dept-filter lagta hai. Read fail ho to fmsErrors me naam aata hai.
     let fmsUserMap = {};
+    let fmsStepsMap = {};
     let fmsErrors = [];
     try {
       // ROLE-INDEPENDENT: hamesha all-doers crediting (hodDept='') taaki ek hi employee ka
       // FMS total/score admin aur HOD dono ko BILKUL EK JAISA dikhe. Dept ka filter sirf
       // niche rows (kaun-kaun employee dikhega) par lagta hai — numbers par nahi.
-      const fmsStats = await computeFmsStats('');
+      // range pass hota hai => doneInRange (is window me kiye) + pendingInRange + overdue milte hain.
+      const fmsStats = await computeFmsStats('', false, { range: { start, end } });
       fmsUserMap = fmsStats.perUser || {};
+      fmsStepsMap = fmsStats.perUserSteps || {};
       fmsErrors = fmsStats.errors || [];
     } catch (e) { fmsErrors = ['FMS data unavailable']; }
+
+    // Weekly FMS target: 20 done per doer per week (range ke hisaab se scale hota hai)
+    const rangeDays = Math.max(1, Math.round((new Date(end) - new Date(start)) / 86400000) + 1);
+    const fmsTarget = Math.max(1, Math.round(20 * rangeDays / 7));
 
     // Agar koi user sirf FMS me kaam karta hai (del/chl me 0 tasks) to use bhi userMap me daalo.
     if (Object.keys(fmsUserMap).length) {
@@ -1726,24 +1765,33 @@ app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
 
     const rows = Object.values(userMap).map(u => {
       const d = u.delegation, c = u.checklist;
-      const fms = fmsUserMap[u.userId] || { total: 0, pending: 0, done: 0 };
-      // FMS total = done + pending (dono Total column me count hone chahiye)
-      const fmsRealTotal = fms.done + fms.pending;
-      const totalAll = d.total + c.total + fmsRealTotal;
-      const pendingAll = d.pending + c.pending + fms.pending;
-      const overdueAll = d.overdue + c.overdue;
+      const fms = fmsUserMap[u.userId] || { total: 0, pending: 0, done: 0, overdue: 0, doneInRange: 0, pendingInRange: 0 };
+      const fmsDoneR = fms.doneInRange || 0;
+      const fmsPendR = fms.pendingInRange || 0;
+      const fmsOver = fms.overdue || 0;
+      // MIS ab RANGE-based hai (pehle lifetime numbers the — wrong lagta tha):
+      // Total/Pending/Completed sirf chune hue date-window ke; Overdue global (aaj tak late).
+      const fmsRangeTotal = fmsDoneR + fmsPendR;
+      const totalAll = d.total + c.total + fmsRangeTotal;
+      const pendingAll = d.pending + c.pending + fmsPendR;
+      const overdueAll = d.overdue + c.overdue + fmsOver;
       const revisedAll = d.revised;
-      const completedAll = (d.completed||0) + (c.completed||0) + fms.done;
+      const completedAll = (d.completed||0) + (c.completed||0) + fmsDoneR;
       const overallScore = totalAll > 0
         ? Math.max(-100, Math.round((0-(pendingAll/totalAll)*100-(overdueAll/totalAll)*50-(revisedAll/totalAll)*25)*10)/10)
         : null;
       const plan = planMap[u.userId] || null;
-      const fmsScore = fmsRealTotal > 0
-        ? Math.round((fms.done / fmsRealTotal) * 100 * 10) / 10  // 0-100% completion
-        : null;
-      return { ...u, fms: { total: fmsRealTotal, pending: fms.pending, done: fms.done, score: fmsScore },
+      const isFmsDoer = (fms.total || 0) > 0 || fmsDoneR > 0;
+      // FMS score ab TARGET-based: 20/week kiye to 100%
+      const fmsDue = isFmsDoer ? Math.max(0, fmsTarget - fmsDoneR) : 0;
+      const fmsScore = isFmsDoer ? Math.min(100, Math.round((fmsDoneR / fmsTarget) * 1000) / 10) : null;
+      return { ...u,
+        fms: { total: fmsRangeTotal, pending: fmsPendR, done: fmsDoneR, overdue: fmsOver,
+               backlog: fms.pending || 0, target: isFmsDoer ? fmsTarget : 0, due: fmsDue,
+               isDoer: isFmsDoer, score: fmsScore },
+        fmsSteps: fmsStepsMap[u.userId] || [],
         totalAll, pendingAll, overdueAll, revisedAll, completedAll, overallScore, plan };
-    }).filter(u => u.totalAll > 0).sort((a,b) => a.name.localeCompare(b.name));
+    }).filter(u => u.totalAll > 0 || u.overdueAll > 0 || (u.fms && u.fms.isDoer)).sort((a,b) => a.name.localeCompare(b.name));
 
     // Backward compatible: agar koi error nahi to seedha array bhejte hain (jaise pehle).
     // Error hone par object bhejte hain taaki frontend warning dikha sake.
@@ -1768,7 +1816,8 @@ app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
     }
 
     // Same shared engine jo /api/mis/all use karta hai => numbers HAMESHA match honge
-    const fmsStats = await computeFmsStats(hodDept);
+    // range => har step ka doneInRange (is window me kiye) + overdue bhi aata hai
+    const fmsStats = await computeFmsStats(hodDept, false, { range: { start, end } });
     res.json(fmsStats.perFms);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

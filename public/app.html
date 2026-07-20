@@ -4958,7 +4958,9 @@ function renderFMSMIS(data) {
         <td style="padding-left:24px;color:#64748b;font-size:12px">Step ${s.stepOrder}: ${s.stepName}</td>
         <td style="font-size:12px;color:#64748b">${s.doers}</td>
         <td style="font-weight:600;color:#1a56db">${s.total}</td>
+        <td style="color:#16a34a;font-weight:700">${s.doneInRange !== undefined ? s.doneInRange : '—'}</td>
         <td style="color:#ef4444;font-weight:600">${s.pending}</td>
+        <td style="color:#dc2626;font-weight:700">${s.overdue !== undefined ? s.overdue : '—'}</td>
         <td style="color:#10b981;font-weight:600">${s.done}</td>
         <td>
           ${s.total > 0 ? `
@@ -4971,18 +4973,20 @@ function renderFMSMIS(data) {
 
     return `
       <div class="mis-table-wrap" style="margin-bottom:16px">
-        <div style="background:#f8fafc;padding:12px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
+        <div style="background:#f8fafc;padding:12px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div style="font-size:14px;font-weight:700;color:#1e293b">📊 ${fms.fmsName}</div>
-          <div style="display:flex;gap:16px;font-size:13px">
+          <div style="display:flex;gap:16px;font-size:13px;flex-wrap:wrap">
             <span>Total: <strong style="color:#1a56db">${fms.total}</strong></span>
+            <span>Done (range): <strong style="color:#16a34a">${fms.doneInRange !== undefined ? fms.doneInRange : '—'}</strong></span>
             <span>Pending: <strong style="color:#ef4444">${fms.pending}</strong></span>
-            <span>Done: <strong style="color:#10b981">${fms.done}</strong></span>
+            <span>Overdue: <strong style="color:#dc2626">${fms.overdue !== undefined ? fms.overdue : '—'}</strong></span>
+            <span>Done (all): <strong style="color:#10b981">${fms.done}</strong></span>
             ${hasError ? `<span style="color:#dc2626;font-size:11px">⚠️ ${fms.error}</span>` : ''}
           </div>
         </div>
         <table>
-          <thead><tr><th>Step</th><th>Doer(s)</th><th>Total</th><th>Pending</th><th>Done</th><th>Progress</th></tr></thead>
-          <tbody>${stepRows || `<tr><td colspan="6" class="empty">No step data</td></tr>`}</tbody>
+          <thead><tr><th>Step</th><th>Doer(s)</th><th>Total</th><th>✅ Done (range)</th><th>Pending</th><th>⚠️ Overdue</th><th>Done (all)</th><th>Progress</th></tr></thead>
+          <tbody>${stepRows || `<tr><td colspan="8" class="empty">No step data</td></tr>`}</tbody>
         </table>
       </div>`;
   }).join('');
@@ -5029,8 +5033,20 @@ function renderAllMIS(data, fmsData) {
       ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${delScore<0?'#fef2f2':'#f0fdf4'};color:${delScore<0?'#dc2626':'#16a34a'};font-weight:600;border:1px solid ${delScore<0?'#fecaca':'#bbf7d0'}">Del: ${delScore>0?'+':''}${delScore.toFixed(0)}%</span>` : '';
     const chlBadge = emp.checklist.total > 0
       ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${chlScore<0?'#fef2f2':'#f0fdf4'};color:${chlScore<0?'#dc2626':'#16a34a'};font-weight:600;border:1px solid ${chlScore<0?'#fecaca':'#bbf7d0'}">CL: ${chlScore>0?'+':''}${chlScore.toFixed(0)}%</span>` : '';
-    const fmsBadge = (fmsObj.total > 0 && fmsObj.score !== null)
-      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${fmsObj.score<50?'#fef2f2':fmsObj.score<80?'#fffbeb':'#f0fdf4'};color:${fmsObj.score<50?'#dc2626':fmsObj.score<80?'#b45309':'#16a34a'};font-weight:600;border:1px solid ${fmsObj.score<50?'#fecaca':fmsObj.score<80?'#fde68a':'#bbf7d0'}">FMS: ${fmsObj.score.toFixed(0)}%</span>` : '';
+    const fmsBadge = (fmsObj.score !== null && fmsObj.score !== undefined && (fmsObj.isDoer || fmsObj.total > 0))
+      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${fmsObj.score<50?'#fef2f2':fmsObj.score<80?'#fffbeb':'#f0fdf4'};color:${fmsObj.score<50?'#dc2626':fmsObj.score<80?'#b45309':'#16a34a'};font-weight:600;border:1px solid ${fmsObj.score<50?'#fecaca':fmsObj.score<80?'#fde68a':'#bbf7d0'}">FMS: ${fmsObj.score.toFixed(0)}%${fmsObj.target ? ` (${fmsObj.done}/${fmsObj.target})` : ''}</span>` : '';
+
+    // FMS weekly target column — 20/week done nahi kiye to baaki DUE me dikhta hai
+    let fmsDueHtml = '<span style="color:#94a3b8;font-size:12px">—</span>';
+    if (fmsObj.isDoer || (fmsObj.target || 0) > 0) {
+      if ((fmsObj.due || 0) > 0) {
+        fmsDueHtml = `<div style="color:#dc2626;font-weight:700;font-size:14px">${fmsObj.due} due</div>
+          <div style="font-size:10px;color:#94a3b8">${fmsObj.done||0}/${fmsObj.target} done (target)</div>`;
+      } else {
+        fmsDueHtml = `<div style="color:#16a34a;font-weight:700;font-size:13px">✅ Target met</div>
+          <div style="font-size:10px;color:#94a3b8">${fmsObj.done||0}/${fmsObj.target} done</div>`;
+      }
+    }
 
     // Next Week Plan column
     let planHtml = '<span style="color:#94a3b8;font-size:12px">—</span>';
@@ -5061,7 +5077,8 @@ function renderAllMIS(data, fmsData) {
       <td style="color:#ef4444;font-weight:600">${emp.pendingAll}</td>
       <td style="color:#10b981;font-weight:600">${completedAll}</td>
       <td style="color:#f59e0b;font-weight:600">${emp.revisedAll}</td>
-      <td style="color:#dc2626;font-weight:600">${emp.overdueAll}</td>
+      <td style="color:#dc2626;font-weight:700">${emp.overdueAll}</td>
+      <td>${fmsDueHtml}</td>
       <td>${planHtml}</td>
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">${delBadge}${chlBadge}${fmsBadge}</div>
@@ -5079,7 +5096,8 @@ function renderAllMIS(data, fmsData) {
       <table style="min-width:900px">
         <thead><tr>
           <th>Employee <span style="font-weight:400;color:#94a3b8;font-size:10px">(click for breakdown)</span></th>
-          <th>Total</th><th>Pending</th><th>Completed</th><th>Revised</th><th>Delayed</th>
+          <th>Total</th><th>Pending</th><th>Completed</th><th>Revised</th><th>⚠️ Overdue</th>
+          <th>🎯 FMS Due <span style="font-weight:400;color:#94a3b8;font-size:9px">(20/week)</span></th>
           <th>📅 Next Week Plan</th><th>Overall Score</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
@@ -5151,7 +5169,7 @@ async function openAllMISDetail(userId, userName) {
   const scoreColor = score === null ? '#64748b' : score < 0 ? '#dc2626' : '#16a34a';
 
   document.getElementById('misDetailTitle').textContent = `${userName} — All Tasks`;
-  const fms = emp.fms || { total: 0, pending: 0, done: 0, score: null };
+  const fms = emp.fms || { total: 0, pending: 0, done: 0, overdue: 0, target: 0, due: 0, score: null };
   const completedTotal = (emp.delegation.completed||0) + (emp.checklist.completed||0) + (fms.done||0);
   document.getElementById('misDetailScore').innerHTML = `
     <div style="font-size:28px;font-weight:800;color:${scoreColor}">${score !== null ? (score>0?'+':'')+ score.toFixed(1)+'%' : '—'}</div>
@@ -5165,7 +5183,8 @@ async function openAllMISDetail(userId, userName) {
 
     ${emp.delegation.total > 0 ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score > 0 ? '+' : ''}${emp.delegation.score.toFixed(1)}%</div>
+      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score > 0 ? '+' : ''}${emp.delegation.score.toFixed(1)}%
+        ${emp.delegation.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.delegation.overdue} Overdue</span>` : ''}</div>
       <div style="overflow-x:auto">
         <table style="font-size:12px">
           <thead><tr><th>Task</th><th>Date</th><th>Status</th><th></th></tr></thead>
@@ -5176,7 +5195,8 @@ async function openAllMISDetail(userId, userName) {
 
     ${emp.checklist.total > 0 ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score > 0 ? '+' : ''}${emp.checklist.score.toFixed(1)}%</div>
+      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score > 0 ? '+' : ''}${emp.checklist.score.toFixed(1)}%
+        ${emp.checklist.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.checklist.overdue} Overdue</span>` : ''}</div>
       <div style="overflow-x:auto">
         <table style="font-size:12px">
           <thead><tr><th>Task</th><th>Date</th><th>Status</th><th></th></tr></thead>
@@ -5185,14 +5205,35 @@ async function openAllMISDetail(userId, userName) {
       </div>
     </div>` : ''}
 
-    ${fms.total > 0 ? `
+    ${(fms.isDoer || fms.total > 0) ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#7c3aed;margin-bottom:8px">📊 FMS (${fms.total} entries) — Completion: ${fms.score !== null ? fms.score.toFixed(1) : 0}%</div>
-      <div style="display:flex;gap:14px;font-size:12px;flex-wrap:wrap;padding:8px 10px;background:#faf5ff;border-radius:8px">
-        <span>Total entries: <strong>${fms.total}</strong></span>
-        <span style="color:#10b981">Done: <strong>${fms.done}</strong></span>
-        <span style="color:#ef4444">Pending: <strong>${fms.pending}</strong></span>
+      <div style="font-size:13px;font-weight:700;color:#7c3aed;margin-bottom:8px">📊 FMS — is week ka target: ${fms.target || 20}/week
+        ${fms.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${fms.overdue} Overdue</span>` : ''}
+        ${(fms.due || 0) > 0
+          ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">🎯 ${fms.due} Due (target incomplete)</span>`
+          : `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#f0fdf4;color:#16a34a;font-weight:700;border:1px solid #bbf7d0">✅ Target met</span>`}
       </div>
+      <div style="display:flex;gap:14px;font-size:12px;flex-wrap:wrap;padding:8px 10px;background:#faf5ff;border-radius:8px;margin-bottom:10px">
+        <span>Done (this range): <strong style="color:#16a34a">${fms.done}</strong></span>
+        <span>Pending (this range): <strong style="color:#ef4444">${fms.pending}</strong></span>
+        <span>Overdue (all time): <strong style="color:#dc2626">${fms.overdue}</strong></span>
+        <span>Backlog (all pending): <strong style="color:#f59e0b">${fms.backlog}</strong></span>
+      </div>
+      ${(emp.fmsSteps && emp.fmsSteps.length) ? `
+      <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px">Step-wise breakdown:</div>
+      <div style="overflow-x:auto">
+        <table style="font-size:12px">
+          <thead><tr><th>FMS</th><th>Step</th><th>✅ Done (range)</th><th>⏳ Pending</th><th>⚠️ Overdue</th></tr></thead>
+          <tbody>${emp.fmsSteps.map(s => `
+            <tr>
+              <td style="color:#64748b">${s.fmsName}</td>
+              <td>Step ${s.stepOrder}: ${s.stepName}</td>
+              <td style="color:#16a34a;font-weight:700">${s.doneInRange}</td>
+              <td style="color:#ef4444;font-weight:600">${s.pending}</td>
+              <td style="color:${s.overdue>0?'#dc2626':'#94a3b8'};font-weight:700">${s.overdue}</td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>` : ''}
     </div>` : ''}`;
 
   // Reuse existing misDetailBody (blank it since we put everything in score div)
@@ -5200,12 +5241,13 @@ async function openAllMISDetail(userId, userName) {
   document.getElementById('misDetailModal').classList.add('open');
 }
 
-// Set default MIS dates (current week)
+// Set default MIS dates — AUTO WEEKLY: pichle 7 din (aaj samet)
+// Isse date-range se pichle dino ka data seedha nikal aata hai.
 function setDefaultMISDates() {
   const today = new Date();
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - today.getDay() + 1);
-  document.getElementById('misStart').value = monday.toISOString().split('T')[0];
+  const weekAgo = new Date(today);
+  weekAgo.setDate(today.getDate() - 6);
+  document.getElementById('misStart').value = weekAgo.toISOString().split('T')[0];
   document.getElementById('misEnd').value = today.toISOString().split('T')[0];
 }
 
