@@ -1823,13 +1823,15 @@ app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
       const d = u.delegation, c = u.checklist;
       const fms = fmsUserMap[u.userId] || { total: 0, pending: 0, done: 0, overdue: 0, doneInRange: 0, pendingInRange: 0 };
       const fmsDoneR = fms.doneInRange || 0;
-      const fmsPendR = fms.pendingInRange || 0;
       const fmsOver = fms.overdue || 0;
-      // MIS ab RANGE-based hai (pehle lifetime numbers the — wrong lagta tha):
-      // Total/Pending/Completed sirf chune hue date-window ke; Overdue global (aaj tak late).
-      const fmsRangeTotal = fmsDoneR + fmsPendR;
+      // PENDING = ACTUAL pending (jo doer FMS Tasks page pe sach me dekhta hai), NOT plan-date-in-range.
+      // Pehle pendingInRange use hota tha — usse summary aur step-wise breakdown ke numbers
+      // aapas me match nahi karte the (header 360 vs steps ka jod 506). Ab dono ek hi cheez:
+      // row-filter mapping ke baad us doer ki asli pending rows.
+      const fmsPendActual = fms.pending || 0;
+      const fmsRangeTotal = fmsDoneR + fmsPendActual;
       const totalAll = d.total + c.total + fmsRangeTotal;
-      const pendingAll = d.pending + c.pending + fmsPendR;
+      const pendingAll = d.pending + c.pending + fmsPendActual;
       const overdueAll = d.overdue + c.overdue + fmsOver;
       const revisedAll = d.revised;
       const completedAll = (d.completed||0) + (c.completed||0) + fmsDoneR;
@@ -1842,8 +1844,8 @@ app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
       const fmsDue = isFmsDoer ? Math.max(0, fmsTarget - fmsDoneR) : 0;
       const fmsScore = isFmsDoer ? Math.min(100, Math.round((fmsDoneR / fmsTarget) * 1000) / 10) : null;
       return { ...u,
-        fms: { total: fmsRangeTotal, pending: fmsPendR, done: fmsDoneR, overdue: fmsOver,
-               backlog: fms.pending || 0, target: isFmsDoer ? fmsTarget : 0, due: fmsDue,
+        fms: { total: fmsRangeTotal, pending: fmsPendActual, done: fmsDoneR, overdue: fmsOver,
+               backlog: fmsPendActual, target: isFmsDoer ? fmsTarget : 0, due: fmsDue,
                isDoer: isFmsDoer, score: fmsScore },
         fmsSteps: fmsStepsMap[u.userId] || [],
         totalAll, pendingAll, overdueAll, revisedAll, completedAll, overallScore, plan };

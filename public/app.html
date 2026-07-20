@@ -5184,9 +5184,8 @@ async function openAllMISDetail(userId, userName) {
       </div>
       <div style="display:flex;gap:14px;font-size:12px;flex-wrap:wrap;padding:8px 10px;background:#faf5ff;border-radius:8px;margin-bottom:10px">
         <span>Done (this range): <strong style="color:#16a34a">${fms.done}</strong></span>
-        <span>Pending (this range): <strong style="color:#ef4444">${fms.pending}</strong></span>
+        <span>Pending (actual): <strong style="color:#ef4444">${fms.pending}</strong></span>
         <span>Overdue (all time): <strong style="color:#dc2626">${fms.overdue}</strong></span>
-        <span>Backlog (all pending): <strong style="color:#f59e0b">${fms.backlog}</strong></span>
       </div>
       ${(emp.fmsSteps && emp.fmsSteps.length) ? `
       <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px">Step-wise breakdown:</div>
