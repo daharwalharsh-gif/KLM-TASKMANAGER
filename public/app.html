@@ -5249,14 +5249,18 @@ async function openAllMISDetail(userId, userName) {
   document.getElementById('misDetailModal').classList.add('open');
 }
 
-// Set default MIS dates — AUTO WEEKLY: pichle 7 din (aaj samet)
-// Isse date-range se pichle dino ka data seedha nikal aata hai.
+// Set default MIS dates — AUTO WEEKLY: is hafte ka MONDAY se SATURDAY
+// (Sunday ko bhi isi chalu hafte ka Mon-Sat dikhta hai). Weekly target 20/doer isi week ka hai.
 function setDefaultMISDates() {
   const today = new Date();
-  const weekAgo = new Date(today);
-  weekAgo.setDate(today.getDate() - 6);
-  document.getElementById('misStart').value = weekAgo.toISOString().split('T')[0];
-  document.getElementById('misEnd').value = today.toISOString().split('T')[0];
+  const dow = today.getDay();                 // 0=Sun, 1=Mon ... 6=Sat
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));  // Sunday => pichla Monday
+  const saturday = new Date(monday);
+  saturday.setDate(monday.getDate() + 5);     // Mon + 5 = Saturday
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  document.getElementById('misStart').value = fmt(monday);
+  document.getElementById('misEnd').value = fmt(saturday);
 }
 
 // ══════════════════════════════════════════════════════

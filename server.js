@@ -1798,9 +1798,12 @@ app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
       fmsErrors = fmsStats.errors || [];
     } catch (e) { fmsErrors = ['FMS data unavailable']; }
 
-    // Weekly FMS target: 20 done per doer per week (range ke hisaab se scale hota hai)
+    // Weekly FMS target: har doer ko 20 done PER WEEK (Mon-Sat wala hafta).
+    // Poore hafte ka target 20 hi rehta hai — 6-din ke Mon-Sat range pe ghat ke 17 nahi hona chahiye.
+    // Range agar kai hafte ka hai to har hafte ka 20 jud jaata hai (2 hafte = 40).
     const rangeDays = Math.max(1, Math.round((new Date(end) - new Date(start)) / 86400000) + 1);
-    const fmsTarget = Math.max(1, Math.round(20 * rangeDays / 7));
+    const fmsWeeks = Math.max(1, Math.ceil(rangeDays / 7));
+    const fmsTarget = 20 * fmsWeeks;
 
     // Agar koi user sirf FMS me kaam karta hai (del/chl me 0 tasks) to use bhi userMap me daalo.
     if (Object.keys(fmsUserMap).length) {
