@@ -31,7 +31,7 @@ const BLOB_DIR = path.join(__dirname, 'data', 'blobs');
 // `autoFill` = INSERT pe agar column miss hai to ye default fill hoga
 const SCHEMA = {
   users: {
-    cols: ['id','name','email','notification_email','password','role','phone','profile_image','department','week_off','extra_off'],
+    cols: ['id','name','title','email','notification_email','password','role','phone','profile_image','department','week_off','extra_off'],
     autoFill: {}
   },
   delegation_tasks: {

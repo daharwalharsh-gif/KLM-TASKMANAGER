@@ -1854,6 +1854,13 @@ app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
       userMap[r.userId].checklistCompleted = parseInt(r.completed)||0;
     }
 
+    // Title (Mr/Ms/Mrs) — id -> title map, ek hi baar
+    const titleMap = {};
+    try {
+      const [tRows] = await db.query('SELECT id, title FROM users');
+      for (const u of tRows) if (u.title) titleMap[u.id] = u.title;
+    } catch (e) { /* title column optional */ }
+
     // Fetch week plan for each user — DATE_FORMAT taaki frontend ko clean YYYY-MM-DD mile (ISO timestamp nahi)
     let planMap = {};
     try {
@@ -1931,6 +1938,7 @@ app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
       const fmsDue = isFmsDoer ? Math.max(0, fmsTarget - fmsDoneR) : 0;
       const fmsScore = isFmsDoer ? Math.min(100, Math.round((fmsDoneR / fmsTarget) * 1000) / 10) : null;
       return { ...u,
+        title: titleMap[u.userId] || '',
         fms: { total: fmsRangeTotal, pending: fmsPendActual, done: fmsDoneR, overdue: fmsOver,
                backlog: fmsPendActual, target: isFmsDoer ? fmsTarget : 0, due: fmsDue,
                isDoer: isFmsDoer, score: fmsScore },
@@ -2200,30 +2208,30 @@ app.get('/api/users/with-pending-tasks', requireAuth, async (req, res) => {
 // ══════════════════════════════════════════════════════
 app.get('/api/users', requireAuth, async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT id,name,email,notification_email,role,phone,department,week_off,extra_off FROM users ORDER BY role DESC,name ASC');
+    const [rows] = await db.query('SELECT id,name,title,email,notification_email,role,phone,department,week_off,extra_off FROM users ORDER BY role DESC,name ASC');
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { name, email, notification_email, password, role, phone, department, week_off, extra_off } = req.body;
+    const { name, title, email, notification_email, password, role, phone, department, week_off, extra_off } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'All fields required' });
     const [ex] = await db.query('SELECT id FROM users WHERE email=?', [email]);
     if (ex[0]) return res.status(400).json({ error: 'Email already exists' });
-    await db.query('INSERT INTO users (name,email,notification_email,password,role,phone,department,week_off,extra_off) VALUES (?,?,?,?,?,?,?,?,?)',
-      [name, email, notification_email||'', password, role||'user', phone||null, department||'', week_off||'', extra_off||'']);
+    await db.query('INSERT INTO users (name,title,email,notification_email,password,role,phone,department,week_off,extra_off) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [name, title||'', email, notification_email||'', password, role||'user', phone||null, department||'', week_off||'', extra_off||'']);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { name, email, notification_email, role, password, phone, department, week_off, extra_off } = req.body;
-    if (password) await db.query('UPDATE users SET name=?,email=?,notification_email=?,role=?,password=?,phone=?,department=?,week_off=?,extra_off=? WHERE id=?',
-      [name,email,notification_email||'',role,password,phone||null,department||'',week_off||'',extra_off||'',req.params.id]);
-    else await db.query('UPDATE users SET name=?,email=?,notification_email=?,role=?,phone=?,department=?,week_off=?,extra_off=? WHERE id=?',
-      [name,email,notification_email||'',role,phone||null,department||'',week_off||'',extra_off||'',req.params.id]);
+    const { name, title, email, notification_email, role, password, phone, department, week_off, extra_off } = req.body;
+    if (password) await db.query('UPDATE users SET name=?,title=?,email=?,notification_email=?,role=?,password=?,phone=?,department=?,week_off=?,extra_off=? WHERE id=?',
+      [name,title||'',email,notification_email||'',role,password,phone||null,department||'',week_off||'',extra_off||'',req.params.id]);
+    else await db.query('UPDATE users SET name=?,title=?,email=?,notification_email=?,role=?,phone=?,department=?,week_off=?,extra_off=? WHERE id=?',
+      [name,title||'',email,notification_email||'',role,phone||null,department||'',week_off||'',extra_off||'',req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2762,6 +2770,15 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
     });
 
     const updated = writeResp.data || {};
+
+    // Cache invalidate — is spreadsheet ki cached rows (60s TTL) me abhi purani
+    // "pending" wali row hai. Isse na hataya to done ke 60s tak refresh/dobre-load pe
+    // wo row wapas pending me dikhti hai (doer ki row list badal jaati hai). Ab is
+    // spreadsheet ke saare cache entries clear — agli load fresh (done reflected).
+    for (const key of _fmsSheetCache.keys()) {
+      if (key.startsWith(spreadsheetId + '|')) _fmsSheetCache.delete(key);
+    }
+
     console.log('FMS done write →', JSON.stringify({
       spreadsheetId,
       tabName,

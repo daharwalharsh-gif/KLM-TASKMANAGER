@@ -1680,7 +1680,18 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="alert success" id="userSuccess"></div>
     <input type="hidden" id="editUserId"/>
     <div class="form-row">
+      <div class="form-group" style="max-width:110px">
+        <label>Title</label>
+        <select id="uTitle">
+          <option value="">—</option>
+          <option value="Mr.">Mr.</option>
+          <option value="Ms.">Ms.</option>
+          <option value="Mrs.">Mrs.</option>
+        </select>
+      </div>
       <div class="form-group"><label>Full Name</label><input type="text" id="uName" placeholder="Enter full name"/></div>
+    </div>
+    <div class="form-row">
       <div class="form-group"><label>Email <span style="color:#94a3b8;font-weight:400;font-size:11px">(login)</span></label><input type="email" id="uEmail" placeholder="Enter login email"/></div>
     </div>
     <div class="form-row">
@@ -4078,6 +4089,7 @@ function _getExtraOff() {
 function openAddUser() {
   document.getElementById('userModalTitle').textContent='Add User';
   ['editUserId','uName','uEmail','uNotifEmail','uPhone','uDepartment','uPassword'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('uTitle').value='';
   document.getElementById('uRole').value='user';
   document.getElementById('pwdOptional').style.display='none';
   document.getElementById('userErr').style.display='none';
@@ -4092,6 +4104,7 @@ function openEditUser(id) {
   if (!u) { alert('User data not found. Please refresh the page.'); return; }
   document.getElementById('userModalTitle').textContent='Edit User';
   document.getElementById('editUserId').value=u.id;
+  document.getElementById('uTitle').value=u.title||'';
   document.getElementById('uName').value=u.name||'';
   document.getElementById('uEmail').value=u.email||'';
   document.getElementById('uNotifEmail').value=u.notification_email||'';
@@ -4118,11 +4131,12 @@ async function saveUser() {
   const department=document.getElementById('uDepartment').value.trim();
   const password=document.getElementById('uPassword').value;
   const role=document.getElementById('uRole').value;
+  const title=document.getElementById('uTitle').value;
   const week_off=_getWeekOff();
   const extra_off=_getExtraOff();
   if (!name||!email) { err.textContent='Name and email required'; err.style.display='block'; return; }
   if (!id&&!password) { err.textContent='Password required for new user'; err.style.display='block'; return; }
-  const body={name,email,notification_email,role,phone,department,week_off,extra_off};
+  const body={name,title,email,notification_email,role,phone,department,week_off,extra_off};
   if (password) body.password=password;
   const r = id ? await api(`/api/users/${id}`,'PUT',body) : await api('/api/users','POST',body);
   if (r.error) { err.textContent=r.error; err.style.display='block'; return; }
@@ -5222,9 +5236,10 @@ function renderAllMIS(data, fmsData) {
         <div>${improvBadge}</div>`;
     }
 
-    return `<tr style="cursor:pointer" onclick="openAllMISDetail('${emp.userId}','${titleName(emp.name).replace(/'/g,"\\'")}')">
+    const empDisp = (emp.title ? emp.title + ' ' : '') + titleName(emp.name);
+    return `<tr style="cursor:pointer" onclick="openAllMISDetail('${emp.userId}','${empDisp.replace(/'/g,"\\'")}')">
       <td>
-        <div style="font-weight:600;color:#1a56db;text-decoration:underline dotted">${titleName(emp.name)}</div>
+        <div style="font-weight:600;color:#1a56db;text-decoration:underline dotted">${empDisp}</div>
         <div style="font-size:11px;color:#94a3b8;margin-top:2px">${emp.department||'—'}</div>
       </td>
       <td style="font-weight:700">${emp.totalAll}</td>
