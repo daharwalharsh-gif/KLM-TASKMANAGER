@@ -1633,7 +1633,10 @@ tbody tr:last-child td{border-bottom:none;}
 ══════════════════════════════════════ -->
 <div class="modal-overlay" id="misDetailModal">
   <div class="modal" style="width:680px;max-width:95vw">
-    <h3 id="misDetailTitle">Task Details</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;background:#fff;padding-bottom:10px;margin-bottom:10px;z-index:20;border-bottom:1px solid #f1f5f9">
+      <h3 id="misDetailTitle" style="margin:0">Task Details</h3>
+      <button class="btn btn-outline" onclick="closeModal('misDetailModal')" style="flex-shrink:0">✕ Close</button>
+    </div>
     <div id="misDetailScore" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:18px;"></div>
     <div style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">All Tasks in Date Range</div>
     <div style="max-height:360px;overflow-y:auto;border-radius:8px;border:1px solid #e2e8f0;">
@@ -1641,9 +1644,6 @@ tbody tr:last-child td{border-bottom:none;}
         <thead><tr><th>Description</th><th>Assigned By</th><th>Due Date</th><th>Status</th><th></th></tr></thead>
         <tbody id="misDetailBody"></tbody>
       </table>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal('misDetailModal')">Close</button>
     </div>
   </div>
 </div>
