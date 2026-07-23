@@ -584,9 +584,12 @@ function parsePlanDate(planVal) {
 // aur step count. TAT column sheet me Planned se 1 column left hota hai (numeric).
 // Delay = Actual date − Planned date (din). +ve = late, 0/−ve = on-time/early.
 // ══════════════════════════════════════════════════════
+// Abhi sirf ye do FMS — user request. (baaki add karna ho to list me daal do)
+const TAT_REPORT_FMS = ['PMS BOXING', 'PMS Level 2 Garments'];
 async function computeFmsTAT() {
   const result = { perFms: [], errors: [] };
-  const [sheets] = await db.query('SELECT * FROM fms_sheets ORDER BY fms_name ASC');
+  let [sheets] = await db.query('SELECT * FROM fms_sheets ORDER BY fms_name ASC');
+  sheets = sheets.filter(sh => TAT_REPORT_FMS.some(n => (sh.fms_name || '').trim().toLowerCase() === n.toLowerCase()));
   if (!sheets.length) return result;
 
   // Saare sheets parallel fetch (cached 60s)
