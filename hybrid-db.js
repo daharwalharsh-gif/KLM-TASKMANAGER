@@ -85,10 +85,13 @@ function init() {
 //   2. Flush = full-table rewrite THIS instance ki memory se. Stale memory se
 //      flush hone par dusre instance ka abhi-abhi kiya save MIT jaata tha
 //      ("save karne pe mapping hat gaya" wala bug).
-// Ab: mutations pe hamesha reload (data-loss se bacho), reads pe TTL-based
-// (~0.5s ka refresh, TTL ke andar instant). Ye wahi pattern hai jo pg-db use karta hai.
+// Ab (perf-tuned): Sheets/FMS reload READS pe TTL-based hota hai (15s). Pehle har
+// mutation (login, task-done, sab) pe bhi force-reload hota tha → har POST/PUT/DELETE
+// me ~0.5s extra. Ye zaroorat sirf FMS-TABLE write ke liye hai (stale-wipe se bachne
+// ko), jo ab query() me us write se theek pehle hota hai. Isliye yahan `force` par
+// Sheets reload NAHI karte — sirf TTL. PG force waisa hi (uska data-loss guard).
 async function reload(force) {
-  await pg.reload(force); // mutations pe force=true → hamesha fresh (data-loss se bacho)
+  await pg.reload(force); // mutations pe force=true → hamesha fresh (PG data-loss se bacho)
   if (!_sheetsReady) {
     _sheetsReady = sheets.init()
       .then(() => { _sheetsLoadedAt = Date.now(); })
@@ -97,7 +100,7 @@ async function reload(force) {
   await _sheetsReady; // resolved promise = turant; pehli baar hi wait hota hai
 
   const stale = (Date.now() - _sheetsLoadedAt) > SHEETS_TTL_MS;
-  if (force || stale) {
+  if (stale) {
     try {
       // reload() true tabhi deta hai jab wo sach me fresh load kar paya
       // (pending writes ke waqt skip karta hai — unhe clobber nahi karna).
@@ -118,7 +121,12 @@ async function query(sql, params = []) {
   if (!_initPromise) await init();
   const table = detectMutationTable(sql);
   if (table) {
-    return _pgSet.has(table) ? pg.query(sql, params) : sheets.query(sql, params);
+    if (_pgSet.has(table)) return pg.query(sql, params);
+    // FMS/Sheets-table WRITE: is write se theek pehle fresh reload (stale-wipe se bacho).
+    // sheets.reload() dirty-state me skip karta hai — isliye ek multi-statement FMS save
+    // ki PEHLI query fresh se shuru hoti hai, baaki mid-transaction skip (correct).
+    try { if (await sheets.reload()) _sheetsLoadedAt = Date.now(); } catch (e) { /* reload fail → write phir bhi try */ }
+    return sheets.query(sql, params);
   }
   return pg.query(sql, params);
 }
