@@ -1044,6 +1044,14 @@ tbody tr:last-child td{border-bottom:none;}
             <option value="">All Departments</option>
           </select>
         </div>
+        <!-- Doer (employee) filter -->
+        <div id="misDoerFilterWrap" style="display:none">
+          <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px;text-transform:uppercase">Doer</div>
+          <select id="misDoerFilter" onchange="filterMISDept()"
+            style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:160px;background:#fff;color:#1e293b;cursor:pointer;">
+            <option value="">All Doers</option>
+          </select>
+        </div>
         <div style="align-self:flex-end">
           <button class="btn btn-primary" onclick="generateMIS()">Generate</button>
         </div>
@@ -4528,15 +4536,28 @@ function initMISDeptFilter() {
 
 function populateMISDeptDropdown(data) {
   const sel = document.getElementById('misDeptFilter');
-  if (!sel) return;
-  const currentVal = sel.value;
-  // Collect unique departments
-  const depts = [...new Set((data || [])
-    .map(e => (e.department || '').trim())
-    .filter(Boolean)
-  )].sort();
-  sel.innerHTML = '<option value="">All Departments</option>' +
-    depts.map(d => `<option value="${d}"${d===currentVal?' selected':''}>${d}</option>`).join('');
+  if (sel) {
+    const currentVal = sel.value;
+    const depts = [...new Set((data || [])
+      .map(e => (e.department || '').trim())
+      .filter(Boolean)
+    )].sort();
+    sel.innerHTML = '<option value="">All Departments</option>' +
+      depts.map(d => `<option value="${d}"${d===currentVal?' selected':''}>${d}</option>`).join('');
+  }
+  // Doer dropdown bhi bharo (naam se sorted, unique userId)
+  const dsel = document.getElementById('misDoerFilter');
+  if (dsel) {
+    const cur = dsel.value;
+    const seen = new Set();
+    const doers = (data || []).filter(e => e.userId != null && !seen.has(String(e.userId)) && seen.add(String(e.userId)))
+      .map(e => ({ id: String(e.userId), name: e.name || '(no name)' }))
+      .sort((a,b) => a.name.localeCompare(b.name));
+    dsel.innerHTML = '<option value="">All Doers</option>' +
+      doers.map(d => `<option value="${d.id}"${d.id===cur?' selected':''}>${d.name}</option>`).join('');
+    const wrap = document.getElementById('misDoerFilterWrap');
+    if (wrap) wrap.style.display = doers.length ? '' : 'none';
+  }
 }
 
 function filterMISDept() {
@@ -4553,6 +4574,11 @@ function getSelectedMISDept() {
   return sel ? sel.value : '';
 }
 
+function getSelectedMISDoer() {
+  const sel = document.getElementById('misDoerFilter');
+  return sel ? sel.value : '';
+}
+
 function switchMisTab(type, el) {
   misType = type;
   document.querySelectorAll('#page-mis .tab').forEach(t=>t.classList.remove('active'));
@@ -4561,6 +4587,12 @@ function switchMisTab(type, el) {
   const deptWrap = document.getElementById('misDeptFilterWrap');
   if (deptWrap && ME && ME.role === 'admin') {
     deptWrap.style.display = (type !== 'fms') ? '' : 'none';
+  }
+  // Doer dropdown: 'all'/delegation/checklist tabs par dikhe (FMS MIS me per-doer data nahi)
+  const doerWrap = document.getElementById('misDoerFilterWrap');
+  if (doerWrap) {
+    const hasOptions = document.getElementById('misDoerFilter') && document.getElementById('misDoerFilter').options.length > 1;
+    doerWrap.style.display = (type !== 'fms' && hasOptions) ? '' : 'none';
   }
   if (type === 'fms') {
     if (misFMSData.length) renderFMSMIS(misFMSData);
@@ -4677,9 +4709,12 @@ function renderMIS(data) {
   if (selectedDept && rows.length && rows[0].department !== undefined) {
     rows = rows.filter(r => (r.department || '').trim() === selectedDept);
   }
+  // Apply doer filter
+  const selectedDoer = getSelectedMISDoer();
+  if (selectedDoer) rows = rows.filter(r => String(r.userId || r.id) === String(selectedDoer));
 
   if (!rows.length) {
-    container.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">No data found for this date range</div>`;
+    container.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">No data found for this filter</div>`;
     return;
   }
 
@@ -5007,14 +5042,16 @@ function renderAllMIS(data, fmsData) {
     return;
   }
 
-  // Apply department filter (Admin only)
+  // Apply department + doer filters
   const selectedDept = getSelectedMISDept();
-  const filtered = selectedDept
+  const selectedDoer = getSelectedMISDoer();
+  let filtered = selectedDept
     ? data.filter(e => (e.department || '').trim() === selectedDept)
     : data;
+  if (selectedDoer) filtered = filtered.filter(e => String(e.userId) === String(selectedDoer));
 
   if (!filtered.length) {
-    container.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">No employees found for selected department.</div>`;
+    container.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">No employees found for selected filter.</div>`;
     return;
   }
 
@@ -5039,19 +5076,14 @@ function renderAllMIS(data, fmsData) {
       ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${delScore<0?'#fef2f2':'#f0fdf4'};color:${delScore<0?'#dc2626':'#16a34a'};font-weight:600;border:1px solid ${delScore<0?'#fecaca':'#bbf7d0'}">Del: ${delScore>0?'+':''}${delScore.toFixed(0)}%</span>` : '';
     const chlBadge = emp.checklist.total > 0
       ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${chlScore<0?'#fef2f2':'#f0fdf4'};color:${chlScore<0?'#dc2626':'#16a34a'};font-weight:600;border:1px solid ${chlScore<0?'#fecaca':'#bbf7d0'}">CL: ${chlScore>0?'+':''}${chlScore.toFixed(0)}%</span>` : '';
-    const fmsBadge = (fmsObj.score !== null && fmsObj.score !== undefined && (fmsObj.isDoer || fmsObj.total > 0))
-      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${fmsObj.score<50?'#fef2f2':fmsObj.score<80?'#fffbeb':'#f0fdf4'};color:${fmsObj.score<50?'#dc2626':fmsObj.score<80?'#b45309':'#16a34a'};font-weight:600;border:1px solid ${fmsObj.score<50?'#fecaca':fmsObj.score<80?'#fde68a':'#bbf7d0'}">FMS: ${fmsObj.score.toFixed(0)}%${fmsObj.target ? ` (${fmsObj.done}/${fmsObj.target})` : ''}</span>` : '';
+    const fmsBadge = (fmsObj.isDoer || (fmsObj.done||0) > 0 || fmsObj.total > 0)
+      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:600;border:1px solid #bfdbfe">FMS: ${fmsObj.done||0} done</span>` : '';
 
-    // FMS weekly target column — 20/week done nahi kiye to baaki DUE me dikhta hai
+    // FMS weekly DONE column — is hafte kitne FMS done kiye (target/due hataya gaya)
     let fmsDueHtml = '<span style="color:#94a3b8;font-size:12px">—</span>';
-    if (fmsObj.isDoer || (fmsObj.target || 0) > 0) {
-      if ((fmsObj.due || 0) > 0) {
-        fmsDueHtml = `<div style="color:#dc2626;font-weight:700;font-size:14px">${fmsObj.due} due</div>
-          <div style="font-size:10px;color:#94a3b8">${fmsObj.done||0}/${fmsObj.target} done (target)</div>`;
-      } else {
-        fmsDueHtml = `<div style="color:#16a34a;font-weight:700;font-size:13px">✅ Target met</div>
-          <div style="font-size:10px;color:#94a3b8">${fmsObj.done||0}/${fmsObj.target} done</div>`;
-      }
+    if (fmsObj.isDoer || (fmsObj.done||0) > 0) {
+      fmsDueHtml = `<div style="color:#16a34a;font-weight:800;font-size:18px">${fmsObj.done||0}</div>
+        <div style="font-size:10px;color:#94a3b8">done this week</div>`;
     }
 
     // Next Week Plan column
@@ -5103,7 +5135,7 @@ function renderAllMIS(data, fmsData) {
         <thead><tr>
           <th>Employee <span style="font-weight:400;color:#94a3b8;font-size:10px">(click for breakdown)</span></th>
           <th>Total</th><th>Pending</th><th>Completed</th><th>Revised</th><th>⚠️ Overdue</th>
-          <th>🎯 FMS Due <span style="font-weight:400;color:#94a3b8;font-size:9px">(20/week)</span></th>
+          <th>✅ FMS Done <span style="font-weight:400;color:#94a3b8;font-size:9px">(this week)</span></th>
           <th>📅 Next Week Plan</th><th>Overall Score</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
@@ -5182,11 +5214,8 @@ async function openAllMISDetail(userId, userName) {
   // (3) Delegation detail, (4) Checklist detail
   const fmsSectionHtml = (fms.isDoer || fms.total > 0) ? `
     <div>
-      <div style="font-size:13px;font-weight:700;color:#7c3aed;margin-bottom:8px">📊 FMS — is week ka target: ${fms.target || 20}/week
+      <div style="font-size:13px;font-weight:700;color:#7c3aed;margin-bottom:8px">📊 FMS — is hafte done: <span style="color:#16a34a">${fms.done}</span>
         ${fms.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${fms.overdue} Overdue</span>` : ''}
-        ${(fms.due || 0) > 0
-          ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">🎯 ${fms.due} Due (target incomplete)</span>`
-          : `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#f0fdf4;color:#16a34a;font-weight:700;border:1px solid #bbf7d0">✅ Target met</span>`}
       </div>
       <div style="display:flex;gap:14px;font-size:12px;flex-wrap:wrap;padding:8px 10px;background:#faf5ff;border-radius:8px;margin-bottom:10px">
         <span>Done (this range): <strong style="color:#16a34a">${fms.done}</strong></span>
