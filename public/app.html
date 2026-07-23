@@ -226,6 +226,12 @@ tbody tr:last-child td{border-bottom:none;}
 /* MIS Report */
 .mis-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
 .mis-table-wrap{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;}
+/* Frozen table header — scroll karne par heading (thead) chipki rehti hai.
+   Wrapper khud scroll container banta hai (max-height + overflow:auto) taaki
+   sticky window/modal ke overflow-clipping ke bina reliably kaam kare. */
+.tbl-freeze{overflow:auto;-webkit-overflow-scrolling:touch;}
+.tbl-freeze > table{border-collapse:separate;border-spacing:0;}
+.tbl-freeze thead th{position:sticky;top:0;z-index:6;background:#f1f5f9;box-shadow:inset 0 -1px 0 #e2e8f0, 0 2px 4px -2px rgba(15,23,42,.12);}
 .mis-score-bar{height:6px;border-radius:3px;background:#e2e8f0;margin-top:4px;overflow:hidden;}
 .mis-score-fill{height:100%;border-radius:3px;transition:width .5s ease;}
 .score-positive{color:#16a34a;font-weight:700;}
@@ -5092,7 +5098,7 @@ function renderAllMIS(data, fmsData) {
   }).join('');
 
   container.innerHTML = `
-    <div class="mis-table-wrap" style="overflow-x:auto">
+    <div class="mis-table-wrap tbl-freeze" style="max-height:calc(100vh - 250px)">
       <table style="min-width:900px">
         <thead><tr>
           <th>Employee <span style="font-weight:400;color:#94a3b8;font-size:10px">(click for breakdown)</span></th>
@@ -5189,7 +5195,7 @@ async function openAllMISDetail(userId, userName) {
       </div>
       ${(emp.fmsSteps && emp.fmsSteps.length) ? `
       <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px">Step-wise breakdown:</div>
-      <div style="overflow-x:auto">
+      <div class="tbl-freeze" style="max-height:300px">
         <table style="font-size:12px">
           <thead><tr><th>FMS</th><th>Step</th><th>✅ Done (range)</th><th>⏳ Pending</th><th>⚠️ Overdue</th></tr></thead>
           <tbody>${emp.fmsSteps.map(s => `
@@ -5221,7 +5227,7 @@ async function openAllMISDetail(userId, userName) {
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
       <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score > 0 ? '+' : ''}${emp.delegation.score.toFixed(1)}%
         ${emp.delegation.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.delegation.overdue} Overdue</span>` : ''}</div>
-      <div style="overflow-x:auto">
+      <div class="tbl-freeze" style="max-height:300px">
         <table style="font-size:12px">
           <thead><tr><th>Task</th><th>Date</th><th>Status</th><th></th></tr></thead>
           <tbody>${makeTaskRows(delDetail.tasks || [], true)}</tbody>
@@ -5233,7 +5239,7 @@ async function openAllMISDetail(userId, userName) {
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
       <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score > 0 ? '+' : ''}${emp.checklist.score.toFixed(1)}%
         ${emp.checklist.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.checklist.overdue} Overdue</span>` : ''}</div>
-      <div style="overflow-x:auto">
+      <div class="tbl-freeze" style="max-height:300px">
         <table style="font-size:12px">
           <thead><tr><th>Task</th><th>Date</th><th>Status</th><th></th></tr></thead>
           <tbody>${makeTaskRows(chlDetail.tasks || [], false)}</tbody>
