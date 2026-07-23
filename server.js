@@ -576,6 +576,84 @@ function parsePlanDate(planVal) {
   return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : '';
 }
 
+// ══════════════════════════════════════════════════════
+// New FMS Report — har step ka TAT (planned days), Planned vs Actual GAP (delay),
+// aur step count. TAT column sheet me Planned se 1 column left hota hai (numeric).
+// Delay = Actual date − Planned date (din). +ve = late, 0/−ve = on-time/early.
+// ══════════════════════════════════════════════════════
+async function computeFmsTAT() {
+  const result = { perFms: [], errors: [] };
+  const [sheets] = await db.query('SELECT * FROM fms_sheets ORDER BY fms_name ASC');
+  if (!sheets.length) return result;
+
+  // Saare sheets parallel fetch (cached 60s)
+  const rowsBySheet = new Map();
+  await Promise.all(sheets.map(async sheet => {
+    try { rowsBySheet.set(sheet.id, { rows: await fetchSheetRows(sheet) }); }
+    catch (e) { rowsBySheet.set(sheet.id, { error: true }); }
+  }));
+
+  for (const sheet of sheets) {
+    const fmsName = sheet.fms_name || sheet.sheet_name;
+    const fetched = rowsBySheet.get(sheet.id);
+    if (!fetched || fetched.error) {
+      result.errors.push(fmsName);
+      result.perFms.push({ fmsId: sheet.id, fmsName, stepCount: 0, steps: [], error: 'Sheet read failed (try again)' });
+      continue;
+    }
+    const rows = fetched.rows;
+    const [steps] = await db.query('SELECT step_order, step_name, plan_col, actual_col FROM fms_steps WHERE fms_id=? ORDER BY step_order ASC', [sheet.id]);
+
+    const perStep = [];
+    for (const st of steps) {
+      const pi = colToIdx(st.plan_col), ai = colToIdx(st.actual_col);
+      if (pi < 0 || ai < 0) continue;
+      const tatIdx = pi - 1; // TAT usually Planned se 1 left
+
+      let total = 0, done = 0, pending = 0;
+      let delayN = 0, sumDelay = 0, maxDelay = null, minDelay = null, late = 0, onTime = 0;
+      const tatCounts = {};
+      for (const row of rows) {
+        const pv = (row[pi] || '').trim();
+        if (!pv) continue; // planned khaali = ye step is row ke liye applicable nahi
+        const av = (row[ai] || '').trim();
+        total++;
+        // TAT (numeric) — sirf tabhi jab plan-1 cell ek chhota integer ho
+        if (tatIdx >= 0) {
+          const raw = String(row[tatIdx] ?? '').trim();
+          const t = parseInt(raw, 10);
+          if (raw !== '' && String(t) === raw && t > 0 && t <= 999) tatCounts[t] = (tatCounts[t] || 0) + 1;
+        }
+        const pd = parsePlanDate(pv);
+        if (av) {
+          done++;
+          const ad = parsePlanDate(av);
+          if (pd && ad) {
+            const delay = Math.round((new Date(ad) - new Date(pd)) / 86400000);
+            delayN++; sumDelay += delay;
+            if (maxDelay === null || delay > maxDelay) maxDelay = delay;
+            if (minDelay === null || delay < minDelay) minDelay = delay;
+            if (delay > 0) late++; else onTime++;
+          }
+        } else pending++;
+      }
+      // Representative TAT = sabse common value
+      let tat = null, best = -1;
+      for (const [k, c] of Object.entries(tatCounts)) if (c > best) { best = c; tat = parseInt(k, 10); }
+      const avgDelay = delayN > 0 ? Math.round((sumDelay / delayN) * 10) / 10 : null;
+
+      perStep.push({
+        order: st.step_order, name: st.step_name, tat,
+        total, done, pending,
+        avgDelay, maxDelay, minDelay, late, onTime, measured: delayN
+      });
+    }
+
+    result.perFms.push({ fmsId: sheet.id, fmsName, stepCount: perStep.length, steps: perStep });
+  }
+  return result;
+}
+
 // Returns { perFms: [...], perUser: { uid: {pending,done,total} }, errors: [name] }
 // hodDept '' => admin/pc (sab kuch). hodDept set => sirf un steps jinme us dept ka doer hai.
 // opts (sirf Owner Dashboard use karta hai — MIS/FMS tabs pe koi asar nahi):
@@ -1880,6 +1958,14 @@ app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
     // range => har step ka doneInRange (is window me kiye) + overdue bhi aata hai
     const fmsStats = await computeFmsStats(hodDept, false, { range: { start, end } });
     res.json(fmsStats.perFms);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── New FMS Report (TAT): step-wise TAT + Planned vs Actual gap (delay) ──
+app.get('/api/mis/fms-tat', requireAuth, requireAdminOrHod, async (req, res) => {
+  try {
+    const data = await computeFmsTAT();
+    res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

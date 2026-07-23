@@ -1068,6 +1068,7 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="tab" id="misTabChl" onclick="switchMisTab('checklist',this)">Checklist MIS</div>
           <div class="tab" id="misTabFMS" onclick="switchMisTab('fms',this)">FMS MIS</div>
           <div class="tab" id="misTabAll" onclick="switchMisTab('all',this)">All MIS</div>
+          <div class="tab" id="misTabTAT" onclick="switchMisTab('fmstat',this)">📅 New FMS Report</div>
         </div>
       </div>
     </div>
@@ -4521,6 +4522,7 @@ let misType = 'delegation';
 let misData = {};
 let misFMSData = [];
 let misAllData = [];
+let misTATData = [];
 
 // Department filter (Admin only)
 function initMISDeptFilter() {
@@ -4588,13 +4590,16 @@ function switchMisTab(type, el) {
   if (deptWrap && ME && ME.role === 'admin') {
     deptWrap.style.display = (type !== 'fms') ? '' : 'none';
   }
-  // Doer dropdown: 'all'/delegation/checklist tabs par dikhe (FMS MIS me per-doer data nahi)
+  // Doer dropdown: 'all'/delegation/checklist tabs par dikhe (FMS MIS/New FMS Report me per-doer data nahi)
   const doerWrap = document.getElementById('misDoerFilterWrap');
   if (doerWrap) {
     const hasOptions = document.getElementById('misDoerFilter') && document.getElementById('misDoerFilter').options.length > 1;
-    doerWrap.style.display = (type !== 'fms' && hasOptions) ? '' : 'none';
+    doerWrap.style.display = (type !== 'fms' && type !== 'fmstat' && hasOptions) ? '' : 'none';
   }
-  if (type === 'fms') {
+  if (type === 'fmstat') {
+    if (misTATData.length) renderFMSTAT(misTATData);
+    else document.getElementById('misResults').innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Click Generate to load New FMS Report</div>`;
+  } else if (type === 'fms') {
     if (misFMSData.length) renderFMSMIS(misFMSData);
     else document.getElementById('misResults').innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Click Generate to load FMS MIS</div>`;
   } else if (type === 'all') {
@@ -4616,7 +4621,16 @@ async function generateMIS() {
 
   document.getElementById('misResults').innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Loading…</div>`;
 
-  if (misType === 'fms') {
+  if (misType === 'fmstat') {
+    const data = await api('/api/mis/fms-tat');
+    if (data && data.error) {
+      document.getElementById('misResults').innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #fecaca;color:#dc2626">⚠️ ${data.error}</div>`;
+      showToast(data.error,'error');
+      return;
+    }
+    misTATData = (data && data.perFms) ? data.perFms : [];
+    renderFMSTAT(misTATData, (data && data.errors) || []);
+  } else if (misType === 'fms') {
     const data = await api(`/api/mis/fms?start=${start}&end=${end}`);
     if (data.error) {
       document.getElementById('misResults').innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #fecaca;color:#dc2626">⚠️ ${data.error}</div>`;
@@ -4984,6 +4998,68 @@ async function exportMISToSheet() {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = oldText; }
   }
+}
+
+// New FMS Report — step-wise TAT (planned days) + Planned vs Actual GAP (delay)
+function renderFMSTAT(perFms, errors) {
+  const container = document.getElementById('misResults');
+  if (!perFms || !perFms.length) {
+    container.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">No FMS data found</div>`;
+    return;
+  }
+  // Sirf woh FMS jinme kam se kam ek step configured hai
+  const list = perFms.filter(f => (f.steps || []).length > 0 || f.error);
+  const dcolor = d => d === null || d === undefined ? '#94a3b8' : d > 0 ? '#dc2626' : d < 0 ? '#16a34a' : '#64748b';
+  const dtxt = d => d === null || d === undefined ? '—' : (d > 0 ? `+${d}` : `${d}`) + 'd';
+
+  const sections = list.map(f => {
+    if (f.error) {
+      return `<div class="mis-table-wrap" style="margin-bottom:16px;padding:14px 16px;color:#dc2626;font-size:13px">⚠️ ${f.fmsName}: ${f.error}</div>`;
+    }
+    const totalRows = (f.steps[0] && f.steps[0].total) || 0;
+    const stepRows = f.steps.map(s => `
+      <tr>
+        <td style="color:#64748b;white-space:nowrap">Step ${s.order}</td>
+        <td style="font-weight:600;color:#1e293b">${s.name}</td>
+        <td style="text-align:center;font-weight:700;color:#7c3aed">${s.tat != null ? s.tat + 'd' : '—'}</td>
+        <td style="text-align:center;color:#16a34a;font-weight:700">${s.done}</td>
+        <td style="text-align:center;color:#ef4444;font-weight:600">${s.pending}</td>
+        <td style="text-align:center;font-weight:800;color:${dcolor(s.avgDelay)}">${dtxt(s.avgDelay)}</td>
+        <td style="text-align:center;color:${dcolor(s.maxDelay)};font-weight:600">${dtxt(s.maxDelay)}</td>
+        <td style="text-align:center;color:#dc2626;font-weight:700">${s.late}</td>
+        <td style="text-align:center;color:#16a34a;font-weight:700">${s.onTime}</td>
+      </tr>`).join('');
+
+    return `
+      <div class="mis-table-wrap tbl-freeze" style="margin-bottom:16px;max-height:calc(100vh - 260px)">
+        <div style="background:#f8fafc;padding:12px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:7">
+          <div style="font-size:14px;font-weight:700;color:#1e293b">📅 ${f.fmsName}</div>
+          <div style="display:flex;gap:16px;font-size:13px;flex-wrap:wrap">
+            <span>Steps: <strong style="color:#7c3aed">${f.stepCount}</strong></span>
+            <span>Orders: <strong style="color:#1a56db">${totalRows}</strong></span>
+          </div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>#</th><th>Step</th>
+            <th style="text-align:center" title="Planned days for this step">TAT</th>
+            <th style="text-align:center">✅ Done</th>
+            <th style="text-align:center">⏳ Pending</th>
+            <th style="text-align:center" title="Average (Actual − Planned) in days. +ve = late, −ve = early">Avg Gap</th>
+            <th style="text-align:center" title="Worst delay">Max Gap</th>
+            <th style="text-align:center">⚠️ Late</th>
+            <th style="text-align:center">On-time</th>
+          </tr></thead>
+          <tbody>${stepRows || `<tr><td colspan="9" class="empty">No step data</td></tr>`}</tbody>
+        </table>
+      </div>`;
+  }).join('');
+
+  const errNote = (errors && errors.length)
+    ? `<div style="font-size:12px;color:#dc2626;margin-bottom:10px">⚠️ ${errors.length} FMS sheet load nahi hui — dobara Generate karein</div>` : '';
+  const legend = `<div style="font-size:11px;color:#94a3b8;margin:4px 0 12px;padding:0 4px">
+    <strong>TAT</strong> = step ke liye planned din &nbsp;·&nbsp; <strong>Gap</strong> = Actual − Planned (<span style="color:#dc2626">+late</span> / <span style="color:#16a34a">−early</span>) &nbsp;·&nbsp; Late/On-time = done orders ka breakdown</div>`;
+  container.innerHTML = errNote + legend + sections;
 }
 
 function renderFMSMIS(data) {
