@@ -4446,6 +4446,14 @@ function fmtDate(d) {
   if (parts.length !== 3) return d;
   return `${parts[2]}-${parts[1]}-${parts[0]}`;
 }
+// Naam ko Title Case me — har word ka pehla letter capital, baaki small.
+// e.g. "HARSH" -> "Harsh", "kavita sharma" -> "Kavita Sharma".
+function titleName(name) {
+  return String(name || '').trim().toLowerCase()
+    .split(/\s+/).filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
 // ── SET WEEK PLAN ───────────────────────────────────
 // preEmpId / preWeek optional — Records tab se inline "Set Plan" ke liye.
 async function openSetPlanModal(preEmpId, preWeek) {
@@ -4523,6 +4531,26 @@ let misData = {};
 let misFMSData = [];
 let misAllData = [];
 let misTATData = [];
+let misSortKey = null, misSortDir = 1; // 1=ascending, -1=descending
+
+function misVal(emp, key) {
+  switch (key) {
+    case 'name': return titleName(emp.name).toLowerCase();
+    case 'total': return emp.totalAll || 0;
+    case 'pending': return emp.pendingAll || 0;
+    case 'completed': return (emp.completedAll != null ? emp.completedAll : ((emp.delegation.completed||0)+(emp.checklist.completed||0)+((emp.fms&&emp.fms.done)||0)));
+    case 'revised': return emp.revisedAll || 0;
+    case 'overdue': return emp.overdueAll || 0;
+    case 'fmsdone': return (emp.fms && emp.fms.done) || 0;
+    case 'score': return emp.overallScore == null ? -Infinity : emp.overallScore;
+    default: return 0;
+  }
+}
+function sortAllMIS(key) {
+  if (misSortKey === key) misSortDir = -misSortDir; // same column dobara -> direction toggle
+  else { misSortKey = key; misSortDir = (key === 'name') ? 1 : -1; } // naya column: name asc, numbers desc default
+  renderAllMIS(misAllData, misFMSData);
+}
 
 // Department filter (Admin only)
 function initMISDeptFilter() {
@@ -4739,9 +4767,9 @@ function renderMIS(data) {
     const barColor = score === 0 ? '#94a3b8' : score < 0 ? '#ef4444' : '#10b981';
     const scoreLabel = score === 0 ? '✅ Perfect' : score < 0 ? '⚠️ Needs Improvement' : '✅ Good';
 
-    return `<tr style="cursor:pointer" onclick="openMISDetail('${r.userId||r.id}','${r.name}')" title="Click to see task details">
+    return `<tr style="cursor:pointer" onclick="openMISDetail('${r.userId||r.id}','${titleName(r.name).replace(/'/g,"\\'")}')" title="Click to see task details">
       <td>
-        <span style="font-weight:600;color:#1a56db;text-decoration:underline dotted">${r.name}</span>
+        <span style="font-weight:600;color:#1a56db;text-decoration:underline dotted">${titleName(r.name)}</span>
       </td>
       <td style="font-weight:700">${r.total}</td>
       <td style="color:#ef4444;font-weight:600">${r.pending}</td>
@@ -5131,6 +5159,18 @@ function renderAllMIS(data, fmsData) {
     return;
   }
 
+  // Column sort (header click par asc/desc) — filtered ki copy sort karo
+  if (misSortKey) {
+    filtered = filtered.slice().sort((a, b) => {
+      const va = misVal(a, misSortKey), vb = misVal(b, misSortKey);
+      if (typeof va === 'string' || typeof vb === 'string') return String(va).localeCompare(String(vb)) * misSortDir;
+      return (va - vb) * misSortDir;
+    });
+  }
+  // Sortable header helper — label + sort arrow
+  const arrow = k => misSortKey === k ? (misSortDir === 1 ? ' ▲' : ' ▼') : '';
+  const sh = (label, key, extra = '') => `<th onclick="sortAllMIS('${key}')" style="cursor:pointer;user-select:none;white-space:nowrap${extra ? ';'+extra : ''}" title="Click to sort">${label}<span style="color:#1a56db">${arrow(key)}</span></th>`;
+
   const tableRows = filtered.map(emp => {
     const score = emp.overallScore;
     const scoreClass = score === null ? 'score-zero' : score === 0 ? 'score-zero' : score < 0 ? 'score-negative' : 'score-positive';
@@ -5182,9 +5222,9 @@ function renderAllMIS(data, fmsData) {
         <div>${improvBadge}</div>`;
     }
 
-    return `<tr style="cursor:pointer" onclick="openAllMISDetail('${emp.userId}','${emp.name.replace(/'/g,"\\'")}')">
+    return `<tr style="cursor:pointer" onclick="openAllMISDetail('${emp.userId}','${titleName(emp.name).replace(/'/g,"\\'")}')">
       <td>
-        <div style="font-weight:600;color:#1a56db;text-decoration:underline dotted">${emp.name}</div>
+        <div style="font-weight:600;color:#1a56db;text-decoration:underline dotted">${titleName(emp.name)}</div>
         <div style="font-size:11px;color:#94a3b8;margin-top:2px">${emp.department||'—'}</div>
       </td>
       <td style="font-weight:700">${emp.totalAll}</td>
@@ -5209,10 +5249,10 @@ function renderAllMIS(data, fmsData) {
     <div class="mis-table-wrap tbl-freeze" style="max-height:calc(100vh - 250px)">
       <table style="min-width:900px">
         <thead><tr>
-          <th>Employee <span style="font-weight:400;color:#94a3b8;font-size:10px">(click for breakdown)</span></th>
-          <th>Total</th><th>Pending</th><th>Completed</th><th>Revised</th><th>⚠️ Overdue</th>
-          <th>✅ FMS Done <span style="font-weight:400;color:#94a3b8;font-size:9px">(this week)</span></th>
-          <th>📅 Next Week Plan</th><th>Overall Score</th>
+          ${sh('Employee', 'name')}
+          ${sh('Total', 'total')}${sh('Pending', 'pending')}${sh('Completed', 'completed')}${sh('Revised', 'revised')}${sh('⚠️ Overdue', 'overdue')}
+          ${sh('✅ FMS Done', 'fmsdone')}
+          <th>📅 Next Week Plan</th>${sh('Overall Score', 'score')}
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
@@ -5255,13 +5295,42 @@ function renderAllMIS(data, fmsData) {
   }
 }
 
-// Open All MIS detail modal for employee
-async function openAllMISDetail(userId, userName) {
-  const emp = (misAllData || []).find(e => String(e.userId) === String(userId));
-  if (!emp) { showToast('Generate report first', 'error'); return; }
+// This week (Mon-Sat) aur this month (1st -> aaj) ke ranges
+function misRangeFor(rangeType) {
+  const today = new Date();
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  if (rangeType === 'week') {
+    const dow = today.getDay();
+    const monday = new Date(today); monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+    const sat = new Date(monday); sat.setDate(monday.getDate() + 5);
+    return { start: fmt(monday), end: fmt(sat) };
+  }
+  if (rangeType === 'month') {
+    const first = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { start: fmt(first), end: fmt(today) };
+  }
+  // 'report' — page ke chune hue dates
+  return { start: document.getElementById('misStart').value, end: document.getElementById('misEnd').value };
+}
 
-  const start = document.getElementById('misStart').value;
-  const end   = document.getElementById('misEnd').value;
+// Open All MIS detail modal for employee. rangeType: 'report' (default) | 'week' | 'month'
+async function openAllMISDetail(userId, userName, rangeType) {
+  rangeType = rangeType || 'report';
+  const { start, end } = misRangeFor(rangeType);
+  window._misDetailCtx = { userId, userName, rangeType };
+
+  let emp;
+  if (rangeType === 'report') {
+    emp = (misAllData || []).find(e => String(e.userId) === String(userId));
+  } else {
+    // Week/Month ke liye fresh data (aggregate us range ke hisaab se chahiye)
+    document.getElementById('misDetailTitle').textContent = `${userName} — Loading…`;
+    document.getElementById('misDetailModal').classList.add('open');
+    const all = await api(`/api/mis/all?start=${start}&end=${end}`);
+    const rows2 = Array.isArray(all) ? all : (all && all.rows) || [];
+    emp = rows2.find(e => String(e.userId) === String(userId));
+  }
+  if (!emp) { showToast('Is range me is doer ka koi data nahi', 'error'); return; }
 
   // Fetch task details for both types
   const [delDetail, chlDetail] = await Promise.all([
@@ -5286,11 +5355,25 @@ async function openAllMISDetail(userId, userName) {
   const fms = emp.fms || { total: 0, pending: 0, done: 0, overdue: 0, target: 0, due: 0, score: null };
   const completedTotal = (emp.delegation.completed||0) + (emp.checklist.completed||0) + (fms.done||0);
 
+  // Range filter buttons — Weekly / Monthly / Report Range
+  const uidJs = String(userId).replace(/'/g,"\\'");
+  const unmJs = String(userName).replace(/'/g,"\\'");
+  const rbtn = (label, rt) => {
+    const on = rangeType === rt;
+    return `<button onclick="openAllMISDetail('${uidJs}','${unmJs}','${rt}')"
+      style="font-size:11px;font-weight:600;padding:5px 12px;border-radius:8px;cursor:pointer;border:1.5px solid ${on?'#1a56db':'#e2e8f0'};background:${on?'#1a56db':'#fff'};color:${on?'#fff':'#475569'}">${label}</button>`;
+  };
+  const rangeBar = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+    <span style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase">Range:</span>
+    ${rbtn('📅 This Week', 'week')}${rbtn('🗓️ This Month', 'month')}${rbtn('Report Range', 'report')}
+    <span style="font-size:11px;color:#94a3b8">${fmtDate(start)} → ${fmtDate(end)}</span>
+  </div>`;
+
   // Order (user request): (1) FMS report pehle, (2) uske baad FMS+Delegation+Checklist combined summary,
   // (3) Delegation detail, (4) Checklist detail
   const fmsSectionHtml = (fms.isDoer || fms.total > 0) ? `
     <div>
-      <div style="font-size:13px;font-weight:700;color:#7c3aed;margin-bottom:8px">📊 FMS — is hafte done: <span style="color:#16a34a">${fms.done}</span>
+      <div style="font-size:13px;font-weight:700;color:#7c3aed;margin-bottom:8px">📊 FMS — done in range: <span style="color:#16a34a">${fms.done}</span>
         ${fms.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${fms.overdue} Overdue</span>` : ''}
       </div>
       <div style="display:flex;gap:14px;font-size:12px;flex-wrap:wrap;padding:8px 10px;background:#faf5ff;border-radius:8px;margin-bottom:10px">
@@ -5353,7 +5436,7 @@ async function openAllMISDetail(userId, userName) {
     </div>` : '';
 
   document.getElementById('misDetailScore').innerHTML =
-    fmsSectionHtml + combinedSummaryHtml + delegationSectionHtml + checklistSectionHtml;
+    rangeBar + fmsSectionHtml + combinedSummaryHtml + delegationSectionHtml + checklistSectionHtml;
 
   // Reuse existing misDetailBody (blank it since we put everything in score div)
   document.getElementById('misDetailBody').innerHTML = '';
