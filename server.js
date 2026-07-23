@@ -136,8 +136,11 @@ if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
   //    Mutations (POST/PUT/DELETE/PATCH) pe force=true → TTL ignore, hamesha
   //    fresh PG state se shuru ho (warna stale memory ka full-rewrite flush
   //    dusre instance ka data mita deta — CSV bulk upload adhoora reh jaata tha).
+  // Login read-only hai (sirf users padhta hai) — ise force PG reload ki zaroorat
+  // nahi; entry point fast rahe. Baaki mutations pe force zaroori (data-loss guard).
+  const READONLY_POST = new Set(['/login']);
   app.use('/api', async (req, res, next) => {
-    const isMutation = req.method !== 'GET' && req.method !== 'HEAD';
+    const isMutation = req.method !== 'GET' && req.method !== 'HEAD' && !READONLY_POST.has(req.path);
     try { await db.reload(isMutation); }
     catch (err) { console.error('  ❌ Pre-request reload failed:', err.message); }
     next();
