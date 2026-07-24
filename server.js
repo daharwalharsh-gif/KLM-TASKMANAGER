@@ -2515,6 +2515,20 @@ app.get('/api/fms/:id/sync', requireAuth, requireAdmin, async (req, res) => {
 // ══════════════════════════════════════════════════════
 
 // List FMS visible to user
+// FMS FULL VIEW — ye users in FMS ke SAARE steps + rows admin jaisa dekh sakte hain,
+// bina step-doer hue (user request; sirf display access, aur kuch nahi badalta).
+const FMS_FULL_VIEW = {
+  'amit@invincible.in': ['order to dispatch fms offline domestic dashboard', 'crm fms domestic offline'],
+  'marketing@klmahajan.com': ['order to dispatch fms offline domestic dashboard', 'crm fms domestic offline'],
+};
+async function fmsFullViewNames(userId) {
+  try {
+    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [userId]);
+    const email = (rows[0]?.email || '').trim().toLowerCase();
+    return FMS_FULL_VIEW[email] || [];
+  } catch (e) { return []; }
+}
+
 app.get('/api/fms-tasks', requireAuth, async (req, res) => {
   try {
     const uid = req.session.userId;
@@ -2524,6 +2538,15 @@ app.get('/api/fms-tasks', requireAuth, async (req, res) => {
       [list] = await db.query('SELECT * FROM fms_sheets ORDER BY created_at DESC');
     } else {
       [list] = await db.query(`SELECT DISTINCT fs.* FROM fms_sheets fs JOIN fms_steps fst ON fst.fms_id=fs.id JOIN fms_step_doers fsd ON fsd.step_id=fst.id WHERE fsd.user_id=? ORDER BY fs.created_at DESC`, [uid]);
+      // Full-view FMS bhi list me daalo (chahe user doer na ho)
+      const fvNames = await fmsFullViewNames(uid);
+      if (fvNames.length) {
+        const have = new Set(list.map(f => f.id));
+        const [allFms] = await db.query('SELECT * FROM fms_sheets ORDER BY created_at DESC');
+        for (const f of allFms) {
+          if (!have.has(f.id) && fvNames.includes((f.fms_name || '').trim().toLowerCase())) list.push(f);
+        }
+      }
     }
     res.json(list);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2536,11 +2559,14 @@ app.get('/api/fms-tasks/:id', requireAuth, async (req, res) => {
     const isAdmin = req.session.role === 'admin';
     const [sheets] = await db.query('SELECT * FROM fms_sheets WHERE id=?', [req.params.id]);
     if (!sheets[0]) return res.status(404).json({ error: 'FMS not found' });
+    // Full-view user is FMS ke saare steps admin jaisa dekhega
+    const fvNames = isAdmin ? [] : await fmsFullViewNames(uid);
+    const fullView = isAdmin || fvNames.includes((sheets[0].fms_name || '').trim().toLowerCase());
     const [steps] = await db.query('SELECT * FROM fms_steps WHERE fms_id=? ORDER BY step_order ASC', [req.params.id]);
     for (const step of steps) {
       const [doers] = await db.query(`SELECT fsd.user_id,u.name FROM fms_step_doers fsd JOIN users u ON fsd.user_id=u.id WHERE fsd.step_id=?`, [step.id]);
       step.doers = doers;
-      step.isMyStep = isAdmin || doers.some(d => d.user_id === uid);
+      step.isMyStep = fullView || doers.some(d => d.user_id === uid);
       try { step.show_cols_parsed = JSON.parse(step.show_cols||'[]'); } catch(e) { step.show_cols_parsed = []; }
       const [extraRows] = await db.query('SELECT * FROM fms_extra_rows WHERE step_id=? ORDER BY id ASC', [step.id]);
       step.extraRows = extraRows;
@@ -2568,7 +2594,10 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     // (e.g. "Kiran" -> Aaradhna). Jis naam pe jo doer mapped, us naam wali rows sirf usi ko.
     // Unmapped naam ya khaali cell = sab doers ko dikhe. Admin/PC ko sab rows dikhti hain.
     const doerFilterIdx = colToIdx(step.doer_filter_col || '');
-    const isAdminView = req.session.role === 'admin' || req.session.role === 'pc';
+    // Full-view user ko bhi admin jaisa — is FMS ki saari rows (row-filter na lage)
+    const _fvNames = await fmsFullViewNames(req.session.userId);
+    const isAdminView = req.session.role === 'admin' || req.session.role === 'pc'
+      || _fvNames.includes((sheet.fms_name || '').trim().toLowerCase());
     let filterMap = {};
     try { filterMap = JSON.parse(step.doer_filter_map || '{}') || {}; } catch (e) { filterMap = {}; }
     // Normalized map: lowercase-name -> [userIds as strings] (ek naam pe multiple doers ho sakte hain;
