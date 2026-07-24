@@ -192,6 +192,11 @@ function buildPoolConfig() {
   }
   // Discrete config — robust for usernames/db-names with special chars
   // (e.g. "KLM-KLM" / "KLM -DB") that are painful to URL-encode.
+  // Serverless (Vercel) pe har instance ~1 request handle karta hai, isliye chhota
+  // pool (3) kaafi hai — kai warm instances milke shared PG ke 100 connection slots
+  // exhaust na karein ("remaining connection slots reserved for SUPERUSER" error).
+  // idle connections 10s me release taaki jaldi free hon. Persistent host pe 10.
+  const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
   return {
     host: (process.env.PG_HOST || '').trim(),
     port: parseInt(process.env.PG_PORT || '5432', 10),
@@ -199,8 +204,8 @@ function buildPoolConfig() {
     password: process.env.PG_PASSWORD,
     database: process.env.PG_DATABASE,
     ssl: pgSsl(),
-    max: parseInt(process.env.PG_POOL_MAX || '10', 10),
-    idleTimeoutMillis: 30000,
+    max: parseInt(process.env.PG_POOL_MAX || (isServerless ? '3' : '10'), 10),
+    idleTimeoutMillis: isServerless ? 10000 : 30000,
     connectionTimeoutMillis: 15000
   };
 }
