@@ -916,7 +916,7 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/me', requireAuth, async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT id,name,email,notification_email,role,phone,profile_image,department,week_off FROM users WHERE id=?', [req.session.userId]);
+    const [rows] = await db.query('SELECT id,name,title,email,notification_email,role,phone,profile_image,department,week_off FROM users WHERE id=?', [req.session.userId]);
     if (!rows[0]) return res.status(404).json({ error: 'User not found' });
     // extra_off fetch separately — safe if column not yet added
     try {

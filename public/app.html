@@ -2114,7 +2114,7 @@ async function init() {
     ME = await r.json();
     if (!ME || !ME.id) { window.location.replace('/'); return; }
     const initials = ME.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-    document.getElementById('sidebarName').textContent = ME.name;
+    document.getElementById('sidebarName').textContent = (ME.title ? ME.title + ' ' : '') + titleName(ME.name);
     const roleLabel = ME.role==='admin' ? '👑 Admin' : ME.role==='hod' ? '🏢 HOD' : ME.role==='pc' ? '🖥️ PC' : '👤 Employee';
     document.getElementById('sidebarRole').textContent = roleLabel;
     document.getElementById('pName').value = ME.name;
@@ -4021,7 +4021,7 @@ function renderUsersTable(users) {
   const roleLabel = r => r==='admin'?'👑 Admin':r==='hod'?'🏢 HOD':r==='pc'?'🖥️ PC':'👤 User';
   tbody.innerHTML = users.map(u=>`
     <tr>
-      <td style="font-weight:600">${u.name}</td>
+      <td style="font-weight:600">${(u.title ? u.title + ' ' : '') + titleName(u.name)}</td>
       <td style="color:#64748b">${u.email}</td>
       <td style="color:#64748b">${u.phone||'—'}</td>
       <td style="color:#64748b">${u.department||'—'}</td>
