@@ -192,10 +192,11 @@ function buildPoolConfig() {
   }
   // Discrete config — robust for usernames/db-names with special chars
   // (e.g. "KLM-KLM" / "KLM -DB") that are painful to URL-encode.
-  // Serverless (Vercel) pe har instance ~1 request handle karta hai, isliye chhota
-  // pool (3) kaafi hai — kai warm instances milke shared PG ke 100 connection slots
-  // exhaust na karein ("remaining connection slots reserved for SUPERUSER" error).
-  // idle connections 10s me release taaki jaldi free hon. Persistent host pe 10.
+  // Serverless (Vercel): pool max=8 taaki per-request reload (8 tables Promise.all)
+  // ek hi wave me chale — 3 rakhne se queries queue hoti thi aur load par kuch
+  // instances ka reload adhoora/slow hota tha (data blink karta tha). 8 tables ke
+  // liye 8 connections ideal. idle 10s me release taaki shared PG ke 100 slots free
+  // rahein (leftover local test servers band karna is footgun ka asli ilaaj hai).
   const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
   return {
     host: (process.env.PG_HOST || '').trim(),
@@ -204,7 +205,7 @@ function buildPoolConfig() {
     password: process.env.PG_PASSWORD,
     database: process.env.PG_DATABASE,
     ssl: pgSsl(),
-    max: parseInt(process.env.PG_POOL_MAX || (isServerless ? '3' : '10'), 10),
+    max: parseInt(process.env.PG_POOL_MAX || (isServerless ? '8' : '10'), 10),
     idleTimeoutMillis: isServerless ? 10000 : 30000,
     connectionTimeoutMillis: 15000
   };

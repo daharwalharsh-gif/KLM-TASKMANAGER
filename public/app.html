@@ -2725,7 +2725,9 @@ async function deleteLeave(id) {
 // ══════════════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════════════
+let _dashSeq = 0;
 async function loadDashboard() {
+  const seq = ++_dashSeq; // sequence guard — stale response render na ho (blink fix)
   const empFilter = document.getElementById('dashEmployeeFilter');
   const empVal = empFilter ? empFilter.value : 'all';
   const isAdmin = ME.role === 'admin';
@@ -2746,6 +2748,7 @@ async function loadDashboard() {
     api(baseUrl + 'delegation'),
     api(baseUrl + 'checklist')
   ]);
+  if (seq !== _dashSeq) return; // nayi loadDashboard chal padi — ye purani response chhod do
 
   // Error check: agar DB ya API fail ho toh user ko dikhao
   if (dDel.error || dChl.error) {
@@ -3153,7 +3156,12 @@ let taskStatusFilter = 'pending';
 let allTasksPage = 1;
 const ALL_TASKS_PAGE_SIZE = 50;
 
+let _allTasksSeq = 0;
 async function loadAllTasks() {
+  // Sequence guard — loadAllTasks kai jagah se call hota hai (navigate/done/toggle).
+  // Purani fetch nayi ke baad resolve ho ke stale data render kar deti thi -> "blink"
+  // aur "kabhi hota kabhi nahi". Ab sirf SABSE NAYI fetch ka result render hota hai.
+  const seq = ++_allTasksSeq;
   const isAdmin = ME.role==='admin';
   const isHod = ME.role==='hod';
   const isPC = ME.role==='pc';
@@ -3179,6 +3187,9 @@ async function loadAllTasks() {
   }
 
   const data = await api(`/api/tasks?type=${tasksType}`);
+  // Is fetch ke resolve hone tak agar koi nayi loadAllTasks() chal padi, to ye purani
+  // response chhod do (warna stale data render hoga = blink).
+  if (seq !== _allTasksSeq) return;
 
   // Flatten all tasks — admin, HOD and PC get grouped response
   let allTasks = [];
