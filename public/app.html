@@ -820,6 +820,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div style="display:flex;gap:8px;margin-bottom:16px;">
       <div class="tab-group">
         <div class="tab active" id="statusTabPending" onclick="filterTaskStatus('pending',this)">Pending</div>
+        <div class="tab" id="statusTabRevised" onclick="filterTaskStatus('revised',this)">Revised</div>
         <div class="tab" id="statusTabCompleted" onclick="filterTaskStatus('completed',this)">Completed</div>
       </div>
     </div>
@@ -1981,6 +1982,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div style="display:flex;gap:8px;margin-bottom:14px">
       <div class="tab-group">
         <div class="tab active" id="dbmTabPending" onclick="filterDbmStatus('pending',this)">Pending</div>
+        <div class="tab" id="dbmTabRevised" onclick="filterDbmStatus('revised',this)">Revised</div>
         <div class="tab" id="dbmTabCompleted" onclick="filterDbmStatus('completed',this)">Completed</div>
       </div>
       <div style="position:relative;margin-left:auto">
@@ -2047,7 +2049,7 @@ function renderDbmTable() {
   if (!filtered.length) {
     document.getElementById('dbmContent').innerHTML =
       `<div class="empty" style="padding:30px;text-align:center;color:#94a3b8">
-        ${_dbmStatusFilter === 'pending' ? 'Aapne abhi koi pending task delegate nahi kiya hai' : 'Aapne delegate kiye task me se koi completed nahi hai'}
+        ${_dbmStatusFilter === 'pending' ? 'Aapne abhi koi pending task delegate nahi kiya hai' : _dbmStatusFilter === 'revised' ? 'Koi revised task nahi hai' : 'Aapne delegate kiye task me se koi completed nahi hai'}
       </div>`;
     return;
   }
