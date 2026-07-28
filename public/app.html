@@ -3290,10 +3290,14 @@ function renderTasksTable() {
     // Revise sirf delegation pe hota hai, aur ab wo bhi sirf admin kar sakta hai.
     const canRevise = !isChecklist && ME.role === 'admin';
 
-    // Comment button par count badge — kis task par comment hai ye ek nazar me pata chale
+    // Comment button — comment hone par HIGHLIGHT (bhara hua neela button + laal count
+    // badge, jaise notification) taaki ek nazar me saaf dikhe kis task par baat hui hai.
     const _cc = t.commentCount || 0;
-    const cBtn = (extraStyle) => `<button class="action-btn" style="background:${_cc?'#dbeafe':'#eff6ff'};color:#1d4ed8;padding:4px 7px;${extraStyle||''}"
-      onclick="openComments(${t.id},'${tasksType}')" title="${_cc ? _cc + ' comment(s)' : 'Comments'}">💬${_cc ? ` <b>${_cc}</b>` : ''}</button>`;
+    const cBtn = (extraStyle) => _cc
+      ? `<button class="action-btn" style="position:relative;background:#1d4ed8;color:#fff;font-weight:700;padding:4px 8px;box-shadow:0 0 0 2px #bfdbfe;${extraStyle||''}"
+          onclick="openComments(${t.id},'${tasksType}')" title="${_cc} comment(s) — dekhne ke liye click karo">💬<span style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border-radius:9px;min-width:16px;height:16px;font-size:10px;line-height:16px;text-align:center;padding:0 4px;font-weight:700;border:1.5px solid #fff">${_cc}</span></button>`
+      : `<button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px;${extraStyle||''}"
+          onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>`;
 
     const actionBtns = isAdmin ? `
       <button class="action-btn edit" style="padding:4px 7px" onclick="openEditTask(${t.id},'${tasksType}')" title="Edit">✏️</button>
@@ -3325,7 +3329,11 @@ function renderTasksTable() {
       <td style="white-space:nowrap">${fmtDate(t.due_date||'')||''}</td>
       <td style="color:#64748b">
         ${t.remarks ? `<div>${t.remarks}</div>` : (t.lastComment ? '' : '—')}
-        ${t.lastComment ? `<div style="margin-top:${t.remarks?'4px':'0'};font-size:11px;color:#1d4ed8" title="${_cc} comment(s) — click 💬 to see all">💬 ${t.lastComment}${t.lastCommentBy ? ` <span style="color:#94a3b8">— ${t.lastCommentBy}</span>` : ''}${_cc > 1 ? ` <span style="color:#94a3b8">(+${_cc-1} more)</span>` : ''}</div>` : ''}
+        ${t.lastComment ? `<div onclick="event.stopPropagation();openComments(${t.id},'${tasksType}')" title="${_cc} comment(s) — sab dekhne ke liye click karo"
+            style="margin-top:${t.remarks?'6px':'0'};background:#eff6ff;border-left:3px solid #1d4ed8;border-radius:0 6px 6px 0;padding:5px 8px;cursor:pointer">
+            <div style="font-size:12px;color:#1e3a8a;font-weight:600">💬 ${t.lastComment}</div>
+            <div style="font-size:10px;color:#64748b;margin-top:2px">— ${t.lastCommentBy||''}${_cc > 1 ? ` &nbsp;·&nbsp; +${_cc-1} aur comment` : ''}</div>
+          </div>` : ''}
       </td>
       <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision Requested':t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
     </tr>`;
