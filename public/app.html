@@ -3290,19 +3290,24 @@ function renderTasksTable() {
     // Revise sirf delegation pe hota hai, aur ab wo bhi sirf admin kar sakta hai.
     const canRevise = !isChecklist && ME.role === 'admin';
 
+    // Comment button par count badge — kis task par comment hai ye ek nazar me pata chale
+    const _cc = t.commentCount || 0;
+    const cBtn = (extraStyle) => `<button class="action-btn" style="background:${_cc?'#dbeafe':'#eff6ff'};color:#1d4ed8;padding:4px 7px;${extraStyle||''}"
+      onclick="openComments(${t.id},'${tasksType}')" title="${_cc ? _cc + ' comment(s)' : 'Comments'}">💬${_cc ? ` <b>${_cc}</b>` : ''}</button>`;
+
     const actionBtns = isAdmin ? `
       <button class="action-btn edit" style="padding:4px 7px" onclick="openEditTask(${t.id},'${tasksType}')" title="Edit">✏️</button>
       <button class="action-btn delete" style="padding:4px 7px;margin-left:3px" onclick="deleteTask(${t.id},'${tasksType}')" title="Delete">🗑</button>
-      <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px;margin-left:3px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
+      ${cBtn('margin-left:3px')}
       ${canDone && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
       ${canRevise && !isCompleted && !isWaiting ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
       ${isWaiting ? `<span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     ` : (ME.role==='pc') ? `
-      <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
+      ${cBtn()}
       ${isChecklist && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
       ${isWaiting ? `<span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     ` : `
-      <button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px" onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>
+      ${cBtn()}
       ${!isCompleted && !isWaiting ? `
         ${canDone ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
         ${canRevise ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
@@ -3318,7 +3323,10 @@ function renderTasksTable() {
       <td>${isAdmin ? (t.assignedByName||'') : (t.assignedByName||'')}</td>
       <td style="white-space:nowrap;font-size:12px;color:#64748b">${fmtDate(t.assigned_on||'')||'—'}</td>
       <td style="white-space:nowrap">${fmtDate(t.due_date||'')||''}</td>
-      <td style="color:#64748b">${t.remarks||'—'}</td>
+      <td style="color:#64748b">
+        ${t.remarks ? `<div>${t.remarks}</div>` : (t.lastComment ? '' : '—')}
+        ${t.lastComment ? `<div style="margin-top:${t.remarks?'4px':'0'};font-size:11px;color:#1d4ed8" title="${_cc} comment(s) — click 💬 to see all">💬 ${t.lastComment}${t.lastCommentBy ? ` <span style="color:#94a3b8">— ${t.lastCommentBy}</span>` : ''}${_cc > 1 ? ` <span style="color:#94a3b8">(+${_cc-1} more)</span>` : ''}</div>` : ''}
+      </td>
       <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision Requested':t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
     </tr>`;
   }).join('');

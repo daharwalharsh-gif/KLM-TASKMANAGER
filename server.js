@@ -1104,6 +1104,31 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
 
     const [tasks] = await db.query(`SELECT t.id,'${type||'delegation'}' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,${isDeleg?"COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,":"'no' AS approval,0 AS waiting_approval,t.remarks,"}DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,DATE_FORMAT(t.created_at,'%Y-%m-%d') AS assigned_on,u1.name AS assignedToName,u2.name AS assignedByName FROM ${table} t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id ${where} ORDER BY t.due_date ASC`, params);
 
+    // ── Comments attach karo (count + latest) taaki table me dikh sakein ──
+    // Pehle comment sirf 💬 modal kholne par dikhta tha; list me koi ishara nahi tha.
+    // Ek hi query me is type ke saare comments, phir JS me map — per-task query nahi.
+    try {
+      const tType = type || 'delegation';
+      const [cRows] = await db.query(
+        `SELECT tc.task_id, tc.comment, tc.created_at, u.name AS userName
+         FROM task_comments tc JOIN users u ON tc.user_id=u.id
+         WHERE tc.task_type=? ORDER BY tc.created_at ASC`, [tType]);
+      const byTask = {};
+      for (const c of cRows) {
+        const k = String(c.task_id);
+        if (!byTask[k]) byTask[k] = { count: 0, last: null, lastBy: '' };
+        byTask[k].count++;
+        byTask[k].last = c.comment;          // ASC order — aakhri hi latest
+        byTask[k].lastBy = c.userName || '';
+      }
+      for (const t of tasks) {
+        const c = byTask[String(t.id)];
+        t.commentCount = c ? c.count : 0;
+        t.lastComment = c ? c.last : '';
+        t.lastCommentBy = c ? c.lastBy : '';
+      }
+    } catch (e) { /* comments optional — inke bina bhi tasks aane chahiye */ }
+
     // mine=1 mode me hamesha flat tasks return karte hain (grouped nahi)
     if (isMine) {
       return res.json({ tasks });
@@ -1214,11 +1239,26 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
       else await db.query(`UPDATE ${table} SET waiting_approval=1 WHERE id=?`, [req.params.id]);
       return res.json({ success: true, needsApproval: true });
     }
-    if (newDate && status === 'revised') await db.query(`UPDATE ${table} SET status=?,waiting_approval=0,due_date=?,completed_at=? WHERE id=?`, [status, newDate, completedAt, req.params.id]);
-    else {
+    // Revise/status-change ke waqt likha gaya reason ab task ke REMARKS me save hota
+    // hai. Pehle ye sirf approval-note me jaata tha; admin direct action kare (jo
+    // delegation me hamesha hota hai) to reason poori tarah kho jaata tha — isliye
+    // "remarks daale to dikhte nahi" wali problem thi. Purana remark rehta hai,
+    // naya uske aage " | " se jud jaata hai (kuch overwrite nahi hota).
+    const reasonText = String(reason || '').trim();
+    const prevRemarks = String(task.remarks || '').trim();
+    const mergedRemarks = reasonText ? (prevRemarks ? `${prevRemarks} | ${reasonText}` : reasonText) : null;
+    const rSet = mergedRemarks !== null ? ',remarks=?' : '';
+    const rParam = mergedRemarks !== null ? [mergedRemarks] : [];
+
+    if (newDate && status === 'revised') {
+      await db.query(`UPDATE ${table} SET status=?,waiting_approval=0,due_date=?,completed_at=?${rSet} WHERE id=?`,
+        [status, newDate, completedAt, ...rParam, req.params.id]);
+    } else {
       // checklist_tasks mein waiting_approval column nahi hota
-      if (type === 'checklist') await db.query(`UPDATE ${table} SET status=?,completed_at=? WHERE id=?`, [status, completedAt, req.params.id]);
-      else await db.query(`UPDATE ${table} SET status=?,waiting_approval=0,completed_at=? WHERE id=?`, [status, completedAt, req.params.id]);
+      if (type === 'checklist') await db.query(`UPDATE ${table} SET status=?,completed_at=?${rSet} WHERE id=?`,
+        [status, completedAt, ...rParam, req.params.id]);
+      else await db.query(`UPDATE ${table} SET status=?,waiting_approval=0,completed_at=?${rSet} WHERE id=?`,
+        [status, completedAt, ...rParam, req.params.id]);
     }
     res.json({ success: true, needsApproval: false });
   } catch (err) { res.status(500).json({ error: err.message }); }
