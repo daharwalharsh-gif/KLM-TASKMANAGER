@@ -143,6 +143,7 @@ tbody tr:last-child td{border-bottom:none;}
 .status-badge.pending{background:#fef2f2;color:#dc2626;}
 .status-badge.completed{background:#f0fdf4;color:#16a34a;}
 .status-badge.revised{background:#fffbeb;color:#d97706;}
+.status-badge.not_applicable{background:#f1f5f9;color:#64748b;}
 
 .chart-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:18px;}
 .chart-card h3{font-size:14px;font-weight:700;margin-bottom:14px;}
@@ -822,6 +823,8 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="tab active" id="statusTabPending" onclick="filterTaskStatus('pending',this)">Pending</div>
         <div class="tab" id="statusTabRevised" onclick="filterTaskStatus('revised',this)">Revised</div>
         <div class="tab" id="statusTabCompleted" onclick="filterTaskStatus('completed',this)">Completed</div>
+        <!-- Not Applicable — sirf Checklist me (JS show/hide karta hai) -->
+        <div class="tab" id="statusTabNA" style="display:none" onclick="filterTaskStatus('not_applicable',this)">Not Applicable</div>
       </div>
     </div>
     <div id="tasksContent"></div>
@@ -3188,6 +3191,8 @@ async function loadAllTasks() {
     }
   }
 
+  syncNATab(); // N/A tab ki visibility (sirf checklist)
+
   const data = await api(`/api/tasks?type=${tasksType}`);
   // Is fetch ke resolve hone tak agar koi nayi loadAllTasks() chal padi, to ye purani
   // response chhod do (warna stale data render hoga = blink).
@@ -3282,13 +3287,20 @@ function renderTasksTable() {
 
   // Re-build rows only for this page
   const pageRows = pageTasks.map(t => {
-    const isCompleted = t.status === 'completed';
+    const isNA = t.status === 'not_applicable';
+    const isCompleted = t.status === 'completed' || isNA; // N/A bhi "khatam" — Done/N/A buttons nahi
     const isWaiting = t.waiting_approval == 1;
     const isChecklist = tasksType === 'checklist';
     // Delegation task ko "Done" sirf admin kar sakta hai; checklist sab ke liye.
     const canDone = isChecklist || ME.role === 'admin';
     // Revise sirf delegation pe hota hai, aur ab wo bhi sirf admin kar sakta hai.
     const canRevise = !isChecklist && ME.role === 'admin';
+    // "N/A" (Not Applicable) — sirf CHECKLIST me, Done ke bagal me. Task Not Applicable
+    // tab me chala jaata hai (Done/Completed me nahi dikhta).
+    const naBtn = (isChecklist && !isCompleted && !isWaiting)
+      ? `<button class="action-btn" style="margin-left:3px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1"
+          onclick="updateStatus(${t.id},'not_applicable','alltasks','${tasksType}',this)" title="Not Applicable">N/A</button>`
+      : '';
 
     // Comment button — comment hone par HIGHLIGHT (bhara hua neela button + laal count
     // badge, jaise notification) taaki ek nazar me saaf dikhe kis task par baat hui hai.
@@ -3304,16 +3316,19 @@ function renderTasksTable() {
       <button class="action-btn delete" style="padding:4px 7px;margin-left:3px" onclick="deleteTask(${t.id},'${tasksType}')" title="Delete">🗑</button>
       ${cBtn('margin-left:3px')}
       ${canDone && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
+      ${naBtn}
       ${canRevise && !isCompleted && !isWaiting ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
       ${isWaiting ? `<span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     ` : (ME.role==='pc') ? `
       ${cBtn()}
       ${isChecklist && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
+      ${naBtn}
       ${isWaiting ? `<span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     ` : `
       ${cBtn()}
       ${!isCompleted && !isWaiting ? `
         ${canDone ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
+        ${naBtn}
         ${canRevise ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${tasksType}')">Revise</button>` : ''}
       ` : ''}
       ${isWaiting ? `
@@ -3335,7 +3350,7 @@ function renderTasksTable() {
             <div style="font-size:10px;color:#64748b;margin-top:2px">— ${t.lastCommentBy||''}${_cc > 1 ? ` &nbsp;·&nbsp; +${_cc-1} aur comment` : ''}</div>
           </div>` : ''}
       </td>
-      <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision Requested':t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
+      <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision Requested':t.status==='not_applicable'?'Not Applicable':t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
     </tr>`;
   }).join('');
 
@@ -3377,7 +3392,23 @@ function tasksTab(type, el) {
   tasksType = type;
   document.querySelectorAll('#tasksTypeTabGroup .tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
+  syncNATab();
   loadAllTasks();
+}
+
+// "Not Applicable" tab sirf Checklist me dikhta hai. Delegation par switch karte waqt
+// agar us tab par the to wapas Pending par le aao (warna khaali list dikhti).
+function syncNATab() {
+  const na = document.getElementById('statusTabNA');
+  if (!na) return;
+  const show = tasksType === 'checklist';
+  na.style.display = show ? '' : 'none';
+  if (!show && taskStatusFilter === 'not_applicable') {
+    taskStatusFilter = 'pending';
+    document.querySelectorAll('#page-alltasks .tab-group .tab').forEach(t=>t.classList.remove('active'));
+    const p = document.getElementById('statusTabPending');
+    if (p) p.classList.add('active');
+  }
 }
 
 function toggleBlock(header) { header.nextElementSibling.classList.toggle('open'); }
@@ -3413,7 +3444,9 @@ async function updateStatus(id, status, from, type, btnEl) {
   // Non-completed (safety) — purana behaviour (reload).
   if (status !== 'completed') {
     const r0 = await api(`/api/tasks/${id}/status`,'PUT',{status, type: tType});
+    if (r0.error) { _restore(); showToast(r0.error, 'error'); return; }  // fail => button wapas
     if (r0.needsApproval) showToast('✅ Approval request sent to your manager!');
+    else if (status === 'not_applicable') showToast('✅ Task "Not Applicable" tab me chala gaya');
     if (from==='dashboard') loadDashboard(); else loadAllTasks();
     loadApprovalBadge();
     return;
@@ -4874,7 +4907,7 @@ async function openMISDetail(userId, userName) {
       <td>${t.description}</td>
       <td style="color:#64748b;font-size:12px">${t.assigned_by_name||'—'}</td>
       <td style="white-space:nowrap;font-size:12px">${fmtDate(t.due_date)}</td>
-      <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision Requested':t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
+      <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision Requested':t.status==='not_applicable'?'Not Applicable':t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
       ${t.status==='pending' && t.due_date < new Date().toISOString().split('T')[0]
         ? `<td style="color:#dc2626;font-size:11px;font-weight:600">⏰ Overdue</td>`
         : `<td></td>`}
