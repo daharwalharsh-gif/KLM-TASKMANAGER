@@ -1006,11 +1006,11 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
 
     let delegationPending = [], checklistPending = [];
     if (taskType === 'delegation' || taskType === 'both') {
-      const [rows] = await db.query(`SELECT t.id,'delegation' AS type,t.description,t.status,t.assigned_to,COALESCE(t.priority,'low') AS priority,COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName FROM delegation_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${delegDateClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
+      const [rows] = await db.query(`SELECT t.id,'delegation' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName FROM delegation_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${delegDateClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
       delegationPending = rows;
     }
     if (taskType === 'checklist' || taskType === 'both') {
-      const [rows] = await db.query(`SELECT t.id,'checklist' AS type,t.description,t.status,t.assigned_to,COALESCE(t.priority,'low') AS priority,'no' AS approval,0 AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName FROM checklist_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${chkDateClause}${chkFyClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
+      const [rows] = await db.query(`SELECT t.id,'checklist' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,'no' AS approval,0 AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName FROM checklist_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${chkDateClause}${chkFyClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
       checklistPending = rows;
     }
     res.json({ pending, revised, completed, todayPending: [...delegationPending, ...checklistPending] });
@@ -1219,7 +1219,22 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
     const [rows] = await db.query(`SELECT * FROM ${table} WHERE id=?`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Task not found' });
     const task = rows[0];
-    if (!isAdmin && !isPC && task.assigned_to !== uid) return res.status(403).json({ error: 'Not allowed' });
+
+    const isDelegType = (type || 'delegation') === 'delegation';
+    const isEATask   = isDelegType && String(task.approval || 'no') === 'yes';
+    const amDoer     = String(task.assigned_to) === String(uid);
+    const amAssigner = String(task.assigned_by) === String(uid);
+
+    if (isEATask) {
+      // EA wala task (approval = yes): sirf TASK DENE WALA (EA) ya admin/PC hi Done kare.
+      // Doer khud Done nahi kar sakta.
+      if (!isAdmin && !isPC && !amAssigner) {
+        return res.status(403).json({ error: 'Ye task sirf dene wale (EA) hi Done kar sakte hain' });
+      }
+    } else {
+      // Normal task: jise task mila wahi (ya admin/PC) status badal sakta hai.
+      if (!isAdmin && !isPC && !amDoer) return res.status(403).json({ error: 'Not allowed' });
+    }
     // Timestamp: status='completed' pe NOW(); warna NULL (un-complete pe clear).
     const nowTs = new Date().toISOString().slice(0,19).replace('T',' ');
     const completedAt = status === 'completed' ? nowTs : null;
@@ -1229,8 +1244,10 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
       else await db.query(`UPDATE ${table} SET status='completed',waiting_approval=0,completed_at=? WHERE id=?`, [nowTs, req.params.id]);
       return res.json({ success: true, needsApproval: false });
     }
-    const needsApproval = type === 'delegation' && task.approval === 'yes';
-    if (needsApproval && !isAdmin && !isPC) {
+    // EA khud (assigner) Done kare to approval-request nahi banti — wo khud hi approver hai.
+    // (Doer yahan tak pahunch hi nahi sakta — upar 403 ho jaata hai.)
+    const needsApproval = isEATask && !isAdmin && !isPC && !amAssigner;
+    if (needsApproval) {
       const [existing] = await db.query(`SELECT id FROM task_approvals WHERE task_id=? AND task_type=? AND status='pending'`, [req.params.id, type]);
       if (existing[0]) return res.status(400).json({ error: 'Approval already pending' });
       await db.query(`INSERT INTO task_approvals (task_id,task_type,requested_by,requested_to,action_type,status,note) VALUES (?,?,?,?,?,'pending',?)`, [req.params.id, type, uid, task.assigned_by, status, reason||'']);

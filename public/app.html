@@ -824,6 +824,8 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="tab" id="statusTabRevised" onclick="filterTaskStatus('revised',this)">Revised</div>
         <div class="tab" id="statusTabCompleted" onclick="filterTaskStatus('completed',this)">Completed</div>
         <div class="tab" id="statusTabNA" onclick="filterTaskStatus('not_applicable',this)">Not Applicable</div>
+        <!-- Maine jo task DIYE hain (kisi aur ko) — unka status yahan dikhta hai -->
+        <div class="tab" id="statusTabAssignedByMe" onclick="filterTaskStatus('assigned_by_me',this)">📤 Assigned by Me</div>
       </div>
       <button id="groupByDoerBtn" onclick="toggleGroupByDoer()" style="margin-left:auto;padding:7px 14px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:#475569;font-family:'Inter',sans-serif">👥 Group by Doer: ON</button>
     </div>
@@ -3143,9 +3145,9 @@ function renderDashTable(tasks, type) {
       <td style="white-space:nowrap">
         ${t.waiting_approval==1 ? `
           <span style="font-size:11px;color:#f59e0b;font-weight:600">⏳ Waiting Approval</span>
-          ${(t.type==='checklist' || ME.role==='admin' || String(t.assigned_to)===String(ME.id)) ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin' || (String(t.approval||'no')==='yes' ? String(t.assigned_by)===String(ME.id) : String(t.assigned_to)===String(ME.id))) ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
         ` : `
-          ${(t.type==='checklist' || ME.role==='admin' || String(t.assigned_to)===String(ME.id)) ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin' || (String(t.approval||'no')==='yes' ? String(t.assigned_by)===String(ME.id) : String(t.assigned_to)===String(ME.id))) ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
           ${t.type==='checklist' ? `<button class="action-btn" style="margin-left:3px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1"
             onclick="updateStatus(${t.id},'not_applicable','dashboard','${t.type}',this)" title="Not Applicable">N/A</button>` : ''}
           ${(t.type!=='checklist' && ME.role==='admin') ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${t.type}')">Revise</button>` : ''}
@@ -3234,6 +3236,12 @@ async function loadAllTasks() {
     }
   }
 
+  // "Assigned by Me" tab khula ho to uska data bhi refresh karo (type switch / Done ke baad)
+  if (taskStatusFilter === 'assigned_by_me') {
+    try { await loadAssignedByMe(); } catch (e) { _assignedByMeData = []; }
+    if (seq !== _allTasksSeq) return;
+  }
+
   renderTasksTable();
 }
 
@@ -3246,6 +3254,18 @@ function clearTasksDateFilter() {
 }
 
 function filterTasks() { allTasksPage = 1; renderTasksTable(); }
+
+// ── "📤 Assigned by Me" tab ka data (maine jo tasks kisi aur ko diye) ──
+// Normal /api/tasks sirf MERE tasks deta hai, isliye ?mine=1 se alag fetch.
+let _assignedByMeData = [];
+async function loadAssignedByMe() {
+  const data = await api(`/api/tasks?type=${tasksType}&mine=1`);
+  let arr = [];
+  if (data && data.grouped) data.grouped.forEach(g => (g.tasks || []).forEach(t => arr.push(t)));
+  else arr = (data && data.tasks) || [];
+  // Sirf woh jo maine KISI AUR ko diye (apne aap ko diye hue nahi)
+  _assignedByMeData = arr.filter(t => String(t.assigned_by) === String(ME.id) && String(t.assigned_to) !== String(ME.id));
+}
 
 // ── Doer-wise grouping (All Tasks) ──
 let _groupByDoer = localStorage.getItem('groupByDoer') !== '0';  // default ON
@@ -3269,11 +3289,15 @@ function toggleDoerGroup(i) {
 function expandAllDoerGroups() { _doerGroupNames.forEach(n => _openDoerGroups.add(n)); renderTasksTable(); }
 function collapseAllDoerGroups() { _openDoerGroups.clear(); renderTasksTable(); }
 
-function filterTaskStatus(status, el) {
+async function filterTaskStatus(status, el) {
   taskStatusFilter = status;
   allTasksPage = 1;
   document.querySelectorAll('#page-alltasks .tab-group .tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
+  if (status === 'assigned_by_me') {
+    document.getElementById('tasksContent').innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Loading…</div>`;
+    try { await loadAssignedByMe(); } catch (e) { _assignedByMeData = []; }
+  }
   renderTasksTable();
 }
 
@@ -3286,8 +3310,13 @@ function renderTasksTable() {
   const dateTo = document.getElementById('tasksDateTo')?.value || '';
   const container = document.getElementById('tasksContent');
 
-  let tasks = allTasksData.filter(t => {
-    const matchStatus = taskStatusFilter === 'all' || t.status === taskStatusFilter;
+  // "📤 Assigned by Me" — maine jo task DIYE hain (kisi aur ko), unka har status dikhta hai
+  // taaki pata chale kis doer ne Done kiya, kis ne nahi.
+  const assignedByMeView = taskStatusFilter === 'assigned_by_me';
+  const sourceTasks = assignedByMeView ? _assignedByMeData : allTasksData;
+
+  let tasks = sourceTasks.filter(t => {
+    const matchStatus = assignedByMeView ? true : (taskStatusFilter === 'all' || t.status === taskStatusFilter);
     const matchSearch = !search ||
       (t.description||'').toLowerCase().includes(search) ||
       (t.assignedToName||'').toLowerCase().includes(search) ||
@@ -3317,9 +3346,13 @@ function renderTasksTable() {
     const isCompleted = t.status === 'completed' || isNA; // N/A bhi "khatam" — Done/N/A buttons nahi
     const isWaiting = t.waiting_approval == 1;
     const isChecklist = tasksType === 'checklist';
-    // Done: checklist sab ke liye; delegation me admin YA jise task mila hai (assigned to me).
-    // Jis task par approval='yes' hai uska Done approval request banata hai (EA flow — waisa hi).
-    const canDone = isChecklist || ME.role === 'admin' || String(t.assigned_to) === String(ME.id);
+    // Done kaun kar sakta hai:
+    //  • checklist  → sab
+    //  • EA task (approval='yes') → SIRF task dene wala (EA) ya admin — doer nahi
+    //  • normal delegation → admin ya jise task mila hai
+    const isEATask = !isChecklist && String(t.approval || 'no') === 'yes';
+    const canDone = isChecklist || ME.role === 'admin' ||
+      (isEATask ? String(t.assigned_by) === String(ME.id) : String(t.assigned_to) === String(ME.id));
     // Revise sirf delegation pe hota hai, aur ab wo bhi sirf admin kar sakta hai.
     const canRevise = !isChecklist && ME.role === 'admin';
     // "N/A" (Not Applicable) — sirf CHECKLIST me, Done ke bagal me. Task Not Applicable
