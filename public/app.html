@@ -823,8 +823,7 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="tab active" id="statusTabPending" onclick="filterTaskStatus('pending',this)">Pending</div>
         <div class="tab" id="statusTabRevised" onclick="filterTaskStatus('revised',this)">Revised</div>
         <div class="tab" id="statusTabCompleted" onclick="filterTaskStatus('completed',this)">Completed</div>
-        <!-- Not Applicable — sirf Checklist me (JS show/hide karta hai) -->
-        <div class="tab" id="statusTabNA" style="display:none" onclick="filterTaskStatus('not_applicable',this)">Not Applicable</div>
+        <div class="tab" id="statusTabNA" onclick="filterTaskStatus('not_applicable',this)">Not Applicable</div>
       </div>
       <button id="groupByDoerBtn" onclick="toggleGroupByDoer()" style="margin-left:auto;padding:7px 14px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:#475569;font-family:'Inter',sans-serif">👥 Group by Doer: ON</button>
     </div>
@@ -3464,19 +3463,11 @@ function tasksTab(type, el) {
   loadAllTasks();
 }
 
-// "Not Applicable" tab sirf Checklist me dikhta hai. Delegation par switch karte waqt
-// agar us tab par the to wapas Pending par le aao (warna khaali list dikhti).
+// "Not Applicable" tab ab Delegation aur Checklist dono me hamesha dikhta hai
+// (user request). N/A button sirf checklist par hi rehta hai.
 function syncNATab() {
   const na = document.getElementById('statusTabNA');
-  if (!na) return;
-  const show = tasksType === 'checklist';
-  na.style.display = show ? '' : 'none';
-  if (!show && taskStatusFilter === 'not_applicable') {
-    taskStatusFilter = 'pending';
-    document.querySelectorAll('#page-alltasks .tab-group .tab').forEach(t=>t.classList.remove('active'));
-    const p = document.getElementById('statusTabPending');
-    if (p) p.classList.add('active');
-  }
+  if (na) na.style.display = '';
 }
 
 function toggleBlock(header) { header.nextElementSibling.classList.toggle('open'); }
