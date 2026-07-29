@@ -3145,9 +3145,9 @@ function renderDashTable(tasks, type) {
       <td style="white-space:nowrap">
         ${t.waiting_approval==1 ? `
           <span style="font-size:11px;color:#f59e0b;font-weight:600">⏳ Waiting Approval</span>
-          ${(t.type==='checklist' || ME.role==='admin' || (String(t.approval||'no')==='yes' ? String(t.assigned_by)===String(ME.id) : String(t.assigned_to)===String(ME.id))) ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin' || (isEAAssigned(t) ? String(t.assigned_by)===String(ME.id) : String(t.assigned_to)===String(ME.id))) ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
         ` : `
-          ${(t.type==='checklist' || ME.role==='admin' || (String(t.approval||'no')==='yes' ? String(t.assigned_by)===String(ME.id) : String(t.assigned_to)===String(ME.id))) ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin' || (isEAAssigned(t) ? String(t.assigned_by)===String(ME.id) : String(t.assigned_to)===String(ME.id))) ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
           ${t.type==='checklist' ? `<button class="action-btn" style="margin-left:3px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1"
             onclick="updateStatus(${t.id},'not_applicable','dashboard','${t.type}',this)" title="Not Applicable">N/A</button>` : ''}
           ${(t.type!=='checklist' && ME.role==='admin') ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${t.type}')">Revise</button>` : ''}
@@ -3255,6 +3255,14 @@ function clearTasksDateFilter() {
 
 function filterTasks() { allTasksPage = 1; renderTasksTable(); }
 
+// EA accounts — inke diye hue delegation task sirf ye khud (ya admin) Done kar sakte
+// hain; doer ko sirf dikhte hain. Server par bhi yahi rule lagta hai (EA_EMAILS).
+const EA_EMAILS = ['ea@klmahajan.com'];
+function isEAAssigned(t) {
+  if (String(t.approval || 'no') === 'yes') return true;
+  return EA_EMAILS.includes(String(t.assignedByEmail || '').trim().toLowerCase());
+}
+
 // ── "📤 Assigned by Me" tab ka data (maine jo tasks kisi aur ko diye) ──
 // Normal /api/tasks sirf MERE tasks deta hai, isliye ?mine=1 se alag fetch.
 let _assignedByMeData = [];
@@ -3348,9 +3356,9 @@ function renderTasksTable() {
     const isChecklist = tasksType === 'checklist';
     // Done kaun kar sakta hai:
     //  • checklist  → sab
-    //  • EA task (approval='yes') → SIRF task dene wala (EA) ya admin — doer nahi
+    //  • EA task (Priyanka ne diya, ya approval='yes') → SIRF dene wala (EA)/admin — doer nahi
     //  • normal delegation → admin ya jise task mila hai
-    const isEATask = !isChecklist && String(t.approval || 'no') === 'yes';
+    const isEATask = !isChecklist && isEAAssigned(t);
     const canDone = isChecklist || ME.role === 'admin' ||
       (isEATask ? String(t.assigned_by) === String(ME.id) : String(t.assigned_to) === String(ME.id));
     // Revise sirf delegation pe hota hai, aur ab wo bhi sirf admin kar sakta hai.
