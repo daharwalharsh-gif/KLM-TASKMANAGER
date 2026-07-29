@@ -1154,10 +1154,9 @@ app.post('/api/tasks', requireAuth, async (req, res) => {
     // Admin, HOD and regular users can all assign to others; fallback to self if not specified
     const targetUser = (isAdmin || isHod || isUser) && assignedTo ? parseInt(assignedTo) : req.session.userId;
     if (!desc || !date) return res.status(400).json({ error: 'Description and date required' });
-    // Delegation tasks SIRF admin create kar sakta hai (checklist sab ke liye open).
-    if ((type||'checklist') === 'delegation' && !isAdmin) {
-      return res.status(403).json({ error: 'Only admin can delegate tasks' });
-    }
+    // Delegation ab koi bhi doer kar sakta hai (kisi dusre doer ko task de sakta hai).
+    // Jise task mila wo use Done kar sakta hai; approval='yes' wale (EA) flow me Done
+    // par request dene wale ke paas approval jaati hai — wo pehle jaisa hi chalta hai.
     if ((type||'checklist') === 'delegation') {
       // Approver: agar approverEmail diya hai to usse dhundo, warna logged-in user
       let assignedBy = req.session.userId;
@@ -1213,10 +1212,10 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
     const isAdmin = req.session.role === 'admin';
     const isPC = req.session.role === 'pc';
     const uid = req.session.userId;
-    // Delegation task ko Done/Revise (koi bhi status change) SIRF admin kar sakta hai.
-    if ((type||'delegation') === 'delegation' && !isAdmin) {
-      return res.status(403).json({ error: 'Only admin can manage delegation tasks' });
-    }
+    // Delegation ab admin-only nahi: JISE task mila hai wo khud Done kar sakta hai
+    // (neeche wala check ye ensure karta hai). Jis task par approval='yes' hai (EA wala
+    // case) uska Done seedha complete nahi hota — request dene wale ke paas approval
+    // jaati hai, wo pehle jaisa hi chalta hai.
     const [rows] = await db.query(`SELECT * FROM ${table} WHERE id=?`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Task not found' });
     const task = rows[0];

@@ -3143,9 +3143,9 @@ function renderDashTable(tasks, type) {
       <td style="white-space:nowrap">
         ${t.waiting_approval==1 ? `
           <span style="font-size:11px;color:#f59e0b;font-weight:600">⏳ Waiting Approval</span>
-          ${(t.type==='checklist' || ME.role==='admin') ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin' || String(t.assigned_to)===String(ME.id)) ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
         ` : `
-          ${(t.type==='checklist' || ME.role==='admin') ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin' || String(t.assigned_to)===String(ME.id)) ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
           ${t.type==='checklist' ? `<button class="action-btn" style="margin-left:3px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1"
             onclick="updateStatus(${t.id},'not_applicable','dashboard','${t.type}',this)" title="Not Applicable">N/A</button>` : ''}
           ${(t.type!=='checklist' && ME.role==='admin') ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${t.type}')">Revise</button>` : ''}
@@ -3175,9 +3175,9 @@ async function loadAllTasks() {
   const isUser = ME.role==='user';
   const isDesktop = window.innerWidth >= 768;
 
-  // Show/hide assign task button — delegation sirf admin kar sakta hai
+  // Assign Task — ab koi bhi doer dusre doer ko task de sakta hai (PC view-only rehta hai)
   const assignBtn = document.getElementById('tasksAssignBtn');
-  if (assignBtn) assignBtn.style.display = isAdmin ? '' : 'none';
+  if (assignBtn) assignBtn.style.display = isPC ? 'none' : '';
 
   // Delegate by Me button — sirf un users ko dikhao jo task assign kar sakte hain
   const dbmBtn = document.getElementById('delegateByMeBtn');
@@ -3317,8 +3317,9 @@ function renderTasksTable() {
     const isCompleted = t.status === 'completed' || isNA; // N/A bhi "khatam" — Done/N/A buttons nahi
     const isWaiting = t.waiting_approval == 1;
     const isChecklist = tasksType === 'checklist';
-    // Delegation task ko "Done" sirf admin kar sakta hai; checklist sab ke liye.
-    const canDone = isChecklist || ME.role === 'admin';
+    // Done: checklist sab ke liye; delegation me admin YA jise task mila hai (assigned to me).
+    // Jis task par approval='yes' hai uska Done approval request banata hai (EA flow — waisa hi).
+    const canDone = isChecklist || ME.role === 'admin' || String(t.assigned_to) === String(ME.id);
     // Revise sirf delegation pe hota hai, aur ab wo bhi sirf admin kar sakta hai.
     const canRevise = !isChecklist && ME.role === 'admin';
     // "N/A" (Not Applicable) — sirf CHECKLIST me, Done ke bagal me. Task Not Applicable
