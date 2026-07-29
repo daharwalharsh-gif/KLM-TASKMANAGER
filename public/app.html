@@ -3140,12 +3140,14 @@ function renderDashTable(tasks, type) {
       <td>${(isAdmin||isPC)?t.assignedToName:t.assignedByName}</td>
       <td>${fmtDate(t.due_date||t.date)}</td>
       <td>${t.type!=='checklist' ? `<span class="priority-badge ${t.priority||'low'}">${t.priority||'low'}</span>` : '—'}</td>
-      <td>
+      <td style="white-space:nowrap">
         ${t.waiting_approval==1 ? `
           <span style="font-size:11px;color:#f59e0b;font-weight:600">⏳ Waiting Approval</span>
           ${(t.type==='checklist' || ME.role==='admin') ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
         ` : `
           ${(t.type==='checklist' || ME.role==='admin') ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
+          ${t.type==='checklist' ? `<button class="action-btn" style="margin-left:3px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1"
+            onclick="updateStatus(${t.id},'not_applicable','dashboard','${t.type}',this)" title="Not Applicable">N/A</button>` : ''}
           ${(t.type!=='checklist' && ME.role==='admin') ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${t.type}')">Revise</button>` : ''}
         `}
       </td>
