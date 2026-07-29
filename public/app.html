@@ -2737,24 +2737,84 @@ function renderChalFileChips() {
 }
 function removeChalFile(i) { _chalFiles.splice(i, 1); renderChalFileChips(); }
 
+// ── Shared upload helper (form + Mark Done dono use karte hain) ──
+// 1) Browser ka mime khaali ho to extension se nikaalo (Windows/mobile me aam)
+// 2) Photo 2.5MB se badi ho to canvas se chhoti karo — phone ki photos aksar
+//    4-8MB ki hoti hain aur pehle "3MB se badi" me reject ho jaati thi.
+const CHAL_EXT_MIME = { pdf:'application/pdf', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg',
+  gif:'image/gif', webp:'image/webp', heic:'image/heic', bmp:'image/bmp', xls:'application/vnd.ms-excel',
+  xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', csv:'text/csv',
+  doc:'application/msword', docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document', txt:'text/plain' };
+
+function chalMimeOf(file) {
+  let mt = String(file.type || '').toLowerCase();
+  if (!mt || mt === 'application/octet-stream') {
+    mt = CHAL_EXT_MIME[String(file.name).split('.').pop().toLowerCase()] || '';
+  }
+  return mt;
+}
+
+// Badi image ko chhota karke base64 deta hai (quality ~0.82, max side 1600px)
+function chalShrinkImage(file) {
+  return new Promise(resolve => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1600;
+        let { width: w, height: h } = img;
+        if (w > MAX || h > MAX) { const s = MAX / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        const dataUrl = cv.toDataURL('image/jpeg', 0.82);
+        resolve({ b64: dataUrl.split(',')[1] || '', mime: 'image/jpeg' });
+      };
+      img.onerror = () => resolve(null);
+      img.src = String(fr.result);
+    };
+    fr.onerror = () => resolve(null);
+    fr.readAsDataURL(file);
+  });
+}
+
+// File ko upload ke liye taiyaar karo -> {b64, mime} ya {error}
+async function chalPrepFile(file) {
+  let mime = chalMimeOf(file);
+  const LIMIT = 3.4 * 1024 * 1024;
+  if (mime.startsWith('image/') && file.size > 2.5 * 1024 * 1024) {
+    const shrunk = await chalShrinkImage(file);
+    if (shrunk && shrunk.b64) return { b64: shrunk.b64, mime: shrunk.mime };
+  }
+  if (file.size > LIMIT) return { error: 'file is larger than 3MB — please upload a smaller file' };
+  const b64 = await new Promise(res => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result).split(',')[1] || '');
+    fr.onerror = () => res('');
+    fr.readAsDataURL(file);
+  });
+  if (!b64) return { error: 'could not read this file' };
+  return { b64, mime };
+}
+
 async function uploadChallengeFiles() {
   const input = document.getElementById('chalFiles');
   const files = [...(input.files || [])];
   if (!files.length) return;
   const err = document.getElementById('chalErr');
+  err.style.display = 'none';
+  let okCount = 0;
   for (const file of files) {
-    if (file.size > 3.5 * 1024 * 1024) { err.textContent = `${file.name} is larger than 3MB`; err.style.display = 'block'; continue; }
-    const b64 = await new Promise(res => {
-      const fr = new FileReader();
-      fr.onload = () => res(String(fr.result).split(',')[1] || '');
-      fr.readAsDataURL(file);
-    });
-    const r = await api('/api/challenges/upload-file', 'POST', { filename: file.name, mimeType: file.type, dataBase64: b64 });
+    const prep = await chalPrepFile(file);
+    if (prep.error) { err.textContent = `${file.name}: ${prep.error}`; err.style.display = 'block'; continue; }
+    const r = await api('/api/challenges/upload-file', 'POST', { filename: file.name, mimeType: prep.mime, dataBase64: prep.b64 });
     if (r.error) { err.textContent = `${file.name}: ${r.error}`; err.style.display = 'block'; continue; }
     _chalFiles.push({ name: file.name, link: r.link });
+    okCount++;
   }
   input.value = '';
   renderChalFileChips();
+  if (okCount) showToast(`📎 ${okCount} file(s) attached`);
 }
 
 async function saveChallenge() {
@@ -2803,16 +2863,23 @@ function renderChalDoneChips() {
 async function uploadChallengeDoneFiles() {
   const input = document.getElementById('chalDoneFiles');
   const files = [...(input.files || [])];
+  if (!files.length) return;
   const err = document.getElementById('chalDoneErr');
+  err.style.display = 'none';
+  const list = document.getElementById('chalDoneFileList');
+  list.innerHTML = '<span style="font-size:12px;color:#64748b">⏳ Uploading…</span>';
+  let okCount = 0;
   for (const file of files) {
-    if (file.size > 3.5 * 1024 * 1024) { err.textContent = `${file.name} is larger than 3MB`; err.style.display = 'block'; continue; }
-    const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.readAsDataURL(file); });
-    const r = await api('/api/challenges/upload-file', 'POST', { filename: file.name, mimeType: file.type, dataBase64: b64 });
+    const prep = await chalPrepFile(file);   // mime fix + badi photo auto-compress
+    if (prep.error) { err.textContent = `${file.name}: ${prep.error}`; err.style.display = 'block'; continue; }
+    const r = await api('/api/challenges/upload-file', 'POST', { filename: file.name, mimeType: prep.mime, dataBase64: prep.b64 });
     if (r.error) { err.textContent = `${file.name}: ${r.error}`; err.style.display = 'block'; continue; }
     _chalDoneFiles.push({ name: file.name, link: r.link });
+    okCount++;
   }
   input.value = '';
   renderChalDoneChips();
+  if (okCount) showToast(`📎 ${okCount} file(s) attached`);
 }
 async function submitChallengeDone() {
   const err = document.getElementById('chalDoneErr'); err.style.display = 'none';

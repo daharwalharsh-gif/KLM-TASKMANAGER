@@ -2797,7 +2797,21 @@ app.post('/api/challenges/upload-file', requireAuth, async (req, res) => {
   try {
     const { filename, mimeType, dataBase64 } = req.body;
     if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
-    const mt = String(mimeType || '').toLowerCase();
+    // Browser kabhi-kabhi mime type khaali (ya generic octet-stream) bhejta hai —
+    // Windows/mobile me ye aam hai. Aise me extension se mime nikaal lete hain,
+    // warna sahi file bhi "not allowed" me reject ho jaati thi.
+    const EXT_MIME = {
+      pdf:'application/pdf', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif',
+      webp:'image/webp', heic:'image/heic', bmp:'image/bmp',
+      xls:'application/vnd.ms-excel', xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      csv:'text/csv', doc:'application/msword',
+      docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document', txt:'text/plain'
+    };
+    let mt = String(mimeType || '').toLowerCase();
+    if (!mt || mt === 'application/octet-stream') {
+      const ext = String(filename).split('.').pop().toLowerCase();
+      mt = EXT_MIME[ext] || '';
+    }
     const okType = mt.startsWith('image/') || mt === 'application/pdf' ||
       mt.includes('spreadsheet') || mt.includes('excel') || mt === 'text/csv' ||
       mt.includes('word') || mt === 'application/msword' || mt === 'text/plain';
