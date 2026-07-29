@@ -1354,6 +1354,17 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
   </div>
 
+  <!-- CHALLENGE DETAILS POPUP — card par click karne se khulta hai -->
+  <div class="modal-overlay" id="chalDetailModal">
+    <div class="modal" style="max-width:680px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;background:#fff;padding-bottom:10px;margin-bottom:12px;z-index:20;border-bottom:1px solid #f1f5f9">
+        <h3 id="chalDetailTitle" style="margin:0">Challenge Details</h3>
+        <button class="btn btn-outline" onclick="closeModal('chalDetailModal')" style="flex-shrink:0">✕ Close</button>
+      </div>
+      <div id="chalDetailBody"></div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ══════════════════════════════════════
@@ -2914,6 +2925,48 @@ async function loadChallenges() {
 }
 
 
+// Card par click -> poori details popup me
+function openChallengeDetail(id) {
+  const x = _challenges.find(c => String(c.id) === String(id));
+  if (!x) return;
+  const st = CHAL_STATUS[x.status] || CHAL_STATUS.pending;
+  const files = Array.isArray(x.filesList) ? x.filesList : [];
+  const doneFiles = Array.isArray(x.doneFilesList) ? x.doneFilesList : [];
+  const chip = f => `<a href="${f.link}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:5px 10px;font-size:12px;color:#1d4ed8;text-decoration:none">📎 ${f.name}</a>`;
+  const row = (label, value) => `<div style="display:flex;gap:12px;padding:9px 0;border-bottom:1px solid #f8fafc">
+      <div style="min-width:165px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.3px">${label}</div>
+      <div style="flex:1;font-size:13.5px;color:#1e293b">${value || '—'}</div>
+    </div>`;
+  const pri = String(x.priority || 'medium');
+  const pc = pri === 'high' ? ['#fef2f2','#dc2626'] : pri === 'low' ? ['#f0fdf4','#16a34a'] : ['#fffbeb','#d97706'];
+
+  document.getElementById('chalDetailTitle').textContent = x.party_name || 'Challenge Details';
+  document.getElementById('chalDetailBody').innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <span style="font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;background:${st.bg};color:${st.color};border:1px solid ${st.border}">${st.label}</span>
+      <span style="font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;background:${pc[0]};color:${pc[1]};text-transform:uppercase">${pri}</span>
+    </div>
+    ${row('Timestamp', x.created_at)}
+    ${row('Submitted By', titleName(x.createdByName || ''))}
+    ${row('Party Name', x.party_name)}
+    ${row('CRM', x.crm || 'CRM')}
+    ${row('Right Person', titleName(x.responsibleName || ''))}
+    ${row('Challenge Received Date', fmtDate(x.received_date))}
+    ${row('Challenge Known Date', fmtDate(x.known_date))}
+    ${row('Challenge', x.description)}
+    ${row('Proposed Resolution', x.proposed_resolution)}
+    ${row('Supporting Files', files.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${files.map(chip).join('')}</div>` : '')}
+    ${String(x.status) === 'completed' ? `
+      <div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
+        <div style="font-size:11px;font-weight:700;color:#16a34a;text-transform:uppercase;margin-bottom:8px">✅ Completed</div>
+        ${row('Done At', x.done_at)}
+        ${row('Done By', titleName(x.doneByName || ''))}
+        ${row('Remarks', x.done_remarks)}
+        ${row('Done Files', doneFiles.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${doneFiles.map(chip).join('')}</div>` : '')}
+      </div>` : ''}`;
+  document.getElementById('chalDetailModal').classList.add('open');
+}
+
 async function deleteChallenge(id) {
   if (!confirm('Delete this challenge?')) return;
   const r = await api(`/api/challenges/${id}`, 'DELETE');
@@ -2950,7 +3003,10 @@ function renderChallenges() {
       const isDone = String(x.status) === 'completed';
       const chip = f => `<a href="${f.link}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:4px 9px;font-size:12px;color:#1d4ed8;text-decoration:none">📎 ${f.name}</a>`;
       const partyEsc = String(x.party_name || '').replace(/'/g, "\\'");
-      return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:12px">
+      // Card par click -> details popup (buttons/links par click na chale)
+      return `<div onclick="if(!event.target.closest('button,a,select,input'))openChallengeDetail(${x.id})"
+        title="Click for full details"
+        style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:12px;cursor:pointer">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
             <div style="font-size:15px;font-weight:700;color:#1e293b">${x.party_name || '—'} ${pBadge(x.priority)}</div>
