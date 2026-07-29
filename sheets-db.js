@@ -80,6 +80,11 @@ const SCHEMA = {
   leave_tracker: {
     cols: ['id','user_id','type','reason','start_date','end_date','hours','status','applied_at','decided_by','decided_at','decision_note'],
     autoFill: { applied_at: 'NOW' }
+  },
+  // Open Challenges — party ki challenge, responsible person + resolution tracking
+  challenges: {
+    cols: ['id','party_name','received_date','known_date','description','responsible_to','priority','proposed_resolution','status','files','created_by','created_at','updated_at'],
+    autoFill: { created_at: 'NOW', updated_at: 'NOW' }
   }
 };
 

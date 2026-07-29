@@ -525,6 +525,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
       <span class="nav-label-text">Leave Tracker</span>
     </div>
+    <div class="nav-item" id="nav-challenges" onclick="navigate('challenges',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.72-3l-6.93-12a2 2 0 00-3.44 0l-6.93 12a2 2 0 001.72 3z"/></svg>
+      <span class="nav-label-text">Open Challenges</span>
+    </div>
     <div class="nav-divider"></div>
     <div class="nav-item" onclick="navigate('profile',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
@@ -1188,6 +1192,91 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="empty">Loading…</div>
       </div>
     </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       OPEN CHALLENGES FORM
+  ══════════════════════════════════════ -->
+  <div id="page-challenges" class="page">
+    <div class="page-header">
+      <h2>⚠️ Open Challenges Form</h2>
+      <button class="btn btn-primary" onclick="toggleChallengeForm()" id="chalToggleBtn">+ New Challenge</button>
+    </div>
+
+    <!-- FORM -->
+    <div id="chalFormWrap" style="display:none;background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:20px;margin-bottom:18px">
+      <div class="alert error" id="chalErr" style="display:none"></div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:14px">Timestamp apne aap record hota hai — aapko bharne ki zaroorat nahi.</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Party Name *</label>
+          <input type="text" id="chalParty" placeholder="Party ka naam"/>
+        </div>
+        <div class="form-group">
+          <label>Responsible Person</label>
+          <select id="chalResponsible"><option value="">-- Select person --</option></select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Challenge Received Date</label>
+          <input type="date" id="chalReceived"/>
+        </div>
+        <div class="form-group">
+          <label>Challenge Known Date</label>
+          <input type="date" id="chalKnown"/>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Priority</label>
+          <select id="chalPriority">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Describe the Challenge *</label>
+        <textarea id="chalDesc" placeholder="Challenge kya hai…" style="min-height:70px"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Proposed Resolution</label>
+        <textarea id="chalResolution" placeholder="Kya solution socha hai…" style="min-height:60px"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Supporting Files <span style="color:#94a3b8;font-weight:400;font-size:11px">(photo, PDF, Excel, Word — max 3MB each)</span></label>
+        <input type="file" id="chalFiles" multiple accept="image/*,application/pdf,.xls,.xlsx,.csv,.doc,.docx"
+          onchange="uploadChallengeFiles()" style="font-size:13px"/>
+        <div id="chalFileList" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn btn-outline" onclick="toggleChallengeForm()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveChallenge()" id="chalSaveBtn">💾 Submit Challenge</button>
+      </div>
+    </div>
+
+    <!-- STATUS TABS + LIST -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+      <div class="tab-group">
+        <div class="tab active" id="chalTabAll" onclick="filterChallenges('all',this)">All</div>
+        <div class="tab" id="chalTabOpen" onclick="filterChallenges('open',this)">Open</div>
+        <div class="tab" id="chalTabProg" onclick="filterChallenges('in_progress',this)">In Progress</div>
+        <div class="tab" id="chalTabRes" onclick="filterChallenges('resolved',this)">Resolved</div>
+        <div class="tab" id="chalTabClosed" onclick="filterChallenges('closed',this)">Closed</div>
+      </div>
+      <input type="text" id="chalSearch" placeholder="🔍 Search party / description…" oninput="renderChallenges()"
+        style="margin-left:auto;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:230px"/>
+    </div>
+    <div id="chalContent"></div>
   </div>
 
 </div>
@@ -2259,6 +2348,7 @@ function navigate(page, el) {
   if (page==='mis') initMISDeptFilter();
   if (page==='records') loadRecords();
   if (page==='leaves') loadLeaves();
+  if (page==='challenges') loadChallenges();
   closeSidebar();   // mobile drawer band karo nav ke baad
   window.scrollTo(0,0);
 }
@@ -2527,6 +2617,180 @@ const LEAVE_TYPES = {
   wfh:           { label:'Work From Home', icon:'🏠', bg:'#eff6ff', color:'#1d4ed8', border:'#bfdbfe' },
   extra_working: { label:'Extra Working',  icon:'⚡', bg:'#f0fdf4', color:'#16a34a', border:'#bbf7d0' }
 };
+
+// ══════════════════════════════════════════════════════
+// OPEN CHALLENGES FORM
+// ══════════════════════════════════════════════════════
+let _challenges = [];
+let _chalFilter = 'all';
+let _chalFiles = [];          // form me abhi attach ki hui files [{name, link}]
+const CHAL_STATUS = {
+  open:        { label:'Open',        bg:'#fef2f2', color:'#dc2626', border:'#fecaca' },
+  in_progress: { label:'In Progress', bg:'#fffbeb', color:'#d97706', border:'#fde68a' },
+  resolved:    { label:'Resolved',    bg:'#eff6ff', color:'#1d4ed8', border:'#bfdbfe' },
+  closed:      { label:'Closed',      bg:'#f0fdf4', color:'#16a34a', border:'#bbf7d0' }
+};
+
+function toggleChallengeForm() {
+  const w = document.getElementById('chalFormWrap');
+  const open = w.style.display === 'none';
+  w.style.display = open ? '' : 'none';
+  document.getElementById('chalToggleBtn').textContent = open ? '✕ Close Form' : '+ New Challenge';
+  if (open) resetChallengeForm();
+}
+
+function resetChallengeForm() {
+  ['chalParty','chalReceived','chalKnown','chalDesc','chalResolution'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('chalPriority').value = 'medium';
+  document.getElementById('chalResponsible').value = '';
+  document.getElementById('chalFiles').value = '';
+  document.getElementById('chalErr').style.display = 'none';
+  _chalFiles = [];
+  renderChalFileChips();
+}
+
+function renderChalFileChips() {
+  document.getElementById('chalFileList').innerHTML = _chalFiles.map((f, i) =>
+    `<span style="display:inline-flex;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:4px 9px;font-size:12px;color:#1d4ed8">
+       📎 <a href="${f.link}" target="_blank" style="color:#1d4ed8;text-decoration:none">${f.name}</a>
+       <span onclick="removeChalFile(${i})" style="cursor:pointer;color:#dc2626;font-weight:700">×</span>
+     </span>`).join('');
+}
+function removeChalFile(i) { _chalFiles.splice(i, 1); renderChalFileChips(); }
+
+async function uploadChallengeFiles() {
+  const input = document.getElementById('chalFiles');
+  const files = [...(input.files || [])];
+  if (!files.length) return;
+  const err = document.getElementById('chalErr');
+  for (const file of files) {
+    if (file.size > 3.5 * 1024 * 1024) { err.textContent = `${file.name} 3MB se badi hai`; err.style.display = 'block'; continue; }
+    const b64 = await new Promise(res => {
+      const fr = new FileReader();
+      fr.onload = () => res(String(fr.result).split(',')[1] || '');
+      fr.readAsDataURL(file);
+    });
+    const r = await api('/api/challenges/upload-file', 'POST', { filename: file.name, mimeType: file.type, dataBase64: b64 });
+    if (r.error) { err.textContent = `${file.name}: ${r.error}`; err.style.display = 'block'; continue; }
+    _chalFiles.push({ name: file.name, link: r.link });
+  }
+  input.value = '';
+  renderChalFileChips();
+}
+
+async function saveChallenge() {
+  const err = document.getElementById('chalErr'); err.style.display = 'none';
+  const partyName = document.getElementById('chalParty').value.trim();
+  const description = document.getElementById('chalDesc').value.trim();
+  if (!partyName || !description) { err.textContent = 'Party name aur challenge description zaroori hai'; err.style.display = 'block'; return; }
+  const btn = document.getElementById('chalSaveBtn');
+  btn.disabled = true; btn.textContent = '⏳ Saving…';
+  const r = await api('/api/challenges', 'POST', {
+    partyName, description,
+    receivedDate: document.getElementById('chalReceived').value,
+    knownDate: document.getElementById('chalKnown').value,
+    responsibleTo: document.getElementById('chalResponsible').value,
+    priority: document.getElementById('chalPriority').value,
+    proposedResolution: document.getElementById('chalResolution').value.trim(),
+    files: _chalFiles
+  });
+  btn.disabled = false; btn.textContent = '💾 Submit Challenge';
+  if (r.error) { err.textContent = r.error; err.style.display = 'block'; return; }
+  showToast('✅ Challenge submit ho gaya');
+  toggleChallengeForm();
+  loadChallenges();
+}
+
+async function loadChallenges() {
+  document.getElementById('chalContent').innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Loading…</div>`;
+  // Responsible person dropdown
+  try {
+    const users = await api('/api/users');
+    if (Array.isArray(users)) {
+      document.getElementById('chalResponsible').innerHTML = '<option value="">-- Select person --</option>' +
+        users.map(u => `<option value="${u.id}">${(u.title ? u.title + ' ' : '') + titleName(u.name)}</option>`).join('');
+    }
+  } catch (e) {}
+  const data = await api('/api/challenges');
+  _challenges = Array.isArray(data) ? data : [];
+  renderChallenges();
+}
+
+function filterChallenges(status, el) {
+  _chalFilter = status;
+  document.querySelectorAll('#page-challenges .tab-group .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderChallenges();
+}
+
+async function updateChallengeStatus(id, status) {
+  const r = await api(`/api/challenges/${id}`, 'PUT', { status });
+  if (r.error) { showToast(r.error, 'error'); return; }
+  showToast('✅ Status update ho gaya');
+  loadChallenges();
+}
+
+async function deleteChallenge(id) {
+  if (!confirm('Ye challenge delete karna hai?')) return;
+  const r = await api(`/api/challenges/${id}`, 'DELETE');
+  if (r.error) { showToast(r.error, 'error'); return; }
+  showToast('Deleted');
+  loadChallenges();
+}
+
+function renderChallenges() {
+  const c = document.getElementById('chalContent');
+  const q = (document.getElementById('chalSearch')?.value || '').toLowerCase();
+  const list = _challenges.filter(x =>
+    (_chalFilter === 'all' || String(x.status) === _chalFilter) &&
+    (!q || (x.party_name || '').toLowerCase().includes(q) || (x.description || '').toLowerCase().includes(q)
+        || (x.responsibleName || '').toLowerCase().includes(q)));
+
+  if (!list.length) {
+    c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Koi challenge nahi mila</div>`;
+    return;
+  }
+  const isAdmin = ME.role === 'admin';
+  const pBadge = p => {
+    const col = p === 'high' ? ['#fef2f2','#dc2626','#fecaca'] : p === 'low' ? ['#f0fdf4','#16a34a','#bbf7d0'] : ['#fffbeb','#d97706','#fde68a'];
+    return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${col[0]};color:${col[1]};border:1px solid ${col[2]};text-transform:uppercase">${p || 'medium'}</span>`;
+  };
+
+  c.innerHTML = `<div style="font-size:12px;color:#64748b;margin-bottom:10px">${list.length} challenge(s)</div>` +
+    list.map(x => {
+      const st = CHAL_STATUS[x.status] || CHAL_STATUS.open;
+      let files = x.filesList || [];
+      if (!Array.isArray(files)) files = [];
+      return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:12px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:#1e293b">${x.party_name || '—'} ${pBadge(x.priority)}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:3px">
+              🕒 ${x.created_at || '—'} &nbsp;·&nbsp; by ${titleName(x.createdByName || '') || '—'}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;background:${st.bg};color:${st.color};border:1px solid ${st.border}">${st.label}</span>
+            <select onchange="updateChallengeStatus(${x.id}, this.value)" style="padding:5px 9px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;background:#fff;cursor:pointer;font-family:'Inter',sans-serif">
+              ${Object.entries(CHAL_STATUS).map(([k, v]) => `<option value="${k}"${x.status === k ? ' selected' : ''}>${v.label}</option>`).join('')}
+            </select>
+            ${isAdmin ? `<button class="action-btn delete" style="padding:4px 8px" onclick="deleteChallenge(${x.id})" title="Delete">🗑</button>` : ''}
+          </div>
+        </div>
+
+        <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:#64748b">
+          <span>📥 Received: <strong style="color:#1e293b">${fmtDate(x.received_date) || '—'}</strong></span>
+          <span>📅 Known: <strong style="color:#1e293b">${fmtDate(x.known_date) || '—'}</strong></span>
+          <span>👤 Responsible: <strong style="color:#1e293b">${titleName(x.responsibleName || '') || '—'}</strong></span>
+        </div>
+
+        <div style="margin-top:10px;font-size:13px;color:#1e293b"><strong style="color:#64748b;font-size:11px;text-transform:uppercase">Challenge</strong><div style="margin-top:3px">${x.description || '—'}</div></div>
+        ${x.proposed_resolution ? `<div style="margin-top:10px;font-size:13px;color:#1e293b"><strong style="color:#64748b;font-size:11px;text-transform:uppercase">Proposed Resolution</strong><div style="margin-top:3px">${x.proposed_resolution}</div></div>` : ''}
+        ${files.length ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${files.map(f =>
+          `<a href="${f.link}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:4px 9px;font-size:12px;color:#1d4ed8;text-decoration:none">📎 ${f.name}</a>`).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+}
 
 async function loadLeaves() {
   const list = document.getElementById('leavesList');

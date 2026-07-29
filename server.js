@@ -2785,6 +2785,97 @@ app.post('/api/fms-tasks/upload-file', requireAuth, async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════════════════
+// OPEN CHALLENGES — party challenge form + tracking
+// ══════════════════════════════════════════════════════
+const CHALLENGE_STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
+
+// File upload (challenges) — image / PDF / Excel / Word / CSV. Storage wahi
+// fms_files table + public /f/:id link (FMS wala flow chhua nahi gaya).
+app.post('/api/challenges/upload-file', requireAuth, async (req, res) => {
+  try {
+    const { filename, mimeType, dataBase64 } = req.body;
+    if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
+    const mt = String(mimeType || '').toLowerCase();
+    const okType = mt.startsWith('image/') || mt === 'application/pdf' ||
+      mt.includes('spreadsheet') || mt.includes('excel') || mt === 'text/csv' ||
+      mt.includes('word') || mt === 'application/msword' || mt === 'text/plain';
+    if (!okType) return res.status(400).json({ error: 'Sirf image, PDF, Excel, Word ya CSV allowed hai' });
+    const buffer = Buffer.from(dataBase64, 'base64');
+    if (!buffer.length) return res.status(400).json({ error: 'File data empty hai' });
+    if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'File 3MB se badi hai — chhoti file upload karein' });
+
+    const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
+    const pool = await fmsFilesPool();
+    const fileId = require('crypto').randomBytes(18).toString('base64url');
+    await pool.query('INSERT INTO fms_files (id, filename, mime, data) VALUES ($1,$2,$3,$4)', [fileId, safeName, mt, buffer]);
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    res.json({ success: true, link: `${proto}://${req.get('host')}/f/${fileId}`, name: filename });
+  } catch (err) {
+    console.error('Challenge file upload FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List — sab challenges (naye pehle), responsible person ka naam ke saath
+app.get('/api/challenges', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT c.*, u.name AS responsibleName, u2.name AS createdByName
+       FROM challenges c
+       LEFT JOIN users u ON c.responsible_to = u.id
+       LEFT JOIN users u2 ON c.created_by = u2.id
+       ORDER BY c.id DESC`);
+    for (const r of rows) {
+      try { r.filesList = JSON.parse(r.files || '[]') || []; } catch (e) { r.filesList = []; }
+    }
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Create — form submit
+app.post('/api/challenges', requireAuth, async (req, res) => {
+  try {
+    const { partyName, receivedDate, knownDate, description, responsibleTo, priority, proposedResolution, files } = req.body;
+    if (!partyName || !description) return res.status(400).json({ error: 'Party name aur challenge description zaroori hai' });
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');   // auto timestamp
+    const filesJson = JSON.stringify(Array.isArray(files) ? files : []);
+    await db.query(
+      `INSERT INTO challenges (party_name,received_date,known_date,description,responsible_to,priority,proposed_resolution,status,files,created_by,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [partyName, receivedDate || '', knownDate || '', description, responsibleTo || '', priority || 'medium',
+       proposedResolution || '', 'open', filesJson, req.session.userId, now, now]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Update — status/resolution/details/files
+app.put('/api/challenges/:id', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM challenges WHERE id=?', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Challenge not found' });
+    const c = rows[0];
+    const b = req.body || {};
+    if (b.status && !CHALLENGE_STATUSES.includes(b.status)) return res.status(400).json({ error: 'Invalid status' });
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const filesJson = b.files !== undefined ? JSON.stringify(Array.isArray(b.files) ? b.files : []) : (c.files || '[]');
+    await db.query(
+      `UPDATE challenges SET party_name=?,received_date=?,known_date=?,description=?,responsible_to=?,priority=?,proposed_resolution=?,status=?,files=?,updated_at=? WHERE id=?`,
+      [b.partyName ?? c.party_name, b.receivedDate ?? c.received_date, b.knownDate ?? c.known_date,
+       b.description ?? c.description, b.responsibleTo ?? c.responsible_to, b.priority ?? c.priority,
+       b.proposedResolution ?? c.proposed_resolution, b.status ?? c.status, filesJson, now, req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Delete — admin only
+app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await db.query('DELETE FROM challenges WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Public file serve — sheet ke link se photo/PDF khulta hai (random unguessable id, isliye no auth)
 app.get('/f/:id', async (req, res) => {
   try {
