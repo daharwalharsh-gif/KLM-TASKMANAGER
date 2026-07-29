@@ -2747,7 +2747,7 @@ app.post('/api/fms-tasks/upload-file', requireAuth, async (req, res) => {
     if (!mt.startsWith('image/') && mt !== 'application/pdf') return res.status(400).json({ error: 'Sirf image ya PDF allowed hai' });
     const buffer = Buffer.from(dataBase64, 'base64');
     if (!buffer.length) return res.status(400).json({ error: 'File data empty hai' });
-    if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'File 3MB se badi hai — chhoti file upload karein' });
+    if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'File is larger than 3MB — please upload a smaller file' });
 
     const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
 
@@ -2800,10 +2800,10 @@ app.post('/api/challenges/upload-file', requireAuth, async (req, res) => {
     const okType = mt.startsWith('image/') || mt === 'application/pdf' ||
       mt.includes('spreadsheet') || mt.includes('excel') || mt === 'text/csv' ||
       mt.includes('word') || mt === 'application/msword' || mt === 'text/plain';
-    if (!okType) return res.status(400).json({ error: 'Sirf image, PDF, Excel, Word ya CSV allowed hai' });
+    if (!okType) return res.status(400).json({ error: 'Only image, PDF, Excel, Word or CSV files are allowed' });
     const buffer = Buffer.from(dataBase64, 'base64');
     if (!buffer.length) return res.status(400).json({ error: 'File data empty hai' });
-    if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'File 3MB se badi hai — chhoti file upload karein' });
+    if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'File is larger than 3MB — please upload a smaller file' });
 
     const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
     const pool = await fmsFilesPool();
@@ -2837,7 +2837,7 @@ app.get('/api/challenges', requireAuth, async (req, res) => {
 app.post('/api/challenges', requireAuth, async (req, res) => {
   try {
     const { partyName, receivedDate, knownDate, description, responsibleTo, priority, proposedResolution, files } = req.body;
-    if (!partyName || !description) return res.status(400).json({ error: 'Party name aur challenge description zaroori hai' });
+    if (!partyName || !description) return res.status(400).json({ error: 'Party Name and Challenge description are required' });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');   // auto timestamp
     const filesJson = JSON.stringify(Array.isArray(files) ? files : []);
     await db.query(

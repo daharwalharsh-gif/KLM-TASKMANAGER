@@ -526,7 +526,7 @@ tbody tr:last-child td{border-bottom:none;}
       <span class="nav-label-text">Leave Tracker</span>
     </div>
     <div class="nav-item" id="nav-challenges" onclick="navigate('challenges',this)">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.72-3l-6.93-12a2 2 0 00-3.44 0l-6.93 12a2 2 0 001.72 3z"/></svg>
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
       <span class="nav-label-text">Open Challenges</span>
     </div>
     <div class="nav-divider"></div>
@@ -1197,86 +1197,124 @@ tbody tr:last-child td{border-bottom:none;}
   <!-- ══════════════════════════════════════
        OPEN CHALLENGES FORM
   ══════════════════════════════════════ -->
+  <style>
+    /* Open Challenges — form card (gradient header + structured grid) */
+    .chal-card{background:#fff;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 10px 30px rgba(30,58,138,.08);overflow:hidden;margin-bottom:20px}
+    .chal-card-head{background:linear-gradient(120deg,#1e3a8a 0%,#2563eb 100%);padding:22px 26px;text-align:center}
+    .chal-card-title{font-size:24px;font-weight:800;color:#fff;letter-spacing:.2px}
+    .chal-card-sub{font-size:13px;color:#dbeafe;margin-top:5px}
+    .chal-card-body{padding:24px 26px 20px}
+    .chal-grid{display:grid;gap:16px 20px;margin-bottom:18px}
+    .chal-grid-3{grid-template-columns:repeat(3,1fr)}
+    .chal-grid-2{grid-template-columns:repeat(2,1fr)}
+    .chal-field label{display:block;font-size:13px;font-weight:600;color:#334155;margin-bottom:6px}
+    .chal-req{color:#dc2626}
+    .chal-hint{color:#94a3b8;font-weight:400;font-size:11px}
+    .chal-field input[type=text],.chal-field input[type=date],.chal-field select,.chal-field textarea{
+      width:100%;padding:11px 13px;border:1.5px solid #e2e8f0;border-radius:10px;background:#f8fafc;
+      font-size:13.5px;font-family:'Inter',sans-serif;color:#1e293b;outline:none;box-sizing:border-box;transition:border .15s,background .15s}
+    .chal-field input:focus,.chal-field select:focus,.chal-field textarea:focus{border-color:#2563eb;background:#fff}
+    .chal-field textarea{min-height:92px;resize:vertical}
+    .chal-field select{cursor:pointer}
+    .chal-readonly{background:#f1f5f9!important;color:#64748b!important;cursor:not-allowed}
+    .chal-file{width:100%;padding:10px 12px;border:1.5px dashed #cbd5e1;border-radius:10px;background:#f8fafc;font-size:13px;box-sizing:border-box}
+    .chal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;padding-top:16px;border-top:1px solid #f1f5f9}
+    @media (max-width:900px){ .chal-grid-3,.chal-grid-2{grid-template-columns:1fr} .chal-card-title{font-size:20px} .chal-card-body{padding:18px} }
+  </style>
   <div id="page-challenges" class="page">
     <div class="page-header">
-      <h2>⚠️ Open Challenges Form</h2>
-      <button class="btn btn-primary" onclick="toggleChallengeForm()" id="chalToggleBtn">+ New Challenge</button>
+      <h2>Open Challenges</h2>
     </div>
 
-    <!-- FORM -->
-    <div id="chalFormWrap" style="display:none;background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:20px;margin-bottom:18px">
-      <div class="alert error" id="chalErr" style="display:none"></div>
-      <div style="font-size:12px;color:#64748b;margin-bottom:14px">Timestamp apne aap record hota hai — aapko bharne ki zaroorat nahi.</div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Party Name *</label>
-          <input type="text" id="chalParty" placeholder="Party ka naam"/>
-        </div>
-        <div class="form-group">
-          <label>Responsible Person</label>
-          <select id="chalResponsible"><option value="">-- Select person --</option></select>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Challenge Received Date</label>
-          <input type="date" id="chalReceived"/>
-        </div>
-        <div class="form-group">
-          <label>Challenge Known Date</label>
-          <input type="date" id="chalKnown"/>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Priority</label>
-          <select id="chalPriority">
-            <option value="low">Low</option>
-            <option value="medium" selected>Medium</option>
-            <option value="high">High</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Describe the Challenge *</label>
-        <textarea id="chalDesc" placeholder="Challenge kya hai…" style="min-height:70px"></textarea>
-      </div>
-
-      <div class="form-group">
-        <label>Proposed Resolution</label>
-        <textarea id="chalResolution" placeholder="Kya solution socha hai…" style="min-height:60px"></textarea>
-      </div>
-
-      <div class="form-group">
-        <label>Supporting Files <span style="color:#94a3b8;font-weight:400;font-size:11px">(photo, PDF, Excel, Word — max 3MB each)</span></label>
-        <input type="file" id="chalFiles" multiple accept="image/*,application/pdf,.xls,.xlsx,.csv,.doc,.docx"
-          onchange="uploadChallengeFiles()" style="font-size:13px"/>
-        <div id="chalFileList" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"></div>
-      </div>
-
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-        <button class="btn btn-outline" onclick="toggleChallengeForm()">Cancel</button>
-        <button class="btn btn-primary" onclick="saveChallenge()" id="chalSaveBtn">💾 Submit Challenge</button>
-      </div>
-    </div>
-
-    <!-- STATUS TABS + LIST -->
-    <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+    <!-- Sirf 2 tabs: Form Entry | Completed -->
+    <div style="display:flex;gap:8px;margin-bottom:16px">
       <div class="tab-group">
-        <div class="tab active" id="chalTabAll" onclick="filterChallenges('all',this)">All</div>
-        <div class="tab" id="chalTabOpen" onclick="filterChallenges('open',this)">Open</div>
-        <div class="tab" id="chalTabProg" onclick="filterChallenges('in_progress',this)">In Progress</div>
-        <div class="tab" id="chalTabRes" onclick="filterChallenges('resolved',this)">Resolved</div>
-        <div class="tab" id="chalTabClosed" onclick="filterChallenges('closed',this)">Closed</div>
+        <div class="tab active" id="chalTabForm" onclick="challengeTab('form',this)">📝 Form Entry</div>
+        <div class="tab" id="chalTabDone" onclick="challengeTab('completed',this)">✅ Completed</div>
       </div>
-      <input type="text" id="chalSearch" placeholder="🔍 Search party / description…" oninput="renderChallenges()"
-        style="margin-left:auto;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:230px"/>
     </div>
-    <div id="chalContent"></div>
+
+    <!-- FORM — gradient header card (structured) -->
+    <div id="chalFormWrap" class="chal-card">
+      <div class="chal-card-head">
+        <div class="chal-card-title">Open Challenges Form</div>
+        <div class="chal-card-sub">Fill the details below and submit the challenge.</div>
+      </div>
+
+      <div class="chal-card-body">
+        <div class="alert error" id="chalErr" style="display:none"></div>
+
+        <!-- Row 1 -->
+        <div class="chal-grid chal-grid-3">
+          <div class="chal-field">
+            <label>Timestamp</label>
+            <input type="text" id="chalTimestamp" readonly class="chal-readonly"/>
+          </div>
+          <div class="chal-field">
+            <label>Party Name <span class="chal-req">*</span></label>
+            <input type="text" id="chalParty" placeholder="Enter party name"/>
+          </div>
+          <div class="chal-field">
+            <label>Responsible Person</label>
+            <select id="chalResponsible"><option value="">Select person</option></select>
+          </div>
+        </div>
+
+        <!-- Row 2 -->
+        <div class="chal-grid chal-grid-3">
+          <div class="chal-field">
+            <label>Challenge Received Date</label>
+            <input type="date" id="chalReceived"/>
+          </div>
+          <div class="chal-field">
+            <label>Challenge Known Date</label>
+            <input type="date" id="chalKnown"/>
+          </div>
+          <div class="chal-field">
+            <label>Priority</label>
+            <select id="chalPriority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Row 3 -->
+        <div class="chal-grid chal-grid-2">
+          <div class="chal-field">
+            <label>Describe the Challenge <span class="chal-req">*</span></label>
+            <textarea id="chalDesc" placeholder="Describe the challenge…"></textarea>
+          </div>
+          <div class="chal-field">
+            <label>Proposed Resolution</label>
+            <textarea id="chalResolution" placeholder="Enter proposed resolution…"></textarea>
+          </div>
+        </div>
+
+        <!-- Row 4 — files -->
+        <div class="chal-field" style="margin-bottom:4px">
+          <label>Supporting Files <span class="chal-hint">(photo, PDF, Excel, Word — max 3MB each)</span></label>
+          <input type="file" id="chalFiles" multiple accept="image/*,application/pdf,.xls,.xlsx,.csv,.doc,.docx"
+            onchange="uploadChallengeFiles()" class="chal-file"/>
+          <div id="chalFileList" style="margin-top:9px;display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+
+        <div class="chal-actions">
+          <button class="btn btn-outline" onclick="resetChallengeForm()">Clear</button>
+          <button class="btn btn-primary" onclick="saveChallenge()" id="chalSaveBtn">💾 Submit Challenge</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPLETED (submitted challenges) -->
+    <div id="chalListWrap" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="chalSearch" placeholder="🔍 Search party / description / person…" oninput="renderChallenges()"
+          style="margin-left:auto;padding:9px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:260px"/>
+      </div>
+      <div id="chalContent"></div>
+    </div>
   </div>
 
 </div>
@@ -2622,7 +2660,6 @@ const LEAVE_TYPES = {
 // OPEN CHALLENGES FORM
 // ══════════════════════════════════════════════════════
 let _challenges = [];
-let _chalFilter = 'all';
 let _chalFiles = [];          // form me abhi attach ki hui files [{name, link}]
 const CHAL_STATUS = {
   open:        { label:'Open',        bg:'#fef2f2', color:'#dc2626', border:'#fecaca' },
@@ -2631,12 +2668,14 @@ const CHAL_STATUS = {
   closed:      { label:'Closed',      bg:'#f0fdf4', color:'#16a34a', border:'#bbf7d0' }
 };
 
-function toggleChallengeForm() {
-  const w = document.getElementById('chalFormWrap');
-  const open = w.style.display === 'none';
-  w.style.display = open ? '' : 'none';
-  document.getElementById('chalToggleBtn').textContent = open ? '✕ Close Form' : '+ New Challenge';
-  if (open) resetChallengeForm();
+// Sirf 2 tabs — Form Entry aur Completed
+function challengeTab(which, el) {
+  document.querySelectorAll('#page-challenges .tab-group .tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const isForm = which === 'form';
+  document.getElementById('chalFormWrap').style.display = isForm ? '' : 'none';
+  document.getElementById('chalListWrap').style.display = isForm ? 'none' : '';
+  if (!isForm) renderChallenges();
 }
 
 function resetChallengeForm() {
@@ -2645,6 +2684,9 @@ function resetChallengeForm() {
   document.getElementById('chalResponsible').value = '';
   document.getElementById('chalFiles').value = '';
   document.getElementById('chalErr').style.display = 'none';
+  // Timestamp apne aap (readonly) — submit par server ka time save hota hai
+  const ts = document.getElementById('chalTimestamp');
+  if (ts) ts.value = new Date().toLocaleString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
   _chalFiles = [];
   renderChalFileChips();
 }
@@ -2664,7 +2706,7 @@ async function uploadChallengeFiles() {
   if (!files.length) return;
   const err = document.getElementById('chalErr');
   for (const file of files) {
-    if (file.size > 3.5 * 1024 * 1024) { err.textContent = `${file.name} 3MB se badi hai`; err.style.display = 'block'; continue; }
+    if (file.size > 3.5 * 1024 * 1024) { err.textContent = `${file.name} is larger than 3MB`; err.style.display = 'block'; continue; }
     const b64 = await new Promise(res => {
       const fr = new FileReader();
       fr.onload = () => res(String(fr.result).split(',')[1] || '');
@@ -2682,7 +2724,7 @@ async function saveChallenge() {
   const err = document.getElementById('chalErr'); err.style.display = 'none';
   const partyName = document.getElementById('chalParty').value.trim();
   const description = document.getElementById('chalDesc').value.trim();
-  if (!partyName || !description) { err.textContent = 'Party name aur challenge description zaroori hai'; err.style.display = 'block'; return; }
+  if (!partyName || !description) { err.textContent = 'Party Name and Challenge description are required'; err.style.display = 'block'; return; }
   const btn = document.getElementById('chalSaveBtn');
   btn.disabled = true; btn.textContent = '⏳ Saving…';
   const r = await api('/api/challenges', 'POST', {
@@ -2696,18 +2738,20 @@ async function saveChallenge() {
   });
   btn.disabled = false; btn.textContent = '💾 Submit Challenge';
   if (r.error) { err.textContent = r.error; err.style.display = 'block'; return; }
-  showToast('✅ Challenge submit ho gaya');
-  toggleChallengeForm();
-  loadChallenges();
+  showToast('✅ Challenge submitted successfully');
+  resetChallengeForm();
+  await loadChallenges();
+  challengeTab('completed', document.getElementById('chalTabDone'));  // seedha Completed dikhao
 }
 
 async function loadChallenges() {
   document.getElementById('chalContent').innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Loading…</div>`;
+  resetChallengeForm();   // timestamp set + form khaali
   // Responsible person dropdown
   try {
     const users = await api('/api/users');
     if (Array.isArray(users)) {
-      document.getElementById('chalResponsible').innerHTML = '<option value="">-- Select person --</option>' +
+      document.getElementById('chalResponsible').innerHTML = '<option value="">Select person</option>' +
         users.map(u => `<option value="${u.id}">${(u.title ? u.title + ' ' : '') + titleName(u.name)}</option>`).join('');
     }
   } catch (e) {}
@@ -2716,22 +2760,16 @@ async function loadChallenges() {
   renderChallenges();
 }
 
-function filterChallenges(status, el) {
-  _chalFilter = status;
-  document.querySelectorAll('#page-challenges .tab-group .tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  renderChallenges();
-}
 
 async function updateChallengeStatus(id, status) {
   const r = await api(`/api/challenges/${id}`, 'PUT', { status });
   if (r.error) { showToast(r.error, 'error'); return; }
-  showToast('✅ Status update ho gaya');
+  showToast('✅ Status updated');
   loadChallenges();
 }
 
 async function deleteChallenge(id) {
-  if (!confirm('Ye challenge delete karna hai?')) return;
+  if (!confirm('Delete this challenge?')) return;
   const r = await api(`/api/challenges/${id}`, 'DELETE');
   if (r.error) { showToast(r.error, 'error'); return; }
   showToast('Deleted');
@@ -2742,12 +2780,11 @@ function renderChallenges() {
   const c = document.getElementById('chalContent');
   const q = (document.getElementById('chalSearch')?.value || '').toLowerCase();
   const list = _challenges.filter(x =>
-    (_chalFilter === 'all' || String(x.status) === _chalFilter) &&
-    (!q || (x.party_name || '').toLowerCase().includes(q) || (x.description || '').toLowerCase().includes(q)
-        || (x.responsibleName || '').toLowerCase().includes(q)));
+    !q || (x.party_name || '').toLowerCase().includes(q) || (x.description || '').toLowerCase().includes(q)
+       || (x.responsibleName || '').toLowerCase().includes(q));
 
   if (!list.length) {
-    c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Koi challenge nahi mila</div>`;
+    c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">No challenges found</div>`;
     return;
   }
   const isAdmin = ME.role === 'admin';
