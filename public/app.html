@@ -1226,10 +1226,11 @@ tbody tr:last-child td{border-bottom:none;}
       <h2>Open Challenges</h2>
     </div>
 
-    <!-- Sirf 2 tabs: Form Entry | Completed -->
+    <!-- Tabs: Form Entry | Pending | Completed -->
     <div style="display:flex;gap:8px;margin-bottom:16px">
       <div class="tab-group">
         <div class="tab active" id="chalTabForm" onclick="challengeTab('form',this)">📝 Form Entry</div>
+        <div class="tab" id="chalTabPending" onclick="challengeTab('pending',this)">⏳ Pending</div>
         <div class="tab" id="chalTabDone" onclick="challengeTab('completed',this)">✅ Completed</div>
       </div>
     </div>
@@ -1237,7 +1238,7 @@ tbody tr:last-child td{border-bottom:none;}
     <!-- FORM — gradient header card (structured) -->
     <div id="chalFormWrap" class="chal-card">
       <div class="chal-card-head">
-        <div class="chal-card-title">Open Challenges Form</div>
+        <div class="chal-card-title">Invincible Offline Open Challenges Form</div>
         <div class="chal-card-sub">Fill the details below and submit the challenge.</div>
       </div>
 
@@ -1255,13 +1256,17 @@ tbody tr:last-child td{border-bottom:none;}
             <input type="text" id="chalParty" placeholder="Enter party name"/>
           </div>
           <div class="chal-field">
-            <label>Responsible Person</label>
-            <select id="chalResponsible"><option value="">Select person</option></select>
+            <label>CRM</label>
+            <input type="text" id="chalCrm" value="CRM" readonly class="chal-readonly"/>
           </div>
         </div>
 
         <!-- Row 2 -->
         <div class="chal-grid chal-grid-3">
+          <div class="chal-field">
+            <label>Right Person</label>
+            <select id="chalRightPerson"><option value="">Select person</option></select>
+          </div>
           <div class="chal-field">
             <label>Challenge Received Date</label>
             <input type="date" id="chalReceived"/>
@@ -1270,6 +1275,10 @@ tbody tr:last-child td{border-bottom:none;}
             <label>Challenge Known Date</label>
             <input type="date" id="chalKnown"/>
           </div>
+        </div>
+
+        <!-- Row 3 -->
+        <div class="chal-grid chal-grid-3">
           <div class="chal-field">
             <label>Priority</label>
             <select id="chalPriority">
@@ -1307,13 +1316,41 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
 
-    <!-- COMPLETED (submitted challenges) -->
+    <!-- PENDING / COMPLETED list -->
     <div id="chalListWrap" style="display:none">
       <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
         <input type="text" id="chalSearch" placeholder="🔍 Search party / description / person…" oninput="renderChallenges()"
           style="margin-left:auto;padding:9px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:260px"/>
       </div>
       <div id="chalContent"></div>
+    </div>
+  </div>
+
+  <!-- MARK DONE MODAL — remarks + supporting files -->
+  <div class="modal-overlay" id="chalDoneModal">
+    <div class="modal" style="max-width:560px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px">
+        <h3 style="margin:0">✅ Mark Done</h3>
+        <button class="btn btn-outline" onclick="closeModal('chalDoneModal')" style="flex-shrink:0">✕ Close</button>
+      </div>
+      <div class="alert error" id="chalDoneErr" style="display:none"></div>
+      <input type="hidden" id="chalDoneId"/>
+      <div style="font-size:13px;color:#64748b;margin-bottom:12px" id="chalDoneParty"></div>
+
+      <div class="chal-field" style="margin-bottom:14px">
+        <label>Remarks <span class="chal-req">*</span></label>
+        <textarea id="chalDoneRemarks" placeholder="How was this challenge resolved…"></textarea>
+      </div>
+      <div class="chal-field">
+        <label>Supporting Files <span class="chal-hint">(photo, PDF, Excel, Word — max 3MB each)</span></label>
+        <input type="file" id="chalDoneFiles" multiple accept="image/*,application/pdf,.xls,.xlsx,.csv,.doc,.docx"
+          onchange="uploadChallengeDoneFiles()" class="chal-file"/>
+        <div id="chalDoneFileList" style="margin-top:9px;display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="submitChallengeDone()" id="chalDoneBtn">✅ Mark as Done</button>
+      </div>
     </div>
   </div>
 
@@ -2662,14 +2699,14 @@ const LEAVE_TYPES = {
 let _challenges = [];
 let _chalFiles = [];          // form me abhi attach ki hui files [{name, link}]
 const CHAL_STATUS = {
-  open:        { label:'Open',        bg:'#fef2f2', color:'#dc2626', border:'#fecaca' },
-  in_progress: { label:'In Progress', bg:'#fffbeb', color:'#d97706', border:'#fde68a' },
-  resolved:    { label:'Resolved',    bg:'#eff6ff', color:'#1d4ed8', border:'#bfdbfe' },
-  closed:      { label:'Closed',      bg:'#f0fdf4', color:'#16a34a', border:'#bbf7d0' }
+  pending:   { label:'Pending',   bg:'#fffbeb', color:'#d97706', border:'#fde68a' },
+  completed: { label:'Completed', bg:'#f0fdf4', color:'#16a34a', border:'#bbf7d0' }
 };
 
-// Sirf 2 tabs — Form Entry aur Completed
+// Tabs — Form Entry | Pending | Completed
+let _chalView = 'form';
 function challengeTab(which, el) {
+  _chalView = which;
   document.querySelectorAll('#page-challenges .tab-group .tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
   const isForm = which === 'form';
@@ -2681,7 +2718,7 @@ function challengeTab(which, el) {
 function resetChallengeForm() {
   ['chalParty','chalReceived','chalKnown','chalDesc','chalResolution'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('chalPriority').value = 'medium';
-  document.getElementById('chalResponsible').value = '';
+  document.getElementById('chalRightPerson').value = '';
   document.getElementById('chalFiles').value = '';
   document.getElementById('chalErr').style.display = 'none';
   // Timestamp apne aap (readonly) — submit par server ka time save hota hai
@@ -2731,7 +2768,7 @@ async function saveChallenge() {
     partyName, description,
     receivedDate: document.getElementById('chalReceived').value,
     knownDate: document.getElementById('chalKnown').value,
-    responsibleTo: document.getElementById('chalResponsible').value,
+    rightPerson: document.getElementById('chalRightPerson').value,
     priority: document.getElementById('chalPriority').value,
     proposedResolution: document.getElementById('chalResolution').value.trim(),
     files: _chalFiles
@@ -2741,7 +2778,56 @@ async function saveChallenge() {
   showToast('✅ Challenge submitted successfully');
   resetChallengeForm();
   await loadChallenges();
-  challengeTab('completed', document.getElementById('chalTabDone'));  // seedha Completed dikhao
+  challengeTab('pending', document.getElementById('chalTabPending'));  // submit ke baad Pending me dikhta hai
+}
+
+// ── MARK DONE (remarks + files) ──
+let _chalDoneFiles = [];
+function openChallengeDone(id, party) {
+  document.getElementById('chalDoneId').value = id;
+  document.getElementById('chalDoneParty').textContent = party ? `Party: ${party}` : '';
+  document.getElementById('chalDoneRemarks').value = '';
+  document.getElementById('chalDoneFiles').value = '';
+  document.getElementById('chalDoneErr').style.display = 'none';
+  _chalDoneFiles = [];
+  renderChalDoneChips();
+  document.getElementById('chalDoneModal').classList.add('open');
+}
+function renderChalDoneChips() {
+  document.getElementById('chalDoneFileList').innerHTML = _chalDoneFiles.map((f, i) =>
+    `<span style="display:inline-flex;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:4px 9px;font-size:12px;color:#1d4ed8">
+       📎 <a href="${f.link}" target="_blank" style="color:#1d4ed8;text-decoration:none">${f.name}</a>
+       <span onclick="_chalDoneFiles.splice(${i},1);renderChalDoneChips()" style="cursor:pointer;color:#dc2626;font-weight:700">×</span>
+     </span>`).join('');
+}
+async function uploadChallengeDoneFiles() {
+  const input = document.getElementById('chalDoneFiles');
+  const files = [...(input.files || [])];
+  const err = document.getElementById('chalDoneErr');
+  for (const file of files) {
+    if (file.size > 3.5 * 1024 * 1024) { err.textContent = `${file.name} is larger than 3MB`; err.style.display = 'block'; continue; }
+    const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.readAsDataURL(file); });
+    const r = await api('/api/challenges/upload-file', 'POST', { filename: file.name, mimeType: file.type, dataBase64: b64 });
+    if (r.error) { err.textContent = `${file.name}: ${r.error}`; err.style.display = 'block'; continue; }
+    _chalDoneFiles.push({ name: file.name, link: r.link });
+  }
+  input.value = '';
+  renderChalDoneChips();
+}
+async function submitChallengeDone() {
+  const err = document.getElementById('chalDoneErr'); err.style.display = 'none';
+  const id = document.getElementById('chalDoneId').value;
+  const remarks = document.getElementById('chalDoneRemarks').value.trim();
+  if (!remarks) { err.textContent = 'Remarks are required'; err.style.display = 'block'; return; }
+  const btn = document.getElementById('chalDoneBtn');
+  btn.disabled = true; btn.textContent = '⏳ Saving…';
+  const r = await api(`/api/challenges/${id}/done`, 'POST', { remarks, files: _chalDoneFiles });
+  btn.disabled = false; btn.textContent = '✅ Mark as Done';
+  if (r.error) { err.textContent = r.error; err.style.display = 'block'; return; }
+  closeModal('chalDoneModal');
+  showToast('✅ Challenge marked as done');
+  await loadChallenges();
+  challengeTab('completed', document.getElementById('chalTabDone'));
 }
 
 async function loadChallenges() {
@@ -2751,7 +2837,7 @@ async function loadChallenges() {
   try {
     const users = await api('/api/users');
     if (Array.isArray(users)) {
-      document.getElementById('chalResponsible').innerHTML = '<option value="">Select person</option>' +
+      document.getElementById('chalRightPerson').innerHTML = '<option value="">Select person</option>' +
         users.map(u => `<option value="${u.id}">${(u.title ? u.title + ' ' : '') + titleName(u.name)}</option>`).join('');
     }
   } catch (e) {}
@@ -2760,13 +2846,6 @@ async function loadChallenges() {
   renderChallenges();
 }
 
-
-async function updateChallengeStatus(id, status) {
-  const r = await api(`/api/challenges/${id}`, 'PUT', { status });
-  if (r.error) { showToast(r.error, 'error'); return; }
-  showToast('✅ Status updated');
-  loadChallenges();
-}
 
 async function deleteChallenge(id) {
   if (!confirm('Delete this challenge?')) return;
@@ -2779,12 +2858,15 @@ async function deleteChallenge(id) {
 function renderChallenges() {
   const c = document.getElementById('chalContent');
   const q = (document.getElementById('chalSearch')?.value || '').toLowerCase();
+  // Pending tab -> jo done nahi hue; Completed tab -> jo done ho gaye
+  const wantStatus = _chalView === 'completed' ? 'completed' : 'pending';
   const list = _challenges.filter(x =>
-    !q || (x.party_name || '').toLowerCase().includes(q) || (x.description || '').toLowerCase().includes(q)
-       || (x.responsibleName || '').toLowerCase().includes(q));
+    String(x.status || 'pending') === wantStatus &&
+    (!q || (x.party_name || '').toLowerCase().includes(q) || (x.description || '').toLowerCase().includes(q)
+        || (x.responsibleName || '').toLowerCase().includes(q)));
 
   if (!list.length) {
-    c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">No challenges found</div>`;
+    c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">No ${wantStatus} challenges</div>`;
     return;
   }
   const isAdmin = ME.role === 'admin';
@@ -2795,9 +2877,12 @@ function renderChallenges() {
 
   c.innerHTML = `<div style="font-size:12px;color:#64748b;margin-bottom:10px">${list.length} challenge(s)</div>` +
     list.map(x => {
-      const st = CHAL_STATUS[x.status] || CHAL_STATUS.open;
-      let files = x.filesList || [];
-      if (!Array.isArray(files)) files = [];
+      const st = CHAL_STATUS[x.status] || CHAL_STATUS.pending;
+      const files = Array.isArray(x.filesList) ? x.filesList : [];
+      const doneFiles = Array.isArray(x.doneFilesList) ? x.doneFilesList : [];
+      const isDone = String(x.status) === 'completed';
+      const chip = f => `<a href="${f.link}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:4px 9px;font-size:12px;color:#1d4ed8;text-decoration:none">📎 ${f.name}</a>`;
+      const partyEsc = String(x.party_name || '').replace(/'/g, "\\'");
       return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:12px">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
@@ -2808,9 +2893,7 @@ function renderChallenges() {
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;background:${st.bg};color:${st.color};border:1px solid ${st.border}">${st.label}</span>
-            <select onchange="updateChallengeStatus(${x.id}, this.value)" style="padding:5px 9px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;background:#fff;cursor:pointer;font-family:'Inter',sans-serif">
-              ${Object.entries(CHAL_STATUS).map(([k, v]) => `<option value="${k}"${x.status === k ? ' selected' : ''}>${v.label}</option>`).join('')}
-            </select>
+            ${!isDone ? `<button class="btn btn-primary" style="padding:6px 13px;font-size:12px" onclick="openChallengeDone(${x.id},'${partyEsc}')">✅ Mark Done</button>` : ''}
             ${isAdmin ? `<button class="action-btn delete" style="padding:4px 8px" onclick="deleteChallenge(${x.id})" title="Delete">🗑</button>` : ''}
           </div>
         </div>
@@ -2818,13 +2901,19 @@ function renderChallenges() {
         <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:#64748b">
           <span>📥 Received: <strong style="color:#1e293b">${fmtDate(x.received_date) || '—'}</strong></span>
           <span>📅 Known: <strong style="color:#1e293b">${fmtDate(x.known_date) || '—'}</strong></span>
-          <span>👤 Responsible: <strong style="color:#1e293b">${titleName(x.responsibleName || '') || '—'}</strong></span>
+          <span>🏷️ CRM: <strong style="color:#1e293b">${x.crm || 'CRM'}</strong></span>
+          <span>👤 Right Person: <strong style="color:#1e293b">${titleName(x.responsibleName || '') || '—'}</strong></span>
         </div>
 
         <div style="margin-top:10px;font-size:13px;color:#1e293b"><strong style="color:#64748b;font-size:11px;text-transform:uppercase">Challenge</strong><div style="margin-top:3px">${x.description || '—'}</div></div>
         ${x.proposed_resolution ? `<div style="margin-top:10px;font-size:13px;color:#1e293b"><strong style="color:#64748b;font-size:11px;text-transform:uppercase">Proposed Resolution</strong><div style="margin-top:3px">${x.proposed_resolution}</div></div>` : ''}
-        ${files.length ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${files.map(f =>
-          `<a href="${f.link}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:4px 9px;font-size:12px;color:#1d4ed8;text-decoration:none">📎 ${f.name}</a>`).join('')}</div>` : ''}
+        ${files.length ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">${files.map(chip).join('')}</div>` : ''}
+
+        ${isDone ? `<div style="margin-top:12px;padding-top:12px;border-top:1px dashed #e2e8f0">
+          <div style="font-size:11px;font-weight:700;color:#16a34a;text-transform:uppercase">✅ Done ${x.done_at ? '· ' + x.done_at : ''} ${x.doneByName ? '· by ' + titleName(x.doneByName) : ''}</div>
+          ${x.done_remarks ? `<div style="margin-top:5px;font-size:13px;color:#1e293b">${x.done_remarks}</div>` : ''}
+          ${doneFiles.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">${doneFiles.map(chip).join('')}</div>` : ''}
+        </div>` : ''}
       </div>`;
     }).join('');
 }

@@ -83,7 +83,7 @@ const SCHEMA = {
   },
   // Open Challenges — party ki challenge, responsible person + resolution tracking
   challenges: {
-    cols: ['id','party_name','received_date','known_date','description','responsible_to','priority','proposed_resolution','status','files','created_by','created_at','updated_at'],
+    cols: ['id','party_name','received_date','known_date','description','crm','responsible_to','priority','proposed_resolution','status','files','done_remarks','done_files','done_at','done_by','created_by','created_at','updated_at'],
     autoFill: { created_at: 'NOW', updated_at: 'NOW' }
   }
 };

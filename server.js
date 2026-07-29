@@ -2788,7 +2788,8 @@ app.post('/api/fms-tasks/upload-file', requireAuth, async (req, res) => {
 // ══════════════════════════════════════════════════════
 // OPEN CHALLENGES — party challenge form + tracking
 // ══════════════════════════════════════════════════════
-const CHALLENGE_STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
+// Do hi state: form submit -> pending, Mark Done ke baad -> completed
+const CHALLENGE_STATUSES = ['pending', 'completed'];
 
 // File upload (challenges) — image / PDF / Excel / Word / CSV. Storage wahi
 // fms_files table + public /f/:id link (FMS wala flow chhua nahi gaya).
@@ -2821,13 +2822,15 @@ app.post('/api/challenges/upload-file', requireAuth, async (req, res) => {
 app.get('/api/challenges', requireAuth, async (req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT c.*, u.name AS responsibleName, u2.name AS createdByName
+      `SELECT c.*, u.name AS responsibleName, u2.name AS createdByName, u3.name AS doneByName
        FROM challenges c
        LEFT JOIN users u ON c.responsible_to = u.id
        LEFT JOIN users u2 ON c.created_by = u2.id
+       LEFT JOIN users u3 ON c.done_by = u3.id
        ORDER BY c.id DESC`);
     for (const r of rows) {
       try { r.filesList = JSON.parse(r.files || '[]') || []; } catch (e) { r.filesList = []; }
+      try { r.doneFilesList = JSON.parse(r.done_files || '[]') || []; } catch (e) { r.doneFilesList = []; }
     }
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2836,15 +2839,32 @@ app.get('/api/challenges', requireAuth, async (req, res) => {
 // Create — form submit
 app.post('/api/challenges', requireAuth, async (req, res) => {
   try {
-    const { partyName, receivedDate, knownDate, description, responsibleTo, priority, proposedResolution, files } = req.body;
+    // rightPerson = "Right Person" dropdown (responsible_to me store hota hai).
+    // crm hamesha 'CRM' (form me uneditable field).
+    const { partyName, receivedDate, knownDate, description, rightPerson, priority, proposedResolution, files } = req.body;
     if (!partyName || !description) return res.status(400).json({ error: 'Party Name and Challenge description are required' });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');   // auto timestamp
     const filesJson = JSON.stringify(Array.isArray(files) ? files : []);
     await db.query(
-      `INSERT INTO challenges (party_name,received_date,known_date,description,responsible_to,priority,proposed_resolution,status,files,created_by,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [partyName, receivedDate || '', knownDate || '', description, responsibleTo || '', priority || 'medium',
-       proposedResolution || '', 'open', filesJson, req.session.userId, now, now]);
+      `INSERT INTO challenges (party_name,received_date,known_date,description,crm,responsible_to,priority,proposed_resolution,status,files,done_remarks,done_files,done_at,done_by,created_by,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [partyName, receivedDate || '', knownDate || '', description, 'CRM', rightPerson || '', priority || 'medium',
+       proposedResolution || '', 'pending', filesJson, '', '[]', '', '', req.session.userId, now, now]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Mark Done — remarks + supporting files ke saath challenge complete
+app.post('/api/challenges/:id/done', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM challenges WHERE id=?', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Challenge not found' });
+    const { remarks, files } = req.body || {};
+    if (!String(remarks || '').trim()) return res.status(400).json({ error: 'Remarks are required to mark done' });
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await db.query(
+      `UPDATE challenges SET status='completed', done_remarks=?, done_files=?, done_at=?, done_by=?, updated_at=? WHERE id=?`,
+      [String(remarks).trim(), JSON.stringify(Array.isArray(files) ? files : []), now, req.session.userId, now, req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2862,7 +2882,7 @@ app.put('/api/challenges/:id', requireAuth, async (req, res) => {
     await db.query(
       `UPDATE challenges SET party_name=?,received_date=?,known_date=?,description=?,responsible_to=?,priority=?,proposed_resolution=?,status=?,files=?,updated_at=? WHERE id=?`,
       [b.partyName ?? c.party_name, b.receivedDate ?? c.received_date, b.knownDate ?? c.known_date,
-       b.description ?? c.description, b.responsibleTo ?? c.responsible_to, b.priority ?? c.priority,
+       b.description ?? c.description, b.rightPerson ?? b.responsibleTo ?? c.responsible_to, b.priority ?? c.priority,
        b.proposedResolution ?? c.proposed_resolution, b.status ?? c.status, filesJson, now, req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
