@@ -1223,7 +1223,7 @@ tbody tr:last-child td{border-bottom:none;}
   </style>
   <div id="page-challenges" class="page">
     <div class="page-header">
-      <h2>Open Challenges</h2>
+      <h2>Invincible Open Challenges Form</h2>
     </div>
 
     <!-- Tabs: Form Entry | Pending | Completed -->
@@ -1264,15 +1264,15 @@ tbody tr:last-child td{border-bottom:none;}
         <!-- Row 2 -->
         <div class="chal-grid chal-grid-3">
           <div class="chal-field">
-            <label>Right Person</label>
+            <label>Right Who For Resolution</label>
             <select id="chalRightPerson"><option value="">Select person</option></select>
           </div>
           <div class="chal-field">
-            <label>Challenge Received Date</label>
+            <label>Challenge Since Date <span class="chal-hint">(Issue Pending/Existing Since When)</span></label>
             <input type="date" id="chalReceived"/>
           </div>
           <div class="chal-field">
-            <label>Challenge Known Date</label>
+            <label>Challenge Identified Date <span class="chal-hint">(Issue Came to Notice On)</span></label>
             <input type="date" id="chalKnown"/>
           </div>
         </div>
@@ -1319,6 +1319,7 @@ tbody tr:last-child td{border-bottom:none;}
     <!-- PENDING / COMPLETED list -->
     <div id="chalListWrap" style="display:none">
       <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="downloadChallengesPdf()">⬇ Download PDF</button>
         <input type="text" id="chalSearch" placeholder="🔍 Search party / description / person…" oninput="renderChallenges()"
           style="margin-left:auto;padding:9px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:260px"/>
       </div>
@@ -1359,7 +1360,10 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="modal" style="max-width:680px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;background:#fff;padding-bottom:10px;margin-bottom:12px;z-index:20;border-bottom:1px solid #f1f5f9">
         <h3 id="chalDetailTitle" style="margin:0">Challenge Details</h3>
-        <button class="btn btn-outline" onclick="closeModal('chalDetailModal')" style="flex-shrink:0">✕ Close</button>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn btn-outline" id="chalDetailPdfBtn">⬇ PDF</button>
+          <button class="btn btn-outline" onclick="closeModal('chalDetailModal')">✕ Close</button>
+        </div>
       </div>
       <div id="chalDetailBody"></div>
     </div>
@@ -2925,6 +2929,106 @@ async function loadChallenges() {
 }
 
 
+// ── 48-HOUR TIMER ──
+// Server created_at/done_at UTC me likhta hai ('YYYY-MM-DD HH:MM:SS'), isliye
+// 'Z' laga ke parse karte hain — warna timezone ka farak aa jaata hai.
+function chalParseTs(ts) {
+  if (!ts) return null;
+  const d = new Date(String(ts).trim().replace(' ', 'T') + 'Z');
+  return isNaN(d.getTime()) ? null : d;
+}
+// Pending ke liye: 48h ka status. { late, hoursLeft, hoursLate }
+function chalDeadline(x) {
+  const start = chalParseTs(x.created_at);
+  if (!start) return null;
+  const endMs = start.getTime() + 48 * 3600000;
+  if (String(x.status) === 'completed') {
+    const done = chalParseTs(x.done_at);
+    if (!done) return null;
+    const diffH = (done.getTime() - start.getTime()) / 3600000;
+    return { done: true, late: diffH > 48, tookH: Math.round(diffH) };
+  }
+  const leftH = (endMs - Date.now()) / 3600000;
+  return leftH <= 0
+    ? { late: true, hoursLate: Math.round(-leftH) }
+    : { late: false, hoursLeft: Math.round(leftH) };
+}
+function chalDeadlineBadge(x) {
+  const d = chalDeadline(x);
+  if (!d) return '';
+  const pill = (bg, col, br, txt) => `<span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:${bg};color:${col};border:1px solid ${br}">${txt}</span>`;
+  if (d.done) return d.late ? pill('#fef2f2','#dc2626','#fecaca',`⏰ Late (${d.tookH}h)`) : pill('#f0fdf4','#16a34a','#bbf7d0','⏱️ Within 48h');
+  return d.late ? pill('#fee2e2','#b91c1c','#fca5a5',`⏰ 48h crossed (+${d.hoursLate}h)`)
+                : pill('#eff6ff','#1d4ed8','#bfdbfe',`⏳ ${d.hoursLeft}h left`);
+}
+
+// ── PDF DOWNLOAD ── (print window -> "Save as PDF"; koi extra library nahi)
+function chalPdfRows(x) {
+  const files = (Array.isArray(x.filesList) ? x.filesList : []).map(f => f.name).join(', ');
+  const dFiles = (Array.isArray(x.doneFilesList) ? x.doneFilesList : []).map(f => f.name).join(', ');
+  const dl = chalDeadline(x);
+  const within = dl ? (dl.done ? (dl.late ? `Late (${dl.tookH}h)` : `Within 48h`)
+                              : (dl.late ? `48h crossed (+${dl.hoursLate}h)` : `${dl.hoursLeft}h left`)) : '—';
+  const r = (k, v) => `<tr><th>${k}</th><td>${v || '—'}</td></tr>`;
+  return `<table class="pdf-tbl">
+    ${r('Timestamp', x.created_at)}
+    ${r('Submitted By', titleName(x.createdByName || ''))}
+    ${r('Party Name', x.party_name)}
+    ${r('CRM', x.crm || 'CRM')}
+    ${r('Right Who For Resolution', titleName(x.responsibleName || ''))}
+    ${r('Challenge Since Date', fmtDate(x.received_date))}
+    ${r('Challenge Identified Date', fmtDate(x.known_date))}
+    ${r('Priority', String(x.priority || 'medium').toUpperCase())}
+    ${r('Status', String(x.status || 'pending').toUpperCase())}
+    ${r('48-Hour Status', within)}
+    ${r('Challenge', x.description)}
+    ${r('Proposed Resolution', x.proposed_resolution)}
+    ${r('Supporting Files', files)}
+    ${String(x.status) === 'completed' ? r('Done At', x.done_at) + r('Done By', titleName(x.doneByName || '')) +
+      r('Done Remarks', x.done_remarks) + r('Done Files', dFiles) : ''}
+  </table>`;
+}
+
+function chalOpenPdf(title, bodyHtml) {
+  const w = window.open('', '_blank');
+  if (!w) { showToast('Please allow pop-ups to download the PDF', 'error'); return; }
+  w.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>
+    *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:26px}
+    h1{font-size:18px;margin:0 0 4px} .sub{font-size:12px;color:#64748b;margin-bottom:18px}
+    .item{margin-bottom:22px;page-break-inside:avoid}
+    .item h2{font-size:14px;margin:0 0 8px;padding-bottom:5px;border-bottom:2px solid #1e3a8a;color:#1e3a8a}
+    .pdf-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+    .pdf-tbl th{width:190px;text-align:left;vertical-align:top;padding:5px 8px;background:#f1f5f9;border:1px solid #e2e8f0;font-weight:700;color:#475569}
+    .pdf-tbl td{padding:5px 8px;border:1px solid #e2e8f0;vertical-align:top}
+    @media print{ body{margin:12mm} }
+  </style></head><body>
+    <h1>${title}</h1>
+    <div class="sub">Invincible Open Challenges Form &nbsp;·&nbsp; Generated: ${new Date().toLocaleString('en-GB')}</div>
+    ${bodyHtml}
+    <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
+// Poori list (jo tab khula hai) ka PDF
+function downloadChallengesPdf() {
+  const q = (document.getElementById('chalSearch')?.value || '').toLowerCase();
+  const want = _chalView === 'completed' ? 'completed' : 'pending';
+  const list = _challenges.filter(x => String(x.status || 'pending') === want &&
+    (!q || (x.party_name || '').toLowerCase().includes(q) || (x.description || '').toLowerCase().includes(q)
+        || (x.responsibleName || '').toLowerCase().includes(q)));
+  if (!list.length) { showToast('Nothing to download', 'error'); return; }
+  const body = list.map((x, i) => `<div class="item"><h2>${i + 1}. ${x.party_name || 'Challenge'}</h2>${chalPdfRows(x)}</div>`).join('');
+  chalOpenPdf(`${want === 'completed' ? 'Completed' : 'Pending'} Challenges (${list.length})`, body);
+}
+
+// Ek entry ka PDF (detail popup se)
+function downloadChallengePdf(id) {
+  const x = _challenges.find(c => String(c.id) === String(id));
+  if (!x) return;
+  chalOpenPdf(`Challenge — ${x.party_name || ''}`, `<div class="item">${chalPdfRows(x)}</div>`);
+}
+
 // Card par click -> poori details popup me
 function openChallengeDetail(id) {
   const x = _challenges.find(c => String(c.id) === String(id));
@@ -2941,18 +3045,20 @@ function openChallengeDetail(id) {
   const pc = pri === 'high' ? ['#fef2f2','#dc2626'] : pri === 'low' ? ['#f0fdf4','#16a34a'] : ['#fffbeb','#d97706'];
 
   document.getElementById('chalDetailTitle').textContent = x.party_name || 'Challenge Details';
+  document.getElementById('chalDetailPdfBtn').onclick = () => downloadChallengePdf(x.id);
   document.getElementById('chalDetailBody').innerHTML = `
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <span style="font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;background:${st.bg};color:${st.color};border:1px solid ${st.border}">${st.label}</span>
       <span style="font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;background:${pc[0]};color:${pc[1]};text-transform:uppercase">${pri}</span>
+      ${chalDeadlineBadge(x)}
     </div>
     ${row('Timestamp', x.created_at)}
     ${row('Submitted By', titleName(x.createdByName || ''))}
     ${row('Party Name', x.party_name)}
     ${row('CRM', x.crm || 'CRM')}
-    ${row('Right Person', titleName(x.responsibleName || ''))}
-    ${row('Challenge Received Date', fmtDate(x.received_date))}
-    ${row('Challenge Known Date', fmtDate(x.known_date))}
+    ${row('Right Who For Resolution', titleName(x.responsibleName || ''))}
+    ${row('Challenge Since Date', fmtDate(x.received_date))}
+    ${row('Challenge Identified Date', fmtDate(x.known_date))}
     ${row('Challenge', x.description)}
     ${row('Proposed Resolution', x.proposed_resolution)}
     ${row('Supporting Files', files.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${files.map(chip).join('')}</div>` : '')}
@@ -3004,9 +3110,12 @@ function renderChallenges() {
       const chip = f => `<a href="${f.link}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:4px 9px;font-size:12px;color:#1d4ed8;text-decoration:none">📎 ${f.name}</a>`;
       const partyEsc = String(x.party_name || '').replace(/'/g, "\\'");
       // Card par click -> details popup (buttons/links par click na chale)
+      // 48h cross ho gaya aur abhi tak done nahi -> poora card halka LAAL
+      const dl = chalDeadline(x);
+      const overdue = dl && !dl.done && dl.late;
       return `<div onclick="if(!event.target.closest('button,a,select,input'))openChallengeDetail(${x.id})"
         title="Click for full details"
-        style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:12px;cursor:pointer">
+        style="background:${overdue ? '#fef2f2' : '#fff'};border:1px solid ${overdue ? '#fca5a5' : '#e2e8f0'};border-radius:12px;padding:16px 18px;margin-bottom:12px;cursor:pointer">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
             <div style="font-size:15px;font-weight:700;color:#1e293b">${x.party_name || '—'} ${pBadge(x.priority)}</div>
@@ -3014,7 +3123,8 @@ function renderChallenges() {
               🕒 ${x.created_at || '—'} &nbsp;·&nbsp; by ${titleName(x.createdByName || '') || '—'}
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            ${chalDeadlineBadge(x)}
             <span style="font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;background:${st.bg};color:${st.color};border:1px solid ${st.border}">${st.label}</span>
             ${!isDone ? `<button class="btn btn-primary" style="padding:6px 13px;font-size:12px" onclick="openChallengeDone(${x.id},'${partyEsc}')">✅ Mark Done</button>` : ''}
             ${isAdmin ? `<button class="action-btn delete" style="padding:4px 8px" onclick="deleteChallenge(${x.id})" title="Delete">🗑</button>` : ''}
@@ -3022,10 +3132,10 @@ function renderChallenges() {
         </div>
 
         <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:#64748b">
-          <span>📥 Received: <strong style="color:#1e293b">${fmtDate(x.received_date) || '—'}</strong></span>
-          <span>📅 Known: <strong style="color:#1e293b">${fmtDate(x.known_date) || '—'}</strong></span>
+          <span>📥 Since: <strong style="color:#1e293b">${fmtDate(x.received_date) || '—'}</strong></span>
+          <span>📅 Identified: <strong style="color:#1e293b">${fmtDate(x.known_date) || '—'}</strong></span>
           <span>🏷️ CRM: <strong style="color:#1e293b">${x.crm || 'CRM'}</strong></span>
-          <span>👤 Right Person: <strong style="color:#1e293b">${titleName(x.responsibleName || '') || '—'}</strong></span>
+          <span>👤 Right Who For Resolution: <strong style="color:#1e293b">${titleName(x.responsibleName || '') || '—'}</strong></span>
         </div>
 
         <div style="margin-top:10px;font-size:13px;color:#1e293b"><strong style="color:#64748b;font-size:11px;text-transform:uppercase">Challenge</strong><div style="margin-top:3px">${x.description || '—'}</div></div>

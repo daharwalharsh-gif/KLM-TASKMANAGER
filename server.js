@@ -584,12 +584,19 @@ function parsePlanDate(planVal) {
 // aur step count. TAT column sheet me Planned se 1 column left hota hai (numeric).
 // Delay = Actual date − Planned date (din). +ve = late, 0/−ve = on-time/early.
 // ══════════════════════════════════════════════════════
-// Abhi sirf ye do FMS — user request. (baaki add karna ho to list me daal do)
-const TAT_REPORT_FMS = ['PMS BOXING', 'PMS Level 2 Garments'];
+// Boxing PMS + Garments PMS — ID se match karte hain taaki FMS ka naam badalne par
+// report khaali na ho jaye (pehle sirf naam se match tha aur rename hote hi tut gaya tha).
+// Naam bhi fallback me rakhe hain (purane + naye dono).
+const TAT_REPORT_FMS_IDS = [1, 2];
+const TAT_REPORT_FMS_NAMES = ['boxing pms', 'garments pms', 'pms boxing', 'pms level 2 garments'];
+function isTatReportFms(sh) {
+  return TAT_REPORT_FMS_IDS.includes(Number(sh.id)) ||
+         TAT_REPORT_FMS_NAMES.includes(String(sh.fms_name || '').trim().toLowerCase());
+}
 async function computeFmsTAT() {
   const result = { perFms: [], errors: [] };
   let [sheets] = await db.query('SELECT * FROM fms_sheets ORDER BY fms_name ASC');
-  sheets = sheets.filter(sh => TAT_REPORT_FMS.some(n => (sh.fms_name || '').trim().toLowerCase() === n.toLowerCase()));
+  sheets = sheets.filter(isTatReportFms);
   if (!sheets.length) return result;
 
   // Saare sheets parallel fetch (cached 60s)
@@ -2583,16 +2590,28 @@ app.get('/api/fms/:id/sync', requireAuth, requireAdmin, async (req, res) => {
 // List FMS visible to user
 // FMS FULL VIEW — ye users in FMS ke SAARE steps + rows admin jaisa dekh sakte hain,
 // bina step-doer hue (user request; sirf display access, aur kuch nahi badalta).
-const FMS_FULL_VIEW = {
-  'amit@invincible.in': ['order to dispatch fms offline domestic dashboard', 'crm fms domestic offline'],
-  'marketing@klmahajan.com': ['order to dispatch fms offline domestic dashboard', 'crm fms domestic offline'],
+// ID se match (rename-proof) + naam fallback (purane aur naye dono naam).
+const FULL_VIEW_FMS = {
+  ids: [8, 5],   // Invincible Offline O2D FMS, Invincible CRM FMS
+  names: ['invincible offline o2d fms', 'invincible crm fms',
+          'order to dispatch fms offline domestic dashboard', 'crm fms domestic offline']
 };
-async function fmsFullViewNames(userId) {
+const FMS_FULL_VIEW = {
+  'amit@invincible.in': FULL_VIEW_FMS,
+  'marketing@klmahajan.com': FULL_VIEW_FMS,
+};
+// Ye user full-view rakhta hai? -> config object ya null
+async function fmsFullViewCfg(userId) {
   try {
     const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [userId]);
     const email = (rows[0]?.email || '').trim().toLowerCase();
-    return FMS_FULL_VIEW[email] || [];
-  } catch (e) { return []; }
+    return FMS_FULL_VIEW[email] || null;
+  } catch (e) { return null; }
+}
+function fmsInFullView(cfg, sheet) {
+  if (!cfg || !sheet) return false;
+  return cfg.ids.includes(Number(sheet.id)) ||
+         cfg.names.includes(String(sheet.fms_name || '').trim().toLowerCase());
 }
 
 app.get('/api/fms-tasks', requireAuth, async (req, res) => {
@@ -2605,12 +2624,12 @@ app.get('/api/fms-tasks', requireAuth, async (req, res) => {
     } else {
       [list] = await db.query(`SELECT DISTINCT fs.* FROM fms_sheets fs JOIN fms_steps fst ON fst.fms_id=fs.id JOIN fms_step_doers fsd ON fsd.step_id=fst.id WHERE fsd.user_id=? ORDER BY fs.created_at DESC`, [uid]);
       // Full-view FMS bhi list me daalo (chahe user doer na ho)
-      const fvNames = await fmsFullViewNames(uid);
-      if (fvNames.length) {
+      const fvCfg = await fmsFullViewCfg(uid);
+      if (fvCfg) {
         const have = new Set(list.map(f => f.id));
         const [allFms] = await db.query('SELECT * FROM fms_sheets ORDER BY created_at DESC');
         for (const f of allFms) {
-          if (!have.has(f.id) && fvNames.includes((f.fms_name || '').trim().toLowerCase())) list.push(f);
+          if (!have.has(f.id) && fmsInFullView(fvCfg, f)) list.push(f);
         }
       }
     }
@@ -2626,8 +2645,8 @@ app.get('/api/fms-tasks/:id', requireAuth, async (req, res) => {
     const [sheets] = await db.query('SELECT * FROM fms_sheets WHERE id=?', [req.params.id]);
     if (!sheets[0]) return res.status(404).json({ error: 'FMS not found' });
     // Full-view user is FMS ke saare steps admin jaisa dekhega
-    const fvNames = isAdmin ? [] : await fmsFullViewNames(uid);
-    const fullView = isAdmin || fvNames.includes((sheets[0].fms_name || '').trim().toLowerCase());
+    const fvCfg = isAdmin ? null : await fmsFullViewCfg(uid);
+    const fullView = isAdmin || fmsInFullView(fvCfg, sheets[0]);
     const [steps] = await db.query('SELECT * FROM fms_steps WHERE fms_id=? ORDER BY step_order ASC', [req.params.id]);
     for (const step of steps) {
       const [doers] = await db.query(`SELECT fsd.user_id,u.name FROM fms_step_doers fsd JOIN users u ON fsd.user_id=u.id WHERE fsd.step_id=?`, [step.id]);
@@ -2661,9 +2680,9 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     // Unmapped naam ya khaali cell = sab doers ko dikhe. Admin/PC ko sab rows dikhti hain.
     const doerFilterIdx = colToIdx(step.doer_filter_col || '');
     // Full-view user ko bhi admin jaisa — is FMS ki saari rows (row-filter na lage)
-    const _fvNames = await fmsFullViewNames(req.session.userId);
+    const _fvCfg = await fmsFullViewCfg(req.session.userId);
     const isAdminView = req.session.role === 'admin' || req.session.role === 'pc'
-      || _fvNames.includes((sheet.fms_name || '').trim().toLowerCase());
+      || fmsInFullView(_fvCfg, sheet);
     let filterMap = {};
     try { filterMap = JSON.parse(step.doer_filter_map || '{}') || {}; } catch (e) { filterMap = {}; }
     // Normalized map: lowercase-name -> [userIds as strings] (ek naam pe multiple doers ho sakte hain;
