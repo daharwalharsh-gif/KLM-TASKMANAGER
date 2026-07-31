@@ -525,10 +525,6 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
       <span class="nav-label-text">Leave Tracker</span>
     </div>
-    <div class="nav-item" id="nav-challenges" onclick="navigate('challenges',this)">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-      <span class="nav-label-text">Open Challenges</span>
-    </div>
     <div class="nav-divider"></div>
     <div class="nav-item" onclick="navigate('profile',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
@@ -979,6 +975,112 @@ tbody tr:last-child td{border-bottom:none;}
         style="display:none;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#2563eb;background:#eff6ff;padding:6px 10px;border-radius:8px;text-decoration:none;white-space:nowrap">📄 Open Google Sheet ↗</a>
     </div>
 
+    <!-- OPEN CHALLENGES — FMS dropdown se khulta hai -->
+    <div id="fmsChalWrap" style="display:none">
+      <div class="page-header" style="margin-bottom:14px"><h2>Invincible Open Challenges Form</h2></div>
+
+
+    <!-- Tabs: Form Entry | Pending | Completed -->
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <div class="tab-group">
+        <div class="tab active" id="chalTabForm" onclick="challengeTab('form',this)">📝 Form Entry</div>
+        <div class="tab" id="chalTabPending" onclick="challengeTab('pending',this)">⏳ Pending</div>
+        <div class="tab" id="chalTabDone" onclick="challengeTab('completed',this)">✅ Completed</div>
+      </div>
+    </div>
+
+    <!-- FORM — gradient header card (structured) -->
+    <div id="chalFormWrap" class="chal-card">
+      <div class="chal-card-head">
+        <div class="chal-card-title">Invincible Offline Open Challenges Form</div>
+        <div class="chal-card-sub">Fill the details below and submit the challenge.</div>
+      </div>
+
+      <div class="chal-card-body">
+        <div class="alert error" id="chalErr" style="display:none"></div>
+
+        <!-- Row 1 -->
+        <div class="chal-grid chal-grid-3">
+          <div class="chal-field">
+            <label>Timestamp</label>
+            <input type="text" id="chalTimestamp" readonly class="chal-readonly"/>
+          </div>
+          <div class="chal-field">
+            <label>Party Name <span class="chal-req">*</span></label>
+            <input type="text" id="chalParty" placeholder="Enter party name"/>
+          </div>
+          <div class="chal-field">
+            <label>CRM</label>
+            <input type="text" id="chalCrm" value="CRM" readonly class="chal-readonly"/>
+          </div>
+        </div>
+
+        <!-- Row 2 -->
+        <div class="chal-grid chal-grid-3">
+          <div class="chal-field">
+            <label>Right Who For Resolution</label>
+            <select id="chalRightPerson"><option value="">Select person</option></select>
+          </div>
+          <div class="chal-field">
+            <label>Challenge Since Date <span class="chal-hint">(Issue Pending/Existing Since When)</span></label>
+            <input type="date" id="chalReceived"/>
+          </div>
+          <div class="chal-field">
+            <label>Challenge Identified Date <span class="chal-hint">(Issue Came to Notice On)</span></label>
+            <input type="date" id="chalKnown"/>
+          </div>
+        </div>
+
+        <!-- Row 3 -->
+        <div class="chal-grid chal-grid-3">
+          <div class="chal-field">
+            <label>Priority</label>
+            <select id="chalPriority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Row 3 -->
+        <div class="chal-grid chal-grid-2">
+          <div class="chal-field">
+            <label>Describe the Challenge <span class="chal-req">*</span></label>
+            <textarea id="chalDesc" placeholder="Describe the challenge…"></textarea>
+          </div>
+          <div class="chal-field">
+            <label>Proposed Resolution</label>
+            <textarea id="chalResolution" placeholder="Enter proposed resolution…"></textarea>
+          </div>
+        </div>
+
+        <!-- Row 4 — files -->
+        <div class="chal-field" style="margin-bottom:4px">
+          <label>Supporting Files <span class="chal-hint">(photo, PDF, Excel, Word — max 3MB each)</span></label>
+          <input type="file" id="chalFiles" multiple accept="image/*,application/pdf,.xls,.xlsx,.csv,.doc,.docx"
+            onchange="uploadChallengeFiles()" class="chal-file"/>
+          <div id="chalFileList" style="margin-top:9px;display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+
+        <div class="chal-actions">
+          <button class="btn btn-outline" onclick="resetChallengeForm()">Clear</button>
+          <button class="btn btn-primary" onclick="saveChallenge()" id="chalSaveBtn">💾 Submit Challenge</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PENDING / COMPLETED list -->
+    <div id="chalListWrap" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="downloadChallengesPdf()">⬇ Download PDF</button>
+        <input type="text" id="chalSearch" placeholder="🔍 Search party / description / person…" oninput="renderChallenges()"
+          style="margin-left:auto;padding:9px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:260px"/>
+      </div>
+      <div id="chalContent"></div>
+    </div>
+    </div>
+
     <!-- Train Container -->
     <div id="fmsTrainContainer" style="display:none;margin-bottom:16px">
       <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">
@@ -1221,111 +1323,6 @@ tbody tr:last-child td{border-bottom:none;}
     .chal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;padding-top:16px;border-top:1px solid #f1f5f9}
     @media (max-width:900px){ .chal-grid-3,.chal-grid-2{grid-template-columns:1fr} .chal-card-title{font-size:20px} .chal-card-body{padding:18px} }
   </style>
-  <div id="page-challenges" class="page">
-    <div class="page-header">
-      <h2>Invincible Open Challenges Form</h2>
-    </div>
-
-    <!-- Tabs: Form Entry | Pending | Completed -->
-    <div style="display:flex;gap:8px;margin-bottom:16px">
-      <div class="tab-group">
-        <div class="tab active" id="chalTabForm" onclick="challengeTab('form',this)">📝 Form Entry</div>
-        <div class="tab" id="chalTabPending" onclick="challengeTab('pending',this)">⏳ Pending</div>
-        <div class="tab" id="chalTabDone" onclick="challengeTab('completed',this)">✅ Completed</div>
-      </div>
-    </div>
-
-    <!-- FORM — gradient header card (structured) -->
-    <div id="chalFormWrap" class="chal-card">
-      <div class="chal-card-head">
-        <div class="chal-card-title">Invincible Offline Open Challenges Form</div>
-        <div class="chal-card-sub">Fill the details below and submit the challenge.</div>
-      </div>
-
-      <div class="chal-card-body">
-        <div class="alert error" id="chalErr" style="display:none"></div>
-
-        <!-- Row 1 -->
-        <div class="chal-grid chal-grid-3">
-          <div class="chal-field">
-            <label>Timestamp</label>
-            <input type="text" id="chalTimestamp" readonly class="chal-readonly"/>
-          </div>
-          <div class="chal-field">
-            <label>Party Name <span class="chal-req">*</span></label>
-            <input type="text" id="chalParty" placeholder="Enter party name"/>
-          </div>
-          <div class="chal-field">
-            <label>CRM</label>
-            <input type="text" id="chalCrm" value="CRM" readonly class="chal-readonly"/>
-          </div>
-        </div>
-
-        <!-- Row 2 -->
-        <div class="chal-grid chal-grid-3">
-          <div class="chal-field">
-            <label>Right Who For Resolution</label>
-            <select id="chalRightPerson"><option value="">Select person</option></select>
-          </div>
-          <div class="chal-field">
-            <label>Challenge Since Date <span class="chal-hint">(Issue Pending/Existing Since When)</span></label>
-            <input type="date" id="chalReceived"/>
-          </div>
-          <div class="chal-field">
-            <label>Challenge Identified Date <span class="chal-hint">(Issue Came to Notice On)</span></label>
-            <input type="date" id="chalKnown"/>
-          </div>
-        </div>
-
-        <!-- Row 3 -->
-        <div class="chal-grid chal-grid-3">
-          <div class="chal-field">
-            <label>Priority</label>
-            <select id="chalPriority">
-              <option value="low">Low</option>
-              <option value="medium" selected>Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Row 3 -->
-        <div class="chal-grid chal-grid-2">
-          <div class="chal-field">
-            <label>Describe the Challenge <span class="chal-req">*</span></label>
-            <textarea id="chalDesc" placeholder="Describe the challenge…"></textarea>
-          </div>
-          <div class="chal-field">
-            <label>Proposed Resolution</label>
-            <textarea id="chalResolution" placeholder="Enter proposed resolution…"></textarea>
-          </div>
-        </div>
-
-        <!-- Row 4 — files -->
-        <div class="chal-field" style="margin-bottom:4px">
-          <label>Supporting Files <span class="chal-hint">(photo, PDF, Excel, Word — max 3MB each)</span></label>
-          <input type="file" id="chalFiles" multiple accept="image/*,application/pdf,.xls,.xlsx,.csv,.doc,.docx"
-            onchange="uploadChallengeFiles()" class="chal-file"/>
-          <div id="chalFileList" style="margin-top:9px;display:flex;flex-wrap:wrap;gap:6px"></div>
-        </div>
-
-        <div class="chal-actions">
-          <button class="btn btn-outline" onclick="resetChallengeForm()">Clear</button>
-          <button class="btn btn-primary" onclick="saveChallenge()" id="chalSaveBtn">💾 Submit Challenge</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- PENDING / COMPLETED list -->
-    <div id="chalListWrap" style="display:none">
-      <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-outline" onclick="downloadChallengesPdf()">⬇ Download PDF</button>
-        <input type="text" id="chalSearch" placeholder="🔍 Search party / description / person…" oninput="renderChallenges()"
-          style="margin-left:auto;padding:9px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:260px"/>
-      </div>
-      <div id="chalContent"></div>
-    </div>
-  </div>
 
   <!-- MARK DONE MODAL — remarks + supporting files -->
   <div class="modal-overlay" id="chalDoneModal">
@@ -2438,7 +2435,6 @@ function navigate(page, el) {
   if (page==='mis') initMISDeptFilter();
   if (page==='records') loadRecords();
   if (page==='leaves') loadLeaves();
-  if (page==='challenges') loadChallenges();
   closeSidebar();   // mobile drawer band karo nav ke baad
   window.scrollTo(0,0);
 }
@@ -2722,7 +2718,7 @@ const CHAL_STATUS = {
 let _chalView = 'form';
 function challengeTab(which, el) {
   _chalView = which;
-  document.querySelectorAll('#page-challenges .tab-group .tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#fmsChalWrap .tab-group .tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
   const isForm = which === 'form';
   document.getElementById('chalFormWrap').style.display = isForm ? '' : 'none';
@@ -7520,6 +7516,7 @@ async function loadFMSTasks() {
   trainContainer.style.display = 'none';
   stepPanel.style.display = 'none';
   emptyEl.style.display = 'none';
+  document.getElementById('fmsChalWrap').style.display = 'none';
   document.getElementById('fmsSheetLink').style.display = 'none';
 
   const list = await api('/api/fms-tasks');
@@ -7530,27 +7527,52 @@ async function loadFMSTasks() {
     showToast(list.error, 'error');
     return;
   }
-  if (!list || !list.length) {
+  if ((!list || !list.length) && !canSeeChallenges()) {
     sel.innerHTML = '<option value="">-- No FMS available --</option>';
     emptyEl.style.display = 'block';
     return;
   }
 
-  _fmsTasksList = list;
+  _fmsTasksList = Array.isArray(list) ? list : [];
   sel.innerHTML = '<option value="">-- Select an FMS --</option>' +
-    list.map(f => `<option value="${f.id}">${f.fms_name || f.sheet_name}</option>`).join('');
+    _fmsTasksList.map(f => `<option value="${f.id}">${f.fms_name || f.sheet_name}</option>`).join('') +
+    // Open Challenges form — sirf allowed doers + admin ko ye option dikhta hai
+    (canSeeChallenges() ? `<option value="${CHAL_OPT}">📝 Invincible Open Challenges Form</option>` : '');
 
   // Auto-select first
-  if (list.length === 1) {
-    sel.value = list[0].id;
+  if (_fmsTasksList.length === 1) {
+    sel.value = _fmsTasksList[0].id;
     onFMSTasksSelect();
   }
+}
+
+// Open Challenges form ka special dropdown option
+const CHAL_OPT = '__challenges__';
+function canSeeChallenges() {
+  return !!(ME && (ME.role === 'admin' || ME.canChallenges));
 }
 
 async function onFMSTasksSelect() {
   const fmsId = document.getElementById('fmsTasksSelect').value;
   const trainContainer = document.getElementById('fmsTrainContainer');
   const stepPanel = document.getElementById('fmsTaskStepPanel');
+  const chalWrap = document.getElementById('fmsChalWrap');
+  const emptyEl = document.getElementById('fmsTasksEmpty');
+
+  // Open Challenges form — FMS ka train/step view band, form + pending + completed on
+  if (fmsId === CHAL_OPT) {
+    trainContainer.style.display = 'none';
+    stepPanel.style.display = 'none';
+    emptyEl.style.display = 'none';
+    updateFmsSheetLink('');
+    document.getElementById('fmsTasksRefreshBtn').style.display = 'none';
+    chalWrap.style.display = '';
+    challengeTab('form', document.getElementById('chalTabForm'));
+    await loadChallenges();
+    return;
+  }
+  chalWrap.style.display = 'none';
+  document.getElementById('fmsTasksRefreshBtn').style.display = _fmsTasksList.length ? 'flex' : 'none';
 
   if (!fmsId) {
     trainContainer.style.display = 'none';

@@ -930,6 +930,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
       const [ex] = await db.query('SELECT extra_off FROM users WHERE id=?', [req.session.userId]);
       rows[0].extra_off = ex[0]?.extra_off || '';
     } catch(e) { rows[0].extra_off = ''; }
+    // Open Challenges form FMS dropdown me dikhe ya nahi (admin + chuninda doers)
+    rows[0].canChallenges = req.session.role === 'admin' ||
+      CHALLENGE_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2810,9 +2813,30 @@ app.post('/api/fms-tasks/upload-file', requireAuth, async (req, res) => {
 // Do hi state: form submit -> pending, Mark Done ke baad -> completed
 const CHALLENGE_STATUSES = ['pending', 'completed'];
 
+// Ye form sirf in doers ko dikhta hai (+ admin ko hamesha). Baaki kisi doer ko
+// na FMS dropdown me option aayega, na API se data milega.
+const CHALLENGE_EMAILS = new Set([
+  'amit@invincible.in',        // Mr. Amit
+  'marketing@klmahajan.com',   // Ms. Kajal
+  'billing@klmahajan.com',     // Mr. Mohit
+  'nbd@klmahajan.com',         // Ms. Kashvi
+  'crm@klmahajan.com',         // Ms. Sanjana
+]);
+async function canUseChallenges(req) {
+  if (req.session.role === 'admin') return true;
+  try {
+    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    return CHALLENGE_EMAILS.has((rows[0]?.email || '').trim().toLowerCase());
+  } catch (e) { return false; }
+}
+async function requireChallengeAccess(req, res, next) {
+  if (await canUseChallenges(req)) return next();
+  res.status(403).json({ error: 'Not allowed' });
+}
+
 // File upload (challenges) — image / PDF / Excel / Word / CSV. Storage wahi
 // fms_files table + public /f/:id link (FMS wala flow chhua nahi gaya).
-app.post('/api/challenges/upload-file', requireAuth, async (req, res) => {
+app.post('/api/challenges/upload-file', requireAuth, requireChallengeAccess, async (req, res) => {
   try {
     const { filename, mimeType, dataBase64 } = req.body;
     if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
@@ -2852,7 +2876,7 @@ app.post('/api/challenges/upload-file', requireAuth, async (req, res) => {
 });
 
 // List — sab challenges (naye pehle), responsible person ka naam ke saath
-app.get('/api/challenges', requireAuth, async (req, res) => {
+app.get('/api/challenges', requireAuth, requireChallengeAccess, async (req, res) => {
   try {
     const [rows] = await db.query(
       `SELECT c.*, u.name AS responsibleName, u2.name AS createdByName, u3.name AS doneByName
@@ -2870,7 +2894,7 @@ app.get('/api/challenges', requireAuth, async (req, res) => {
 });
 
 // Create — form submit
-app.post('/api/challenges', requireAuth, async (req, res) => {
+app.post('/api/challenges', requireAuth, requireChallengeAccess, async (req, res) => {
   try {
     // rightPerson = "Right Person" dropdown (responsible_to me store hota hai).
     // crm hamesha 'CRM' (form me uneditable field).
@@ -2888,7 +2912,7 @@ app.post('/api/challenges', requireAuth, async (req, res) => {
 });
 
 // Mark Done — remarks + supporting files ke saath challenge complete
-app.post('/api/challenges/:id/done', requireAuth, async (req, res) => {
+app.post('/api/challenges/:id/done', requireAuth, requireChallengeAccess, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM challenges WHERE id=?', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Challenge not found' });
@@ -2903,7 +2927,7 @@ app.post('/api/challenges/:id/done', requireAuth, async (req, res) => {
 });
 
 // Update — status/resolution/details/files
-app.put('/api/challenges/:id', requireAuth, async (req, res) => {
+app.put('/api/challenges/:id', requireAuth, requireChallengeAccess, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM challenges WHERE id=?', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Challenge not found' });
