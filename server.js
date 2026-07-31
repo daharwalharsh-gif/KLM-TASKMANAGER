@@ -2675,6 +2675,18 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
 
     const planIdx = colToIdx(step.plan_col);
     const actualIdx = colToIdx(step.actual_col);
+    // Planned/Actual column set hi nahi hai -> pending kabhi match nahi hoti aur UI
+    // "All done" dikha deta tha (jhooth). Saaf batao ki step configure nahi hua.
+    if (planIdx < 0 || actualIdx < 0) {
+      const missing = [];
+      if (planIdx < 0) missing.push('Planned Date');
+      if (actualIdx < 0) missing.push('Actual');
+      return res.json({
+        rows: [], headers: [], total: 0,
+        notConfigured: true, missingCols: missing,
+        stepName: step.step_name || ''
+      });
+    }
     let showCols = [];
     try { showCols = JSON.parse(step.show_cols||'[]'); } catch(e) {}
 

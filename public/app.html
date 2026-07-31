@@ -8086,14 +8086,17 @@ function buildFMSTrain(steps, sheet) {
   const buildCoaches = () => steps.map((s, i) => {
     const isMine = isAdmin || s.isMyStep;
     const doerNames = (s.doers || []).map(d => d.name).join(', ') || '—';
+    // Planned/Actual column set nahi -> pending kabhi detect nahi hogi. Card par hi bata do.
+    const notSetUp = !String(s.plan_col || '').trim() || !String(s.actual_col || '').trim();
     return `
-      <div class="fms-coach ${isMine ? 'mine' : 'not-mine'}" 
+      <div class="fms-coach ${isMine ? 'mine' : 'not-mine'}"
            onclick="${isMine ? `selectFMSStep(${s.id},'${s.step_name.replace(/'/g,"\\'")}','${doerNames.replace(/'/g,"\\'")}')` : ''}"
-           title="${isMine ? 'Click to view tasks' : 'Not your step'}">
+           title="${notSetUp ? 'Planned/Actual columns not set — pending tasks cannot be detected' : (isMine ? 'Click to view tasks' : 'Not your step')}">
         <div class="fms-coach-num">Step ${s.step_order}</div>
         <div class="fms-coach-name">${s.step_name}</div>
         <div class="fms-coach-doers">👤 ${doerNames}</div>
-        ${isMine ? '<div style="font-size:9px;margin-top:4px;opacity:.7">▶ Click to open</div>' : '<div style="font-size:9px;margin-top:4px;opacity:.5">🔒 Not assigned</div>'}
+        ${notSetUp ? '<div style="font-size:9px;margin-top:4px;background:#fbbf24;color:#78350f;font-weight:700;border-radius:4px;padding:1px 5px;display:inline-block">⚠ Not set up</div>'
+          : (isMine ? '<div style="font-size:9px;margin-top:4px;opacity:.7">▶ Click to open</div>' : '<div style="font-size:9px;margin-top:4px;opacity:.5">🔒 Not assigned</div>')}
       </div>
       ${i < steps.length - 1 ? '<div class="fms-coach-connector"></div>' : ''}`;
   }).join('');
@@ -8149,6 +8152,24 @@ async function loadFMSTaskRows() {
     return;
   }
 
+  // Step me Planned/Actual column set hi nahi hai — "All done" dikhana galat hoga
+  if (r.notConfigured) {
+    document.getElementById('fmsTaskRowCount').textContent = '⚠️ Not set up';
+    document.getElementById('fmsTaskRowCount').style.color = '#d97706';
+    document.getElementById('fmsTaskRowsContainer').innerHTML = `
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:22px;text-align:center">
+        <div style="font-size:15px;font-weight:700;color:#b45309;margin-bottom:6px">⚠️ This step is not set up yet</div>
+        <div style="font-size:13px;color:#92400e;line-height:1.6">
+          Its <strong>${(r.missingCols || []).join('</strong> and <strong>')}</strong> column${(r.missingCols || []).length > 1 ? 's are' : ' is'} missing,
+          so pending tasks cannot be detected.<br/>
+          ${ME && ME.role === 'admin'
+            ? 'Open <strong>FMS Admin</strong> → edit this FMS → set the Planned Date and Actual columns for this step.'
+            : 'Please ask an admin to set it up in FMS Admin.'}
+        </div>
+      </div>`;
+    return;
+  }
+  document.getElementById('fmsTaskRowCount').style.color = '#ef4444';
   document.getElementById('fmsTaskRowCount').textContent = r.total ? `${r.total} pending row(s)` : '✅ All done!';
 
   if (!r.rows || !r.rows.length) {
