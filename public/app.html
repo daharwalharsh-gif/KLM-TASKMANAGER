@@ -521,7 +521,7 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M3 6h18M3 18h18"/></svg>
       <span class="nav-label-text">FMS Tasks</span>
     </div>
-    <div class="nav-item" id="nav-master" onclick="navigate('master',this)">
+    <div class="nav-item" id="nav-master" style="display:none" onclick="navigate('master',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16M8 6v12M16 6v12"/></svg>
       <span class="nav-label-text">Master Sheet</span>
     </div>
@@ -2482,6 +2482,7 @@ async function init() {
       document.getElementById('nav-users').style.display = 'flex';
       document.getElementById('nav-mis').style.display = 'flex';
       document.getElementById('nav-fms').style.display = 'flex';
+      document.getElementById('nav-master').style.display = 'flex';   // Master Sheet — admin only
       document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
       const cab = document.getElementById('clearAllBtn'); if (cab) cab.style.display = 'inline-flex';
     }

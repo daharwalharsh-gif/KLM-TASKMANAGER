@@ -2956,12 +2956,12 @@ app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) =>
 // ══════════════════════════════════════════════════════
 // MASTER SHEET — "Master Sheet of (K L Mahajan & Sons)" ka in-app mirror
 // ══════════════════════════════════════════════════════
-// Sab dekh sakte hain; edit/add/delete sirf admin. Har row me FMS/PMS/Checklist
+// Sirf admin — dekhna bhi, edit/add/delete bhi. Har row me FMS/PMS/Checklist
 // ke saath ek-ek link rakh sakte hain (Google Sheet ke chips ki tarah).
 const MS_FIELDS = ['process_name','measurable_result','pc','problem_solver','executive',
                    'fms','fms_link','pms','pms_link','checklist','checklist_link','row_color'];
 
-app.get('/api/master-sheet', requireAuth, async (req, res) => {
+app.get('/api/master-sheet', requireAuth, requireAdmin, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM master_sheet ORDER BY sort_order, id');
     res.json(rows);
