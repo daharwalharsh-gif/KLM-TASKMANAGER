@@ -2897,15 +2897,15 @@ app.get('/api/challenges', requireAuth, requireChallengeAccess, async (req, res)
 app.post('/api/challenges', requireAuth, requireChallengeAccess, async (req, res) => {
   try {
     // rightPerson = "Right Person" dropdown (responsible_to me store hota hai).
-    // crm hamesha 'CRM' (form me uneditable field).
-    const { partyName, receivedDate, knownDate, description, rightPerson, priority, proposedResolution, files } = req.body;
+    // crm = "CRM" dropdown (form me chuninda logon ke naam ki list).
+    const { partyName, receivedDate, knownDate, description, rightPerson, priority, proposedResolution, files, crm } = req.body;
     if (!partyName || !description) return res.status(400).json({ error: 'Party Name and Challenge description are required' });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');   // auto timestamp
     const filesJson = JSON.stringify(Array.isArray(files) ? files : []);
     await db.query(
       `INSERT INTO challenges (party_name,received_date,known_date,description,crm,responsible_to,priority,proposed_resolution,status,files,done_remarks,done_files,done_at,done_by,created_by,created_at,updated_at)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [partyName, receivedDate || '', knownDate || '', description, 'CRM', rightPerson || '', priority || 'medium',
+      [partyName, receivedDate || '', knownDate || '', description, String(crm || '').trim(), rightPerson || '', priority || 'medium',
        proposedResolution || '', 'pending', filesJson, '', '[]', '', '', req.session.userId, now, now]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

@@ -1011,7 +1011,7 @@ tbody tr:last-child td{border-bottom:none;}
           </div>
           <div class="chal-field">
             <label>CRM</label>
-            <input type="text" id="chalCrm" value="CRM" readonly class="chal-readonly"/>
+            <select id="chalCrm"><option value="">Select CRM</option></select>
           </div>
         </div>
 
@@ -2730,6 +2730,7 @@ function resetChallengeForm() {
   ['chalParty','chalReceived','chalKnown','chalDesc','chalResolution'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('chalPriority').value = 'medium';
   document.getElementById('chalRightPerson').value = '';
+  document.getElementById('chalCrm').value = '';
   document.getElementById('chalFiles').value = '';
   document.getElementById('chalErr').style.display = 'none';
   // Timestamp apne aap (readonly) — submit par server ka time save hota hai
@@ -2840,6 +2841,7 @@ async function saveChallenge() {
     receivedDate: document.getElementById('chalReceived').value,
     knownDate: document.getElementById('chalKnown').value,
     rightPerson: document.getElementById('chalRightPerson').value,
+    crm: document.getElementById('chalCrm').value,
     priority: document.getElementById('chalPriority').value,
     proposedResolution: document.getElementById('chalResolution').value.trim(),
     files: _chalFiles
@@ -2917,11 +2919,28 @@ async function loadChallenges() {
     if (Array.isArray(users)) {
       document.getElementById('chalRightPerson').innerHTML = '<option value="">Select person</option>' +
         users.map(u => `<option value="${u.id}">${(u.title ? u.title + ' ' : '') + titleName(u.name)}</option>`).join('');
+      fillChalCrmOptions(users);
     }
   } catch (e) {}
   const data = await api('/api/challenges');
   _challenges = Array.isArray(data) ? data : [];
   renderChallenges();
+}
+
+// CRM dropdown — sirf ye log (wahi log jinko ye form dikhta hai)
+const CHAL_CRM_EMAILS = ['amit@invincible.in','marketing@klmahajan.com','billing@klmahajan.com','nbd@klmahajan.com','crm@klmahajan.com'];
+function fillChalCrmOptions(users) {
+  const sel = document.getElementById('chalCrm');
+  if (!sel) return;
+  const byEmail = {};
+  (Array.isArray(users) ? users : []).forEach(u => { byEmail[(u.email || '').trim().toLowerCase()] = u; });
+  sel.innerHTML = '<option value="">Select CRM</option>' +
+    CHAL_CRM_EMAILS.map(e => {
+      const u = byEmail[e];
+      if (!u) return '';
+      const nm = (u.title ? u.title + ' ' : '') + titleName(u.name);
+      return `<option value="${nm}">${nm}</option>`;
+    }).join('');
 }
 
 
@@ -2970,7 +2989,7 @@ function chalPdfRows(x) {
     ${r('Timestamp', x.created_at)}
     ${r('Submitted By', titleName(x.createdByName || ''))}
     ${r('Party Name', x.party_name)}
-    ${r('CRM', x.crm || 'CRM')}
+    ${r('CRM', x.crm || '—')}
     ${r('Right Who For Resolution', titleName(x.responsibleName || ''))}
     ${r('Challenge Since Date', fmtDate(x.received_date))}
     ${r('Challenge Identified Date', fmtDate(x.known_date))}
@@ -3051,7 +3070,7 @@ function openChallengeDetail(id) {
     ${row('Timestamp', x.created_at)}
     ${row('Submitted By', titleName(x.createdByName || ''))}
     ${row('Party Name', x.party_name)}
-    ${row('CRM', x.crm || 'CRM')}
+    ${row('CRM', x.crm || '—')}
     ${row('Right Who For Resolution', titleName(x.responsibleName || ''))}
     ${row('Challenge Since Date', fmtDate(x.received_date))}
     ${row('Challenge Identified Date', fmtDate(x.known_date))}
@@ -3130,7 +3149,7 @@ function renderChallenges() {
         <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:#64748b">
           <span>📥 Since: <strong style="color:#1e293b">${fmtDate(x.received_date) || '—'}</strong></span>
           <span>📅 Identified: <strong style="color:#1e293b">${fmtDate(x.known_date) || '—'}</strong></span>
-          <span>🏷️ CRM: <strong style="color:#1e293b">${x.crm || 'CRM'}</strong></span>
+          <span>🏷️ CRM: <strong style="color:#1e293b">${x.crm || '—'}</strong></span>
           <span>👤 Right Who For Resolution: <strong style="color:#1e293b">${titleName(x.responsibleName || '') || '—'}</strong></span>
         </div>
 
