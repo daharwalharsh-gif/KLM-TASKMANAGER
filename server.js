@@ -1016,11 +1016,11 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
 
     let delegationPending = [], checklistPending = [];
     if (taskType === 'delegation' || taskType === 'both') {
-      const [rows] = await db.query(`SELECT t.id,'delegation' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail FROM delegation_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${delegDateClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
+      const [rows] = await db.query(`SELECT t.id,'delegation' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail,u2.role AS assignedByRole FROM delegation_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${delegDateClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
       delegationPending = rows;
     }
     if (taskType === 'checklist' || taskType === 'both') {
-      const [rows] = await db.query(`SELECT t.id,'checklist' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,'no' AS approval,0 AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail FROM checklist_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${chkDateClause}${chkFyClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
+      const [rows] = await db.query(`SELECT t.id,'checklist' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,'no' AS approval,0 AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail,u2.role AS assignedByRole FROM checklist_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${chkDateClause}${chkFyClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
       checklistPending = rows;
     }
     res.json({ pending, revised, completed, todayPending: [...delegationPending, ...checklistPending] });
@@ -1112,7 +1112,7 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
       where += ` AND t.due_date >= '${ownerFyStart()}'`;
     }
 
-    const [tasks] = await db.query(`SELECT t.id,'${type||'delegation'}' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,${isDeleg?"COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,":"'no' AS approval,0 AS waiting_approval,t.remarks,"}DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,DATE_FORMAT(t.created_at,'%Y-%m-%d') AS assigned_on,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail FROM ${table} t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id ${where} ORDER BY t.due_date ASC`, params);
+    const [tasks] = await db.query(`SELECT t.id,'${type||'delegation'}' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,${isDeleg?"COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,":"'no' AS approval,0 AS waiting_approval,t.remarks,"}DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,DATE_FORMAT(t.created_at,'%Y-%m-%d') AS assigned_on,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail,u2.role AS assignedByRole FROM ${table} t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id ${where} ORDER BY t.due_date ASC`, params);
 
     // ── Comments attach karo (count + latest) taaki table me dikh sakein ──
     // Pehle comment sirf 💬 modal kholne par dikhta tha; list me koi ishara nahi tha.
@@ -1235,24 +1235,34 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
     const task = rows[0];
 
     const isDelegType = (type || 'delegation') === 'delegation';
-    // EA-lock: task EA (Priyanka) ne diya ho, YA approval='yes' ho
-    let assignerEmail = '';
+    // Task kisne diya — uska email + role chahiye (do alag rules isi par tikte hain)
+    let assignerEmail = '', assignerRole = '';
     if (isDelegType) {
-      const [abRows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [task.assigned_by]);
+      const [abRows] = await db.query('SELECT email, role FROM users WHERE id=? LIMIT 1', [task.assigned_by]);
       assignerEmail = String(abRows[0]?.email || '').trim().toLowerCase();
+      assignerRole  = String(abRows[0]?.role || '').trim().toLowerCase();
     }
+    // EA-lock: task EA (Priyanka) ne diya ho, YA approval='yes' ho — pehle jaisa hi
     const isEATask   = isDelegType && (String(task.approval || 'no') === 'yes' || EA_EMAILS.has(assignerEmail));
+    // Doer-lock: ek DOER ne doosre ko task diya — to Done bhi dene wala doer hi karega,
+    // lene wale ko task sirf dikhta hai. (Admin/PC ke diye task pehle jaise hi chalte
+    // hain — unme jise task mila wahi Done karta hai.)
+    const isDoerGiven = isDelegType && !!assignerRole && assignerRole !== 'admin' && assignerRole !== 'pc';
+    const assignerOnly = isEATask || isDoerGiven;
     const amDoer     = String(task.assigned_to) === String(uid);
     const amAssigner = String(task.assigned_by) === String(uid);
 
-    if (isEATask) {
-      // EA wala task (approval = yes): sirf TASK DENE WALA (EA) ya admin/PC hi Done kare.
-      // Doer khud Done nahi kar sakta.
+    if (assignerOnly) {
+      // Sirf TASK DENE WALA (ya admin/PC) hi status badal sakta hai.
       if (!isAdmin && !isPC && !amAssigner) {
-        return res.status(403).json({ error: 'Ye task sirf dene wale (EA) hi Done kar sakte hain' });
+        return res.status(403).json({
+          error: isEATask
+            ? 'Ye task sirf dene wale (EA) hi Done kar sakte hain'
+            : 'Ye task sirf dene wale hi Done kar sakte hain'
+        });
       }
     } else {
-      // Normal task: jise task mila wahi (ya admin/PC) status badal sakta hai.
+      // Admin/PC ka diya task: jise task mila wahi (ya admin/PC) status badal sakta hai.
       if (!isAdmin && !isPC && !amDoer) return res.status(403).json({ error: 'Not allowed' });
     }
     // Timestamp: status='completed' pe NOW(); warna NULL (un-complete pe clear).
@@ -2817,6 +2827,236 @@ app.post('/api/fms-tasks/upload-file', requireAuth, async (req, res) => {
     console.error('File upload FAILED:', err.code, err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ══════════════════════════════════════════════════════
+// AI ASSISTANT — chat box, Hindi + English dono
+// ══════════════════════════════════════════════════════
+// Jawab HAMESHA asli DB data se banta hai (numbers kabhi banaye nahi jaate).
+// Bina kisi API key ke bhi poora chalta hai: sawaal ka matlab keyword se
+// nikaalte hain aur seedha data se jawab dete hain.
+// Agar ANTHROPIC_API_KEY set ho to wahi data Claude ko context me bhej kar
+// free-form sawaal bhi samjhaye jaate hain.
+
+// Aaj ki date (local)
+function aiToday() { return new Date().toISOString().slice(0, 10); }
+
+// Kis user ka data — apna, ya admin ne kisi aur ka naam liya ho to uska
+async function aiResolveTarget(question, uid, role) {
+  const me = (await db.query('SELECT id,name,title,email,role FROM users WHERE id=?', [uid]))[0][0];
+  if (role !== 'admin') return { me, target: me, scope: 'self' };
+  const q = String(question || '').toLowerCase();
+  const [all] = await db.query("SELECT id,name,title,email,role FROM users WHERE role<>'admin'");
+  // Sabse lamba naam pehle — "amit kumar" ko "amit" se pehle match karo
+  const hit = all.filter(u => u.name && q.includes(String(u.name).trim().toLowerCase()))
+                 .sort((a, b) => b.name.length - a.name.length)[0];
+  if (hit) return { me, target: hit, scope: 'other' };
+  // "sabka", "all", "team", "everyone" -> poori company
+  if (/\b(sab|sabka|sabhi|all|team|everyone|company|total)\b/.test(q)) return { me, target: null, scope: 'all' };
+  return { me, target: me, scope: 'self' };
+}
+
+// Asli ginti — delegation + checklist (+ challenges jinko allowed hai)
+async function aiFacts(target, scope, uid) {
+  const today = aiToday();
+  const fy = ownerFyStart();
+  const where = target ? 'AND t.assigned_to = ?' : '';
+  const p = target ? [target.id] : [];
+
+  const [d] = await db.query(
+    `SELECT status, COUNT(*) AS n FROM delegation_tasks t WHERE 1=1 ${where} GROUP BY status`, p);
+  const [dOver] = await db.query(
+    `SELECT COUNT(*) AS n FROM delegation_tasks t WHERE t.status IN ('pending','revised') AND t.due_date < ? ${where}`,
+    [today, ...p]);
+  const [dToday] = await db.query(
+    `SELECT COUNT(*) AS n FROM delegation_tasks t WHERE t.status IN ('pending','revised') AND t.due_date = ? ${where}`,
+    [today, ...p]);
+  const [c] = await db.query(
+    `SELECT status, COUNT(*) AS n FROM checklist_tasks t WHERE t.due_date <= ? AND t.due_date >= ? ${where} GROUP BY status`,
+    [today, fy, ...p]);
+  const [cOver] = await db.query(
+    `SELECT COUNT(*) AS n FROM checklist_tasks t WHERE t.status='pending' AND t.due_date < ? AND t.due_date >= ? ${where}`,
+    [today, fy, ...p]);
+  const [cToday] = await db.query(
+    `SELECT COUNT(*) AS n FROM checklist_tasks t WHERE t.status='pending' AND t.due_date = ? ${where}`,
+    [today, ...p]);
+
+  const cnt = (rows, st) => parseInt(rows.find(r => r.status === st)?.n, 10) || 0;
+  const num = rows => parseInt(rows[0]?.n, 10) || 0;
+
+  const facts = {
+    today, forWhom: target ? titleCaseName(target.name) : 'poori team',
+    scope,
+    delegation: {
+      pending: cnt(d, 'pending'), revised: cnt(d, 'revised'), done: cnt(d, 'completed'),
+      overdue: num(dOver), dueToday: num(dToday)
+    },
+    checklist: {
+      pending: cnt(c, 'pending'), done: cnt(c, 'completed'),
+      notApplicable: cnt(c, 'not_applicable'), overdue: num(cOver), dueToday: num(cToday)
+    }
+  };
+  facts.delegation.total = facts.delegation.pending + facts.delegation.revised + facts.delegation.done;
+  facts.checklist.total = facts.checklist.pending + facts.checklist.done + facts.checklist.notApplicable;
+
+  // Maine kisko task diye (sirf apne liye)
+  if (scope === 'self') {
+    const [bm] = await db.query(
+      `SELECT status, COUNT(*) AS n FROM delegation_tasks WHERE assigned_by=? GROUP BY status`, [uid]);
+    facts.assignedByMe = {
+      pending: cnt(bm, 'pending'), revised: cnt(bm, 'revised'), done: cnt(bm, 'completed')
+    };
+    facts.assignedByMe.total = facts.assignedByMe.pending + facts.assignedByMe.revised + facts.assignedByMe.done;
+  }
+  return facts;
+}
+
+// Sabse zyada pending kiske paas (admin ke "kaun peeche hai" jaise sawaal)
+async function aiTopPending(limit = 5) {
+  const [rows] = await db.query(
+    `SELECT u.name, COUNT(*) AS n FROM delegation_tasks t JOIN users u ON t.assigned_to=u.id
+     WHERE t.status IN ('pending','revised') GROUP BY u.name ORDER BY n DESC`);
+  return rows.slice(0, limit).map(r => ({ name: titleCaseName(r.name), pending: parseInt(r.n, 10) || 0 }));
+}
+
+// Naam ko Title Case (frontend ke titleName() jaisa)
+function titleCaseName(n) {
+  return String(n || '').trim().toLowerCase().split(/\s+/)
+    .map(w => w ? w[0].toUpperCase() + w.slice(1) : '').join(' ');
+}
+
+// ── Sawaal ka matlab (Hindi + English keywords) ──
+const AI_KW = {
+  delegation: /\b(delegation|deligation|delegate|deliagtion|task|tasks|kaam|काम)\b/i,
+  checklist: /\b(checklist|check\s*list|chek\s*list|चेकलिस्ट)\b/i,
+  done: /\b(done|complete|completed|finish|finished|ho\s*gaya|hogaya|hue|huye|khatam|poora|पूरा|हो\s*गया)\b/i,
+  pending: /\b(pending|baki|baaki|bacha|bache|reh\s*gaya|rehta|remaining|left|बाकी|पेंडिंग)\b/i,
+  overdue: /\b(overdue|over\s*due|late|delay|deri|der|nikal\s*gaya|miss|लेट|ओवरड्यू)\b/i,
+  today: /\b(today|aaj|आज)\b/i,
+  // "maine kisko task diye", "mene jo task diye", "tasks I assigned to others" —
+  // beech me shabd aa sakte hain, isliye lazy gap ke saath match
+  assignedByMe: /\b(assigned\s+by\s+me|i\s+assigned|(maine|mene|mai\s*ne)\b.{0,25}\b(diya|diye|di|assign)|delegate\s*by\s*me)\b/i,
+  top: /\b(sabse\s*zyada|most|top|kaun|who|highest|peeche|behind)\b/i,
+  help: /\b(help|madad|kya\s*puch|what\s*can|kaise|how\s*to\s*use|मदद)\b/i,
+  greet: /^\s*(hi|hello|hey|namaste|namaskar|salaam|हाय|नमस्ते)\b/i
+};
+// Devanagari ho ya Hinglish ke aam shabd — dono Hindi maane jaate hain.
+// (Angrezi sawaal me ye shabd nahi aate, isliye ye check kaafi hai.)
+const isHindi = q => /[ऀ-ॿ]/.test(q) || /\b(kitna|kitne|kitni|mera|meri|mere|mujhe|maine|mene|kaun|kisko|kiska|kiske|kya|kyu|batao|bata|bta|dikhao|dikha|hai|hain|ho|hua|huye|huye|gaya|gyi|baki|baaki|bacha|karna|krna|karo|kro|ka|ki|ke|me|mein|se|par|pe|nahi|nhi|sab|sabka|abhi|aaj|kal)\b/i.test(q);
+
+// Bina API key ke jawab — poora asli data se
+function aiRuleAnswer(question, f, topList) {
+  const q = String(question || '');
+  const hi = isHindi(q);
+  const L = (h, e) => (hi ? h : e);
+  const who = f.scope === 'self' ? L('Aapki', 'Your') : (f.scope === 'all' ? L('Poori team ki', "The team's") : `${f.forWhom} ${L('ki', "'s")}`);
+
+  if (AI_KW.greet.test(q) && q.trim().length < 25) {
+    return L(`Namaste! Main aapka task assistant hoon.\n\nMujhse poochh sakte ho:\n• "meri delegation kitni hai, kitna done, kitna pending, kitna overdue"\n• "aaj kitne task hain"\n• "checklist ka status"\n• "maine kisko task diye"`,
+      `Hello! I'm your task assistant.\n\nYou can ask me:\n• "how many delegation tasks do I have — done, pending, overdue"\n• "what's due today"\n• "checklist status"\n• "tasks I assigned to others"`);
+  }
+  if (AI_KW.help.test(q)) {
+    return L(`Ye sab poochh sakte ho (Hindi ya English):\n• "meri delegation kitni h, kitna done kiya, kitna pending, kitna overdue"\n• "checklist me kitna baki hai"\n• "aaj kitne task hain"\n• "maine kisko task diye"${f.scope !== 'self' ? '' : ''}\n\nAdmin ho to kisi ka naam bhi le sakte ho — jaise "Aarti ka status" — ya "sabse zyada pending kiske paas hai".`,
+      `You can ask (Hindi or English):\n• "how many delegation tasks do I have — done, pending, overdue"\n• "how much checklist is left"\n• "what's due today"\n• "tasks I assigned to others"\n\nAdmins can also name a person — e.g. "Aarti's status" — or ask "who has the most pending".`);
+  }
+  if (AI_KW.top.test(q) && topList && topList.length) {
+    const lines = topList.map((t, i) => `${i + 1}. ${t.name} — ${t.pending} pending`).join('\n');
+    return L(`Sabse zyada pending delegation task inke paas hain:\n\n${lines}`,
+      `Most pending delegation tasks:\n\n${lines}`);
+  }
+  if (AI_KW.assignedByMe.test(q) && f.assignedByMe) {
+    const a = f.assignedByMe;
+    return L(`Aapne kul ${a.total} task diye hain:\n• Done — ${a.done}\n• Pending — ${a.pending}\n• Revised — ${a.revised}`,
+      `You have assigned ${a.total} task(s):\n• Done — ${a.done}\n• Pending — ${a.pending}\n• Revised — ${a.revised}`);
+  }
+
+  const wantChk = AI_KW.checklist.test(q);
+  const wantDel = AI_KW.delegation.test(q) || !wantChk;   // default delegation
+  const parts = [];
+  const blk = (label, s) => {
+    const rows = [
+      `• ${L('Kul', 'Total')} — ${s.total}`,
+      `• ${L('Done', 'Done')} — ${s.done}`,
+      `• ${L('Pending', 'Pending')} — ${s.pending}`
+    ];
+    if (s.revised !== undefined) rows.push(`• ${L('Revised', 'Revised')} — ${s.revised}`);
+    if (s.notApplicable !== undefined && s.notApplicable) rows.push(`• Not Applicable — ${s.notApplicable}`);
+    rows.push(`• ${L('Overdue', 'Overdue')} — ${s.overdue}${s.overdue ? ' ⚠️' : ''}`);
+    rows.push(`• ${L('Aaj due', 'Due today')} — ${s.dueToday}`);
+    return `${label}\n${rows.join('\n')}`;
+  };
+
+  // Sirf ek cheez poochi ho to seedha wahi
+  const only = (k, val, word) => `${who} ${word}: **${val}**`;
+  if (AI_KW.overdue.test(q) && !AI_KW.done.test(q) && !AI_KW.pending.test(q)) {
+    const s = wantChk ? f.checklist : f.delegation;
+    const n = s.overdue;
+    return n
+      ? L(`${who} ${wantChk ? 'checklist' : 'delegation'} me **${n} task overdue** hain (due date nikal chuki hai). ⚠️`,
+          `${who} ${wantChk ? 'checklist' : 'delegation'} has **${n} overdue task(s)** — past their due date. ⚠️`)
+      : L(`${who} koi task overdue nahi hai ✅`, `${who} has no overdue tasks ✅`);
+  }
+  if (AI_KW.today.test(q)) {
+    return L(`Aaj (${f.today}) due:\n• Delegation — ${f.delegation.dueToday}\n• Checklist — ${f.checklist.dueToday}`,
+      `Due today (${f.today}):\n• Delegation — ${f.delegation.dueToday}\n• Checklist — ${f.checklist.dueToday}`);
+  }
+
+  if (wantDel) parts.push(blk(L(`${who} **Delegation**:`, `${who} **Delegation**:`), f.delegation));
+  if (wantChk) parts.push(blk(L(`${who} **Checklist**:`, `${who} **Checklist**:`), f.checklist));
+  return parts.join('\n\n');
+}
+
+// Claude wala rasta — sirf tab jab ANTHROPIC_API_KEY set ho.
+// Numbers ke liye Claude ko sirf ye facts diye jaate hain, taaki wo kuch bana na sake.
+let _anthropic = null;
+function anthropicClient() {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  if (!_anthropic) {
+    const Anthropic = require('@anthropic-ai/sdk');
+    _anthropic = new (Anthropic.default || Anthropic)();   // key env se
+  }
+  return _anthropic;
+}
+async function aiClaudeAnswer(question, facts, topList, meName) {
+  const client = anthropicClient();
+  if (!client) return null;
+  const system =
+    `You are the assistant inside the KLM / Invincible Task Manager app. You help "${meName}" understand their tasks.\n` +
+    `Reply in the SAME language the user asked in — Hinglish (Roman Hindi) if they wrote Hinglish, Hindi if Devanagari, English if English.\n` +
+    `Use ONLY the numbers in the DATA block. Never invent, estimate or extrapolate a number. If the answer is not in DATA, say you don't have it.\n` +
+    `Be short and direct — a couple of lines or a small bullet list. No preamble.\n\n` +
+    `DATA (as of ${facts.today}):\n${JSON.stringify({ facts, topPending: topList }, null, 1)}`;
+  const r = await client.messages.create({
+    model: 'claude-opus-5',
+    max_tokens: 4096,
+    thinking: { type: 'adaptive' },
+    output_config: { effort: 'low' },   // chat box — fast + sasta
+    system,
+    messages: [{ role: 'user', content: String(question).slice(0, 2000) }]
+  });
+  if (r.stop_reason === 'refusal') return null;
+  return r.content.filter(b => b.type === 'text').map(b => b.text).join('').trim() || null;
+}
+
+app.post('/api/assistant/ask', requireAuth, async (req, res) => {
+  try {
+    const question = String(req.body?.question || '').trim();
+    if (!question) return res.status(400).json({ error: 'Question required' });
+    const uid = req.session.userId, role = req.session.role;
+    const { me, target, scope } = await aiResolveTarget(question, uid, role);
+    const facts = await aiFacts(target, scope, uid);
+    const topList = (role === 'admin' && AI_KW.top.test(question)) ? await aiTopPending() : null;
+
+    let answer = null, source = 'data';
+    try {
+      answer = await aiClaudeAnswer(question, facts, topList, titleCaseName(me.name));
+      if (answer) source = 'claude';
+    } catch (e) {
+      console.error('  ⚠️  Assistant AI call failed, falling back to data answer:', e.message);
+    }
+    if (!answer) answer = aiRuleAnswer(question, facts, topList);
+    res.json({ answer, source, facts });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ══════════════════════════════════════════════════════

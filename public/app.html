@@ -4238,9 +4238,9 @@ function renderDashTable(tasks, type) {
       <td style="white-space:nowrap">
         ${t.waiting_approval==1 ? `
           <span style="font-size:11px;color:#f59e0b;font-weight:600">⏳ Waiting Approval</span>
-          ${(t.type==='checklist' || ME.role==='admin' || (isEAAssigned(t) ? String(t.assigned_by)===String(ME.id) : String(t.assigned_to)===String(ME.id))) ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin' || (isAssignerOnly(t) ? String(t.assigned_by)===String(ME.id) : String(t.assigned_to)===String(ME.id))) ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
         ` : `
-          ${(t.type==='checklist' || ME.role==='admin' || (isEAAssigned(t) ? String(t.assigned_by)===String(ME.id) : String(t.assigned_to)===String(ME.id))) ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
+          ${(t.type==='checklist' || ME.role==='admin' || (isAssignerOnly(t) ? String(t.assigned_by)===String(ME.id) : String(t.assigned_to)===String(ME.id))) ? `<button class="action-btn done" onclick="updateStatus(${t.id},'completed','dashboard','${t.type}',this)">Done</button>` : ''}
           ${t.type==='checklist' ? `<button class="action-btn" style="margin-left:3px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1"
             onclick="updateStatus(${t.id},'not_applicable','dashboard','${t.type}',this)" title="Not Applicable">N/A</button>` : ''}
           ${(t.type!=='checklist' && ME.role==='admin') ? `<button class="action-btn revise" style="margin-left:3px" onclick="openReviseModal(${t.id},'${t.type}')">Revise</button>` : ''}
@@ -4348,12 +4348,20 @@ function clearTasksDateFilter() {
 
 function filterTasks() { allTasksPage = 1; renderTasksTable(); }
 
-// EA accounts — inke diye hue delegation task sirf ye khud (ya admin) Done kar sakte
-// hain; doer ko sirf dikhte hain. Server par bhi yahi rule lagta hai (EA_EMAILS).
+// Delegation me "Done" kaun kar sakta hai — do haalat me sirf DENE WALA:
+//  1. EA (Priyanka) ka diya task, ya approval='yes'  → pehle jaisa hi
+//  2. Ek DOER ne doosre doer ko diya                 → lene wale ko sirf dikhta hai
+// Admin/PC ke diye task pehle jaise: jise mila wahi Done karta hai.
+// Server par bhi bilkul yahi rule lagta hai (PUT /api/tasks/:id/status).
 const EA_EMAILS = ['ea@klmahajan.com'];
 function isEAAssigned(t) {
   if (String(t.approval || 'no') === 'yes') return true;
   return EA_EMAILS.includes(String(t.assignedByEmail || '').trim().toLowerCase());
+}
+function isAssignerOnly(t) {
+  if (isEAAssigned(t)) return true;
+  const r = String(t.assignedByRole || '').trim().toLowerCase();
+  return !!r && r !== 'admin' && r !== 'pc';   // doer ne diya hai
 }
 
 // ── "📤 Assigned by Me" tab ka data (maine jo tasks kisi aur ko diye) ──
@@ -4451,9 +4459,9 @@ function renderTasksTable() {
     //  • checklist  → sab
     //  • EA task (Priyanka ne diya, ya approval='yes') → SIRF dene wala (EA)/admin — doer nahi
     //  • normal delegation → admin ya jise task mila hai
-    const isEATask = !isChecklist && isEAAssigned(t);
+    const assignerOnly = !isChecklist && isAssignerOnly(t);
     const canDone = isChecklist || ME.role === 'admin' ||
-      (isEATask ? String(t.assigned_by) === String(ME.id) : String(t.assigned_to) === String(ME.id));
+      (assignerOnly ? String(t.assigned_by) === String(ME.id) : String(t.assigned_to) === String(ME.id));
     // Revise sirf delegation pe hota hai, aur ab wo bhi sirf admin kar sakta hai.
     const canRevise = !isChecklist && ME.role === 'admin';
     // "N/A" (Not Applicable) — sirf CHECKLIST me, Done ke bagal me. Task Not Applicable
@@ -9183,6 +9191,94 @@ function setupFMSColFilterListeners() {
 init();
 setDefaultMISDates();
 setupFMSColFilterListeners();
+
+// ══════════════════════════════════════════════════════
+// AI ASSISTANT — chat box (Hindi + English)
+// Jawab server se aate hain, hamesha asli data par based.
+// ══════════════════════════════════════════════════════
+let _aiBusy = false, _aiGreeted = false;
+const AI_CHIPS = [
+  'Meri delegation kitni hai?',
+  'Kitna pending aur overdue hai?',
+  'Aaj kitne task hain?',
+  'Checklist ka status',
+  'Maine kisko task diye?'
+];
+
+function aiToggle() {
+  const p = document.getElementById('aiPanel'), f = document.getElementById('aiFab');
+  const open = p.classList.toggle('open');
+  f.classList.toggle('open', open);
+  f.textContent = open ? '✕' : '💬';
+  if (open) {
+    if (!_aiGreeted) {
+      _aiGreeted = true;
+      const nm = ME ? titleName(ME.name).split(' ')[0] : '';
+      aiPush('bot', `Namaste${nm ? ' ' + nm : ''}! 👋\nApne task ke baare me kuch bhi poochho — Hindi ya English me.\n\nNeeche ke suggestions bhi try kar sakte ho.`);
+      document.getElementById('aiChips').innerHTML =
+        AI_CHIPS.map(c => `<button class="ai-chip" onclick="aiAsk(this.textContent)">${escapeHtml(c)}</button>`).join('');
+    }
+    setTimeout(() => document.getElementById('aiInput').focus(), 100);
+  }
+}
+
+// **bold** ko <strong> me — baaki sab escape (user/AI text hai)
+function aiFormat(text) {
+  return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
+function aiPush(who, text) {
+  const b = document.getElementById('aiBody');
+  const d = document.createElement('div');
+  d.className = 'ai-msg ' + who;
+  d.innerHTML = who === 'me' ? escapeHtml(text) : aiFormat(text);
+  b.appendChild(d);
+  b.scrollTop = b.scrollHeight;
+  return d;
+}
+
+function aiTyping(on) {
+  const b = document.getElementById('aiBody');
+  const old = document.getElementById('aiDots');
+  if (old) old.remove();
+  if (!on) return;
+  const d = document.createElement('div');
+  d.className = 'ai-typing'; d.id = 'aiDots';
+  d.innerHTML = '<span></span><span></span><span></span>';
+  b.appendChild(d);
+  b.scrollTop = b.scrollHeight;
+}
+
+function aiAsk(q) {
+  document.getElementById('aiInput').value = q;
+  aiSend();
+}
+
+async function aiSend() {
+  if (_aiBusy) return;
+  const inp = document.getElementById('aiInput');
+  const q = (inp.value || '').trim();
+  if (!q) return;
+  inp.value = '';
+  aiPush('me', q);
+  _aiBusy = true;
+  document.getElementById('aiSendBtn').disabled = true;
+  aiTyping(true);
+  try {
+    const r = await api('/api/assistant/ask', 'POST', { question: q });
+    aiTyping(false);
+    if (r && r.error) aiPush('bot', '⚠️ ' + r.error).classList.add('err');
+    else aiPush('bot', (r && r.answer) || 'Samajh nahi aaya — thoda alag tarike se poochho.');
+  } catch (e) {
+    aiTyping(false);
+    aiPush('bot', '⚠️ Jawab nahi mil paaya. Dobara try karo.').classList.add('err');
+  } finally {
+    _aiBusy = false;
+    document.getElementById('aiSendBtn').disabled = false;
+    inp.focus();
+  }
+}
+
 </script>
 
 <!-- Google Sheets-style column filter popup (one shared instance, body-level) -->
@@ -9200,5 +9296,65 @@ setupFMSColFilterListeners();
     <button class="ff-apply" onclick="applyFMSColFilter()">Apply</button>
   </div>
 </div>
+  <!-- ══════════════════════════════════════
+       AI ASSISTANT — floating chat box (Hindi + English)
+  ══════════════════════════════════════ -->
+  <style>
+    #aiFab{position:fixed;right:20px;bottom:20px;width:56px;height:56px;border-radius:50%;
+      background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;cursor:pointer;
+      box-shadow:0 8px 24px rgba(124,58,237,.4);font-size:24px;z-index:900;
+      display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s}
+    #aiFab:hover{transform:translateY(-2px) scale(1.05);box-shadow:0 12px 30px rgba(124,58,237,.5)}
+    #aiFab.open{background:linear-gradient(135deg,#475569,#334155)}
+    #aiPanel{position:fixed;right:20px;bottom:88px;width:390px;max-width:calc(100vw - 40px);
+      height:540px;max-height:calc(100vh - 130px);background:#fff;border:1px solid #e2e8f0;
+      border-radius:16px;box-shadow:0 20px 50px rgba(15,23,42,.22);z-index:900;
+      display:none;flex-direction:column;overflow:hidden}
+    #aiPanel.open{display:flex}
+    .ai-head{background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#fff;padding:14px 16px;flex-shrink:0}
+    .ai-head h4{margin:0;font-size:15px;font-weight:700}
+    .ai-head p{margin:2px 0 0;font-size:11.5px;opacity:.85}
+    .ai-body{flex:1;overflow-y:auto;padding:14px;background:#f8fafc;display:flex;flex-direction:column;gap:10px}
+    .ai-msg{max-width:86%;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+    .ai-msg.me{align-self:flex-end;background:#7c3aed;color:#fff;border-bottom-right-radius:4px}
+    .ai-msg.bot{align-self:flex-start;background:#fff;color:#1e293b;border:1px solid #e2e8f0;border-bottom-left-radius:4px}
+    .ai-msg.bot strong{color:#5b21b6}
+    .ai-msg.err{background:#fef2f2;border-color:#fca5a5;color:#b91c1c}
+    .ai-typing{align-self:flex-start;display:flex;gap:4px;padding:11px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px}
+    .ai-typing span{width:6px;height:6px;border-radius:50%;background:#c4b5fd;animation:aiBounce 1.2s infinite}
+    .ai-typing span:nth-child(2){animation-delay:.15s}
+    .ai-typing span:nth-child(3){animation-delay:.3s}
+    @keyframes aiBounce{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-5px);opacity:1}}
+    .ai-chips{display:flex;gap:6px;flex-wrap:wrap;padding:0 14px 10px;background:#f8fafc;flex-shrink:0}
+    .ai-chip{font-size:11.5px;padding:5px 10px;border:1px solid #ddd6fe;background:#f5f3ff;color:#5b21b6;
+      border-radius:14px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600}
+    .ai-chip:hover{background:#ede9fe}
+    .ai-foot{display:flex;gap:8px;padding:10px 12px;border-top:1px solid #e2e8f0;background:#fff;flex-shrink:0}
+    .ai-foot input{flex:1;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;
+      font-family:'Inter',sans-serif;outline:none}
+    .ai-foot input:focus{border-color:#7c3aed}
+    .ai-foot button{background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:0 14px;
+      cursor:pointer;font-size:15px}
+    .ai-foot button:disabled{background:#cbd5e1;cursor:not-allowed}
+    @media (max-width:768px){
+      #aiFab{right:14px;bottom:78px;width:50px;height:50px;font-size:21px}
+      #aiPanel{right:10px;left:10px;bottom:136px;width:auto;height:min(480px,calc(100vh - 200px))}
+    }
+  </style>
+
+  <button id="aiFab" onclick="aiToggle()" title="Ask about your tasks / apne task ke baare me poochho">💬</button>
+  <div id="aiPanel">
+    <div class="ai-head">
+      <h4>🤖 Task Assistant</h4>
+      <p>Hindi ya English — jo poochhna ho poochho</p>
+    </div>
+    <div class="ai-body" id="aiBody"></div>
+    <div class="ai-chips" id="aiChips"></div>
+    <div class="ai-foot">
+      <input type="text" id="aiInput" placeholder="Type your question…" onkeydown="if(event.key==='Enter')aiSend()"/>
+      <button id="aiSendBtn" onclick="aiSend()">➤</button>
+    </div>
+  </div>
+
 </body>
 </html>
