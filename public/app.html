@@ -521,6 +521,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M3 6h18M3 18h18"/></svg>
       <span class="nav-label-text">FMS Tasks</span>
     </div>
+    <div class="nav-item" id="nav-master" onclick="navigate('master',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16M8 6v12M16 6v12"/></svg>
+      <span class="nav-label-text">Master Sheet</span>
+    </div>
     <div class="nav-item" id="nav-leaves" onclick="navigate('leaves',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
       <span class="nav-label-text">Leave Tracker</span>
@@ -1233,6 +1237,154 @@ tbody tr:last-child td{border-bottom:none;}
     <div id="recordsResults">
       <div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
         Week select karke <strong>Generate</strong> dabayein
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       MASTER SHEET — mirror of the "Master Sheet of (K L Mahajan & Sons)" Google Sheet
+  ══════════════════════════════════════ -->
+  <style>
+    /* Master Sheet — sheet ke rang, plus app-grade UX (sticky header, hover, chips) */
+    .ms-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid #e2e8f0;
+      border-radius:12px;padding:12px 14px;margin-bottom:14px}
+    .ms-search{flex:1;min-width:180px;position:relative}
+    .ms-search input{width:100%;padding:9px 12px 9px 34px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;
+      font-family:'Inter',sans-serif;outline:none;box-sizing:border-box;transition:border .15s}
+    .ms-search input:focus{border-color:#2563eb}
+    .ms-search::before{content:'🔍';position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;opacity:.6}
+    .ms-count{font-size:12px;font-weight:600;color:#64748b;white-space:nowrap}
+    .ms-saved{font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;white-space:nowrap;opacity:0;
+      transition:opacity .2s;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+    .ms-saved.show{opacity:1}
+    .ms-saved.err{background:#fef2f2;color:#dc2626;border-color:#fca5a5}
+
+    .ms-wrap{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:0;overflow:auto;max-height:calc(100vh - 250px)}
+    .ms-table{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px;font-size:12.5px;font-family:'Inter',sans-serif}
+    /* global `thead th` uppercase/grey ko reset — sheet me normal case hai */
+    .ms-table th,.ms-table td{border:1px solid #000;border-width:0 1px 1px 0;padding:7px 9px;vertical-align:middle;
+      text-transform:none;letter-spacing:normal;color:#000;font-size:12.5px}
+    .ms-table th:first-child,.ms-table td:first-child{border-left-width:1px}
+    .ms-table tr:first-child th{border-top-width:1px}
+    /* Sticky: title row + column-header row dono upar chipke rehte hain */
+    .ms-table thead th{position:sticky;z-index:4;box-shadow:0 1px 0 #000}
+    .ms-table thead tr:nth-child(1) th{top:0;z-index:6}
+    .ms-table thead tr:nth-child(2) th{top:37px;z-index:5}
+    .ms-title{background:#e6b8cf;text-align:center;font-size:16px;font-weight:800;color:#000;padding:9px}
+    .ms-head{background:#bdd7ee;text-align:center;font-weight:700;color:#000;font-size:12px;line-height:1.35}
+    .ms-head-yellow{background:#ffff00}
+    .ms-proc{background:#f4b183;font-weight:700;text-align:center;color:#000}
+    .ms-proc-grey{background:#bfbfbf}
+    .ms-meas{background:#ffff00;text-align:center;color:#000}
+    .ms-plain{background:#fff;text-align:center;color:#000}
+    .ms-linkcell{white-space:nowrap}
+    /* Process column mobile pe bhi dikhta rahe */
+    .ms-table td.ms-proc,.ms-table th.ms-freeze{position:sticky;left:0;z-index:2}
+    .ms-table th.ms-freeze{z-index:7}
+    tr:hover td.ms-plain{background:#f8fbff}
+    tr:hover td.ms-proc{filter:brightness(1.04)}
+
+    /* Editable cell — hover par halka ishaara, focus par saaf outline */
+    .ms-cell[contenteditable="true"]{cursor:text;transition:box-shadow .12s}
+    .ms-cell[contenteditable="true"]:hover{box-shadow:inset 0 -2px 0 rgba(37,99,235,.35)}
+    .ms-cell[contenteditable="true"]:focus{outline:2px solid #2563eb;outline-offset:-2px;background:#fffbe6;box-shadow:none}
+    .ms-cell:empty::after{content:attr(data-ph);color:#9aa5b1;font-weight:400;font-size:11.5px}
+
+    /* Google Sheets jaisi link chip */
+    .ms-link{display:inline-flex;align-items:center;gap:5px;background:#e2efda;border:1px solid #a9d08e;border-radius:14px;
+      padding:3px 10px;font-size:11.5px;font-weight:600;color:#14532d;text-decoration:none;max-width:100%;
+      line-height:1.35;transition:background .15s,transform .1s}
+    .ms-link:hover{background:#c6e0b4;transform:translateY(-1px)}
+    .ms-link .ms-ico{font-size:10px;opacity:.8}
+    .ms-chip-plain{display:inline-flex;align-items:center;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:14px;
+      padding:3px 10px;font-size:11.5px;font-weight:600;color:#475569;line-height:1.35}
+    .ms-linkbtn{border:1px dashed #cbd5e1;background:#f8fafc;border-radius:14px;padding:3px 9px;font-size:11px;
+      color:#94a3b8;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;margin-left:3px}
+    .ms-linkbtn:hover{background:#eff6ff;color:#2563eb;border-color:#93c5fd;border-style:solid}
+
+    /* Row tools — hover par saaf dikhte hain, warna halke */
+    .ms-rowtools{white-space:nowrap;border:none!important;background:#fff!important;padding:0 4px!important;
+      position:sticky;right:0;z-index:2}
+    .ms-rowtools .ms-tools-in{display:flex;gap:3px;opacity:.25;transition:opacity .15s}
+    tr:hover .ms-tools-in{opacity:1}
+    .ms-rowtools button{border:1px solid #e2e8f0;background:#fff;border-radius:6px;width:25px;height:25px;
+      cursor:pointer;font-size:12px;line-height:1;color:#64748b;transition:all .12s}
+    .ms-rowtools button:hover{background:#f1f5f9;color:#1e293b;border-color:#cbd5e1}
+    .ms-rowtools button.del:hover{background:#fee2e2;color:#dc2626;border-color:#fca5a5}
+    .ms-empty{border:none!important;padding:30px!important;text-align:center;color:#64748b;background:#fff!important}
+
+    @media (max-width:768px){
+      .ms-wrap{max-height:calc(100vh - 300px)}
+      .ms-table{font-size:11.5px;min-width:900px}
+      .ms-table th,.ms-table td{padding:6px 7px}
+      .ms-title{font-size:14px}
+    }
+  </style>
+  <div id="page-master" class="page">
+    <div class="page-header">
+      <h2>Master Sheet</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span id="msSaveState" class="ms-saved"></span>
+        <button class="btn btn-outline btn-sm" onclick="loadMasterSheet()">🔄 Refresh</button>
+        <button class="btn btn-outline btn-sm" onclick="downloadMasterSheetCSV()">📥 CSV</button>
+        <button class="btn btn-primary btn-sm" id="msAddBtn" onclick="addMasterRow()" style="display:none">➕ Add Row</button>
+      </div>
+    </div>
+
+    <div class="ms-toolbar">
+      <div class="ms-search"><input type="text" id="msSearch" placeholder="Search process, person, FMS…" oninput="renderMasterSheet()"/></div>
+      <span class="ms-count" id="msCount"></span>
+      <button class="btn btn-outline btn-sm" id="msAutoBtn" onclick="autoFillMasterLinks()" style="display:none"
+        title="Fill F.M.S. / P.M.S links automatically from the FMS registry">🔗 Auto-fill Links</button>
+    </div>
+
+    <div id="msHint" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:9px 12px;margin-bottom:12px;font-size:12.5px;color:#1e40af">
+      💡 Click any cell to type — it saves automatically. Use 🔗 in F.M.S. / P.M.S / Checklist to attach a sheet link. Tab moves to the next cell.
+    </div>
+
+    <div class="ms-wrap">
+      <table class="ms-table">
+        <thead>
+          <tr><th class="ms-title" colspan="8">Master Sheet of (K L Mahajan &amp; Sons)</th><th class="ms-rowtools"></th></tr>
+          <tr>
+            <th class="ms-head ms-freeze" style="min-width:195px">List of all processes</th>
+            <th class="ms-head ms-head-yellow" style="min-width:215px">What is the measurable result of this process (always define this first in no's)</th>
+            <th class="ms-head" style="min-width:80px">Who is the P.C</th>
+            <th class="ms-head" style="min-width:120px">Who is the Problem Solver</th>
+            <th class="ms-head" style="min-width:100px">Who is the Executive. (if Required)</th>
+            <th class="ms-head" style="min-width:135px">F.M.S.</th>
+            <th class="ms-head" style="min-width:115px">P.M.S</th>
+            <th class="ms-head" style="min-width:115px">Checklist</th>
+            <th class="ms-rowtools"></th>
+          </tr>
+        </thead>
+        <tbody id="msBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MASTER SHEET — attach a link to an F.M.S. / P.M.S / Checklist cell -->
+  <div class="modal-overlay" id="msLinkModal">
+    <div class="modal" style="max-width:520px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px">
+        <h3 style="margin:0">🔗 <span id="msLinkTitle">Link</span></h3>
+        <button class="btn btn-outline" onclick="closeModal('msLinkModal')" style="flex-shrink:0">✕ Close</button>
+      </div>
+      <div class="form-group" id="msPickWrap">
+        <label>Pick a registered FMS (fills both fields)</label>
+        <select id="msLinkPick" onchange="msApplyPick()"><option value="">— Choose —</option></select>
+      </div>
+      <div class="form-group">
+        <label>Name shown in the cell</label>
+        <input type="text" id="msLinkLabel" placeholder="e.g. FMS Purchase"/>
+      </div>
+      <div class="form-group">
+        <label>Link (URL)</label>
+        <input type="text" id="msLinkUrl" placeholder="https://docs.google.com/spreadsheets/..."/>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+        <button class="btn btn-outline" onclick="saveMasterLink('')">🗑 Remove link</button>
+        <button class="btn btn-primary" onclick="saveMasterLink()">💾 Save</button>
       </div>
     </div>
   </div>
@@ -2417,7 +2569,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',master:'Master Sheet'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -2435,6 +2587,7 @@ function navigate(page, el) {
   if (page==='mis') initMISDeptFilter();
   if (page==='records') loadRecords();
   if (page==='leaves') loadLeaves();
+  if (page==='master') loadMasterSheet();
   closeSidebar();   // mobile drawer band karo nav ke baad
   window.scrollTo(0,0);
 }
@@ -3164,6 +3317,295 @@ function renderChallenges() {
         </div>` : ''}
       </div>`;
     }).join('');
+}
+
+// ══════════════════════════════════════════════════════
+// MASTER SHEET — in-app mirror of the K L Mahajan master Google Sheet.
+// Everyone can view; only admin can edit / add / delete.
+// ══════════════════════════════════════════════════════
+let _masterRows = [];
+let _msLinkTarget = null;   // { id, col } — which cell the link modal is open for
+let _msFmsOptions = [];     // registered FMS -> { name, url } (admin only)
+// Cell text comes from the user — escape before it goes into HTML/attributes
+function escapeHtml(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+const MS_LINK_COLS = ['fms', 'pms', 'checklist'];
+const MS_COL_LABEL = { fms: 'F.M.S.', pms: 'P.M.S', checklist: 'Checklist' };
+const msCanEdit = () => !!(ME && ME.role === 'admin');
+
+async function loadMasterSheet() {
+  const body = document.getElementById('msBody');
+  body.innerHTML = '<tr><td colspan="9" class="ms-empty">Loading…</td></tr>';
+  const ed = msCanEdit();
+  document.getElementById('msAddBtn').style.display = ed ? '' : 'none';
+  document.getElementById('msAutoBtn').style.display = ed ? '' : 'none';
+  document.getElementById('msHint').style.display = ed ? '' : 'none';
+  const data = await api('/api/master-sheet');
+  if (data && data.error) {
+    body.innerHTML = `<tr><td colspan="9" class="ms-empty" style="color:#ef4444">⚠️ ${escapeHtml(data.error)}</td></tr>`;
+    return;
+  }
+  _masterRows = Array.isArray(data) ? data : [];
+  if (ed && !_msFmsOptions.length) loadMasterLinkOptions();   // background
+  renderMasterSheet();
+}
+
+// Registered FMS list -> link picker + auto-fill ke liye
+async function loadMasterLinkOptions() {
+  try {
+    const list = await api('/api/fms');
+    if (!Array.isArray(list)) return;
+    _msFmsOptions = list
+      .filter(f => f.sheet_id)
+      .map(f => ({ name: f.fms_name || '', url: fmsSheetUrl(f.sheet_id) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const sel = document.getElementById('msLinkPick');
+    if (sel) sel.innerHTML = '<option value="">— Choose —</option>' +
+      _msFmsOptions.map((o, i) => `<option value="${i}">${escapeHtml(o.name)}</option>`).join('');
+  } catch (e) {}
+}
+// Sheet ka asli URL — gid map se, warna generic /edit
+function fmsSheetUrl(sid) {
+  if (!sid) return '';
+  return FMS_SHEET_GID_LINKS[sid] || `https://docs.google.com/spreadsheets/d/${sid}/edit`;
+}
+
+function msVisibleRows() {
+  const q = (document.getElementById('msSearch')?.value || '').trim().toLowerCase();
+  if (!q) return _masterRows;
+  return _masterRows.filter(r => [r.process_name, r.measurable_result, r.pc, r.problem_solver,
+    r.executive, r.fms, r.pms, r.checklist].some(v => String(v || '').toLowerCase().includes(q)));
+}
+
+function renderMasterSheet() {
+  const body = document.getElementById('msBody');
+  const rows = msVisibleRows();
+  const cnt = document.getElementById('msCount');
+  if (cnt) cnt.textContent = rows.length === _masterRows.length
+    ? `${_masterRows.length} processes`
+    : `${rows.length} of ${_masterRows.length} processes`;
+  if (!rows.length) {
+    body.innerHTML = `<tr><td colspan="9" class="ms-empty">${_masterRows.length ? 'No match found' : (msCanEdit() ? 'No rows yet — click "➕ Add Row" to start' : 'No rows yet')}</td></tr>`;
+    return;
+  }
+  const ed = msCanEdit();
+  body.innerHTML = rows.map(r => {
+    const grey = String(r.row_color || '') === 'grey';
+    const cell = (col, cls, ph) => `<td class="${cls} ms-cell" data-ph="${ph}" ${ed ? `contenteditable="true" onblur="saveMasterCell(${r.id},'${col}',this)" onkeydown="msCellKey(event)"` : ''}
+      data-id="${r.id}" data-col="${col}">${escapeHtml(r[col] || '')}</td>`;
+    const linkCell = col => {
+      const label = r[col] || '', url = r[col + '_link'] || '';
+      let inner = '';
+      if (label && url) inner = `<a class="ms-link" href="${escapeHtml(url)}" target="_blank" rel="noopener" title="Open ${escapeHtml(label)}"><span class="ms-ico">▦</span>${escapeHtml(label)}</a>`;
+      else if (label) inner = `<span class="ms-chip-plain" title="No link attached yet">${escapeHtml(label)}</span>`;
+      const btn = ed ? `<button class="ms-linkbtn" onclick="openMasterLink(${r.id},'${col}')" title="${inner ? 'Edit link' : 'Attach a link'}">${inner ? '✎' : '🔗 Link'}</button>` : '';
+      return `<td class="ms-plain ms-linkcell">${inner}${inner && btn ? ' ' : ''}${btn}</td>`;
+    };
+    const tools = ed ? `<td class="ms-rowtools"><div class="ms-tools-in">
+        <button onclick="moveMasterRow(${r.id},'up')" title="Move up">↑</button>
+        <button onclick="moveMasterRow(${r.id},'down')" title="Move down">↓</button>
+        <button onclick="toggleMasterColor(${r.id})" title="Toggle colour (orange / grey)">🎨</button>
+        <button class="del" onclick="deleteMasterRow(${r.id})" title="Delete row">✕</button>
+      </div></td>` : '<td class="ms-rowtools"></td>';
+    return `<tr>
+      ${cell('process_name', 'ms-proc' + (grey ? ' ms-proc-grey' : ''), ed ? 'Process name' : '')}
+      ${cell('measurable_result', 'ms-meas', ed ? 'Measurable result' : '')}
+      ${cell('pc', 'ms-plain', '')}
+      ${cell('problem_solver', 'ms-plain', '')}
+      ${cell('executive', 'ms-plain', '')}
+      ${linkCell('fms')}${linkCell('pms')}${linkCell('checklist')}
+      ${tools}
+    </tr>`;
+  }).join('');
+}
+
+// Enter = save, Esc = cancel, Tab = next cell
+function msCellKey(e) {
+  if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+  else if (e.key === 'Escape') { e.preventDefault(); renderMasterSheet(); }
+  else if (e.key === 'Tab') {
+    const cells = [...document.querySelectorAll('#msBody td[contenteditable="true"]')];
+    const i = cells.indexOf(e.target);
+    const next = cells[i + (e.shiftKey ? -1 : 1)];
+    if (next) { e.preventDefault(); e.target.blur(); next.focus(); }
+  }
+}
+
+function msSaveState(txt, isErr) {
+  const el = document.getElementById('msSaveState');
+  if (!el) return;
+  el.textContent = txt;
+  el.classList.toggle('err', !!isErr);
+  el.classList.toggle('show', !!txt);
+  if (txt) setTimeout(() => { if (el.textContent === txt) el.classList.remove('show'); }, 2200);
+}
+
+async function saveMasterCell(id, col, el) {
+  const row = _masterRows.find(r => String(r.id) === String(id));
+  const val = (el.innerText || '').replace(/\s+$/, '').trim();
+  if (!row || String(row[col] || '') === val) return;   // nothing changed
+  msSaveState('Saving…');
+  const r = await api(`/api/master-sheet/${id}`, 'PUT', { [col]: val });
+  if (r && r.error) { showToast(r.error, 'error'); el.innerText = row[col] || ''; msSaveState('Save failed', true); return; }
+  row[col] = val;
+  msSaveState('✓ Saved');
+}
+
+function openMasterLink(id, col) {
+  const row = _masterRows.find(r => String(r.id) === String(id));
+  if (!row) return;
+  _msLinkTarget = { id, col };
+  document.getElementById('msLinkTitle').textContent = MS_COL_LABEL[col] || 'Link';
+  document.getElementById('msLinkLabel').value = row[col] || '';
+  document.getElementById('msLinkUrl').value = row[col + '_link'] || '';
+  const pick = document.getElementById('msLinkPick');
+  if (pick) pick.value = '';
+  // Checklist FMS registry me nahi hote — picker sirf FMS/PMS ke liye
+  document.getElementById('msPickWrap').style.display = (col === 'checklist' || !_msFmsOptions.length) ? 'none' : '';
+  document.getElementById('msLinkModal').classList.add('open');
+}
+
+function msApplyPick() {
+  const i = document.getElementById('msLinkPick').value;
+  if (i === '') return;
+  const o = _msFmsOptions[+i];
+  if (!o) return;
+  document.getElementById('msLinkLabel').value = o.name;
+  document.getElementById('msLinkUrl').value = o.url;
+}
+
+// clear === '' -> label + link dono hata do
+async function saveMasterLink(clear) {
+  if (!_msLinkTarget) return;
+  const { id, col } = _msLinkTarget;
+  const label = clear === '' ? '' : document.getElementById('msLinkLabel').value.trim();
+  const url = clear === '' ? '' : document.getElementById('msLinkUrl').value.trim();
+  if (url && !/^https?:\/\//i.test(url)) return showToast('Link must start with https://', 'error');
+  const r = await api(`/api/master-sheet/${id}`, 'PUT', { [col]: label, [col + '_link']: url });
+  if (r && r.error) return showToast(r.error, 'error');
+  const row = _masterRows.find(x => String(x.id) === String(id));
+  if (row) { row[col] = label; row[col + '_link'] = url; }
+  closeModal('msLinkModal');
+  renderMasterSheet();
+  msSaveState('✓ Saved');
+}
+
+// Master-sheet ka process/label -> app me registered FMS ka naam.
+// Explicit rakha hai kyunki naam-matching se galat jod ban rahe the (jaise dono
+// "domestic offline" rows export wali NBD sheet se jud gayi thi).
+const MS_LINK_ALIAS = {
+  'purchase': 'purchase fms',
+  'fms purchase': 'purchase fms',
+  'o-d merchant': 'merchant o2d fms',
+  'o to d - merchant': 'merchant o2d fms',
+  'o-c offline': 'invincible offline o2d fms',
+  'order to cash offline': 'invincible offline o2d fms',
+  'pms garments': 'garments pms',
+  'pms level 2 garments': 'garments pms',
+  'pms boxing': 'boxing pms',
+  'sampling fms apparel': 'sampling fms',
+  'sampling fms': 'sampling fms',
+  'crm fms domestic offline': 'invincible crm fms',
+  'export documentation': 'export documentation fms',
+  'export - customer fms': 'export crm fms',
+  'sales nbd fms incoming export': 'export sales incoming nbd fms',
+  'sales nbd incoming export': 'export sales incoming nbd fms'
+};
+
+// F.M.S. / P.M.S columns me registered sheet ka link jodta hai.
+// Label waisa hi rehta hai jaisa sheet me likha hai — sirf link lagta hai.
+// Pehle se laga hua link kabhi overwrite nahi hota.
+async function autoFillMasterLinks() {
+  if (!_msFmsOptions.length) await loadMasterLinkOptions();
+  if (!_msFmsOptions.length) return showToast('No registered FMS found', 'error');
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const byName = {};
+  _msFmsOptions.forEach(o => { byName[norm(o.name)] = o; });
+  // alias ki keys/values bhi normalize — warna "O-D merchant" jaise hyphen wale miss ho jaate hain
+  const alias = {};
+  for (const [k, v] of Object.entries(MS_LINK_ALIAS)) alias[norm(k)] = norm(v);
+  const pending = [];
+  for (const r of _masterRows) {
+    for (const col of ['fms', 'pms']) {
+      if (r[col + '_link']) continue;                       // already linked — leave it
+      // pehle cell ka label, phir process name — dono alias table me dekho
+      const key = [norm(r[col]), norm(r.process_name)].find(k => k && (byName[k] || alias[k]));
+      if (!key) continue;
+      const match = byName[key] || byName[alias[key]];
+      if (!match) continue;
+      const isPms = /\bpms\b/.test(norm(match.name));        // PMS sheet sirf P.M.S column me
+      if ((col === 'pms') !== isPms) continue;
+      pending.push({ id: r.id, col, name: r[col] || match.name, url: match.url, row: r, sheet: match.name });
+    }
+  }
+  if (!pending.length) return showToast('Nothing to fill — all known links are already set', 'success');
+  if (!confirm(`Attach ${pending.length} link(s) from the FMS registry?\n\n` +
+    pending.map(p => `• ${p.row.process_name} → ${p.sheet}`).join('\n'))) return;
+  msSaveState('Saving…');
+  let done = 0;
+  for (const p of pending) {
+    const r = await api(`/api/master-sheet/${p.id}`, 'PUT', { [p.col]: p.name, [p.col + '_link']: p.url });
+    if (!(r && r.error)) { p.row[p.col] = p.name; p.row[p.col + '_link'] = p.url; done++; }
+  }
+  renderMasterSheet();
+  msSaveState(`✓ ${done} link(s) added`);
+  showToast(`${done} link(s) attached`, 'success');
+}
+
+async function addMasterRow() {
+  const r = await api('/api/master-sheet', 'POST', { process_name: '', measurable_result: '', row_color: 'orange' });
+  if (r && r.error) return showToast(r.error, 'error');
+  const s = document.getElementById('msSearch'); if (s) s.value = '';
+  await loadMasterSheet();
+  const cells = document.querySelectorAll('#msBody td[data-col="process_name"]');
+  const last = cells[cells.length - 1];
+  if (last) { last.scrollIntoView({ block: 'center' }); last.focus(); }
+}
+
+async function deleteMasterRow(id) {
+  const row = _masterRows.find(r => String(r.id) === String(id));
+  if (!confirm(`Delete this row?\n\n${row?.process_name || '(empty row)'}`)) return;
+  const r = await api(`/api/master-sheet/${id}`, 'DELETE');
+  if (r && r.error) return showToast(r.error, 'error');
+  await loadMasterSheet();
+  showToast('Row deleted', 'success');
+}
+
+async function moveMasterRow(id, dir) {
+  const r = await api(`/api/master-sheet/${id}/move`, 'POST', { dir });
+  if (r && r.error) return showToast(r.error, 'error');
+  await loadMasterSheet();
+}
+
+async function toggleMasterColor(id) {
+  const row = _masterRows.find(r => String(r.id) === String(id));
+  if (!row) return;
+  const next = String(row.row_color || '') === 'grey' ? 'orange' : 'grey';
+  const r = await api(`/api/master-sheet/${id}`, 'PUT', { row_color: next });
+  if (r && r.error) return showToast(r.error, 'error');
+  row.row_color = next;
+  renderMasterSheet();
+}
+
+function downloadMasterSheetCSV() {
+  const head = ['List of all processes', "What is the measurable result of this process (always define this first in no's)",
+    'Who is the P.C', 'Who is the Problem Solver', 'Who is the Executive. (if Required)',
+    'F.M.S.', 'F.M.S. Link', 'P.M.S', 'P.M.S Link', 'Checklist', 'Checklist Link'];
+  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const lines = [head.map(q).join(',')];
+  for (const r of msVisibleRows()) {
+    lines.push([r.process_name, r.measurable_result, r.pc, r.problem_solver, r.executive,
+      r.fms, r.fms_link, r.pms, r.pms_link, r.checklist, r.checklist_link].map(q).join(','));
+  }
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Master-Sheet-KL-Mahajan.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 async function loadLeaves() {
@@ -4991,6 +5433,7 @@ function buildMobileNav() {
     { page: 'mis',       label: 'MIS' },
     { page: 'fms',       label: 'FMS Admin' },
     { page: 'fms-tasks', label: 'FMS' },
+    { page: 'master',    label: 'Master' },
     { page: 'leaves',    label: 'Leave' },
     { page: 'profile',   label: 'Profile' }
   ];

@@ -2953,6 +2953,80 @@ app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) =>
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ══════════════════════════════════════════════════════
+// MASTER SHEET — "Master Sheet of (K L Mahajan & Sons)" ka in-app mirror
+// ══════════════════════════════════════════════════════
+// Sab dekh sakte hain; edit/add/delete sirf admin. Har row me FMS/PMS/Checklist
+// ke saath ek-ek link rakh sakte hain (Google Sheet ke chips ki tarah).
+const MS_FIELDS = ['process_name','measurable_result','pc','problem_solver','executive',
+                   'fms','fms_link','pms','pms_link','checklist','checklist_link','row_color'];
+
+app.get('/api/master-sheet', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM master_sheet ORDER BY sort_order, id');
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Nayi row — list ke aakhir me
+app.post('/api/master-sheet', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const [mx] = await db.query('SELECT MAX(sort_order) AS m FROM master_sheet');
+    const next = (parseInt(mx[0]?.m, 10) || 0) + 1;
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const vals = MS_FIELDS.map(f => String(b[f] == null ? '' : b[f]).trim());
+    await db.query(
+      `INSERT INTO master_sheet (${MS_FIELDS.join(',')},sort_order,created_at,updated_at)
+       VALUES (${MS_FIELDS.map(() => '?').join(',')},?,?,?)`,
+      [...vals, next, now, now]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Cell/row update — sirf wahi fields chhuo jo bheje gaye hain
+app.put('/api/master-sheet/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const sets = [], vals = [];
+    for (const f of MS_FIELDS) {
+      if (b[f] === undefined) continue;
+      sets.push(`${f}=?`); vals.push(String(b[f] == null ? '' : b[f]).trim());
+    }
+    if (b.sort_order !== undefined) { sets.push('sort_order=?'); vals.push(parseInt(b.sort_order, 10) || 0); }
+    if (!sets.length) return res.json({ success: true });
+    sets.push('updated_at=?'); vals.push(new Date().toISOString().slice(0, 19).replace('T', ' '));
+    vals.push(req.params.id);
+    await db.query(`UPDATE master_sheet SET ${sets.join(',')} WHERE id=?`, vals);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/master-sheet/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await db.query('DELETE FROM master_sheet WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Row upar/neeche — do rows ka sort_order aapas me badal dete hain
+app.post('/api/master-sheet/:id/move', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const dir = String(req.body?.dir || '') === 'up' ? -1 : 1;
+    const [rows] = await db.query('SELECT id, sort_order FROM master_sheet ORDER BY sort_order, id');
+    const i = rows.findIndex(r => String(r.id) === String(req.params.id));
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= rows.length) return res.json({ success: true });
+    // sort_order purane/duplicate ho sakte hain — poori list ko dobara number kar dete hain
+    const order = rows.map(r => r.id);
+    [order[i], order[j]] = [order[j], order[i]];
+    for (let k = 0; k < order.length; k++) {
+      await db.query('UPDATE master_sheet SET sort_order=? WHERE id=?', [k + 1, order[k]]);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Public file serve — sheet ke link se photo/PDF khulta hai (random unguessable id, isliye no auth)
 app.get('/f/:id', async (req, res) => {
   try {

@@ -85,6 +85,11 @@ const SCHEMA = {
   challenges: {
     cols: ['id','party_name','received_date','known_date','description','crm','responsible_to','priority','proposed_resolution','status','files','done_remarks','done_files','done_at','done_by','created_by','created_at','updated_at'],
     autoFill: { created_at: 'NOW', updated_at: 'NOW' }
+  },
+  // Master Sheet — K L Mahajan & Sons ka process master (Google Sheet ka mirror)
+  master_sheet: {
+    cols: ['id','process_name','measurable_result','pc','problem_solver','executive','fms','fms_link','pms','pms_link','checklist','checklist_link','row_color','sort_order','created_at','updated_at'],
+    autoFill: { created_at: 'NOW', updated_at: 'NOW' }
   }
 };
 
@@ -116,7 +121,7 @@ const SHEET_DERIVED = {
 const INT_COLS = new Set([
   'id','assigned_to','assigned_by','user_id','task_id','requested_by','requested_to',
   'employee_id','hod_id','target_count','improvement_pct','fms_id','step_id','step_order',
-  'total_steps','header_row','from_user','to_user','waiting_approval','created_by','decided_by'
+  'total_steps','header_row','from_user','to_user','waiting_approval','created_by','decided_by','sort_order'
 ]);
 
 // ══════════════════════════════════════════════════════════════════
