@@ -4348,10 +4348,9 @@ function clearTasksDateFilter() {
 
 function filterTasks() { allTasksPage = 1; renderTasksTable(); }
 
-// Delegation me "Done" kaun kar sakta hai — do haalat me sirf DENE WALA:
-//  1. EA (Priyanka) ka diya task, ya approval='yes'  → pehle jaisa hi
-//  2. Ek DOER ne doosre doer ko diya                 → lene wale ko sirf dikhta hai
-// Admin/PC ke diye task pehle jaise: jise mila wahi Done karta hai.
+// DELEGATION me "Done" hamesha TASK DENE WALA hi karta hai — chahe doer ne diya ho
+// ya admin ne. Jise task mila use sirf dikhta hai (admin ke paas override rehta hai).
+// CHECKLIST par ye rule nahi — wahan doer khud Done karta hai.
 // Server par bhi bilkul yahi rule lagta hai (PUT /api/tasks/:id/status).
 const EA_EMAILS = ['ea@klmahajan.com'];
 function isEAAssigned(t) {
@@ -4359,9 +4358,7 @@ function isEAAssigned(t) {
   return EA_EMAILS.includes(String(t.assignedByEmail || '').trim().toLowerCase());
 }
 function isAssignerOnly(t) {
-  if (isEAAssigned(t)) return true;
-  const r = String(t.assignedByRole || '').trim().toLowerCase();
-  return !!r && r !== 'admin' && r !== 'pc';   // doer ne diya hai
+  return String(t.type || 'delegation') !== 'checklist';
 }
 
 // ── "📤 Assigned by Me" tab ka data (maine jo tasks kisi aur ko diye) ──

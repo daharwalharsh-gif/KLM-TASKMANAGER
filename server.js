@@ -1242,18 +1242,16 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
       assignerEmail = String(abRows[0]?.email || '').trim().toLowerCase();
       assignerRole  = String(abRows[0]?.role || '').trim().toLowerCase();
     }
-    // EA-lock: task EA (Priyanka) ne diya ho, YA approval='yes' ho — pehle jaisa hi
+    // EA-lock: EA (Priyanka) ka diya ya approval='yes' — sirf message alag hota hai
     const isEATask   = isDelegType && (String(task.approval || 'no') === 'yes' || EA_EMAILS.has(assignerEmail));
-    // Doer-lock: ek DOER ne doosre ko task diya — to Done bhi dene wala doer hi karega,
-    // lene wale ko task sirf dikhta hai. (Admin/PC ke diye task pehle jaise hi chalte
-    // hain — unme jise task mila wahi Done karta hai.)
-    const isDoerGiven = isDelegType && !!assignerRole && assignerRole !== 'admin' && assignerRole !== 'pc';
-    const assignerOnly = isEATask || isDoerGiven;
+    // DELEGATION ka rule: Done HAMESHA TASK DENE WALA hi karega — chahe doer ne diya
+    // ho ya admin ne. Jise task mila use sirf dikhta hai. (Admin/PC ke paas override
+    // rehta hai. Checklist par ye rule nahi lagta — wahan doer khud Done karta hai.)
+    const assignerOnly = isDelegType;
     const amDoer     = String(task.assigned_to) === String(uid);
     const amAssigner = String(task.assigned_by) === String(uid);
 
     if (assignerOnly) {
-      // Sirf TASK DENE WALA (ya admin/PC) hi status badal sakta hai.
       if (!isAdmin && !isPC && !amAssigner) {
         return res.status(403).json({
           error: isEATask
@@ -1262,7 +1260,7 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
         });
       }
     } else {
-      // Admin/PC ka diya task: jise task mila wahi (ya admin/PC) status badal sakta hai.
+      // Checklist: jise task mila wahi (ya admin/PC) status badal sakta hai.
       if (!isAdmin && !isPC && !amDoer) return res.status(403).json({ error: 'Not allowed' });
     }
     // Timestamp: status='completed' pe NOW(); warna NULL (un-complete pe clear).
