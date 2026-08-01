@@ -4228,10 +4228,16 @@ function renderDashTable(tasks, type) {
   const typeBadge = t => t.type==='checklist'
     ? `<span style="font-size:10px;background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:10px;font-weight:700;border:1px solid #bbf7d0">✅ Checklist</span>`
     : `<span style="font-size:10px;background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:10px;font-weight:700;border:1px solid #bfdbfe">📋 Delegation</span>`;
+  // Transfer pending — dashboard par bhi wahi halka laal highlight + badge
+  const trTag = t => t.transferPending != 1 ? '' :
+    `<div style="margin-top:4px;display:inline-flex;align-items:center;gap:5px;background:#fee2e2;border:1px solid #fca5a5;color:#b91c1c;border-radius:12px;padding:2px 9px;font-size:11px;font-weight:700">
+       ${t.transferIncoming == 1
+         ? `🔄 Aapko transfer ho raha hai${t.transferFrom ? ` ← ${titleName(t.transferFrom)}` : ''}`
+         : `🔄 Transfer pending${t.transferTo ? ` → ${titleName(t.transferTo)}` : ''}`}</div>`;
   tbody.innerHTML = allPending.map(t=>`
-    <tr>
+    <tr${t.transferPending == 1 ? ' style="background:#fef2f2;box-shadow:inset 3px 0 0 #ef4444"' : ''}>
       <td style="white-space:nowrap">${typeBadge(t)}</td>
-      <td>${t.description||t.desc}</td>
+      <td>${t.description||t.desc}${trTag(t)}</td>
       <td>${(isAdmin||isPC)?t.assignedToName:t.assignedByName}</td>
       <td>${fmtDate(t.due_date||t.date)}</td>
       <td>${t.type!=='checklist' ? `<span class="priority-badge ${t.priority||'low'}">${t.priority||'low'}</span>` : '—'}</td>
@@ -4516,12 +4522,18 @@ function renderTasksTable() {
     `;
     // TRANSFER — jis task ka transfer approval pending hai wo poori row halke laal
     // me highlight hoti hai, aur description ke saath saaf badge dikhta hai.
+    // Do taraf se dikhta hai:
+    //  • purana doer  → "Transfer pending → <naya doer>"   (mera task ja raha hai)
+    //  • naya doer    → "Aapko transfer ho raha hai ← <purana doer>"  (mujhe mil raha hai)
     const isTransfer = t.transferPending == 1;
+    const isIncoming = t.transferIncoming == 1;
     const trRowStyle = isTransfer ? ' style="background:#fef2f2;box-shadow:inset 3px 0 0 #ef4444"' : '';
     const trBadge = isTransfer
       ? `<div style="margin-top:4px;display:inline-flex;align-items:center;gap:5px;background:#fee2e2;border:1px solid #fca5a5;color:#b91c1c;border-radius:12px;padding:2px 9px;font-size:11px;font-weight:700"
-           title="Transfer request bheja gaya hai — admin/HOD ki approval baaki hai">
-           🔄 Transfer pending${t.transferTo ? ` → ${titleName(t.transferTo)}` : ''}</div>`
+           title="${isIncoming ? 'Ye task aapko transfer ho raha hai — admin/HOD ki approval baaki hai' : 'Transfer request bheja gaya hai — admin/HOD ki approval baaki hai'}">
+           ${isIncoming
+             ? `🔄 Aapko transfer ho raha hai${t.transferFrom ? ` ← ${titleName(t.transferFrom)}` : ''}`
+             : `🔄 Transfer pending${t.transferTo ? ` → ${titleName(t.transferTo)}` : ''}`}</div>`
       : '';
 
     return `<tr${trRowStyle}>

@@ -1028,7 +1028,7 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
     const todayPending = [...delegationPending, ...checklistPending];
     try {
       const [trRows] = await db.query(
-        `SELECT tt.task_id, tt.task_type, u1.name AS fromName, u2.name AS toName, u3.name AS byName
+        `SELECT tt.task_id, tt.task_type, tt.to_user, u1.name AS fromName, u2.name AS toName, u3.name AS byName
          FROM task_transfers tt
          LEFT JOIN users u1 ON tt.from_user = u1.id
          LEFT JOIN users u2 ON tt.to_user = u2.id
@@ -1042,6 +1042,7 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
         t.transferFrom = tr ? (tr.fromName || '') : '';
         t.transferTo   = tr ? (tr.toName || '') : '';
         t.transferBy   = tr ? (tr.byName || '') : '';
+        t.transferIncoming = (tr && String(tr.to_user) === String(uid)) ? 1 : 0;
       }
     } catch (e) { /* transfer info optional */ }
 
@@ -1117,9 +1118,23 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
       where += ` AND t.assigned_to IN (${ids.map(()=>'?').join(',')})`;
       params.push(...ids);
     } else {
-      // Regular user — sirf apni tasks
-      where += ' AND t.assigned_to = ?';
-      params.push(uid);
+      // Regular user — apni tasks, PLUS wo tasks jinka transfer MUJHE ho raha hai.
+      // Transfer approve hone tak task purane doer ke naam hi rehta hai, isliye bina
+      // is OR ke naye doer ko kuch dikhta hi nahi tha ("Aarti ke paas show nahi ho raha").
+      let incomingIds = [];
+      try {
+        const [inc] = await db.query(
+          `SELECT task_id FROM task_transfers WHERE status='pending' AND to_user=? AND task_type=?`,
+          [uid, type || 'delegation']);
+        incomingIds = inc.map(r => r.task_id).filter(x => x !== null && x !== undefined && x !== '');
+      } catch (e) { incomingIds = []; }
+      if (incomingIds.length) {
+        where += ` AND (t.assigned_to = ? OR t.id IN (${incomingIds.map(() => '?').join(',')}))`;
+        params.push(uid, ...incomingIds);
+      } else {
+        where += ' AND t.assigned_to = ?';
+        params.push(uid);
+      }
     }
 
     // All Tasks — Delegation me upcoming/future tasks bhi dikhao (taaki kal/parso ke task pehle se visible ho aur transfer ho sakein).
@@ -1168,7 +1183,7 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
     try {
       const tType = type || 'delegation';
       const [trRows] = await db.query(
-        `SELECT tt.task_id, tt.created_at, u1.name AS fromName, u2.name AS toName, u3.name AS byName
+        `SELECT tt.task_id, tt.to_user, tt.created_at, u1.name AS fromName, u2.name AS toName, u3.name AS byName
          FROM task_transfers tt
          LEFT JOIN users u1 ON tt.from_user = u1.id
          LEFT JOIN users u2 ON tt.to_user = u2.id
@@ -1182,6 +1197,8 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
         t.transferFrom = tr ? (tr.fromName || '') : '';
         t.transferTo   = tr ? (tr.toName || '') : '';
         t.transferBy   = tr ? (tr.byName || '') : '';
+        // Ye transfer MUJHE mil raha hai? (naye doer ko alag badge dikhta hai)
+        t.transferIncoming = (tr && String(tr.to_user) === String(uid)) ? 1 : 0;
       }
     } catch (e) { /* transfer info optional */ }
 
