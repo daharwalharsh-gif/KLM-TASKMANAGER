@@ -90,6 +90,11 @@ const SCHEMA = {
   master_sheet: {
     cols: ['id','process_name','measurable_result','pc','problem_solver','executive','fms','fms_link','pms','pms_link','checklist','checklist_link','row_color','sort_order','created_at','updated_at'],
     autoFill: { created_at: 'NOW', updated_at: 'NOW' }
+  },
+  // Invincible Catalogues — naam + PDF (PDF fms_files me, link yahan)
+  catalogues: {
+    cols: ['id','name','file_name','file_link','sort_order','created_by','created_at'],
+    autoFill: { created_at: 'NOW' }
   }
 };
 

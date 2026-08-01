@@ -3110,6 +3110,87 @@ app.post('/api/master-sheet/:id/move', requireAuth, requireAdmin, async (req, re
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ══════════════════════════════════════════════════════
+// INVINCIBLE CATALOGUES — naam + PDF
+// ══════════════════════════════════════════════════════
+// Sab dekh/khol sakte hain; upload aur delete sirf admin.
+// PDF wahi fms_files table me jaati hai aur public /f/:id link se khulti hai.
+
+app.post('/api/catalogues/upload-file', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { filename, dataBase64 } = req.body;
+    if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
+    // Sirf PDF — mime browser se aaye ya na aaye, extension se pakka karte hain
+    const ext = String(filename).split('.').pop().toLowerCase();
+    let mt = String(req.body.mimeType || '').toLowerCase();
+    if (!mt || mt === 'application/octet-stream') mt = ext === 'pdf' ? 'application/pdf' : '';
+    if (mt !== 'application/pdf' || ext !== 'pdf') {
+      return res.status(400).json({ error: 'Sirf PDF file upload kar sakte hain' });
+    }
+    const buffer = Buffer.from(dataBase64, 'base64');
+    if (!buffer.length) return res.status(400).json({ error: 'File data empty hai' });
+    if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'PDF 3MB se badi hai — chhoti file upload karo' });
+
+    const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
+    const pool = await fmsFilesPool();
+    const fileId = require('crypto').randomBytes(18).toString('base64url');
+    await pool.query('INSERT INTO fms_files (id, filename, mime, data) VALUES ($1,$2,$3,$4)', [fileId, safeName, mt, buffer]);
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    res.json({ success: true, link: `${proto}://${req.get('host')}/f/${fileId}`, name: filename });
+  } catch (err) {
+    console.error('Catalogue upload FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/catalogues', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT c.*, u.name AS createdByName FROM catalogues c
+       LEFT JOIN users u ON c.created_by = u.id
+       ORDER BY c.sort_order, c.id`);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/catalogues', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const fileLink = String(req.body?.fileLink || '').trim();
+    const fileName = String(req.body?.fileName || '').trim();
+    if (!name) return res.status(400).json({ error: 'Catalogue ka naam zaroori hai' });
+    if (!fileLink) return res.status(400).json({ error: 'PDF upload karna zaroori hai' });
+    const [mx] = await db.query('SELECT MAX(sort_order) AS m FROM catalogues');
+    const next = (parseInt(mx[0]?.m, 10) || 0) + 1;
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await db.query(
+      `INSERT INTO catalogues (name,file_name,file_link,sort_order,created_by,created_at) VALUES (?,?,?,?,?,?)`,
+      [name, fileName, fileLink, next, req.session.userId, now]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/catalogues/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const sets = [], vals = [];
+    for (const f of ['name', 'file_name', 'file_link']) {
+      if (req.body?.[f] === undefined) continue;
+      sets.push(`${f}=?`); vals.push(String(req.body[f] || '').trim());
+    }
+    if (!sets.length) return res.json({ success: true });
+    vals.push(req.params.id);
+    await db.query(`UPDATE catalogues SET ${sets.join(',')} WHERE id=?`, vals);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/catalogues/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await db.query('DELETE FROM catalogues WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Public file serve — sheet ke link se photo/PDF khulta hai (random unguessable id, isliye no auth)
 app.get('/f/:id', async (req, res) => {
   try {

@@ -525,6 +525,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16M8 6v12M16 6v12"/></svg>
       <span class="nav-label-text">Master Sheet</span>
     </div>
+    <div class="nav-item" id="nav-catalogues" onclick="navigate('catalogues',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+      <span class="nav-label-text">Invincible Catloges</span>
+    </div>
     <div class="nav-item" id="nav-leaves" onclick="navigate('leaves',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
       <span class="nav-label-text">Leave Tracker</span>
@@ -1397,6 +1401,67 @@ tbody tr:last-child td{border-bottom:none;}
         <button class="btn btn-primary" onclick="saveMasterLink()">💾 Save</button>
       </div>
     </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       INVINCIBLE CATLOGES — naam + PDF
+  ══════════════════════════════════════ -->
+  <style>
+    .cat-add{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:16px}
+    .cat-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+    .cat-f{flex:1;min-width:190px}
+    .cat-f label{display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:5px}
+    .cat-f input[type=text]{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13.5px;
+      font-family:'Inter',sans-serif;outline:none;box-sizing:border-box}
+    .cat-f input[type=text]:focus{border-color:#1a56db}
+    .cat-f input[type=file]{width:100%;padding:8px 10px;border:1.5px dashed #cbd5e1;border-radius:9px;background:#f8fafc;
+      font-size:13px;box-sizing:border-box}
+    .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+    .cat-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;display:flex;flex-direction:column;
+      gap:10px;transition:box-shadow .15s,transform .1s}
+    .cat-card:hover{box-shadow:0 8px 22px rgba(15,23,42,.10);transform:translateY(-2px)}
+    .cat-open{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;cursor:pointer}
+    .cat-ico{width:42px;height:42px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;
+      display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+    .cat-name{font-size:14px;font-weight:700;color:#1e293b;line-height:1.35;word-break:break-word}
+    .cat-sub{font-size:11px;color:#94a3b8;margin-top:2px}
+    .cat-foot{display:flex;gap:8px;align-items:center;border-top:1px solid #f1f5f9;padding-top:9px}
+    .cat-btn{flex:1;text-align:center;padding:7px 10px;border-radius:8px;font-size:12.5px;font-weight:700;
+      text-decoration:none;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;cursor:pointer;font-family:'Inter',sans-serif}
+    .cat-btn:hover{background:#dbeafe}
+    .cat-del{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:7px 10px;border-radius:8px;cursor:pointer;
+      font-size:12.5px;font-family:'Inter',sans-serif;flex:0 0 auto}
+    .cat-del:hover{background:#fee2e2}
+    @media (max-width:768px){ .cat-grid{grid-template-columns:1fr} }
+  </style>
+  <div id="page-catalogues" class="page">
+    <div class="page-header">
+      <h2>Invincible Catloges</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="catCount" style="font-size:12px;font-weight:600;color:#64748b"></span>
+        <button class="btn btn-outline btn-sm" onclick="loadCatalogues()">🔄 Refresh</button>
+      </div>
+    </div>
+
+    <!-- Naya catalogue (sirf admin) -->
+    <div class="cat-add" id="catAddWrap" style="display:none">
+      <div class="alert error" id="catErr" style="display:none"></div>
+      <div class="cat-row">
+        <div class="cat-f">
+          <label>Catalogue ka naam <span style="color:#dc2626">*</span></label>
+          <input type="text" id="catName" placeholder="e.g. Boxing Gloves 2026"/>
+        </div>
+        <div class="cat-f">
+          <label>PDF file <span style="color:#dc2626">*</span> <span style="color:#94a3b8;font-weight:400;font-size:11px">(max 3MB)</span></label>
+          <input type="file" id="catFile" accept="application/pdf,.pdf"/>
+        </div>
+        <div style="flex:0 0 auto">
+          <button class="btn btn-primary" id="catSaveBtn" onclick="saveCatalogue()">➕ Add Catalogue</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="catContent"></div>
   </div>
 
   <!-- ── LEAVE TRACKER ── -->
@@ -2580,7 +2645,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',master:'Master Sheet'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',master:'Master Sheet',catalogues:'Invincible Catloges'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -2599,6 +2664,7 @@ function navigate(page, el) {
   if (page==='records') loadRecords();
   if (page==='leaves') loadLeaves();
   if (page==='master') loadMasterSheet();
+  if (page==='catalogues') loadCatalogues();
   closeSidebar();   // mobile drawer band karo nav ke baad
   window.scrollTo(0,0);
 }
@@ -5485,6 +5551,7 @@ function buildMobileNav() {
     { page: 'fms',       label: 'FMS Admin' },
     { page: 'fms-tasks', label: 'FMS' },
     { page: 'master',    label: 'Master' },
+    { page: 'catalogues',label: 'Catloges' },
     { page: 'leaves',    label: 'Leave' },
     { page: 'profile',   label: 'Profile' }
   ];
@@ -9294,6 +9361,107 @@ async function submitTaskTransfer() {
   showToast(wasInstant ? 'Task transfer ho gaya ✅' : 'Transfer request bhej di — approval ke baad task transfer hoga', 'success');
   loadAllTasks();
   if (typeof loadTransferBadge === 'function') loadTransferBadge();
+}
+
+
+// ══════════════════════════════════════════════════════
+// INVINCIBLE CATLOGES — naam + PDF. Card par click -> PDF naye tab me khulti hai.
+// Dekh sab sakte hain; add/delete sirf admin.
+// ══════════════════════════════════════════════════════
+let _catalogues = [];
+
+async function loadCatalogues() {
+  const c = document.getElementById('catContent');
+  c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Loading…</div>`;
+  const isAdmin = !!(ME && ME.role === 'admin');
+  document.getElementById('catAddWrap').style.display = isAdmin ? '' : 'none';
+  const data = await api('/api/catalogues');
+  if (data && data.error) {
+    c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;color:#ef4444">⚠️ ${escapeHtml(data.error)}</div>`;
+    return;
+  }
+  _catalogues = Array.isArray(data) ? data : [];
+  renderCatalogues();
+}
+
+function renderCatalogues() {
+  const c = document.getElementById('catContent');
+  const isAdmin = !!(ME && ME.role === 'admin');
+  document.getElementById('catCount').textContent =
+    _catalogues.length ? `${_catalogues.length} catalogue(s)` : '';
+  if (!_catalogues.length) {
+    c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
+      Abhi koi catalogue nahi${isAdmin ? ' — upar se naam aur PDF add karo' : ''}</div>`;
+    return;
+  }
+  c.innerHTML = `<div class="cat-grid">` + _catalogues.map(x => `
+    <div class="cat-card">
+      <a class="cat-open" href="${escapeHtml(x.file_link || '#')}" target="_blank" rel="noopener" title="PDF kholne ke liye click karo">
+        <div class="cat-ico">📕</div>
+        <div>
+          <div class="cat-name">${escapeHtml(x.name || '—')}</div>
+          <div class="cat-sub">${escapeHtml(x.file_name || 'PDF')}</div>
+        </div>
+      </a>
+      <div class="cat-foot">
+        <a class="cat-btn" href="${escapeHtml(x.file_link || '#')}" target="_blank" rel="noopener">📄 Open PDF</a>
+        ${isAdmin ? `<button class="cat-del" onclick="deleteCatalogue(${x.id})" title="Delete">🗑</button>` : ''}
+      </div>
+    </div>`).join('') + `</div>`;
+}
+
+// File ko base64 me badalo (server JSON leta hai)
+function catReadFile(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = () => reject(new Error('File padhi nahi ja saki'));
+    r.readAsDataURL(file);
+  });
+}
+
+async function saveCatalogue() {
+  const err = document.getElementById('catErr');
+  const btn = document.getElementById('catSaveBtn');
+  const name = document.getElementById('catName').value.trim();
+  const fileEl = document.getElementById('catFile');
+  const file = fileEl.files && fileEl.files[0];
+  const fail = m => { err.textContent = m; err.style.display = 'block'; };
+  err.style.display = 'none';
+
+  if (!name) return fail('Catalogue ka naam likho');
+  if (!file) return fail('PDF file chuno');
+  if (!/\.pdf$/i.test(file.name)) return fail('Sirf PDF file chuni ja sakti hai');
+  if (file.size > 3.5 * 1024 * 1024) return fail('PDF 3MB se badi hai — chhoti file chuno');
+
+  btn.disabled = true; btn.textContent = '⏳ Upload ho rahi hai…';
+  try {
+    const b64 = await catReadFile(file);
+    const up = await api('/api/catalogues/upload-file', 'POST',
+      { filename: file.name, mimeType: file.type || 'application/pdf', dataBase64: b64 });
+    if (!up || up.error || !up.link) throw new Error((up && up.error) || 'Upload fail ho gaya');
+
+    const r = await api('/api/catalogues', 'POST', { name, fileName: file.name, fileLink: up.link });
+    if (r && r.error) throw new Error(r.error);
+
+    document.getElementById('catName').value = '';
+    fileEl.value = '';
+    showToast('Catalogue add ho gaya', 'success');
+    await loadCatalogues();
+  } catch (e) {
+    fail(e.message || 'Kuch galat ho gaya');
+  } finally {
+    btn.disabled = false; btn.textContent = '➕ Add Catalogue';
+  }
+}
+
+async function deleteCatalogue(id) {
+  const x = _catalogues.find(c => String(c.id) === String(id));
+  if (!confirm(`Ye catalogue hataayein?\n\n${x?.name || ''}`)) return;
+  const r = await api(`/api/catalogues/${id}`, 'DELETE');
+  if (r && r.error) return showToast(r.error, 'error');
+  showToast('Catalogue hata diya', 'success');
+  loadCatalogues();
 }
 
 </script>
