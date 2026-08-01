@@ -9434,6 +9434,9 @@ async function submitTaskTransfer() {
 let _catalogues = [];
 let _catTab = 'list';
 
+// Upload/delete kaun kar sakta hai — admin + chuninda doer (server /api/me se aata hai)
+function catCanUpload() { return !!(ME && (ME.canCatalogues || ME.role === 'admin')); }
+
 // Switch between the "Catalogues" and "Upload Catalogues" tabs
 function catTab(which, el) {
   _catTab = which;
@@ -9443,18 +9446,18 @@ function catTab(which, el) {
     const t = document.getElementById(which === 'upload' ? 'catTabUpload' : 'catTabList');
     if (t) t.classList.add('active');
   }
-  const isAdmin = !!(ME && ME.role === 'admin');
+  const canUp = catCanUpload();
   document.getElementById('catListWrap').style.display = which === 'list' ? '' : 'none';
-  document.getElementById('catAddWrap').style.display = (which === 'upload' && isAdmin) ? '' : 'none';
+  document.getElementById('catAddWrap').style.display = (which === 'upload' && canUp) ? '' : 'none';
 }
 
 async function loadCatalogues() {
   const c = document.getElementById('catContent');
   c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Loading…</div>`;
-  const isAdmin = !!(ME && ME.role === 'admin');
-  // Upload tab only exists for admin; non-admin never leaves the list tab
-  document.getElementById('catTabUpload').style.display = isAdmin ? '' : 'none';
-  if (!isAdmin) _catTab = 'list';
+  const canUp = catCanUpload();
+  // Upload tab sirf unhe dikhta hai jinhe allowed hai; baaki list tab par hi rehte hain
+  document.getElementById('catTabUpload').style.display = canUp ? '' : 'none';
+  if (!canUp) _catTab = 'list';
   catTab(_catTab);
   const data = await api('/api/catalogues');
   if (data && data.error) {
@@ -9467,7 +9470,7 @@ async function loadCatalogues() {
 
 function renderCatalogues() {
   const c = document.getElementById('catContent');
-  const isAdmin = !!(ME && ME.role === 'admin');
+  const isAdmin = catCanUpload();
   document.getElementById('catCount').textContent =
     _catalogues.length ? `${_catalogues.length} catalogue(s)` : '';
   if (!_catalogues.length) {

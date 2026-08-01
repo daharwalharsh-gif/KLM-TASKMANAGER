@@ -933,6 +933,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Open Challenges form FMS dropdown me dikhe ya nahi (admin + chuninda doers)
     rows[0].canChallenges = req.session.role === 'admin' ||
       CHALLENGE_EMAILS.has((rows[0].email || '').trim().toLowerCase());
+    // Invincible Catalogues me upload/delete kar sakta hai ya sirf dekh sakta hai
+    rows[0].canCatalogues = req.session.role === 'admin' ||
+      CAT_UPLOAD_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3123,7 +3126,24 @@ app.post('/api/master-sheet/:id/move', requireAuth, requireAdmin, async (req, re
 // kaam karta hai (koi in-memory state nahi rakhni padti).
 const CAT_MAX_BYTES = 50 * 1024 * 1024;   // 50MB tak ki PDF
 
-app.post('/api/catalogues/upload-file', requireAuth, requireAdmin, async (req, res) => {
+// Catalogue upload/delete admin ke alawa in doers ko bhi allowed hai.
+// Dekhna sab ko allowed hai (GET par koi rok nahi).
+const CAT_UPLOAD_EMAILS = new Set([
+  'designer@klmahajan.com',    // Mr. Nishant
+]);
+async function canUploadCatalogues(req) {
+  if (req.session.role === 'admin') return true;
+  try {
+    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    return CAT_UPLOAD_EMAILS.has((rows[0]?.email || '').trim().toLowerCase());
+  } catch (e) { return false; }
+}
+async function requireCatalogueUpload(req, res, next) {
+  if (await canUploadCatalogues(req)) return next();
+  res.status(403).json({ error: 'Not allowed' });
+}
+
+app.post('/api/catalogues/upload-file', requireAuth, requireCatalogueUpload, async (req, res) => {
   try {
     const { fileId, filename, dataBase64, last } = req.body;
     if (!dataBase64) return res.status(400).json({ error: 'dataBase64 required' });
@@ -3182,7 +3202,7 @@ app.get('/api/catalogues', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/catalogues', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/catalogues', requireAuth, requireCatalogueUpload, async (req, res) => {
   try {
     const name = String(req.body?.name || '').trim();
     const fileLink = String(req.body?.fileLink || '').trim();
@@ -3199,7 +3219,7 @@ app.post('/api/catalogues', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/catalogues/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/catalogues/:id', requireAuth, requireCatalogueUpload, async (req, res) => {
   try {
     const sets = [], vals = [];
     for (const f of ['name', 'file_name', 'file_link']) {
@@ -3213,7 +3233,7 @@ app.put('/api/catalogues/:id', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/catalogues/:id', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/api/catalogues/:id', requireAuth, requireCatalogueUpload, async (req, res) => {
   try {
     await db.query('DELETE FROM catalogues WHERE id=?', [req.params.id]);
     res.json({ success: true });
