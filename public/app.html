@@ -259,8 +259,15 @@ tbody tr:last-child td{border-bottom:none;}
 .fms-step-box.selected{border-color:#ef4444;background:#fff5f5;}
 .fms-step-num{font-size:11px;font-weight:700;color:#1a56db;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;}
 .multi-select-wrap{position:relative;}
-.multi-select-dropdown{position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;max-height:180px;overflow-y:auto;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.12);display:none;}
+.multi-select-dropdown{position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.12);display:none;}
 .multi-select-dropdown.open{display:block;}
+/* Bahut saare doers hain — search + count taaki koi naam dhoondhna aasan ho */
+.fmsd-search-wrap{display:flex;gap:8px;align-items:center;padding:8px;border-bottom:1px solid #f1f5f9;background:#f8fafc;}
+.fmsd-search{flex:1;min-width:0;padding:6px 9px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:12.5px;font-family:'Inter',sans-serif;outline:none;}
+.fmsd-search:focus{border-color:#1a56db;}
+.fmsd-count{font-size:11px;font-weight:700;color:#94a3b8;white-space:nowrap;}
+.fmsd-list{max-height:300px;overflow-y:auto;}
+.fmsd-empty{padding:14px;text-align:center;color:#94a3b8;font-size:12px;}
 .multi-select-item{padding:8px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;transition:background .15s;}
 .multi-select-item:hover{background:#f0f4ff;}
 .multi-select-item input[type=checkbox]{cursor:pointer;width:14px;height:14px;accent-color:#1a56db;}
@@ -7492,9 +7499,12 @@ function appendFMSStepBox(idx, containerId) {
 
 function buildStepBoxHTML(idx) {
   const s = fmsSteps[idx];
-  const userOptions = fmsAllUsers.map(u=>`
-    <div class="multi-select-item" data-uid="${u.id}" onclick="toggleFMSDoer(event,${idx},${u.id})">
-      <input type="checkbox" ${(s.doers||[]).map(d=>parseInt(d)).includes(parseInt(u.id))?'checked':''}/> ${u.name}
+  // Naam A-Z me (chhote-bade akshar ka farak nahi) — warna list bikhri hui lagti hai
+  const sortedUsers = [...fmsAllUsers].sort((a,b)=>
+    String(a.name||'').toLowerCase().localeCompare(String(b.name||'').toLowerCase()));
+  const userOptions = sortedUsers.map(u=>`
+    <div class="multi-select-item" data-uid="${u.id}" data-name="${escapeHtml(String(u.name||'').toLowerCase())}" onclick="toggleFMSDoer(event,${idx},${u.id})">
+      <input type="checkbox" ${(s.doers||[]).map(d=>parseInt(d)).includes(parseInt(u.id))?'checked':''}/> ${escapeHtml(u.name||'')}
     </div>`).join('');
 
   // Build header options for selects — MUST be declared BEFORE extraRowsHTML
@@ -7577,7 +7587,15 @@ function buildStepBoxHTML(idx) {
           <div class="selected-tags" id="fmsDoerTags_${idx}" onclick="toggleFMSDropdown(${idx})">
             <span style="color:#94a3b8;font-size:12px">Select users...</span>
           </div>
-          <div class="multi-select-dropdown" id="fmsDoerDrop_${idx}">${userOptions}</div>
+          <div class="multi-select-dropdown" id="fmsDoerDrop_${idx}">
+            <div class="fmsd-search-wrap">
+              <input type="text" class="fmsd-search" id="fmsDoerSearch_${idx}" placeholder="🔍 Search doer name..."
+                autocomplete="off" oninput="filterFMSDoers(${idx},this.value)" onclick="event.stopPropagation()"/>
+              <span class="fmsd-count" id="fmsDoerCount_${idx}">${sortedUsers.length} doers</span>
+            </div>
+            <div class="fmsd-list" id="fmsDoerList_${idx}">${userOptions}</div>
+            <div class="fmsd-empty" id="fmsDoerEmpty_${idx}" style="display:none">No doer found</div>
+          </div>
         </div>
       </div>
       <div class="form-group" style="margin:0">
@@ -7865,7 +7883,31 @@ function removeFMSExtraRow(idx, ri) {
 }
 
 function toggleFMSDropdown(idx) {
-  document.getElementById(`fmsDoerDrop_${idx}`).classList.toggle('open');
+  const drop = document.getElementById(`fmsDoerDrop_${idx}`);
+  drop.classList.toggle('open');
+  if (drop.classList.contains('open')) {
+    // Khulte hi poori list aur seedha search par cursor
+    const box = document.getElementById(`fmsDoerSearch_${idx}`);
+    if (box) { box.value = ''; filterFMSDoers(idx, ''); setTimeout(()=>box.focus(), 30); }
+  }
+}
+
+// 40+ doers hain — naam type karo to list chhant jaati hai
+function filterFMSDoers(idx, q) {
+  const list = document.getElementById(`fmsDoerList_${idx}`);
+  if (!list) return;
+  const s = String(q || '').trim().toLowerCase();
+  const items = [...list.querySelectorAll('.multi-select-item')];
+  let shown = 0;
+  items.forEach(it => {
+    const ok = !s || (it.dataset.name || '').includes(s);
+    it.style.display = ok ? '' : 'none';
+    if (ok) shown++;
+  });
+  const empty = document.getElementById(`fmsDoerEmpty_${idx}`);
+  if (empty) empty.style.display = shown ? 'none' : '';
+  const cnt = document.getElementById(`fmsDoerCount_${idx}`);
+  if (cnt) cnt.textContent = s ? `${shown} of ${items.length}` : `${items.length} doers`;
 }
 
 function toggleFMSDoer(e, idx, uid) {
