@@ -527,7 +527,7 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <div class="nav-item" id="nav-catalogues" onclick="navigate('catalogues',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-      <span class="nav-label-text">Invincible Catloges</span>
+      <span class="nav-label-text">Invincible Catalogues</span>
     </div>
     <div class="nav-item" id="nav-leaves" onclick="navigate('leaves',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -1404,7 +1404,7 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 
   <!-- ══════════════════════════════════════
-       INVINCIBLE CATLOGES — name + PDF
+       INVINCIBLE CATALOGUES — name + PDF
   ══════════════════════════════════════ -->
   <style>
     .cat-sec{margin-bottom:20px}
@@ -1438,31 +1438,31 @@ tbody tr:last-child td{border-bottom:none;}
   </style>
   <div id="page-catalogues" class="page">
     <div class="page-header">
-      <h2>Invincible Catloges</h2>
+      <h2>Invincible Catalogues</h2>
       <div style="display:flex;gap:10px;align-items:center">
-        <!-- Do tab — Catalogs / Upload Catalogs -->
+        <!-- Do tab — Catalogues / Upload Catalogues -->
         <div class="tab-group" id="catTabs">
-          <div class="tab active" id="catTabList" onclick="catTab('list',this)">📚 Catalogs</div>
-          <div class="tab" id="catTabUpload" onclick="catTab('upload',this)" style="display:none">➕ Upload Catalogs</div>
+          <div class="tab active" id="catTabList" onclick="catTab('list',this)">📚 Catalogues</div>
+          <div class="tab" id="catTabUpload" onclick="catTab('upload',this)" style="display:none">➕ Upload Catalogues</div>
         </div>
         <span id="catCount" style="font-size:12px;font-weight:600;color:#64748b"></span>
         <button class="btn btn-outline btn-sm" onclick="loadCatalogues()">🔄 Refresh</button>
       </div>
     </div>
 
-    <!-- ── TAB 1 — Catalogs (PDF list) ── -->
+    <!-- ── TAB 1 — Catalogues (PDF list) ── -->
     <div class="cat-sec" id="catListWrap">
       <div id="catContent"></div>
     </div>
 
-    <!-- ── TAB 2 — Upload Catalogs (admin only) ── -->
+    <!-- ── TAB 2 — Upload Catalogues (admin only) ── -->
     <div class="cat-sec" id="catAddWrap" style="display:none">
       <div class="cat-add">
         <div class="alert error" id="catErr" style="display:none"></div>
         <div class="cat-row">
           <div class="cat-f">
             <label>Catalogue Name <span style="color:#dc2626">*</span></label>
-            <input type="text" id="catName" placeholder="e.g. Invincible Equipment Catalog 2026"/>
+            <input type="text" id="catName" placeholder="e.g. Invincible Equipment Catalogue 2026"/>
           </div>
           <div class="cat-f">
             <label>PDF File <span style="color:#dc2626">*</span> <span style="color:#94a3b8;font-weight:400;font-size:11px">(up to 50MB)</span></label>
@@ -2666,7 +2666,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',master:'Master Sheet',catalogues:'Invincible Catloges'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',master:'Master Sheet',catalogues:'Invincible Catalogues'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -5572,7 +5572,7 @@ function buildMobileNav() {
     { page: 'fms',       label: 'FMS Admin' },
     { page: 'fms-tasks', label: 'FMS' },
     { page: 'master',    label: 'Master' },
-    { page: 'catalogues',label: 'Catloges' },
+    { page: 'catalogues',label: 'Catalogues' },
     { page: 'leaves',    label: 'Leave' },
     { page: 'profile',   label: 'Profile' }
   ];
@@ -9386,13 +9386,13 @@ async function submitTaskTransfer() {
 
 
 // ══════════════════════════════════════════════════════
-// INVINCIBLE CATLOGES — two tabs: Catalogs (list) + Upload Catalogs (admin only).
+// INVINCIBLE CATALOGUES — two tabs: Catalogues (list) + Upload Catalogues (admin only).
 // Everyone can view; add/delete is admin only.
 // ══════════════════════════════════════════════════════
 let _catalogues = [];
 let _catTab = 'list';
 
-// Switch between the "Catalogs" and "Upload Catalogs" tabs
+// Switch between the "Catalogues" and "Upload Catalogues" tabs
 function catTab(which, el) {
   _catTab = which;
   document.querySelectorAll('#catTabs .tab').forEach(t => t.classList.remove('active'));
@@ -9430,7 +9430,7 @@ function renderCatalogues() {
     _catalogues.length ? `${_catalogues.length} catalogue(s)` : '';
   if (!_catalogues.length) {
     c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
-      No catalogues yet${isAdmin ? ' — add one from the "Upload Catalogs" tab' : ''}</div>`;
+      No catalogues yet${isAdmin ? ' — add one from the "Upload Catalogues" tab' : ''}</div>`;
     return;
   }
   c.innerHTML = `<div class="cat-grid">` + _catalogues.map(x => `
