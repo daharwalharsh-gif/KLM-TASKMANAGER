@@ -1404,7 +1404,7 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 
   <!-- ══════════════════════════════════════
-       INVINCIBLE CATLOGES — naam + PDF
+       INVINCIBLE CATLOGES — name + PDF
   ══════════════════════════════════════ -->
   <style>
     .cat-sec{margin-bottom:20px}
@@ -1439,40 +1439,43 @@ tbody tr:last-child td{border-bottom:none;}
   <div id="page-catalogues" class="page">
     <div class="page-header">
       <h2>Invincible Catloges</h2>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:10px;align-items:center">
+        <!-- Do tab — Catalogs / Upload Catalogs -->
+        <div class="tab-group" id="catTabs">
+          <div class="tab active" id="catTabList" onclick="catTab('list',this)">📚 Catalogs</div>
+          <div class="tab" id="catTabUpload" onclick="catTab('upload',this)" style="display:none">➕ Upload Catalogs</div>
+        </div>
         <span id="catCount" style="font-size:12px;font-weight:600;color:#64748b"></span>
         <button class="btn btn-outline btn-sm" onclick="loadCatalogues()">🔄 Refresh</button>
       </div>
     </div>
 
-    <!-- ── SECTION 1 — Catalogues (PDF) ── -->
-    <div class="cat-sec">
-      <div class="cat-sec-head">📚 Catalogues</div>
+    <!-- ── TAB 1 — Catalogs (PDF list) ── -->
+    <div class="cat-sec" id="catListWrap">
       <div id="catContent"></div>
     </div>
 
-    <!-- ── SECTION 2 — Naya catalogue upload (sirf admin) ── -->
+    <!-- ── TAB 2 — Upload Catalogs (admin only) ── -->
     <div class="cat-sec" id="catAddWrap" style="display:none">
-      <div class="cat-sec-head">➕ Naya Catalogue Upload</div>
       <div class="cat-add">
         <div class="alert error" id="catErr" style="display:none"></div>
         <div class="cat-row">
           <div class="cat-f">
-            <label>Catalogue ka naam <span style="color:#dc2626">*</span></label>
+            <label>Catalogue Name <span style="color:#dc2626">*</span></label>
             <input type="text" id="catName" placeholder="e.g. Invincible Equipment Catalog 2026"/>
           </div>
           <div class="cat-f">
-            <label>PDF file <span style="color:#dc2626">*</span> <span style="color:#94a3b8;font-weight:400;font-size:11px">(50MB tak)</span></label>
+            <label>PDF File <span style="color:#dc2626">*</span> <span style="color:#94a3b8;font-weight:400;font-size:11px">(up to 50MB)</span></label>
             <input type="file" id="catFile" accept="application/pdf,.pdf"/>
           </div>
           <div style="flex:0 0 auto">
             <button class="btn btn-primary" id="catSaveBtn" onclick="saveCatalogue()">➕ Add Catalogue</button>
           </div>
         </div>
-        <!-- Badi file tukdo me jaati hai — progress yahan dikhta hai -->
+        <!-- Big files upload in chunks — progress shown here -->
         <div id="catProgWrap" style="display:none;margin-top:12px">
           <div style="display:flex;justify-content:space-between;font-size:11.5px;color:#64748b;margin-bottom:4px">
-            <span id="catProgText">Upload ho rahi hai…</span><span id="catProgPct">0%</span>
+            <span id="catProgText">Uploading…</span><span id="catProgPct">0%</span>
           </div>
           <div style="height:7px;background:#e2e8f0;border-radius:5px;overflow:hidden">
             <div id="catProgBar" style="height:100%;width:0%;background:linear-gradient(90deg,#1a56db,#3b82f6);transition:width .2s"></div>
@@ -9383,16 +9386,34 @@ async function submitTaskTransfer() {
 
 
 // ══════════════════════════════════════════════════════
-// INVINCIBLE CATLOGES — naam + PDF. Card par click -> PDF naye tab me khulti hai.
-// Dekh sab sakte hain; add/delete sirf admin.
+// INVINCIBLE CATLOGES — two tabs: Catalogs (list) + Upload Catalogs (admin only).
+// Everyone can view; add/delete is admin only.
 // ══════════════════════════════════════════════════════
 let _catalogues = [];
+let _catTab = 'list';
+
+// Switch between the "Catalogs" and "Upload Catalogs" tabs
+function catTab(which, el) {
+  _catTab = which;
+  document.querySelectorAll('#catTabs .tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  else {
+    const t = document.getElementById(which === 'upload' ? 'catTabUpload' : 'catTabList');
+    if (t) t.classList.add('active');
+  }
+  const isAdmin = !!(ME && ME.role === 'admin');
+  document.getElementById('catListWrap').style.display = which === 'list' ? '' : 'none';
+  document.getElementById('catAddWrap').style.display = (which === 'upload' && isAdmin) ? '' : 'none';
+}
 
 async function loadCatalogues() {
   const c = document.getElementById('catContent');
   c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Loading…</div>`;
   const isAdmin = !!(ME && ME.role === 'admin');
-  document.getElementById('catAddWrap').style.display = isAdmin ? '' : 'none';
+  // Upload tab only exists for admin; non-admin never leaves the list tab
+  document.getElementById('catTabUpload').style.display = isAdmin ? '' : 'none';
+  if (!isAdmin) _catTab = 'list';
+  catTab(_catTab);
   const data = await api('/api/catalogues');
   if (data && data.error) {
     c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;color:#ef4444">⚠️ ${escapeHtml(data.error)}</div>`;
@@ -9409,12 +9430,12 @@ function renderCatalogues() {
     _catalogues.length ? `${_catalogues.length} catalogue(s)` : '';
   if (!_catalogues.length) {
     c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
-      Abhi koi catalogue nahi${isAdmin ? ' — upar se naam aur PDF add karo' : ''}</div>`;
+      No catalogues yet${isAdmin ? ' — add one from the "Upload Catalogs" tab' : ''}</div>`;
     return;
   }
   c.innerHTML = `<div class="cat-grid">` + _catalogues.map(x => `
     <div class="cat-card">
-      <a class="cat-open" href="${escapeHtml(x.file_link || '#')}" target="_blank" rel="noopener" title="PDF kholne ke liye click karo">
+      <a class="cat-open" href="${escapeHtml(x.file_link || '#')}" target="_blank" rel="noopener" title="Click to open the PDF">
         <div class="cat-ico">📕</div>
         <div>
           <div class="cat-name">${escapeHtml(x.name || '—')}</div>
@@ -9428,18 +9449,18 @@ function renderCatalogues() {
     </div>`).join('') + `</div>`;
 }
 
-// File ka ek tukda base64 me badlo (server JSON leta hai)
+// Convert one slice of the file to base64 (the server accepts JSON)
 function catReadSlice(blob) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result).split(',')[1] || '');
-    r.onerror = () => reject(new Error('File padhi nahi ja saki'));
+    r.onerror = () => reject(new Error('Could not read the file'));
     r.readAsDataURL(blob);
   });
 }
 
-// Badi PDF ek request me nahi jaa sakti (server ~4.5MB tak hi leta hai),
-// isliye file ko 2MB ke tukdo me bhejte hain — server unhe jod deta hai.
+// A big PDF cannot go in one request (the server accepts only ~4.5MB),
+// so we send the file in 2MB chunks — the server joins them back together.
 const CAT_CHUNK = 2 * 1024 * 1024;
 
 function catProgress(done, total, label) {
@@ -9450,7 +9471,7 @@ function catProgress(done, total, label) {
   document.getElementById('catProgBar').style.width = pct + '%';
   document.getElementById('catProgPct').textContent = pct + '%';
   document.getElementById('catProgText').textContent =
-    label || `Upload ho rahi hai… ${(done / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB`;
+    label || `Uploading… ${(done / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB`;
 }
 
 async function catUpload(file) {
@@ -9463,12 +9484,12 @@ async function catUpload(file) {
     if (fileId) body.fileId = fileId;
     else { body.filename = file.name; body.mimeType = file.type || 'application/pdf'; }
     const r = await api('/api/catalogues/upload-file', 'POST', body);
-    if (!r || r.error) throw new Error((r && r.error) || 'Upload fail ho gaya');
+    if (!r || r.error) throw new Error((r && r.error) || 'Upload failed');
     fileId = r.fileId || fileId;
     if (r.link) link = r.link;
     catProgress(Math.min(file.size, (i + 1) * CAT_CHUNK), file.size);
   }
-  if (!link) throw new Error('Upload poora nahi hua');
+  if (!link) throw new Error('Upload did not complete');
   return link;
 }
 
@@ -9481,26 +9502,26 @@ async function saveCatalogue() {
   const fail = m => { err.textContent = m; err.style.display = 'block'; catProgress(0, 0); };
   err.style.display = 'none';
 
-  if (!name) return fail('Catalogue ka naam likho');
-  if (!file) return fail('PDF file chuno');
-  if (!/\.pdf$/i.test(file.name)) return fail('Sirf PDF file chuni ja sakti hai');
-  if (file.size > 50 * 1024 * 1024) return fail('PDF 50MB se badi hai — 50MB tak ki file chalegi');
+  if (!name) return fail('Please enter the catalogue name');
+  if (!file) return fail('Please choose a PDF file');
+  if (!/\.pdf$/i.test(file.name)) return fail('Only PDF files are allowed');
+  if (file.size > 50 * 1024 * 1024) return fail('This PDF is bigger than 50MB — files up to 50MB are allowed');
 
-  btn.disabled = true; btn.textContent = '⏳ Upload ho rahi hai…';
+  btn.disabled = true; btn.textContent = '⏳ Uploading…';
   catProgress(0, file.size);
   try {
     const link = await catUpload(file);
-    catProgress(file.size, file.size, 'Save ho raha hai…');
+    catProgress(file.size, file.size, 'Saving…');
     const r = await api('/api/catalogues', 'POST', { name, fileName: file.name, fileLink: link });
     if (r && r.error) throw new Error(r.error);
 
     document.getElementById('catName').value = '';
     fileEl.value = '';
     catProgress(0, 0);
-    showToast('Catalogue add ho gaya', 'success');
+    showToast('Catalogue added', 'success');
     await loadCatalogues();
   } catch (e) {
-    fail(e.message || 'Kuch galat ho gaya');
+    fail(e.message || 'Something went wrong');
   } finally {
     btn.disabled = false; btn.textContent = '➕ Add Catalogue';
   }
@@ -9508,10 +9529,10 @@ async function saveCatalogue() {
 
 async function deleteCatalogue(id) {
   const x = _catalogues.find(c => String(c.id) === String(id));
-  if (!confirm(`Ye catalogue hataayein?\n\n${x?.name || ''}`)) return;
+  if (!confirm(`Delete this catalogue?\n\n${x?.name || ''}`)) return;
   const r = await api(`/api/catalogues/${id}`, 'DELETE');
   if (r && r.error) return showToast(r.error, 'error');
-  showToast('Catalogue hata diya', 'success');
+  showToast('Catalogue deleted', 'success');
   loadCatalogues();
 }
 
