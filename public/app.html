@@ -1407,7 +1407,9 @@ tbody tr:last-child td{border-bottom:none;}
        INVINCIBLE CATLOGES — naam + PDF
   ══════════════════════════════════════ -->
   <style>
-    .cat-add{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin-bottom:16px}
+    .cat-sec{margin-bottom:20px}
+    .cat-sec-head{font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+    .cat-add{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px}
     .cat-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
     .cat-f{flex:1;min-width:190px}
     .cat-f label{display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:5px}
@@ -1443,25 +1445,41 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
 
-    <!-- Naya catalogue (sirf admin) -->
-    <div class="cat-add" id="catAddWrap" style="display:none">
-      <div class="alert error" id="catErr" style="display:none"></div>
-      <div class="cat-row">
-        <div class="cat-f">
-          <label>Catalogue ka naam <span style="color:#dc2626">*</span></label>
-          <input type="text" id="catName" placeholder="e.g. Boxing Gloves 2026"/>
+    <!-- ── SECTION 1 — Catalogues (PDF) ── -->
+    <div class="cat-sec">
+      <div class="cat-sec-head">📚 Catalogues</div>
+      <div id="catContent"></div>
+    </div>
+
+    <!-- ── SECTION 2 — Naya catalogue upload (sirf admin) ── -->
+    <div class="cat-sec" id="catAddWrap" style="display:none">
+      <div class="cat-sec-head">➕ Naya Catalogue Upload</div>
+      <div class="cat-add">
+        <div class="alert error" id="catErr" style="display:none"></div>
+        <div class="cat-row">
+          <div class="cat-f">
+            <label>Catalogue ka naam <span style="color:#dc2626">*</span></label>
+            <input type="text" id="catName" placeholder="e.g. Invincible Equipment Catalog 2026"/>
+          </div>
+          <div class="cat-f">
+            <label>PDF file <span style="color:#dc2626">*</span> <span style="color:#94a3b8;font-weight:400;font-size:11px">(50MB tak)</span></label>
+            <input type="file" id="catFile" accept="application/pdf,.pdf"/>
+          </div>
+          <div style="flex:0 0 auto">
+            <button class="btn btn-primary" id="catSaveBtn" onclick="saveCatalogue()">➕ Add Catalogue</button>
+          </div>
         </div>
-        <div class="cat-f">
-          <label>PDF file <span style="color:#dc2626">*</span> <span style="color:#94a3b8;font-weight:400;font-size:11px">(max 3MB)</span></label>
-          <input type="file" id="catFile" accept="application/pdf,.pdf"/>
-        </div>
-        <div style="flex:0 0 auto">
-          <button class="btn btn-primary" id="catSaveBtn" onclick="saveCatalogue()">➕ Add Catalogue</button>
+        <!-- Badi file tukdo me jaati hai — progress yahan dikhta hai -->
+        <div id="catProgWrap" style="display:none;margin-top:12px">
+          <div style="display:flex;justify-content:space-between;font-size:11.5px;color:#64748b;margin-bottom:4px">
+            <span id="catProgText">Upload ho rahi hai…</span><span id="catProgPct">0%</span>
+          </div>
+          <div style="height:7px;background:#e2e8f0;border-radius:5px;overflow:hidden">
+            <div id="catProgBar" style="height:100%;width:0%;background:linear-gradient(90deg,#1a56db,#3b82f6);transition:width .2s"></div>
+          </div>
         </div>
       </div>
     </div>
-
-    <div id="catContent"></div>
   </div>
 
   <!-- ── LEAVE TRACKER ── -->
@@ -9410,14 +9428,48 @@ function renderCatalogues() {
     </div>`).join('') + `</div>`;
 }
 
-// File ko base64 me badalo (server JSON leta hai)
-function catReadFile(file) {
+// File ka ek tukda base64 me badlo (server JSON leta hai)
+function catReadSlice(blob) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result).split(',')[1] || '');
     r.onerror = () => reject(new Error('File padhi nahi ja saki'));
-    r.readAsDataURL(file);
+    r.readAsDataURL(blob);
   });
+}
+
+// Badi PDF ek request me nahi jaa sakti (server ~4.5MB tak hi leta hai),
+// isliye file ko 2MB ke tukdo me bhejte hain — server unhe jod deta hai.
+const CAT_CHUNK = 2 * 1024 * 1024;
+
+function catProgress(done, total, label) {
+  const wrap = document.getElementById('catProgWrap');
+  if (total <= 0) { wrap.style.display = 'none'; return; }
+  const pct = Math.min(100, Math.round(done / total * 100));
+  wrap.style.display = '';
+  document.getElementById('catProgBar').style.width = pct + '%';
+  document.getElementById('catProgPct').textContent = pct + '%';
+  document.getElementById('catProgText').textContent =
+    label || `Upload ho rahi hai… ${(done / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB`;
+}
+
+async function catUpload(file) {
+  const parts = Math.max(1, Math.ceil(file.size / CAT_CHUNK));
+  let fileId = '', link = '';
+  for (let i = 0; i < parts; i++) {
+    const slice = file.slice(i * CAT_CHUNK, Math.min(file.size, (i + 1) * CAT_CHUNK));
+    const b64 = await catReadSlice(slice);
+    const body = { dataBase64: b64, last: i === parts - 1 };
+    if (fileId) body.fileId = fileId;
+    else { body.filename = file.name; body.mimeType = file.type || 'application/pdf'; }
+    const r = await api('/api/catalogues/upload-file', 'POST', body);
+    if (!r || r.error) throw new Error((r && r.error) || 'Upload fail ho gaya');
+    fileId = r.fileId || fileId;
+    if (r.link) link = r.link;
+    catProgress(Math.min(file.size, (i + 1) * CAT_CHUNK), file.size);
+  }
+  if (!link) throw new Error('Upload poora nahi hua');
+  return link;
 }
 
 async function saveCatalogue() {
@@ -9426,26 +9478,25 @@ async function saveCatalogue() {
   const name = document.getElementById('catName').value.trim();
   const fileEl = document.getElementById('catFile');
   const file = fileEl.files && fileEl.files[0];
-  const fail = m => { err.textContent = m; err.style.display = 'block'; };
+  const fail = m => { err.textContent = m; err.style.display = 'block'; catProgress(0, 0); };
   err.style.display = 'none';
 
   if (!name) return fail('Catalogue ka naam likho');
   if (!file) return fail('PDF file chuno');
   if (!/\.pdf$/i.test(file.name)) return fail('Sirf PDF file chuni ja sakti hai');
-  if (file.size > 3.5 * 1024 * 1024) return fail('PDF 3MB se badi hai — chhoti file chuno');
+  if (file.size > 50 * 1024 * 1024) return fail('PDF 50MB se badi hai — 50MB tak ki file chalegi');
 
   btn.disabled = true; btn.textContent = '⏳ Upload ho rahi hai…';
+  catProgress(0, file.size);
   try {
-    const b64 = await catReadFile(file);
-    const up = await api('/api/catalogues/upload-file', 'POST',
-      { filename: file.name, mimeType: file.type || 'application/pdf', dataBase64: b64 });
-    if (!up || up.error || !up.link) throw new Error((up && up.error) || 'Upload fail ho gaya');
-
-    const r = await api('/api/catalogues', 'POST', { name, fileName: file.name, fileLink: up.link });
+    const link = await catUpload(file);
+    catProgress(file.size, file.size, 'Save ho raha hai…');
+    const r = await api('/api/catalogues', 'POST', { name, fileName: file.name, fileLink: link });
     if (r && r.error) throw new Error(r.error);
 
     document.getElementById('catName').value = '';
     fileEl.value = '';
+    catProgress(0, 0);
     showToast('Catalogue add ho gaya', 'success');
     await loadCatalogues();
   } catch (e) {

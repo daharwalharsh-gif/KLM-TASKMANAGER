@@ -3116,27 +3116,56 @@ app.post('/api/master-sheet/:id/move', requireAuth, requireAdmin, async (req, re
 // Sab dekh/khol sakte hain; upload aur delete sirf admin.
 // PDF wahi fms_files table me jaati hai aur public /f/:id link se khulti hai.
 
+// Badi PDF ke liye CHUNKED upload.
+// Vercel ek request me sirf ~4.5MB leta hai, isliye browser file ko tukdo me
+// bhejta hai. Pehla tukda row banata hai, baaki tukde Postgres me `data = data || …`
+// se peeche jud jaate hain — is tarah har tukda alag lambda par jaaye tab bhi
+// kaam karta hai (koi in-memory state nahi rakhni padti).
+const CAT_MAX_BYTES = 50 * 1024 * 1024;   // 50MB tak ki PDF
+
 app.post('/api/catalogues/upload-file', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { filename, dataBase64 } = req.body;
-    if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
-    // Sirf PDF — mime browser se aaye ya na aaye, extension se pakka karte hain
-    const ext = String(filename).split('.').pop().toLowerCase();
-    let mt = String(req.body.mimeType || '').toLowerCase();
-    if (!mt || mt === 'application/octet-stream') mt = ext === 'pdf' ? 'application/pdf' : '';
-    if (mt !== 'application/pdf' || ext !== 'pdf') {
-      return res.status(400).json({ error: 'Sirf PDF file upload kar sakte hain' });
-    }
-    const buffer = Buffer.from(dataBase64, 'base64');
-    if (!buffer.length) return res.status(400).json({ error: 'File data empty hai' });
-    if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'PDF 3MB se badi hai — chhoti file upload karo' });
-
-    const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
+    const { fileId, filename, dataBase64, last } = req.body;
+    if (!dataBase64) return res.status(400).json({ error: 'dataBase64 required' });
+    const chunk = Buffer.from(dataBase64, 'base64');
+    if (!chunk.length) return res.status(400).json({ error: 'File data empty hai' });
     const pool = await fmsFilesPool();
-    const fileId = require('crypto').randomBytes(18).toString('base64url');
-    await pool.query('INSERT INTO fms_files (id, filename, mime, data) VALUES ($1,$2,$3,$4)', [fileId, safeName, mt, buffer]);
     const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-    res.json({ success: true, link: `${proto}://${req.get('host')}/f/${fileId}`, name: filename });
+    let id = String(fileId || '').trim();
+
+    if (!id) {
+      // ── pehla tukda: file check + nayi row ──
+      if (!filename) return res.status(400).json({ error: 'filename required' });
+      const ext = String(filename).split('.').pop().toLowerCase();
+      let mt = String(req.body.mimeType || '').toLowerCase();
+      if (!mt || mt === 'application/octet-stream') mt = ext === 'pdf' ? 'application/pdf' : '';
+      if (mt !== 'application/pdf' || ext !== 'pdf') {
+        return res.status(400).json({ error: 'Sirf PDF file upload kar sakte hain' });
+      }
+      const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
+      id = require('crypto').randomBytes(18).toString('base64url');
+      await pool.query('INSERT INTO fms_files (id, filename, mime, data) VALUES ($1,$2,$3,$4)', [id, safeName, mt, chunk]);
+    } else {
+      // ── agla tukda: peeche jod do (id sirf isi upload ka, guess nahi ho sakta) ──
+      const { rows } = await pool.query('SELECT octet_length(data) AS len, mime FROM fms_files WHERE id=$1', [id]);
+      if (!rows[0]) return res.status(404).json({ error: 'Upload session nahi mila — dobara try karo' });
+      if (rows[0].mime !== 'application/pdf') return res.status(400).json({ error: 'Sirf PDF file upload kar sakte hain' });
+      if (Number(rows[0].len) + chunk.length > CAT_MAX_BYTES) {
+        await pool.query('DELETE FROM fms_files WHERE id=$1', [id]);
+        return res.status(400).json({ error: `PDF ${Math.round(CAT_MAX_BYTES / 1024 / 1024)}MB se badi hai` });
+      }
+      await pool.query('UPDATE fms_files SET data = data || $1 WHERE id=$2', [chunk, id]);
+    }
+
+    if (!last) return res.json({ success: true, fileId: id });   // aur tukde aane hain
+
+    // ── aakhri tukda: PDF sach me PDF hai? ──
+    const { rows: fin } = await pool.query('SELECT octet_length(data) AS len, substring(data from 1 for 4) AS head FROM fms_files WHERE id=$1', [id]);
+    if (String(fin[0]?.head) !== '%PDF' && Buffer.from(fin[0]?.head || '').toString() !== '%PDF') {
+      await pool.query('DELETE FROM fms_files WHERE id=$1', [id]);
+      return res.status(400).json({ error: 'Ye valid PDF file nahi hai' });
+    }
+    res.json({ success: true, fileId: id, size: Number(fin[0].len), link: `${proto}://${req.get('host')}/f/${id}`, name: filename });
   } catch (err) {
     console.error('Catalogue upload FAILED:', err.message);
     res.status(500).json({ error: err.message });
