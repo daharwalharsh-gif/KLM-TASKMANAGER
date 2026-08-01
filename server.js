@@ -1023,7 +1023,29 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
       const [rows] = await db.query(`SELECT t.id,'checklist' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,'no' AS approval,0 AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail,u2.role AS assignedByRole FROM checklist_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${chkDateClause}${chkFyClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
       checklistPending = rows;
     }
-    res.json({ pending, revised, completed, todayPending: [...delegationPending, ...checklistPending] });
+    // Transfer info — jis task ka transfer approval pending hai wo dashboard par
+    // bhi halke laal me highlight hota hai (All Tasks jaisa hi).
+    const todayPending = [...delegationPending, ...checklistPending];
+    try {
+      const [trRows] = await db.query(
+        `SELECT tt.task_id, tt.task_type, u1.name AS fromName, u2.name AS toName, u3.name AS byName
+         FROM task_transfers tt
+         LEFT JOIN users u1 ON tt.from_user = u1.id
+         LEFT JOIN users u2 ON tt.to_user = u2.id
+         LEFT JOIN users u3 ON tt.requested_by = u3.id
+         WHERE tt.status='pending'`);
+      const trMap = {};
+      for (const r of trRows) trMap[`${r.task_type}_${r.task_id}`] = r;
+      for (const t of todayPending) {
+        const tr = trMap[`${t.type}_${t.id}`];
+        t.transferPending = tr ? 1 : 0;
+        t.transferFrom = tr ? (tr.fromName || '') : '';
+        t.transferTo   = tr ? (tr.toName || '') : '';
+        t.transferBy   = tr ? (tr.byName || '') : '';
+      }
+    } catch (e) { /* transfer info optional */ }
+
+    res.json({ pending, revised, completed, todayPending });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1138,6 +1160,30 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
         t.lastCommentBy = c ? c.lastBy : '';
       }
     } catch (e) { /* comments optional — inke bina bhi tasks aane chahiye */ }
+
+    // ── Transfer info attach karo ──
+    // Jis task ka transfer maanga gaya hai (approval pending), wo list me halke
+    // laal rang me highlight hota hai. Transfer approve ho chuka ho to task apne
+    // aap naye doer ke paas chala jaata hai, isliye sirf 'pending' dekhte hain.
+    try {
+      const tType = type || 'delegation';
+      const [trRows] = await db.query(
+        `SELECT tt.task_id, tt.created_at, u1.name AS fromName, u2.name AS toName, u3.name AS byName
+         FROM task_transfers tt
+         LEFT JOIN users u1 ON tt.from_user = u1.id
+         LEFT JOIN users u2 ON tt.to_user = u2.id
+         LEFT JOIN users u3 ON tt.requested_by = u3.id
+         WHERE tt.task_type=? AND tt.status='pending'`, [tType]);
+      const trByTask = {};
+      for (const r of trRows) trByTask[String(r.task_id)] = r;
+      for (const t of tasks) {
+        const tr = trByTask[String(t.id)];
+        t.transferPending = tr ? 1 : 0;
+        t.transferFrom = tr ? (tr.fromName || '') : '';
+        t.transferTo   = tr ? (tr.toName || '') : '';
+        t.transferBy   = tr ? (tr.byName || '') : '';
+      }
+    } catch (e) { /* transfer info optional */ }
 
     // mine=1 mode me hamesha flat tasks return karte hain (grouped nahi)
     if (isMine) {
@@ -3434,9 +3480,10 @@ app.post('/api/transfers', requireAuth, async (req, res) => {
         [t.taskId, t.taskType]
       );
       if (existing[0]) { skipped++; continue; }
+      // note = transfer maangne ki wajah (single-task transfer modal se aata hai)
       await db.query(
-        `INSERT INTO task_transfers (task_id, task_type, from_user, to_user, requested_by, status) VALUES (?,?,?,?,?,'pending')`,
-        [t.taskId, t.taskType, fromUser, toUserId, uid]
+        `INSERT INTO task_transfers (task_id, task_type, from_user, to_user, requested_by, status, note) VALUES (?,?,?,?,?,'pending',?)`,
+        [t.taskId, t.taskType, fromUser, toUserId, uid, String(req.body.note || '').trim()]
       );
       inserted++;
     }

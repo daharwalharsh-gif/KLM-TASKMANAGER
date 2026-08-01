@@ -4477,9 +4477,20 @@ function renderTasksTable() {
       : `<button class="action-btn" style="background:#eff6ff;color:#1d4ed8;padding:4px 7px;${extraStyle||''}"
           onclick="openComments(${t.id},'${tasksType}')" title="Comments">💬</button>`;
 
+    // TRANSFER button — apna task (ya admin/HOD ka koi bhi) kisi aur ko bhejne ke liye.
+    // Khatam ho chuke task, aur jinka transfer pehle se pending hai, unpe nahi dikhta.
+    // NOTE: ye declaration actionBtns se PEHLE honi zaroori hai (warna TDZ error).
+    const canTransfer = !isCompleted && t.transferPending != 1 &&
+      (ME.role === 'admin' || ME.role === 'hod' || String(t.assigned_to) === String(ME.id));
+    const trBtn = canTransfer
+      ? `<button class="action-btn" style="margin-left:3px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa"
+          onclick="openTransferTask(${t.id},'${tasksType}')" title="Ye task kisi aur ko transfer karo">🔄 Transfer</button>`
+      : '';
+
     const actionBtns = isAdmin ? `
       <button class="action-btn edit" style="padding:4px 7px" onclick="openEditTask(${t.id},'${tasksType}')" title="Edit">✏️</button>
       <button class="action-btn delete" style="padding:4px 7px;margin-left:3px" onclick="deleteTask(${t.id},'${tasksType}')" title="Delete">🗑</button>
+      ${trBtn}
       ${cBtn('margin-left:3px')}
       ${canDone && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
       ${naBtn}
@@ -4487,11 +4498,13 @@ function renderTasksTable() {
       ${isWaiting ? `<span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     ` : (ME.role==='pc') ? `
       ${cBtn()}
+      ${trBtn}
       ${isChecklist && !isCompleted && !isWaiting ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
       ${naBtn}
       ${isWaiting ? `<span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     ` : `
       ${cBtn()}
+      ${trBtn}
       ${!isCompleted && !isWaiting ? `
         ${canDone ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
         ${naBtn}
@@ -4501,9 +4514,19 @@ function renderTasksTable() {
         ${canDone ? `<button class="action-btn done" style="margin-left:3px" onclick="updateStatus(${t.id},'completed','alltasks','${tasksType}',this)">Done</button>` : ''}
         <span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px">⏳ Waiting</span>` : ''}
     `;
-    return `<tr>
+    // TRANSFER — jis task ka transfer approval pending hai wo poori row halke laal
+    // me highlight hoti hai, aur description ke saath saaf badge dikhta hai.
+    const isTransfer = t.transferPending == 1;
+    const trRowStyle = isTransfer ? ' style="background:#fef2f2;box-shadow:inset 3px 0 0 #ef4444"' : '';
+    const trBadge = isTransfer
+      ? `<div style="margin-top:4px;display:inline-flex;align-items:center;gap:5px;background:#fee2e2;border:1px solid #fca5a5;color:#b91c1c;border-radius:12px;padding:2px 9px;font-size:11px;font-weight:700"
+           title="Transfer request bheja gaya hai — admin/HOD ki approval baaki hai">
+           🔄 Transfer pending${t.transferTo ? ` → ${titleName(t.transferTo)}` : ''}</div>`
+      : '';
+
+    return `<tr${trRowStyle}>
       <td style="white-space:nowrap">${actionBtns}</td>
-      <td>${t.description||''}</td>
+      <td>${t.description||''}${trBadge}</td>
       <td>${t.assignedToName||''}</td>
       <td>${isAdmin ? (t.assignedByName||'') : (t.assignedByName||'')}</td>
       <td style="white-space:nowrap;font-size:12px;color:#64748b">${fmtDate(t.assigned_on||'')||'—'}</td>
@@ -9276,6 +9299,68 @@ async function aiSend() {
   }
 }
 
+
+// ══════════════════════════════════════════════════════
+// SINGLE TASK TRANSFER — row ke 🔄 Transfer button se
+// Transfer seedha nahi hota: request banti hai, admin/HOD approve karta hai.
+// Tab tak task list me halke laal me highlight rehta hai.
+// ══════════════════════════════════════════════════════
+let _trTask = null;   // { id, type, desc }
+
+async function openTransferTask(taskId, taskType) {
+  const src = (typeof allTasksData !== 'undefined' ? allTasksData : []).concat(
+    typeof _assignedByMeData !== 'undefined' ? _assignedByMeData : []);
+  const t = src.find(x => String(x.id) === String(taskId)) || {};
+  _trTask = { id: taskId, type: taskType, desc: t.description || '' };
+
+  document.getElementById('taskTransferErr').style.display = 'none';
+  document.getElementById('taskTransferNote').value = '';
+  document.getElementById('taskTransferDesc').textContent = t.description || '—';
+  document.getElementById('taskTransferMeta').textContent =
+    [t.assignedToName ? 'Abhi: ' + titleName(t.assignedToName) : '', t.due_date ? 'Due: ' + fmtDate(t.due_date) : '']
+      .filter(Boolean).join('  ·  ');
+
+  const sel = document.getElementById('taskTransferTo');
+  sel.innerHTML = '<option value="">Loading…</option>';
+  document.getElementById('taskTransferModal').classList.add('open');
+
+  const users = await api('/api/users');
+  // HOD sirf apne department me bhej sakta hai; task jiske paas hai wo list me nahi
+  const list = (Array.isArray(users) ? users : [])
+    .filter(u => String(u.id) !== String(t.assigned_to))
+    .filter(u => ME.role !== 'hod' || u.department === ME.department);
+  sel.innerHTML = '<option value="">-- Select person --</option>' +
+    list.map(u => `<option value="${u.id}">${(u.title ? u.title + ' ' : '') + titleName(u.name)}${u.department ? ' — ' + u.department : ''}</option>`).join('');
+}
+
+async function submitTaskTransfer() {
+  if (!_trTask) return;
+  const err = document.getElementById('taskTransferErr');
+  const btn = document.getElementById('taskTransferBtn');
+  const toUserId = document.getElementById('taskTransferTo').value;
+  if (!toUserId) {
+    err.textContent = 'Pehle select karo kis ko transfer karna hai';
+    err.style.display = 'block';
+    return;
+  }
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = '⏳ Bhej rahe hain…';
+  const r = await api('/api/transfers', 'POST', {
+    tasks: [{ taskId: _trTask.id, taskType: _trTask.type }],
+    toUserId,
+    note: document.getElementById('taskTransferNote').value.trim()
+  });
+  btn.disabled = false; btn.textContent = '🔄 Send Transfer Request';
+  if (r && r.error) {
+    err.textContent = r.error; err.style.display = 'block';
+    return;
+  }
+  closeModal('taskTransferModal');
+  showToast('Transfer request bhej di — approval ke baad task transfer hoga', 'success');
+  loadAllTasks();
+  if (typeof loadTransferBadge === 'function') loadTransferBadge();
+}
+
 </script>
 
 <!-- Google Sheets-style column filter popup (one shared instance, body-level) -->
@@ -9293,6 +9378,38 @@ async function aiSend() {
     <button class="ff-apply" onclick="applyFMSColFilter()">Apply</button>
   </div>
 </div>
+  <!-- SINGLE TASK TRANSFER — row ke 🔄 Transfer button se khulta hai -->
+  <div class="modal-overlay" id="taskTransferModal">
+    <div class="modal" style="max-width:480px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px">
+        <h3 style="margin:0">🔄 Transfer Task</h3>
+        <button class="btn btn-outline" onclick="closeModal('taskTransferModal')" style="flex-shrink:0">✕ Close</button>
+      </div>
+      <div class="alert error" id="taskTransferErr" style="display:none"></div>
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:9px;padding:10px 12px;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.4px">Task</div>
+        <div id="taskTransferDesc" style="font-size:13.5px;color:#1e293b;margin-top:3px;line-height:1.5">—</div>
+        <div id="taskTransferMeta" style="font-size:11.5px;color:#9a3412;margin-top:4px"></div>
+      </div>
+      <div class="form-group">
+        <label>Kis ko transfer karna hai? <span style="color:#dc2626">*</span></label>
+        <select id="taskTransferTo"><option value="">-- Select person --</option></select>
+      </div>
+      <div class="form-group">
+        <label>Reason / Note <span style="color:#94a3b8;font-weight:400;font-size:11px">(optional)</span></label>
+        <input type="text" id="taskTransferNote" placeholder="Kyun transfer kar rahe ho…"/>
+      </div>
+      <div style="font-size:11.5px;color:#64748b;background:#f8fafc;border-radius:8px;padding:8px 10px;margin-bottom:12px">
+        ℹ️ Transfer <strong>seedha nahi</strong> hota — admin / HOD ki approval ke baad hi task doosre ke paas jaata hai.
+        Tab tak ye task <span style="color:#b91c1c;font-weight:700">halke laal</span> me dikhega.
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-outline" onclick="closeModal('taskTransferModal')">Cancel</button>
+        <button class="btn btn-primary" id="taskTransferBtn" onclick="submitTaskTransfer()">🔄 Send Transfer Request</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ══════════════════════════════════════
        AI ASSISTANT — floating chat box (Hindi + English)
   ══════════════════════════════════════ -->
