@@ -812,8 +812,6 @@ tbody tr:last-child td{border-bottom:none;}
         </div>
         <button class="btn btn-outline" id="delegateByMeBtn" onclick="openDelegateByMeModal()"
           style="color:#1a56db;border-color:#bfdbfe">📤 Delegate by Me</button>
-        <button class="btn btn-outline" id="transferModeBtn" onclick="openNewTransferModal()"
-          style="color:#7c3aed;border-color:#c4b5fd">🔀 Transfer</button>
         <button class="btn btn-primary" id="tasksAssignBtn" onclick="openDelegate()" style="display:none">+ Assign Task</button>
         <button class="btn btn-outline" id="bulkDeleteBtn" onclick="openBulkDeleteModal()"
           style="color:#dc2626;border-color:#fecaca;display:none">🗑 Bulk Delete</button>
@@ -9318,6 +9316,7 @@ async function aiSend() {
 // Tab tak task list me halke laal me highlight rehta hai.
 // ══════════════════════════════════════════════════════
 let _trTask = null;   // { id, type, desc }
+let _trNeedsApproval = true;   // task admin ne diya ho tabhi approval lagti hai
 
 async function openTransferTask(taskId, taskType) {
   const src = (typeof allTasksData !== 'undefined' ? allTasksData : []).concat(
@@ -9331,6 +9330,16 @@ async function openTransferTask(taskId, taskType) {
   document.getElementById('taskTransferMeta').textContent =
     [t.assignedToName ? 'Abhi: ' + titleName(t.assignedToName) : '', t.due_date ? 'Due: ' + fmtDate(t.due_date) : '']
       .filter(Boolean).join('  ·  ');
+
+  // Approval sirf tab chahiye jab task ADMIN/PC ne diya ho. Doer ke diye task
+  // turant transfer ho jaate hain — server par bhi bilkul yahi rule hai.
+  const _ar = String(t.assignedByRole || '').trim().toLowerCase();
+  _trNeedsApproval = (_ar === 'admin' || _ar === 'pc');
+  document.getElementById('taskTransferInfo').innerHTML = _trNeedsApproval
+    ? `ℹ️ Ye task <strong>${titleName(t.assignedByName || 'admin')}</strong> (admin) ne diya hai — transfer <strong>approval ke baad</strong> hoga.
+       Tab tak task <span style="color:#b91c1c;font-weight:700">halke laal</span> me dikhega.`
+    : `✅ Ye task <strong>${titleName(t.assignedByName || '')}</strong> ne diya hai — transfer <strong>turant</strong> ho jayega,
+       kisi approval ki zaroorat nahi.`;
 
   const sel = document.getElementById('taskTransferTo');
   sel.innerHTML = '<option value="">Loading…</option>';
@@ -9368,7 +9377,9 @@ async function submitTaskTransfer() {
     return;
   }
   closeModal('taskTransferModal');
-  showToast('Transfer request bhej di — approval ke baad task transfer hoga', 'success');
+  // Server batata hai kitne turant transfer hue (instant) — wahi message dikhao
+  const wasInstant = (r && r.instant > 0) || (!_trNeedsApproval && !(r && r.instant === 0));
+  showToast(wasInstant ? 'Task transfer ho gaya ✅' : 'Transfer request bhej di — approval ke baad task transfer hoga', 'success');
   loadAllTasks();
   if (typeof loadTransferBadge === 'function') loadTransferBadge();
 }
@@ -9411,10 +9422,7 @@ async function submitTaskTransfer() {
         <label>Reason / Note <span style="color:#94a3b8;font-weight:400;font-size:11px">(optional)</span></label>
         <input type="text" id="taskTransferNote" placeholder="Kyun transfer kar rahe ho…"/>
       </div>
-      <div style="font-size:11.5px;color:#64748b;background:#f8fafc;border-radius:8px;padding:8px 10px;margin-bottom:12px">
-        ℹ️ Transfer <strong>seedha nahi</strong> hota — admin / HOD ki approval ke baad hi task doosre ke paas jaata hai.
-        Tab tak ye task <span style="color:#b91c1c;font-weight:700">halke laal</span> me dikhega.
-      </div>
+      <div id="taskTransferInfo" style="font-size:11.5px;color:#64748b;background:#f8fafc;border-radius:8px;padding:8px 10px;margin-bottom:12px"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end">
         <button class="btn btn-outline" onclick="closeModal('taskTransferModal')">Cancel</button>
         <button class="btn btn-primary" id="taskTransferBtn" onclick="submitTaskTransfer()">🔄 Send Transfer Request</button>

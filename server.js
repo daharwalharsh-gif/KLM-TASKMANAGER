@@ -3487,7 +3487,7 @@ app.post('/api/transfers', requireAuth, async (req, res) => {
     }
 
     // Insert transfer requests — skip if already pending
-    let inserted = 0, skipped = 0;
+    let inserted = 0, skipped = 0, instant = 0;
     for (const t of tasks) {
       const table = getTable(t.taskType);
       const [rows] = await db.query(`SELECT assigned_to FROM ${table} WHERE id=?`, [t.taskId]);
@@ -3497,15 +3497,34 @@ app.post('/api/transfers', requireAuth, async (req, res) => {
         [t.taskId, t.taskType]
       );
       if (existing[0]) { skipped++; continue; }
-      // note = transfer maangne ki wajah (single-task transfer modal se aata hai)
+
+      // APPROVAL KAB CHAHIYE:
+      //  • Task ADMIN/PC ne diya ho  -> approval chahiye (status 'pending', wo decide karega)
+      //  • Task kisi DOER ne diya ho -> approval NAHI, transfer turant ho jaata hai
+      // (Checklist ke bhi apne assigner hote hain, wahi rule lagta hai.)
+      let needsApproval = true;
+      try {
+        const [asg] = await db.query(`SELECT assigned_by FROM ${table} WHERE id=?`, [t.taskId]);
+        const [ar] = await db.query('SELECT role FROM users WHERE id=? LIMIT 1', [asg[0]?.assigned_by]);
+        const assignerRole = String(ar[0]?.role || '').trim().toLowerCase();
+        needsApproval = (assignerRole === 'admin' || assignerRole === 'pc');
+      } catch (e) { needsApproval = true; }   // pata na chale to safe side: approval
+
+      const noteTxt = String(req.body.note || '').trim();
       await db.query(
-        `INSERT INTO task_transfers (task_id, task_type, from_user, to_user, requested_by, status, note) VALUES (?,?,?,?,?,'pending',?)`,
-        [t.taskId, t.taskType, fromUser, toUserId, uid, String(req.body.note || '').trim()]
+        `INSERT INTO task_transfers (task_id, task_type, from_user, to_user, requested_by, status, note) VALUES (?,?,?,?,?,?,?)`,
+        [t.taskId, t.taskType, fromUser, toUserId, uid, needsApproval ? 'pending' : 'approved', noteTxt]
       );
+      // Approval nahi chahiye -> task abhi ke abhi naye doer ko de do
+      if (!needsApproval) {
+        await db.query(`UPDATE ${table} SET assigned_to=? WHERE id=?`, [toUserId, t.taskId]);
+        instant++;
+      }
       inserted++;
     }
 
-    res.json({ success: true, count: inserted, skipped });
+    // instant = bina approval ke turant transfer ho gaye (doer ke diye task)
+    res.json({ success: true, count: inserted, skipped, instant });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
