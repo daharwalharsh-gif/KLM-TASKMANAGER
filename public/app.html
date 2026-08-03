@@ -828,6 +828,9 @@ tbody tr:last-child td{border-bottom:none;}
           style="color:#dc2626;border-color:#fecaca;display:none">🗑 Bulk Delete</button>
         <button class="btn btn-outline" id="clearAllBtn" onclick="clearAllTasks()"
           style="color:#fff;background:#dc2626;border-color:#dc2626;display:none">⚠️ Clear ALL Data</button>
+        <!-- Pending + Completed ki poori list ka PDF — sirf admin -->
+        <button class="btn btn-outline" id="tasksPdfBtn" onclick="exportTasksPDF()"
+          style="color:#b45309;border-color:#fcd34d;display:none">📄 PDF</button>
       </div>
     </div>
     <!-- Status filter tabs -->
@@ -2576,6 +2579,7 @@ async function init() {
       document.getElementById('nav-master').style.display = 'flex';   // Master Sheet — admin only
       document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
       const cab = document.getElementById('clearAllBtn'); if (cab) cab.style.display = 'inline-flex';
+      const pdb = document.getElementById('tasksPdfBtn'); if (pdb) pdb.style.display = 'inline-flex';
     }
     if (ME.role === 'hod') {
       // HOD ko MIS dikhta hai (apne department ka)
@@ -4434,6 +4438,88 @@ async function loadAllTasks() {
   }
 
   renderTasksTable();
+}
+
+// ── Pending + Completed ki poori list ka PDF (sirf admin) ──
+// Naya tab khol kar print dialog — wahan se "Save as PDF" chunna hai.
+// Koi external library nahi, isliye offline/Vercel dono jagah chalta hai.
+function exportTasksPDF() {
+  if (!(ME && ME.role === 'admin')) return showToast('Sirf admin', 'error');
+  const typeLabel = (typeof tasksType !== 'undefined' && tasksType === 'checklist') ? 'Checklist' : 'Delegation';
+  const src = Array.isArray(allTasksData) ? allTasksData : [];
+  if (!src.length) return showToast('Abhi koi task nahi hai', 'error');
+
+  const byDoer = (a, b) =>
+    String(a.assignedToName || '').localeCompare(String(b.assignedToName || '')) ||
+    String(a.due_date || '').localeCompare(String(b.due_date || ''));
+  const pending   = src.filter(t => t.status === 'pending').sort(byDoer);
+  const completed = src.filter(t => t.status === 'completed').sort(byDoer);
+
+  const d = v => {
+    const s = String(v || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+    const [y, m, dd] = s.split('-');
+    return `${dd}-${m}-${y}`;
+  };
+  const rows = list => list.map((t, i) => `<tr>
+      <td class="n">${i + 1}</td>
+      <td>${escapeHtml(t.assignedToName || '—')}</td>
+      <td>${escapeHtml(t.description || '—')}</td>
+      <td>${escapeHtml(t.assignedByName || '—')}</td>
+      <td class="c">${d(t.assigned_on)}</td>
+      <td class="c">${d(t.due_date)}</td>
+      <td>${escapeHtml(t.remarks || '—')}</td>
+    </tr>`).join('');
+  const table = (title, list, color) => `
+    <h2 style="border-left:5px solid ${color}">${title} <span class="cnt">${list.length}</span></h2>
+    ${list.length ? `<table>
+      <thead><tr><th class="n">#</th><th>Doer</th><th>Task</th><th>Assignee</th>
+        <th class="c">Assigned On</th><th class="c">Due Date</th><th>Remarks</th></tr></thead>
+      <tbody>${rows(list)}</tbody></table>`
+    : `<p class="none">Koi task nahi</p>`}`;
+
+  const now = new Date();
+  const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+<title>KLM Task Manager — ${typeLabel} Tasks</title>
+<style>
+  @page { size: A4 landscape; margin: 12mm; }
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:0;font-size:11px}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1a56db;padding-bottom:8px;margin-bottom:14px}
+  .head h1{margin:0;font-size:18px;color:#1a56db}
+  .head .sub{font-size:11px;color:#64748b}
+  h2{font-size:13px;margin:16px 0 7px;padding-left:9px}
+  h2 .cnt{background:#eef2ff;color:#1a56db;border-radius:9px;padding:1px 8px;font-size:11px;margin-left:5px}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th,td{border:1px solid #cbd5e1;padding:5px 6px;text-align:left;vertical-align:top;word-wrap:break-word}
+  th{background:#f1f5f9;font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+  tbody tr:nth-child(even){background:#f8fafc}
+  .n{width:32px;text-align:center}
+  .c{width:82px;text-align:center;white-space:nowrap}
+  th:nth-child(2),td:nth-child(2){width:120px}
+  th:nth-child(4),td:nth-child(4){width:110px}
+  th:nth-child(7),td:nth-child(7){width:190px}
+  .none{color:#94a3b8;font-style:italic;margin:4px 0 0 9px}
+  thead{display:table-header-group}
+  tr{page-break-inside:avoid}
+  .foot{margin-top:16px;border-top:1px solid #e2e8f0;padding-top:6px;font-size:10px;color:#94a3b8;text-align:center}
+</style></head><body>
+  <div class="head">
+    <div><h1>KLM Task Manager</h1><div class="sub">${typeLabel} — Pending &amp; Completed (poori list)</div></div>
+    <div class="sub">${stamp}<br>Total: ${pending.length + completed.length}</div>
+  </div>
+  ${table('Pending Tasks', pending, '#f59e0b')}
+  ${table('Completed Tasks', completed, '#10b981')}
+  <div class="foot">KLM Task Manager · ${stamp}</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) return showToast('Popup block ho gaya — browser me popup allow karo', 'error');
+  w.document.open(); w.document.write(html); w.document.close();
+  // Content render hone ke baad hi print dialog
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
 }
 
 function clearTasksDateFilter() {
