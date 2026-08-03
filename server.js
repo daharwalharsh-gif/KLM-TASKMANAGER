@@ -2673,9 +2673,15 @@ const FULL_VIEW_FMS = {
   names: ['invincible offline o2d fms', 'invincible crm fms',
           'order to dispatch fms offline domestic dashboard', 'crm fms domestic offline']
 };
+// Ms. Kiran ko ye do PMS poori dikhni chahiye (saare steps + saari rows)
+const FULL_VIEW_PMS = {
+  ids: [2, 1],   // Garments PMS, Boxing PMS
+  names: ['garments pms', 'boxing pms']
+};
 const FMS_FULL_VIEW = {
   'amit@invincible.in': FULL_VIEW_FMS,
   'marketing@klmahajan.com': FULL_VIEW_FMS,
+  'kiran@klmahajan.com': FULL_VIEW_PMS,
 };
 // Ye user full-view rakhta hai? -> config object ya null
 async function fmsFullViewCfg(userId) {
