@@ -826,11 +826,9 @@ tbody tr:last-child td{border-bottom:none;}
         <button class="btn btn-primary" id="tasksAssignBtn" onclick="openDelegate()" style="display:none">+ Assign Task</button>
         <button class="btn btn-outline" id="bulkDeleteBtn" onclick="openBulkDeleteModal()"
           style="color:#dc2626;border-color:#fecaca;display:none">🗑 Bulk Delete</button>
-        <button class="btn btn-outline" id="clearAllBtn" onclick="clearAllTasks()"
-          style="color:#fff;background:#dc2626;border-color:#dc2626;display:none">⚠️ Clear ALL Data</button>
         <!-- Pending + Completed ki poori list ka PDF — sirf admin -->
         <button class="btn btn-outline" id="tasksPdfBtn" onclick="exportTasksPDF()"
-          style="color:#b45309;border-color:#fcd34d;display:none">📄 PDF</button>
+          style="color:#b45309;border-color:#fcd34d;display:none">📄 Checklist PDF</button>
       </div>
     </div>
     <!-- Status filter tabs -->
@@ -2798,8 +2796,7 @@ async function init() {
       document.getElementById('nav-fms').style.display = 'flex';
       document.getElementById('nav-master').style.display = 'flex';   // Master Sheet — admin only
       document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
-      const cab = document.getElementById('clearAllBtn'); if (cab) cab.style.display = 'inline-flex';
-      const pdb = document.getElementById('tasksPdfBtn'); if (pdb) pdb.style.display = 'inline-flex';
+      const pdb = document.getElementById('tasksPdfBtn'); if (pdb) { pdb.style.display = 'inline-flex'; syncPdfBtnLabel(); }
     }
     if (ME.role === 'hod') {
       // HOD ko MIS dikhta hai (apne department ka)
@@ -5062,7 +5059,7 @@ function exportTasksPDF() {
   if (!src.length) return showToast('Abhi koi task nahi hai', 'error');
 
   const byDoer = (a, b) =>
-    String(a.assignedToName || '').localeCompare(String(b.assignedToName || '')) ||
+    String(a.assignedToName || '').toLowerCase().localeCompare(String(b.assignedToName || '').toLowerCase()) ||
     String(a.due_date || '').localeCompare(String(b.due_date || ''));
   const pending   = src.filter(t => t.status === 'pending').sort(byDoer);
   const completed = src.filter(t => t.status === 'completed').sort(byDoer);
@@ -5088,7 +5085,26 @@ function exportTasksPDF() {
       <thead><tr><th class="n">#</th><th>Doer</th><th>Task</th><th>Assignee</th>
         <th class="c">Assigned On</th><th class="c">Due Date</th><th>Remarks</th></tr></thead>
       <tbody>${rows(list)}</tbody></table>`
-    : `<p class="none">Koi task nahi</p>`}`;
+    : `<p class="none">No tasks</p>`}`;
+
+  // Doer-wise summary — kis ko kitne task, kitne done, kitne pending
+  const doers = {};
+  src.forEach(t => {
+    const n = t.assignedToName || '—';
+    doers[n] = doers[n] || { pending: 0, completed: 0, other: 0 };
+    if (t.status === 'pending') doers[n].pending++;
+    else if (t.status === 'completed') doers[n].completed++;
+    else doers[n].other++;
+  });
+  const doerNames = Object.keys(doers).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  const summary = `
+    <h2 style="border-left:5px solid #1a56db">Doer-wise Summary <span class="cnt">${doerNames.length}</span></h2>
+    <table><thead><tr><th class="n">#</th><th>Doer</th><th class="c">Pending</th><th class="c">Completed</th>
+      <th class="c">Other</th><th class="c">Total</th></tr></thead><tbody>
+      ${doerNames.map((n, i) => { const s = doers[n]; const tot = s.pending + s.completed + s.other;
+        return `<tr><td class="n">${i + 1}</td><td>${escapeHtml(n)}</td><td class="c">${s.pending}</td>
+          <td class="c">${s.completed}</td><td class="c">${s.other}</td><td class="c"><b>${tot}</b></td></tr>`; }).join('')}
+    </tbody></table>`;
 
   const now = new Date();
   const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -5122,6 +5138,7 @@ function exportTasksPDF() {
     <div><h1>KLM Task Manager</h1><div class="sub">${typeLabel} — Pending &amp; Completed (poori list)</div></div>
     <div class="sub">${stamp}<br>Total: ${pending.length + completed.length}</div>
   </div>
+  ${summary}
   ${table('Pending Tasks', pending, '#f59e0b')}
   ${table('Completed Tasks', completed, '#10b981')}
   <div class="foot">KLM Task Manager · ${stamp}</div>
@@ -5425,7 +5442,14 @@ function tasksTab(type, el) {
   document.querySelectorAll('#tasksTypeTabGroup .tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   syncNATab();
+  syncPdfBtnLabel();
   loadAllTasks();
+}
+
+// PDF button ka naam tab ke hisaab se — Checklist tab par "Checklist PDF"
+function syncPdfBtnLabel() {
+  const b = document.getElementById('tasksPdfBtn');
+  if (b) b.textContent = tasksType === 'checklist' ? '📄 Checklist PDF' : '📄 Delegation PDF';
 }
 
 // "Not Applicable" tab ab Delegation aur Checklist dono me hamesha dikhta hai
