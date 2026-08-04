@@ -1213,16 +1213,6 @@ tbody tr:last-child td{border-bottom:none;}
               <div id="lgFileChips" style="margin-top:10px"></div>
             </div>
           </div>
-          <div class="lg-block lg-b0">
-            <div class="lg-block-head"><span class="lg-ico">🛡️</span>True Self Declaration</div>
-            <div class="lg-block-body">
-              <div style="font-size:12.5px;color:#64748b;margin-bottom:12px">I confirm that the above details are true and correct to the best of my knowledge.</div>
-              <div class="chal-grid chal-grid-2">
-                <div class="chal-field"><label>Name</label><input type="text" id="lg_decl_name"/></div>
-                <div class="chal-field"><label>Date</label><input type="date" id="lg_decl_date"/></div>
-              </div>
-            </div>
-          </div>
           <div class="chal-actions">
             <button class="btn btn-outline" onclick="legalFormReset()">↺ Reset</button>
             <button class="btn btn-primary" id="lgSaveBtn" onclick="saveLegalCase()">💾 Submit Case</button>
@@ -3587,7 +3577,7 @@ let _legalOpenId = null;
 const LG_TEXT_FIELDS = ['case_ref','initiated_on','court_forum','case_type','case_status','priority',
   'complainant','defendant','party_address','contact_no','email_id','gst_no','purpose_other',
   'handled_by','department','handler_contact','handler_email','reporting_to',
-  'background','decl_name','decl_date'];
+  'background'];
 
 // Form me attach ki hui files — {name, link}
 let _legalFiles = [];
@@ -3891,9 +3881,8 @@ async function openLegalCase(id) {
         ${row('Closed By', c.doneByName)}
       </div></div></div>` : ''}
 
-      <div class="lg-block lg-b0"><div class="lg-block-head"><span class="lg-ico">🛡️</span>True Self Declaration</div>
-      <div class="lg-block-body"><div class="lg-kv">${row('Name', c.decl_name)}${row('Date', lgDate(c.decl_date))}
-        ${row('Submitted By', c.createdByName)}</div></div></div>
+      <div class="lg-block lg-b0"><div class="lg-block-head"><span class="lg-ico">🛡️</span>Submitted By</div>
+      <div class="lg-block-body"><div class="lg-kv">${row('Submitted By', c.createdByName)}</div></div></div>
     </div></div>`;
   wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
