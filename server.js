@@ -936,7 +936,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Invincible Catalogues me upload/delete kar sakta hai ya sirf dekh sakta hai
     rows[0].canCatalogues = req.session.role === 'admin' ||
       CAT_UPLOAD_EMAILS.has((rows[0].email || '').trim().toLowerCase());
-    // Legal Case form FMS dropdown me dikhe ya nahi
+    // Whether the Legal Case form shows in the FMS dropdown
     rows[0].canLegal = req.session.role === 'admin' ||
       LEGAL_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     res.json(rows[0]);
@@ -3051,9 +3051,9 @@ app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) =>
 // ══════════════════════════════════════════════════════
 // LEGAL CASE FORM — "Legal Case Versus Parties" case tracking
 // ══════════════════════════════════════════════════════
-// Sirf ye doer (+ admin) form bhar sakte hain. Case tab tak "pending" rehta
-// hai jab tak Done na dabe — beech me jitni baar chaaho hearing/remarks +
-// next date add karte raho. Done par case "completed" me chala jaata hai.
+// Only this doer (+ admin) can fill this form. A case stays "pending" until
+// Done is pressed — hearing remarks + next date can be added any number of
+// times in between. On Done the case moves to "completed".
 const LEGAL_EMAILS = new Set([
   'ankit@invincible.in',       // Mr. Arjun
 ]);
@@ -3087,7 +3087,7 @@ app.get('/api/legal-cases', requireAuth, requireLegalAccess, async (req, res) =>
        LEFT JOIN users u2 ON c.done_by = u2.id
        ORDER BY c.id DESC`);
     const list = want ? rows.filter(r => String(r.status || 'pending') === want) : rows;
-    // Har case ke saath uska latest update + kitne updates hain
+    // Attach each case's latest update + how many updates it has
     for (const r of list) {
       const [ups] = await db.query('SELECT * FROM legal_case_updates WHERE case_id=? ORDER BY id DESC', [r.id]);
       r.updateCount = ups.length;
@@ -3098,7 +3098,7 @@ app.get('/api/legal-cases', requireAuth, requireLegalAccess, async (req, res) =>
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Ek case ki poori detail + saare hearing updates
+// Full detail of one case + all its hearing updates
 app.get('/api/legal-cases/:id', requireAuth, requireLegalAccess, async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -3116,13 +3116,13 @@ app.get('/api/legal-cases/:id', requireAuth, requireLegalAccess, async (req, res
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Naya case — form submit
+// New case — form submit
 app.post('/api/legal-cases', requireAuth, requireLegalAccess, async (req, res) => {
   try {
     const b = req.body || {};
-    if (!String(b.case_ref || '').trim()) return res.status(400).json({ error: 'Case ID / Reference No. zaroori hai' });
+    if (!String(b.case_ref || '').trim()) return res.status(400).json({ error: 'Case ID / Reference No. is required' });
     if (!String(b.complainant || '').trim() && !String(b.defendant || '').trim())
-      return res.status(400).json({ error: 'Complainant ya Defendant me se kam se kam ek bharo' });
+      return res.status(400).json({ error: 'Please fill at least one of Complainant or Defendant' });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const vals = LEGAL_FIELDS.map(f => String(b[f] ?? '').trim());
     await db.query(
@@ -3133,7 +3133,7 @@ app.post('/api/legal-cases', requireAuth, requireLegalAccess, async (req, res) =
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Case ki detail edit (Done hone ke baad bhi admin theek kar sake)
+// Edit case details (admin can still correct them after Done)
 app.put('/api/legal-cases/:id', requireAuth, requireLegalAccess, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM legal_cases WHERE id=?', [req.params.id]);
@@ -3148,18 +3148,18 @@ app.put('/api/legal-cases/:id', requireAuth, requireLegalAccess, async (req, res
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Hearing / update add — jitni baar chaaho, case pending hi rehta hai
+// Add a hearing / update — any number of times, the case stays pending
 app.post('/api/legal-cases/:id/updates', requireAuth, requireLegalAccess, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM legal_cases WHERE id=?', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Case not found' });
     if (String(rows[0].status || 'pending') === 'completed')
-      return res.status(400).json({ error: 'Ye case close ho chuka hai — ab update nahi jud sakta' });
+      return res.status(400).json({ error: 'This case is already closed — no more updates can be added' });
     const b = req.body || {};
     const proceedings = String(b.proceedings || '').trim();
     const nextDate = String(b.next_hearing_date || '').trim();
     if (!proceedings && !nextDate)
-      return res.status(400).json({ error: 'Remarks ya Next Hearing Date me se kam se kam ek bharo' });
+      return res.status(400).json({ error: 'Please fill at least one of Remarks or Next Hearing Date' });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await db.query(
       `INSERT INTO legal_case_updates (case_id,hearing_date,proceedings,documents_filed,court_order,next_hearing_date,follow_up,entered_by,created_at)
@@ -3172,18 +3172,18 @@ app.post('/api/legal-cases/:id/updates', requireAuth, requireLegalAccess, async 
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Done — case close, ab Completed tab me dikhega
+// Done — close the case; it now shows in the Completed tab
 app.post('/api/legal-cases/:id/done', requireAuth, requireLegalAccess, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM legal_cases WHERE id=?', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Case not found' });
     if (String(rows[0].status || 'pending') === 'completed')
-      return res.status(400).json({ error: 'Ye case pehle hi close ho chuka hai' });
+      return res.status(400).json({ error: 'This case is already closed' });
     const b = req.body || {};
     const outcome = String(b.final_outcome || '').trim();
-    if (!outcome) return res.status(400).json({ error: 'Final Outcome chunna zaroori hai' });
+    if (!outcome) return res.status(400).json({ error: 'Final Outcome is required' });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    // Case Status outcome se hi nikal aata hai — client bhejna bhool jaye to bhi sahi rahe
+    // Case Status is derived from the outcome, so it stays correct even if the client omits it
     const derived = outcome === 'Settled' ? 'Settled' : outcome === 'Withdrawn' ? 'Withdrawn' : 'Closed';
     await db.query(
       `UPDATE legal_cases SET status='completed', case_status=?, closed_on=?, final_outcome=?,
@@ -3195,7 +3195,7 @@ app.post('/api/legal-cases/:id/done', requireAuth, requireLegalAccess, async (re
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Delete — sirf admin
+// Delete — admin only
 app.delete('/api/legal-cases/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     await db.query('DELETE FROM legal_case_updates WHERE case_id=?', [req.params.id]);

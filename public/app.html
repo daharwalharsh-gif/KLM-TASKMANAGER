@@ -1194,9 +1194,9 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="lg-block lg-b5">
             <div class="lg-block-head"><span class="lg-ico">📅</span>5. Case Proceedings &amp; Next Date Tracker</div>
             <div class="lg-block-body">
-              <div class="lg-note" style="margin:0 0 14px">Case submit karne ke baad <b>Pending</b> tab me case kholo aur
-                wahan har hearing ki remarks + next date add karte raho. Jab tak <b>Done</b> nahi dabate,
-                case Pending me hi rahega.</div>
+              <div class="lg-note" style="margin:0 0 14px">After you submit the case, open it in the <b>Pending</b> tab and
+                keep adding the remarks and next hearing date after every hearing. The case stays in
+                <b>Pending</b> until you press <b>Done</b>.</div>
             </div>
           </div>
           <div class="lg-block lg-b6">
@@ -1251,8 +1251,8 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="lg-block lg-b9">
             <div class="lg-block-head"><span class="lg-ico">⚖️</span>9. Case Closure Details</div>
             <div class="lg-block-body">
-              <div class="lg-note" style="margin:0 0 14px">Ye <b>Done</b> dabate waqt bharenge —
-                Closed On, Final Outcome, Amount Recovered aur Remarks.</div>
+              <div class="lg-note" style="margin:0 0 14px">These are filled in when you press <b>Done</b> —
+                Closed On, Final Outcome, Amount Recovered and Remarks.</div>
             </div>
           </div>
           <div class="lg-block lg-b0">
@@ -3610,9 +3610,9 @@ async function deleteChallenge(id) {
 }
 
 // ══════════════════════════════════════════════════════
-// LEGAL CASE FORM — 3 tab: Form Filling | Pending | Completed
-// Case tab tak Pending me rehta hai jab tak Done na dabe. Beech me jitni baar
-// chaaho hearing ki remarks + next date add karte raho.
+// LEGAL CASE FORM — 3 tabs: Form Filling | Pending | Completed
+// A case stays in Pending until Done is pressed. In between, hearing remarks +
+// next date can be added as many times as needed.
 // ══════════════════════════════════════════════════════
 let _legalView = 'form';
 let _legalList = [];
@@ -3669,18 +3669,18 @@ async function saveLegalCase() {
   body.purpose = lgChecked('lg_purpose_box');
   body.documents = lgChecked('lg_documents_box');
 
-  if (!body.case_ref) return fail('Case ID / Reference No. bharna zaroori hai');
-  if (!body.complainant && !body.defendant) return fail('Complainant ya Defendant me se kam se kam ek bharo');
+  if (!body.case_ref) return fail('Case ID / Reference No. is required');
+  if (!body.complainant && !body.defendant) return fail('Please fill at least one of Complainant or Defendant');
 
   btn.disabled = true; btn.textContent = '⏳ Saving…';
   try {
     const r = await api('/api/legal-cases', 'POST', body);
     if (r && r.error) throw new Error(r.error);
     legalFormReset();
-    showToast('Case submit ho gaya — Pending tab me dikhega', 'success');
+    showToast('Case submitted — it will show in the Pending tab', 'success');
     legalTab('pending', document.getElementById('lgTabPending'));
   } catch (e) {
-    fail(e.message || 'Kuch galat ho gaya');
+    fail(e.message || 'Something went wrong');
   } finally {
     btn.disabled = false; btn.textContent = '💾 Submit Case';
   }
@@ -3715,7 +3715,7 @@ function renderLegalList() {
     `${list.length} case${list.length === 1 ? '' : 's'}` + (_legalView === 'pending' ? ' pending' : ' completed');
   if (!list.length) {
     c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
-      ${_legalView === 'pending' ? 'Koi pending case nahi' : 'Koi completed case nahi'}</div>`;
+      ${_legalView === 'pending' ? 'No pending cases' : 'No completed cases'}</div>`;
     return;
   }
   const prioColor = p => p === 'High' ? '#fef2f2;color:#dc2626' : p === 'Low' ? '#f0fdf4;color:#16a34a' : '#fffbeb;color:#b45309';
@@ -3759,7 +3759,7 @@ async function openLegalCase(id) {
   wrap.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Loading…</div>`;
   const d = await api(`/api/legal-cases/${id}`);
   if (!d || d.error) {
-    wrap.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;color:#ef4444">⚠️ ${escapeHtml((d && d.error) || 'Load nahi hua')}</div>`;
+    wrap.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;color:#ef4444">⚠️ ${escapeHtml((d && d.error) || 'Could not load the case')}</div>`;
     return;
   }
   const c = d.legalCase, ups = d.updates || [];
@@ -3811,17 +3811,17 @@ async function openLegalCase(id) {
           <td>${escapeHtml(u.documents_filed || '—')}</td><td>${escapeHtml(u.court_order || '—')}</td>
           <td><b>${lgDate(u.next_hearing_date)}</b></td><td>${escapeHtml(u.follow_up || '—')}</td>
           <td>${escapeHtml(u.enteredByName || '—')}</td></tr>`).join('')}</tbody></table></div>`
-      : `<div style="color:#94a3b8;font-size:13px">Abhi koi hearing update nahi</div>`}
+      : `<div style="color:#94a3b8;font-size:13px">No hearing updates yet</div>`}
 
       ${done ? '' : `
-      <div class="lg-note" style="margin-top:16px">Har hearing ke baad yahan remarks aur next date add karo — case Pending me hi rahega.</div>
+      <div class="lg-note" style="margin-top:16px">Add the remarks and next hearing date here after every hearing — the case stays in Pending.</div>
       <div class="alert error" id="lgUpErr" style="display:none;margin-top:10px"></div>
       <div class="chal-grid chal-grid-3" style="margin-top:12px">
         <div class="chal-field"><label>Hearing Date</label><input type="date" id="lgUpHearing"/></div>
         <div class="chal-field"><label>Next Hearing Date</label><input type="date" id="lgUpNext"/></div>
         <div class="chal-field"><label>Documents Filed / Submitted</label><input type="text" id="lgUpDocs"/></div>
         <div class="chal-field" style="grid-column:1/-1"><label>Proceedings / What happened (Remarks)</label>
-          <textarea id="lgUpProc" placeholder="Aaj ki hearing me kya hua…"></textarea></div>
+          <textarea id="lgUpProc" placeholder="What happened in today's hearing…"></textarea></div>
         <div class="chal-field"><label>Order / Remarks by Court</label><input type="text" id="lgUpOrder"/></div>
         <div class="chal-field"><label>Follow-up Action</label><input type="text" id="lgUpFollow"/></div>
       </div>
@@ -3881,14 +3881,14 @@ async function addLegalUpdate(id) {
     court_order: v('lgUpOrder'), follow_up: v('lgUpFollow')
   };
   if (!body.proceedings && !body.next_hearing_date) {
-    err.textContent = 'Remarks ya Next Hearing Date me se kam se kam ek bharo';
+    err.textContent = 'Please fill at least one of Remarks or Next Hearing Date';
     err.style.display = 'block'; return;
   }
   btn.disabled = true; btn.textContent = '⏳ Saving…';
   const r = await api(`/api/legal-cases/${id}/updates`, 'POST', body);
   btn.disabled = false; btn.textContent = '➕ Add Update';
   if (r && r.error) { err.textContent = r.error; err.style.display = 'block'; return; }
-  showToast('Update add ho gaya — case abhi bhi Pending me hai', 'success');
+  showToast('Update added — the case is still Pending', 'success');
   openLegalCase(id);
 }
 
@@ -3908,7 +3908,7 @@ async function submitLegalDone() {
   const btn = document.getElementById('lgDoneSubmitBtn');
   err.style.display = 'none';
   const outcome = document.getElementById('lgDoneOutcome').value;
-  if (!outcome) { err.textContent = 'Final Outcome chuno'; err.style.display = 'block'; return; }
+  if (!outcome) { err.textContent = 'Please select the Final Outcome'; err.style.display = 'block'; return; }
   btn.disabled = true; btn.textContent = '⏳ Closing…';
   const r = await api(`/api/legal-cases/${id}/done`, 'POST', {
     closed_on: document.getElementById('lgDoneOn').value,
@@ -3920,15 +3920,15 @@ async function submitLegalDone() {
   btn.disabled = false; btn.textContent = '✅ Close Case';
   if (r && r.error) { err.textContent = r.error; err.style.display = 'block'; return; }
   closeModal('lgDoneModal');
-  showToast('Case close ho gaya — ab Completed tab me hai', 'success');
+  showToast('Case closed — it is now in the Completed tab', 'success');
   legalTab('completed', document.getElementById('lgTabDone'));
 }
 
 async function deleteLegalCase(id) {
-  if (!confirm('Ye case aur uske saare updates hata dein?')) return;
+  if (!confirm('Delete this case and all its updates?')) return;
   const r = await api(`/api/legal-cases/${id}`, 'DELETE');
   if (r && r.error) return showToast(r.error, 'error');
-  showToast('Case hata diya', 'success');
+  showToast('Case deleted', 'success');
   legalBackToList();
 }
 
