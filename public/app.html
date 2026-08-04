@@ -8234,6 +8234,25 @@ function updateFmsSheetLink(fmsId) {
   else linkEl.style.display = 'none';
 }
 
+// Is FMS ke AAKHRI step me PDF/image wale field bharna zaroori nahi — bina file
+// diye bhi Save chalega. Baaki field (Status, Invoice no. etc.) aur baaki saare
+// FMS pehle jaise hi mandatory rehte hain.
+const FMS_LAST_STEP_FILES_OPTIONAL = ['1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw'];
+function fmsSheetIdOf(fmsId) {
+  const f = (_fmsTasksList || []).find(x => String(x.id) === String(fmsId));
+  const raw = f ? String(f.sheet_id || '').trim() : '';
+  const m = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return m ? m[1] : raw;
+}
+// Abhi jo step khula hai, usme file field optional hai ya nahi
+function fmsFilesOptionalNow() {
+  if (!FMS_LAST_STEP_FILES_OPTIONAL.includes(fmsSheetIdOf(fmsTasksActiveFmsId))) return false;
+  const steps = window._fmsAllSteps || [];
+  const last = steps[steps.length - 1];
+  const cur = window._fmsActiveStepData;
+  return !!(last && cur && Number(last.id) === Number(cur.id));
+}
+
 async function loadFMSTasks() {
   document.getElementById('fmsTasksRefreshBtn').style.display = 'flex';
   const sel = document.getElementById('fmsTasksSelect');
@@ -8824,8 +8843,10 @@ function openFMSDoneModal(rowIdx) {
   const extraFieldsEl = document.getElementById('fmsDoneExtraFields');
   if (extraRows.length > 0) {
     const inputStyle = 'width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:\'Inter\',sans-serif;outline:none;box-sizing:border-box';
+    const filesOptional = fmsFilesOptionalNow();
     extraFieldsEl.innerHTML = extraRows.map((r, i) => {
       const label = r.label || r.row_label || r.col_letter || `Field ${i+1}`;
+      const isOptional = filesOptional && (r.field_type || 'text') === 'file';
       let inputHtml;
       switch(r.field_type || 'text') {
         case 'number':
@@ -8852,8 +8873,11 @@ function openFMSDoneModal(rowIdx) {
         default:
           inputHtml = `<input type="text" id="fmsExtra_${i}" placeholder="Enter value..." style="${inputStyle}"/>`;
       }
+      const mark = isOptional
+        ? `<span style="color:#94a3b8;font-weight:400">(optional)</span>`
+        : `<span style="color:#ef4444">*</span>`;
       return `<div style="margin-bottom:12px">
-        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">${label} <span style="color:#ef4444">*</span> <span style="color:#94a3b8;font-weight:400">(COL ${r.col_letter})</span></label>
+        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">${label} ${mark} <span style="color:#94a3b8;font-weight:400">(COL ${r.col_letter})</span></label>
         ${inputHtml}
       </div>`;
     }).join('');
@@ -8929,8 +8953,11 @@ async function saveFMSDone() {
   // Collect extra input values — mandatory check
   const activeStep = window._fmsActiveStepData;
   const extraRows = (activeStep && activeStep.extraRows) ? activeStep.extraRows.filter(r => r.col_letter) : [];
+  const filesOptionalNow = fmsFilesOptionalNow();
   for (let i = 0; i < extraRows.length; i++) {
     const r = extraRows[i];
+    // Aakhri step wale FMS me PDF/image chhod sakte hain — baaki field zaroori hi hain
+    if (filesOptionalNow && (r.field_type || 'text') === 'file') continue;
     const el = document.getElementById(`fmsExtra_${i}`);
     const val = el ? el.value.trim() : '';
     if (!val) {
