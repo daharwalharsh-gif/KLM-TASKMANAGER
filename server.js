@@ -936,6 +936,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Invincible Catalogues me upload/delete kar sakta hai ya sirf dekh sakta hai
     rows[0].canCatalogues = req.session.role === 'admin' ||
       CAT_UPLOAD_EMAILS.has((rows[0].email || '').trim().toLowerCase());
+    // Legal Case form FMS dropdown me dikhe ya nahi
+    rows[0].canLegal = req.session.role === 'admin' ||
+      LEGAL_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3041,6 +3044,162 @@ app.put('/api/challenges/:id', requireAuth, requireChallengeAccess, async (req, 
 app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     await db.query('DELETE FROM challenges WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
+// LEGAL CASE FORM — "Legal Case Versus Parties" case tracking
+// ══════════════════════════════════════════════════════
+// Sirf ye doer (+ admin) form bhar sakte hain. Case tab tak "pending" rehta
+// hai jab tak Done na dabe — beech me jitni baar chaaho hearing/remarks +
+// next date add karte raho. Done par case "completed" me chala jaata hai.
+const LEGAL_EMAILS = new Set([
+  'ankit@invincible.in',       // Mr. Arjun
+]);
+async function canUseLegal(req) {
+  if (req.session.role === 'admin') return true;
+  try {
+    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    return LEGAL_EMAILS.has((rows[0]?.email || '').trim().toLowerCase());
+  } catch (e) { return false; }
+}
+async function requireLegalAccess(req, res, next) {
+  if (await canUseLegal(req)) return next();
+  res.status(403).json({ error: 'Not allowed' });
+}
+
+const LEGAL_FIELDS = ['case_ref','initiated_on','court_forum','case_type','case_status','priority',
+  'complainant','defendant','party_address','contact_no','email_id','gst_no',
+  'purpose','purpose_other','handled_by','department','handler_contact','handler_email','reporting_to',
+  'background','claim_amount','cheque_no','cheque_date','bank_name','due_date',
+  'overall_status','strength','risk','remarks','documents','documents_other',
+  'closed_on','final_outcome','amount_recovered','closure_remarks','decl_name','decl_date'];
+
+// List — ?status=pending|completed (default dono)
+app.get('/api/legal-cases', requireAuth, requireLegalAccess, async (req, res) => {
+  try {
+    const want = String(req.query.status || '').trim();
+    const [rows] = await db.query(
+      `SELECT c.*, u.name AS createdByName, u2.name AS doneByName
+       FROM legal_cases c
+       LEFT JOIN users u ON c.created_by = u.id
+       LEFT JOIN users u2 ON c.done_by = u2.id
+       ORDER BY c.id DESC`);
+    const list = want ? rows.filter(r => String(r.status || 'pending') === want) : rows;
+    // Har case ke saath uska latest update + kitne updates hain
+    for (const r of list) {
+      const [ups] = await db.query('SELECT * FROM legal_case_updates WHERE case_id=? ORDER BY id DESC', [r.id]);
+      r.updateCount = ups.length;
+      r.lastUpdate = ups[0] || null;
+      r.nextHearingDate = (ups.find(u => u.next_hearing_date) || {}).next_hearing_date || '';
+    }
+    res.json(list);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Ek case ki poori detail + saare hearing updates
+app.get('/api/legal-cases/:id', requireAuth, requireLegalAccess, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT c.*, u.name AS createdByName, u2.name AS doneByName
+       FROM legal_cases c
+       LEFT JOIN users u ON c.created_by = u.id
+       LEFT JOIN users u2 ON c.done_by = u2.id
+       WHERE c.id=?`, [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Case not found' });
+    const [ups] = await db.query(
+      `SELECT lu.*, u.name AS enteredByName FROM legal_case_updates lu
+       LEFT JOIN users u ON lu.entered_by = u.id
+       WHERE lu.case_id=? ORDER BY lu.id ASC`, [req.params.id]);
+    res.json({ legalCase: rows[0], updates: ups });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Naya case — form submit
+app.post('/api/legal-cases', requireAuth, requireLegalAccess, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!String(b.case_ref || '').trim()) return res.status(400).json({ error: 'Case ID / Reference No. zaroori hai' });
+    if (!String(b.complainant || '').trim() && !String(b.defendant || '').trim())
+      return res.status(400).json({ error: 'Complainant ya Defendant me se kam se kam ek bharo' });
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const vals = LEGAL_FIELDS.map(f => String(b[f] ?? '').trim());
+    await db.query(
+      `INSERT INTO legal_cases (${LEGAL_FIELDS.join(',')},status,created_by,created_at,updated_at,done_at,done_by)
+       VALUES (${LEGAL_FIELDS.map(() => '?').join(',')},?,?,?,?,?,?)`,
+      [...vals, 'pending', req.session.userId, now, now, '', '']);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Case ki detail edit (Done hone ke baad bhi admin theek kar sake)
+app.put('/api/legal-cases/:id', requireAuth, requireLegalAccess, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM legal_cases WHERE id=?', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Case not found' });
+    const c = rows[0], b = req.body || {};
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const vals = LEGAL_FIELDS.map(f => (b[f] !== undefined ? String(b[f] ?? '').trim() : (c[f] ?? '')));
+    await db.query(
+      `UPDATE legal_cases SET ${LEGAL_FIELDS.map(f => f + '=?').join(',')},updated_at=? WHERE id=?`,
+      [...vals, now, req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Hearing / update add — jitni baar chaaho, case pending hi rehta hai
+app.post('/api/legal-cases/:id/updates', requireAuth, requireLegalAccess, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM legal_cases WHERE id=?', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Case not found' });
+    if (String(rows[0].status || 'pending') === 'completed')
+      return res.status(400).json({ error: 'Ye case close ho chuka hai — ab update nahi jud sakta' });
+    const b = req.body || {};
+    const proceedings = String(b.proceedings || '').trim();
+    const nextDate = String(b.next_hearing_date || '').trim();
+    if (!proceedings && !nextDate)
+      return res.status(400).json({ error: 'Remarks ya Next Hearing Date me se kam se kam ek bharo' });
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await db.query(
+      `INSERT INTO legal_case_updates (case_id,hearing_date,proceedings,documents_filed,court_order,next_hearing_date,follow_up,entered_by,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [req.params.id, String(b.hearing_date || '').trim(), proceedings,
+       String(b.documents_filed || '').trim(), String(b.court_order || '').trim(),
+       nextDate, String(b.follow_up || '').trim(), req.session.userId, now]);
+    await db.query('UPDATE legal_cases SET updated_at=? WHERE id=?', [now, req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Done — case close, ab Completed tab me dikhega
+app.post('/api/legal-cases/:id/done', requireAuth, requireLegalAccess, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM legal_cases WHERE id=?', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Case not found' });
+    if (String(rows[0].status || 'pending') === 'completed')
+      return res.status(400).json({ error: 'Ye case pehle hi close ho chuka hai' });
+    const b = req.body || {};
+    const outcome = String(b.final_outcome || '').trim();
+    if (!outcome) return res.status(400).json({ error: 'Final Outcome chunna zaroori hai' });
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    // Case Status outcome se hi nikal aata hai — client bhejna bhool jaye to bhi sahi rahe
+    const derived = outcome === 'Settled' ? 'Settled' : outcome === 'Withdrawn' ? 'Withdrawn' : 'Closed';
+    await db.query(
+      `UPDATE legal_cases SET status='completed', case_status=?, closed_on=?, final_outcome=?,
+       amount_recovered=?, closure_remarks=?, done_at=?, done_by=?, updated_at=? WHERE id=?`,
+      [String(b.case_status || derived).trim(), String(b.closed_on || now.slice(0, 10)).trim(), outcome,
+       String(b.amount_recovered || '').trim(), String(b.closure_remarks || '').trim(),
+       now, req.session.userId, now, req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Delete — sirf admin
+app.delete('/api/legal-cases/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await db.query('DELETE FROM legal_case_updates WHERE case_id=?', [req.params.id]);
+    await db.query('DELETE FROM legal_cases WHERE id=?', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -95,6 +95,26 @@ const SCHEMA = {
   catalogues: {
     cols: ['id','name','file_name','file_link','sort_order','created_by','created_at'],
     autoFill: { created_at: 'NOW' }
+  },
+  // Legal Case tracking form — case band hone tak "pending", Done par "completed"
+  legal_cases: {
+    cols: ['id','case_ref','initiated_on','court_forum','case_type','case_status','priority',
+           'complainant','defendant','party_address','contact_no','email_id','gst_no',
+           'purpose','purpose_other',
+           'handled_by','department','handler_contact','handler_email','reporting_to',
+           'background','claim_amount','cheque_no','cheque_date','bank_name','due_date',
+           'overall_status','strength','risk','remarks',
+           'documents','documents_other',
+           'closed_on','final_outcome','amount_recovered','closure_remarks',
+           'decl_name','decl_date',
+           'status','created_by','created_at','updated_at','done_at','done_by'],
+    autoFill: { created_at: 'NOW', updated_at: 'NOW' }
+  },
+  // Har hearing / update ki ek row — case ke andar tracker table
+  legal_case_updates: {
+    cols: ['id','case_id','hearing_date','proceedings','documents_filed','court_order',
+           'next_hearing_date','follow_up','entered_by','created_at'],
+    autoFill: { created_at: 'NOW' }
   }
 };
 
@@ -126,7 +146,8 @@ const SHEET_DERIVED = {
 const INT_COLS = new Set([
   'id','assigned_to','assigned_by','user_id','task_id','requested_by','requested_to',
   'employee_id','hod_id','target_count','improvement_pct','fms_id','step_id','step_order',
-  'total_steps','header_row','from_user','to_user','waiting_approval','created_by','decided_by','sort_order'
+  'total_steps','header_row','from_user','to_user','waiting_approval','created_by','decided_by','sort_order',
+  'case_id'
 ]);
 
 // ══════════════════════════════════════════════════════════════════
