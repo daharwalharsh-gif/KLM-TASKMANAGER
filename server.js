@@ -3073,8 +3073,46 @@ const LEGAL_FIELDS = ['case_ref','initiated_on','court_forum','case_type','case_
   'complainant','defendant','party_address','contact_no','email_id','gst_no',
   'purpose','purpose_other','handled_by','department','handler_contact','handler_email','reporting_to',
   'background','claim_amount','cheque_no','cheque_date','bank_name','due_date',
-  'overall_status','strength','risk','remarks','documents','documents_other',
+  'overall_status','strength','risk','remarks','documents','documents_other','files',
   'closed_on','final_outcome','amount_recovered','closure_remarks','decl_name','decl_date'];
+
+// Document upload — image / PDF / Excel / Word / CSV. Wahi fms_files table +
+// public /f/:id link (challenges wala hi flow, alag route taaki access alag rahe).
+app.post('/api/legal-cases/upload-file', requireAuth, requireLegalAccess, async (req, res) => {
+  try {
+    const { filename, mimeType, dataBase64 } = req.body;
+    if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
+    const EXT_MIME = {
+      pdf:'application/pdf', png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif',
+      webp:'image/webp', heic:'image/heic', bmp:'image/bmp',
+      xls:'application/vnd.ms-excel', xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      csv:'text/csv', doc:'application/msword',
+      docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document', txt:'text/plain'
+    };
+    let mt = String(mimeType || '').toLowerCase();
+    if (!mt || mt === 'application/octet-stream') {
+      const ext = String(filename).split('.').pop().toLowerCase();
+      mt = EXT_MIME[ext] || '';
+    }
+    const okType = mt.startsWith('image/') || mt === 'application/pdf' ||
+      mt.includes('spreadsheet') || mt.includes('excel') || mt === 'text/csv' ||
+      mt.includes('word') || mt === 'application/msword' || mt === 'text/plain';
+    if (!okType) return res.status(400).json({ error: 'Only image, PDF, Excel, Word or CSV files are allowed' });
+    const buffer = Buffer.from(dataBase64, 'base64');
+    if (!buffer.length) return res.status(400).json({ error: 'File data is empty' });
+    if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'File is larger than 3MB — please upload a smaller file' });
+
+    const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
+    const pool = await fmsFilesPool();
+    const fileId = require('crypto').randomBytes(18).toString('base64url');
+    await pool.query('INSERT INTO fms_files (id, filename, mime, data) VALUES ($1,$2,$3,$4)', [fileId, safeName, mt, buffer]);
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    res.json({ success: true, link: `${proto}://${req.get('host')}/f/${fileId}`, name: filename });
+  } catch (err) {
+    console.error('Legal file upload FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // List — ?status=pending|completed (default dono)
 app.get('/api/legal-cases', requireAuth, requireLegalAccess, async (req, res) => {
@@ -3089,6 +3127,7 @@ app.get('/api/legal-cases', requireAuth, requireLegalAccess, async (req, res) =>
     const list = want ? rows.filter(r => String(r.status || 'pending') === want) : rows;
     // Attach each case's latest update + how many updates it has
     for (const r of list) {
+      try { r.filesList = JSON.parse(r.files || '[]') || []; } catch (e) { r.filesList = []; }
       const [ups] = await db.query('SELECT * FROM legal_case_updates WHERE case_id=? ORDER BY id DESC', [r.id]);
       r.updateCount = ups.length;
       r.lastUpdate = ups[0] || null;
@@ -3108,10 +3147,12 @@ app.get('/api/legal-cases/:id', requireAuth, requireLegalAccess, async (req, res
        LEFT JOIN users u2 ON c.done_by = u2.id
        WHERE c.id=?`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Case not found' });
+    try { rows[0].filesList = JSON.parse(rows[0].files || '[]') || []; } catch (e) { rows[0].filesList = []; }
     const [ups] = await db.query(
       `SELECT lu.*, u.name AS enteredByName FROM legal_case_updates lu
        LEFT JOIN users u ON lu.entered_by = u.id
        WHERE lu.case_id=? ORDER BY lu.id ASC`, [req.params.id]);
+    for (const u of ups) { try { u.filesList = JSON.parse(u.files || '[]') || []; } catch (e) { u.filesList = []; } }
     res.json({ legalCase: rows[0], updates: ups });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3124,7 +3165,10 @@ app.post('/api/legal-cases', requireAuth, requireLegalAccess, async (req, res) =
     if (!String(b.complainant || '').trim() && !String(b.defendant || '').trim())
       return res.status(400).json({ error: 'Please fill at least one of Complainant or Defendant' });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const vals = LEGAL_FIELDS.map(f => String(b[f] ?? '').trim());
+    // files ek JSON array hai — trim mat karo, jaisa aaya waisa store
+    const vals = LEGAL_FIELDS.map(f => f === 'files'
+      ? JSON.stringify(Array.isArray(b.files) ? b.files : [])
+      : String(b[f] ?? '').trim());
     await db.query(
       `INSERT INTO legal_cases (${LEGAL_FIELDS.join(',')},status,created_by,created_at,updated_at,done_at,done_by)
        VALUES (${LEGAL_FIELDS.map(() => '?').join(',')},?,?,?,?,?,?)`,
@@ -3140,7 +3184,10 @@ app.put('/api/legal-cases/:id', requireAuth, requireLegalAccess, async (req, res
     if (!rows[0]) return res.status(404).json({ error: 'Case not found' });
     const c = rows[0], b = req.body || {};
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const vals = LEGAL_FIELDS.map(f => (b[f] !== undefined ? String(b[f] ?? '').trim() : (c[f] ?? '')));
+    const vals = LEGAL_FIELDS.map(f => {
+      if (f === 'files') return b.files !== undefined ? JSON.stringify(Array.isArray(b.files) ? b.files : []) : (c.files || '[]');
+      return b[f] !== undefined ? String(b[f] ?? '').trim() : (c[f] ?? '');
+    });
     await db.query(
       `UPDATE legal_cases SET ${LEGAL_FIELDS.map(f => f + '=?').join(',')},updated_at=? WHERE id=?`,
       [...vals, now, req.params.id]);
@@ -3162,11 +3209,12 @@ app.post('/api/legal-cases/:id/updates', requireAuth, requireLegalAccess, async 
       return res.status(400).json({ error: 'Please fill at least one of Remarks or Next Hearing Date' });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await db.query(
-      `INSERT INTO legal_case_updates (case_id,hearing_date,proceedings,documents_filed,court_order,next_hearing_date,follow_up,entered_by,created_at)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO legal_case_updates (case_id,hearing_date,proceedings,documents_filed,court_order,next_hearing_date,follow_up,files,entered_by,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [req.params.id, String(b.hearing_date || '').trim(), proceedings,
        String(b.documents_filed || '').trim(), String(b.court_order || '').trim(),
-       nextDate, String(b.follow_up || '').trim(), req.session.userId, now]);
+       nextDate, String(b.follow_up || '').trim(),
+       JSON.stringify(Array.isArray(b.files) ? b.files : []), req.session.userId, now]);
     await db.query('UPDATE legal_cases SET updated_at=? WHERE id=?', [now, req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

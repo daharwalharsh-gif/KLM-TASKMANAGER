@@ -1189,6 +1189,10 @@ tbody tr:last-child td{border-bottom:none;}
                 <div class="chal-field"><label>Email ID</label><input type="text" id="lg_handler_email"/></div>
                 <div class="chal-field"><label>Reporting To</label><input type="text" id="lg_reporting_to"/></div>
               </div>
+              <div class="chal-grid chal-grid-2">
+                <div class="chal-field" style="grid-column:1/-1"><label>Case Summary</label>
+                  <textarea id="lg_background" placeholder="Why this case was filed — brief summary…"></textarea></div>
+              </div>
             </div>
           </div>
           <div class="lg-block lg-b5">
@@ -1199,60 +1203,16 @@ tbody tr:last-child td{border-bottom:none;}
                 <b>Pending</b> until you press <b>Done</b>.</div>
             </div>
           </div>
-          <div class="lg-block lg-b6">
-            <div class="lg-block-head"><span class="lg-ico">📋</span>6. Case Summary</div>
-            <div class="lg-block-body">
-              <div class="chal-grid chal-grid-2">
-                <div class="chal-field" style="grid-column:1/-1"><label>Case Background / Summary (Why this case was filed)</label>
-                  <textarea id="lg_background" placeholder="Brief background..."></textarea></div>
-                <div class="chal-field"><label>Claim Amount / Value Involved</label><input type="text" id="lg_claim_amount"/></div>
-                <div class="chal-field"><label>Cheque No. (If applicable)</label><input type="text" id="lg_cheque_no"/></div>
-                <div class="chal-field"><label>Cheque Date (If applicable)</label><input type="date" id="lg_cheque_date"/></div>
-                <div class="chal-field"><label>Bank Name (If applicable)</label><input type="text" id="lg_bank_name"/></div>
-                <div class="chal-field"><label>Due Date / Limitation Date</label><input type="date" id="lg_due_date"/></div>
-              </div>
-            </div>
-          </div>
-          <div class="lg-block lg-b7">
-            <div class="lg-block-head"><span class="lg-ico">💬</span>7. Overall Remarks</div>
-            <div class="lg-block-body">
-              <div class="chal-grid chal-grid-2">
-                <div class="chal-field" style="grid-column:1/-1"><label>Overall Status / Current Position of Case</label>
-                  <textarea id="lg_overall_status" placeholder="Current position..."></textarea></div>
-                <div class="chal-field"><label>Strength of Case</label>
-                  <select id="lg_strength"><option value="">-- Select --</option><option value="Strong">Strong</option>
-                    <option value="Moderate">Moderate</option><option value="Weak">Weak</option></select></div>
-                <div class="chal-field"><label>Risk Involved</label>
-                  <select id="lg_risk"><option value="">-- Select --</option><option value="High">High</option>
-                    <option value="Medium">Medium</option><option value="Low">Low</option></select></div>
-                <div class="chal-field" style="grid-column:1/-1"><label>Remarks</label>
-                  <textarea id="lg_remarks" placeholder="Remarks..."></textarea></div>
-              </div>
-            </div>
-          </div>
           <div class="lg-block lg-b8">
-            <div class="lg-block-head"><span class="lg-ico">📑</span>8. Documents Checklist</div>
+            <div class="lg-block-head"><span class="lg-ico">📎</span>6. Documents<span class="lg-sec-hint">Upload cheque copy, legal notice, court orders etc.</span></div>
             <div class="lg-block-body">
-              <div class="lg-checks" id="lg_documents_box">
-                <label><input type="checkbox" value="Cheque Copy"/> Cheque Copy</label>
-                <label><input type="checkbox" value="Bank Return Memo"/> Bank Return Memo</label>
-                <label><input type="checkbox" value="Legal Notice Copy"/> Legal Notice Copy</label>
-                <label><input type="checkbox" value="Notice Proof (Courier / Email)"/> Notice Proof (Courier / Email)</label>
-                <label><input type="checkbox" value="Reply from Opposite Party"/> Reply from Opposite Party</label>
-                <label><input type="checkbox" value="Case Filed Documents"/> Case Filed Documents</label>
-                <label><input type="checkbox" value="Court Orders"/> Court Orders</label>
+              <div class="chal-field">
+                <label>Attach Documents <span class="chal-hint">(image / PDF / Excel / Word / CSV — max 3MB each)</span></label>
+                <input type="file" id="lg_files_input" class="chal-file" multiple
+                  accept="image/*,application/pdf,.xls,.xlsx,.csv,.doc,.docx,.txt"
+                  onchange="uploadLegalFiles()"/>
               </div>
-              <div class="chal-grid chal-grid-2" style="margin-top:14px">
-                <div class="chal-field"><label>Other Documents</label>
-                  <input type="text" id="lg_documents_other" placeholder="Any other document"/></div>
-              </div>
-            </div>
-          </div>
-          <div class="lg-block lg-b9">
-            <div class="lg-block-head"><span class="lg-ico">⚖️</span>9. Case Closure Details</div>
-            <div class="lg-block-body">
-              <div class="lg-note" style="margin:0 0 14px">These are filled in when you press <b>Done</b> —
-                Closed On, Final Outcome, Amount Recovered and Remarks.</div>
+              <div id="lgFileChips" style="margin-top:10px"></div>
             </div>
           </div>
           <div class="lg-block lg-b0">
@@ -1799,6 +1759,15 @@ tbody tr:last-child td{border-bottom:none;}
       cursor:pointer;transition:box-shadow .15s,transform .1s}
     .lg-card:hover{box-shadow:0 8px 22px rgba(15,23,42,.10);transform:translateY(-1px)}
     .lg-chip{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+    .lg-file-chip{display:inline-flex;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;
+      border-radius:20px;padding:5px 12px;font-size:12.5px;color:#1d4ed8;margin:0 6px 6px 0;text-decoration:none}
+    .lg-file-chip a{color:#1d4ed8;text-decoration:none}
+    .lg-file-chip a:hover{text-decoration:underline}
+    .lg-file-chip button{background:none;border:none;color:#94a3b8;cursor:pointer;font-size:13px;padding:0 0 0 2px;line-height:1}
+    .lg-file-chip button:hover{color:#dc2626}
+    .lg-del{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:8px;padding:6px 10px;
+      font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;flex:0 0 auto;line-height:1}
+    .lg-del:hover{background:#fee2e2}
     .lg-kv{display:grid;grid-template-columns:200px 1fr;gap:7px 14px;font-size:13px}
     .lg-kv .k{color:#64748b;font-weight:600}
     .lg-kv .v{color:#1e293b;word-break:break-word}
@@ -3621,8 +3590,75 @@ let _legalOpenId = null;
 const LG_TEXT_FIELDS = ['case_ref','initiated_on','court_forum','case_type','case_status','priority',
   'complainant','defendant','party_address','contact_no','email_id','gst_no','purpose_other',
   'handled_by','department','handler_contact','handler_email','reporting_to',
-  'background','claim_amount','cheque_no','cheque_date','bank_name','due_date',
-  'overall_status','strength','risk','remarks','documents_other','decl_name','decl_date'];
+  'background','decl_name','decl_date'];
+
+// Form me attach ki hui files — {name, link}
+let _legalFiles = [];
+
+function renderLegalFileChips() {
+  const box = document.getElementById('lgFileChips');
+  if (!box) return;
+  box.innerHTML = _legalFiles.length
+    ? _legalFiles.map((f, i) => `<span class="lg-file-chip">📎 <a href="${escapeHtml(f.link)}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>
+        <button type="button" onclick="removeLegalFile(${i})" title="Remove">✕</button></span>`).join('')
+    : `<span style="font-size:12px;color:#94a3b8">No documents attached yet</span>`;
+}
+function removeLegalFile(i) { _legalFiles.splice(i, 1); renderLegalFileChips(); }
+
+// Hearing update ke saath attach ki hui files
+let _legalUpdateFiles = [];
+function renderLegalUpdateChips() {
+  const box = document.getElementById('lgUpFileChips');
+  if (!box) return;
+  box.innerHTML = _legalUpdateFiles.map((f, i) =>
+    `<span class="lg-file-chip">📎 <a href="${escapeHtml(f.link)}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>
+      <button type="button" onclick="removeLegalUpdateFile(${i})" title="Remove">✕</button></span>`).join('');
+}
+function removeLegalUpdateFile(i) { _legalUpdateFiles.splice(i, 1); renderLegalUpdateChips(); }
+async function uploadLegalUpdateFiles() {
+  const input = document.getElementById('lgUpFilesInput');
+  const err = document.getElementById('lgUpErr');
+  const ok = await legalUploadInto(input, _legalUpdateFiles, err);
+  renderLegalUpdateChips();
+  if (ok) showToast(`📎 ${ok} document(s) attached`, 'success');
+}
+
+// Ek hi upload helper — form aur hearing update dono isi ko use karte hain
+async function legalUploadInto(input, bucket, err) {
+  const files = [...(input.files || [])];
+  if (!files.length) return 0;
+  if (err) err.style.display = 'none';
+  let ok = 0;
+  for (const file of files) {
+    const bad = m => { if (err) { err.textContent = `${file.name}: ${m}`; err.style.display = 'block'; } };
+    if (file.size > 3.5 * 1024 * 1024) { bad('file is larger than 3MB'); continue; }
+    let b64;
+    try { b64 = await legalReadFileBase64(file); } catch (e) { bad('could not read the file'); continue; }
+    const r = await api('/api/legal-cases/upload-file', 'POST',
+      { filename: file.name, mimeType: file.type || '', dataBase64: b64 });
+    if (!r || r.error) { bad((r && r.error) || 'upload failed'); continue; }
+    bucket.push({ name: file.name, link: r.link });
+    ok++;
+  }
+  input.value = '';
+  return ok;
+}
+
+// File choose hote hi upload — link mil jaata hai, case save par wahi link store hota hai
+async function uploadLegalFiles() {
+  const ok = await legalUploadInto(document.getElementById('lg_files_input'), _legalFiles,
+    document.getElementById('lgErr'));
+  renderLegalFileChips();
+  if (ok) showToast(`📎 ${ok} document(s) attached`, 'success');
+}
+function legalReadFileBase64(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => { const b = String(fr.result).split(',')[1] || ''; b ? resolve(b) : reject(new Error('empty')); };
+    fr.onerror = () => reject(fr.error || new Error('read failed'));
+    fr.readAsDataURL(file);
+  });
+}
 
 function legalTab(which, el) {
   _legalView = which;
@@ -3634,6 +3670,7 @@ function legalTab(which, el) {
     if (t) t.classList.add('active');
   }
   const isForm = which === 'form';
+  if (isForm) renderLegalFileChips();
   document.getElementById('lgFormWrap').style.display = isForm ? '' : 'none';
   document.getElementById('lgListWrap').style.display = isForm ? 'none' : '';
   document.getElementById('lgDetailWrap').style.display = 'none';
@@ -3654,7 +3691,9 @@ function legalFormReset() {
   document.getElementById('lg_case_status').value = 'Pending';
   document.getElementById('lg_priority').value = 'Medium';
   lgSetChecked('lg_purpose_box', '');
-  lgSetChecked('lg_documents_box', '');
+  _legalFiles = [];
+  const fi = document.getElementById('lg_files_input'); if (fi) fi.value = '';
+  renderLegalFileChips();
   document.getElementById('lgErr').style.display = 'none';
 }
 
@@ -3667,7 +3706,7 @@ async function saveLegalCase() {
   const body = {};
   LG_TEXT_FIELDS.forEach(f => { const el = document.getElementById('lg_' + f); body[f] = el ? el.value.trim() : ''; });
   body.purpose = lgChecked('lg_purpose_box');
-  body.documents = lgChecked('lg_documents_box');
+  body.files = _legalFiles;
 
   if (!body.case_ref) return fail('Case ID / Reference No. is required');
   if (!body.complainant && !body.defendant) return fail('Please fill at least one of Complainant or Defendant');
@@ -3733,7 +3772,8 @@ function renderLegalList() {
             ${escapeHtml(x.court_forum || 'Court not set')}${x.case_type ? ' · ' + escapeHtml(x.case_type) : ''}
           </div>
         </div>
-        <div style="text-align:right;flex:0 0 auto">
+        <div style="display:flex;align-items:flex-start;gap:12px;flex:0 0 auto">
+          <div style="text-align:right">
           ${_legalView === 'pending' ? `
             <div style="font-size:12px;color:#64748b">Next hearing</div>
             <div style="font-size:13.5px;font-weight:700;color:${x.nextHearingDate ? '#1d4ed8' : '#94a3b8'}">${lgDate(x.nextHearingDate)}</div>
@@ -3742,6 +3782,9 @@ function renderLegalList() {
             <div style="font-size:12px;color:#64748b">Closed on</div>
             <div style="font-size:13.5px;font-weight:700;color:#16a34a">${lgDate(x.closed_on)}</div>
             <div style="font-size:11px;color:#94a3b8;margin-top:3px">${escapeHtml(x.final_outcome || '—')}</div>`}
+          </div>
+          ${(ME && ME.role === 'admin') ? `<button class="lg-del" title="Delete case"
+            onclick="event.stopPropagation();deleteLegalCase(${x.id})">🗑</button>` : ''}
         </div>
       </div>
       ${x.lastUpdate && x.lastUpdate.proceedings ? `
@@ -3753,6 +3796,7 @@ function renderLegalList() {
 
 async function openLegalCase(id) {
   _legalOpenId = id;
+  _legalUpdateFiles = [];
   const wrap = document.getElementById('lgDetailWrap');
   document.getElementById('lgListWrap').style.display = 'none';
   wrap.style.display = '';
@@ -3798,32 +3842,36 @@ async function openLegalCase(id) {
       <div class="lg-block-body"><div class="lg-kv">
         ${row('Case Handled By', c.handled_by)}${row('Department', c.department)}
         ${row('Contact No.', c.handler_contact)}${row('Email ID', c.handler_email)}
-        ${row('Reporting To', c.reporting_to)}
+        ${row('Reporting To', c.reporting_to)}${row('Case Summary', c.background)}
       </div></div></div>
 
       <div class="lg-block lg-b5"><div class="lg-block-head"><span class="lg-ico">📅</span>5. Case Proceedings &amp; Next Date Tracker</div>
       <div class="lg-block-body">
       ${ups.length ? `<div style="overflow-x:auto"><table class="lg-tbl">
-        <thead><tr><th>Sr.</th><th>Hearing Date</th><th>Proceedings / What happened</th><th>Documents Filed</th>
-          <th>Order / Remarks by Court</th><th>Next Hearing Date</th><th>Follow-up Action</th><th>Entered By</th></tr></thead>
+        <thead><tr><th>Sr.</th><th>Proceedings / What happened</th><th>Documents Filed / Submitted</th>
+          <th>Next Hearing Date</th><th>Entered By</th></tr></thead>
         <tbody>${ups.map((u, i) => `<tr>
-          <td>${i + 1}</td><td>${lgDate(u.hearing_date)}</td><td>${escapeHtml(u.proceedings || '—')}</td>
-          <td>${escapeHtml(u.documents_filed || '—')}</td><td>${escapeHtml(u.court_order || '—')}</td>
-          <td><b>${lgDate(u.next_hearing_date)}</b></td><td>${escapeHtml(u.follow_up || '—')}</td>
+          <td>${i + 1}</td><td>${escapeHtml(u.proceedings || '—')}</td>
+          <td>${escapeHtml(u.documents_filed || '')}${(u.filesList || []).length
+              ? `${u.documents_filed ? '<br>' : ''}${(u.filesList || []).map(f =>
+                  `<a class="lg-file-chip" href="${escapeHtml(f.link)}" target="_blank" rel="noopener">📎 ${escapeHtml(f.name || 'file')}</a>`).join('')}`
+              : (u.documents_filed ? '' : '—')}</td>
+          <td><b>${lgDate(u.next_hearing_date)}</b></td>
           <td>${escapeHtml(u.enteredByName || '—')}</td></tr>`).join('')}</tbody></table></div>`
       : `<div style="color:#94a3b8;font-size:13px">No hearing updates yet</div>`}
 
       ${done ? '' : `
       <div class="lg-note" style="margin-top:16px">Add the remarks and next hearing date here after every hearing — the case stays in Pending.</div>
       <div class="alert error" id="lgUpErr" style="display:none;margin-top:10px"></div>
-      <div class="chal-grid chal-grid-3" style="margin-top:12px">
-        <div class="chal-field"><label>Hearing Date</label><input type="date" id="lgUpHearing"/></div>
+      <div class="chal-grid chal-grid-2" style="margin-top:12px">
         <div class="chal-field"><label>Next Hearing Date</label><input type="date" id="lgUpNext"/></div>
-        <div class="chal-field"><label>Documents Filed / Submitted</label><input type="text" id="lgUpDocs"/></div>
+        <div class="chal-field"><label>Documents Filed / Submitted</label>
+          <input type="text" id="lgUpDocs" placeholder="Name of the documents filed…"/>
+          <input type="file" id="lgUpFilesInput" class="chal-file" style="margin-top:8px" multiple
+            accept="image/*,application/pdf,.xls,.xlsx,.csv,.doc,.docx,.txt" onchange="uploadLegalUpdateFiles()"/>
+          <div id="lgUpFileChips" style="margin-top:8px"></div></div>
         <div class="chal-field" style="grid-column:1/-1"><label>Proceedings / What happened (Remarks)</label>
           <textarea id="lgUpProc" placeholder="What happened in today's hearing…"></textarea></div>
-        <div class="chal-field"><label>Order / Remarks by Court</label><input type="text" id="lgUpOrder"/></div>
-        <div class="chal-field"><label>Follow-up Action</label><input type="text" id="lgUpFollow"/></div>
       </div>
       <div class="chal-actions">
         <button class="btn btn-primary" id="lgUpBtn" onclick="addLegalUpdate(${c.id})">➕ Add Update</button>
@@ -3832,24 +3880,14 @@ async function openLegalCase(id) {
 
       </div></div>
 
-      <div class="lg-block lg-b6"><div class="lg-block-head"><span class="lg-ico">📋</span>6. Case Summary</div>
-      <div class="lg-block-body"><div class="lg-kv">
-        ${row('Case Background / Summary', c.background)}${row('Claim Amount / Value Involved', c.claim_amount)}
-        ${row('Cheque No.', c.cheque_no)}${row('Cheque Date', lgDate(c.cheque_date))}
-        ${row('Bank Name', c.bank_name)}${row('Due Date / Limitation Date', lgDate(c.due_date))}
-      </div></div></div>
-
-      <div class="lg-block lg-b7"><div class="lg-block-head"><span class="lg-ico">💬</span>7. Overall Remarks</div>
-      <div class="lg-block-body"><div class="lg-kv">
-        ${row('Overall Status / Current Position', c.overall_status)}${row('Strength of Case', c.strength)}
-        ${row('Risk Involved', c.risk)}${row('Remarks', c.remarks)}
-      </div></div></div>
-
-      <div class="lg-block lg-b8"><div class="lg-block-head"><span class="lg-ico">📑</span>8. Documents Checklist</div>
-      <div class="lg-block-body"><div class="lg-kv">${row('Documents', c.documents)}${row('Other Documents', c.documents_other)}</div></div></div>
+      <div class="lg-block lg-b8"><div class="lg-block-head"><span class="lg-ico">📎</span>6. Documents</div>
+      <div class="lg-block-body">${(d.legalCase.filesList || []).length
+        ? `<div style="display:flex;flex-wrap:wrap;gap:8px">${(d.legalCase.filesList || []).map(f =>
+            `<a class="lg-file-chip" href="${escapeHtml(f.link)}" target="_blank" rel="noopener">📎 ${escapeHtml(f.name || 'document')}</a>`).join('')}</div>`
+        : `<div style="color:#94a3b8;font-size:13px">No documents attached</div>`}</div></div>
 
       ${done ? `
-      <div class="lg-block lg-b9"><div class="lg-block-head"><span class="lg-ico">⚖️</span>9. Case Closure Details</div>
+      <div class="lg-block lg-b9"><div class="lg-block-head"><span class="lg-ico">⚖️</span>7. Case Closure Details</div>
       <div class="lg-block-body"><div class="lg-kv">
         ${row('Case Closed On', lgDate(c.closed_on))}${row('Final Outcome', c.final_outcome)}
         ${row('Amount Recovered', c.amount_recovered)}${row('Remarks', c.closure_remarks)}
@@ -3876,9 +3914,8 @@ async function addLegalUpdate(id) {
   const v = i => (document.getElementById(i)?.value || '').trim();
   err.style.display = 'none';
   const body = {
-    hearing_date: v('lgUpHearing'), next_hearing_date: v('lgUpNext'),
-    documents_filed: v('lgUpDocs'), proceedings: v('lgUpProc'),
-    court_order: v('lgUpOrder'), follow_up: v('lgUpFollow')
+    next_hearing_date: v('lgUpNext'), documents_filed: v('lgUpDocs'),
+    proceedings: v('lgUpProc'), files: _legalUpdateFiles
   };
   if (!body.proceedings && !body.next_hearing_date) {
     err.textContent = 'Please fill at least one of Remarks or Next Hearing Date';
@@ -3888,6 +3925,7 @@ async function addLegalUpdate(id) {
   const r = await api(`/api/legal-cases/${id}/updates`, 'POST', body);
   btn.disabled = false; btn.textContent = '➕ Add Update';
   if (r && r.error) { err.textContent = r.error; err.style.display = 'block'; return; }
+  _legalUpdateFiles = [];
   showToast('Update added — the case is still Pending', 'success');
   openLegalCase(id);
 }
