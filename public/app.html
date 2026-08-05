@@ -6445,6 +6445,13 @@ function openEditUser(id) {
   document.getElementById('userModal').classList.add('open');
 }
 
+// Email format — name@domain.tld (server par bhi yahi check lagta hai)
+function isValidEmailFmt(v) {
+  const s = String(v || '').trim();
+  if (!s || s.length > 254) return false;
+  return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/.test(s);
+}
+
 async function saveUser() {
   const err=document.getElementById('userErr'); err.style.display='none';
   const suc=document.getElementById('userSuccess'); suc.style.display='none';
@@ -6460,6 +6467,13 @@ async function saveUser() {
   const week_off=_getWeekOff();
   const extra_off=_getExtraOff();
   if (!name||!email) { err.textContent='Name and email required'; err.style.display='block'; return; }
+  // Email format check — "123" jaisa kuch ab save nahi hoga
+  if (!isValidEmailFmt(email)) {
+    err.textContent='Email sahi format me daalo — jaise name@company.com';
+    err.style.display='block'; document.getElementById('uEmail').focus(); return; }
+  if (notification_email && !isValidEmailFmt(notification_email)) {
+    err.textContent='Notification email sahi format me daalo — jaise name@company.com';
+    err.style.display='block'; document.getElementById('uNotifEmail').focus(); return; }
   if (!id&&!password) { err.textContent='Password required for new user'; err.style.display='block'; return; }
   const body={name,title,email,notification_email,role,phone,department,week_off,extra_off};
   if (password) body.password=password;
