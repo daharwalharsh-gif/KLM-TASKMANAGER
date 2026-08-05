@@ -2472,6 +2472,18 @@ tbody tr:last-child td{border-bottom:none;}
 <!-- ══════════════════════════════════════
      FMS DONE MODAL
 ══════════════════════════════════════ -->
+<!-- Feedback — detail popup -->
+<div class="modal-overlay" id="fbDetailModal">
+  <div class="modal" style="max-width:660px">
+    <h3>📝 Feedback Details</h3>
+    <div id="fbDetailBody" style="max-height:60vh;overflow-y:auto"></div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" onclick="closeModal('fbDetailModal')">Close</button>
+      <button class="btn btn-outline" style="color:#b45309;border-color:#fcd34d" onclick="downloadFeedbackPDF()">📄 Download PDF</button>
+    </div>
+  </div>
+</div>
+
 <!-- Legal Case — Done (close case) -->
 <div class="modal-overlay" id="lgDoneModal">
   <div class="modal" style="max-width:520px">
@@ -4063,6 +4075,7 @@ const FB_EMPLOYEES = ['Satyen Kumar','Jyoti','Shubham','Amit','Kiran','Kartik','
 const FB_TEXT_FIELDS = ['your_name','department','feedback_for','employee_department','employee_is','suggestions'];
 let _fbView = 'form';
 let _fbList = [];
+let _fbOpen = null;
 
 function fbIsAdmin() { return !!(ME && ME.role === 'admin'); }
 
@@ -4147,7 +4160,7 @@ function renderFeedbackList() {
   }
   const stars = n => { const v = parseInt(n, 10); return v >= 1 && v <= 5 ? '★'.repeat(v) + '☆'.repeat(5 - v) : '—'; };
   c.innerHTML = list.map(x => `
-    <div class="lg-card" style="cursor:default">
+    <div class="lg-card" onclick="openFeedbackDetail(${x.id})" title="Click to see full details">
       <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start">
         <div style="min-width:0">
           <div style="font-size:15px;font-weight:700;color:#1e293b">Feedback for: ${escapeHtml(x.feedback_for || '—')}</div>
@@ -4160,7 +4173,7 @@ function renderFeedbackList() {
             <div style="font-size:12px;color:#64748b">Rating</div>
             <div style="font-size:15px;color:#f59e0b;letter-spacing:1px">${stars(x.rating)}</div>
           </div>
-          <button class="lg-del" title="Delete" onclick="deleteFeedback(${x.id})">🗑</button>
+          <button class="lg-del" title="Delete" onclick="event.stopPropagation();deleteFeedback(${x.id})">🗑</button>
         </div>
       </div>
       ${x.suggestions ? `<div style="margin-top:9px;padding-top:9px;border-top:1px solid #f1f5f9;font-size:13px;color:#334155">
@@ -4172,6 +4185,80 @@ function renderFeedbackList() {
         <span style="margin-left:auto;color:#1d4ed8;font-weight:600">✉️ ${escapeHtml(x.submitted_by_email || '—')}</span>
       </div>
     </div>`).join('');
+}
+
+// Card par click — poori detail popup me
+function openFeedbackDetail(id) {
+  const x = _fbList.find(f => String(f.id) === String(id));
+  if (!x) return;
+  _fbOpen = x;
+  const stars = n => { const v = parseInt(n, 10); return v >= 1 && v <= 5 ? '★'.repeat(v) + '☆'.repeat(5 - v) + `  (${v}/5)` : '—'; };
+  const row = (k, v) => `<div class="k">${k}</div><div class="v">${escapeHtml(v || '—')}</div>`;
+  document.getElementById('fbDetailBody').innerHTML = `
+    <div class="lg-block lg-b1"><div class="lg-block-head"><span class="lg-ico">🙋</span>Given By</div>
+      <div class="lg-block-body"><div class="lg-kv">
+        ${row('Your Name', x.your_name)}${row('Department', x.department)}
+      </div></div></div>
+    <div class="lg-block lg-b2"><div class="lg-block-head"><span class="lg-ico">👤</span>Feedback For</div>
+      <div class="lg-block-body"><div class="lg-kv">
+        ${row('Employee', x.feedback_for)}${row("Employee's department", x.employee_department)}
+        ${row('Employee is', x.employee_is)}
+      </div></div></div>
+    <div class="lg-block lg-b3"><div class="lg-block-head"><span class="lg-ico">💬</span>Feedback</div>
+      <div class="lg-block-body"><div class="lg-kv">
+        ${row('Suggestions to improve', x.suggestions)}
+        <div class="k">Overall rating</div><div class="v" style="color:#f59e0b;font-size:15px;letter-spacing:1px">${stars(x.rating)}</div>
+      </div></div></div>
+    <div class="lg-block lg-b0"><div class="lg-block-head"><span class="lg-ico">✉️</span>Submitted By</div>
+      <div class="lg-block-body"><div class="lg-kv">
+        ${row('Name', x.submitted_by_name)}
+        <div class="k">Email</div><div class="v" style="color:#1d4ed8;font-weight:600">${escapeHtml(x.submitted_by_email || '—')}</div>
+        ${row('Submitted on', String(x.created_at || '').slice(0, 16).replace('T', ' '))}
+      </div></div></div>`;
+  openModal('fbDetailModal');
+}
+
+// Is feedback ka PDF — naya tab me print-ready page, wahan se "Save as PDF"
+function downloadFeedbackPDF() {
+  const x = _fbOpen;
+  if (!x) return;
+  const stars = n => { const v = parseInt(n, 10); return v >= 1 && v <= 5 ? '★'.repeat(v) + '☆'.repeat(5 - v) + ` (${v}/5)` : '—'; };
+  const row = (k, v) => `<tr><th>${k}</th><td>${escapeHtml(v || '—')}</td></tr>`;
+  const now = new Date();
+  const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+<title>Employee Feedback — ${escapeHtml(x.feedback_for || '')}</title>
+<style>
+  @page { size: A4 portrait; margin: 16mm; }
+  body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:0;font-size:13px}
+  .head{border-bottom:2px solid #1a56db;padding-bottom:10px;margin-bottom:18px}
+  .head h1{margin:0;font-size:19px;color:#1a56db}
+  .head .sub{font-size:12px;color:#64748b;margin-top:4px}
+  h2{font-size:13px;margin:20px 0 8px;color:#1e3a8a;text-transform:uppercase;letter-spacing:.4px;
+     border-bottom:1.5px solid #dbeafe;padding-bottom:5px}
+  table{width:100%;border-collapse:collapse;margin-bottom:4px}
+  th{width:210px;text-align:left;padding:7px 10px;border:1px solid #e2e8f0;background:#f8fafc;
+     font-size:12px;color:#475569;vertical-align:top}
+  td{padding:7px 10px;border:1px solid #e2e8f0;vertical-align:top;word-break:break-word}
+  .rate{color:#b45309;font-size:15px;letter-spacing:2px}
+  .mail{color:#1d4ed8;font-weight:bold}
+  .foot{margin-top:22px;border-top:1px solid #e2e8f0;padding-top:7px;font-size:11px;color:#94a3b8;text-align:center}
+</style></head><body>
+  <div class="head"><h1>Employee to Employee Feedback</h1>
+    <div class="sub">KLM Task Manager · ${stamp}</div></div>
+  <h2>Given By</h2><table>${row('Your Name', x.your_name)}${row('Department', x.department)}</table>
+  <h2>Feedback For</h2><table>${row('Employee', x.feedback_for)}${row("Employee's department", x.employee_department)}${row('Employee is', x.employee_is)}</table>
+  <h2>Feedback</h2><table>${row('Suggestions to improve', x.suggestions)}
+    <tr><th>Overall rating</th><td class="rate">${stars(x.rating)}</td></tr></table>
+  <h2>Submitted By</h2><table>${row('Name', x.submitted_by_name)}
+    <tr><th>Email</th><td class="mail">${escapeHtml(x.submitted_by_email || '—')}</td></tr>
+    ${row('Submitted on', String(x.created_at || '').slice(0, 16).replace('T', ' '))}</table>
+  <div class="foot">KLM Task Manager · ${stamp}</div>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return showToast('Popup blocked — please allow popups in your browser', 'error');
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
 }
 
 async function deleteFeedback(id) {
@@ -6771,6 +6858,7 @@ async function api(url,method='GET',body=null) {
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id) { const m = document.getElementById(id); if (m) m.classList.add('open'); }
 
 // Modals sirf Cancel/Close button se band honge — bahar click se nahi
 // document.querySelectorAll('.modal-overlay').forEach(m=>{
