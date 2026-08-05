@@ -109,6 +109,12 @@ const SCHEMA = {
            'status','created_by','created_at','updated_at','done_at','done_by'],
     autoFill: { created_at: 'NOW', updated_at: 'NOW' }
   },
+  // Employee to Employee Feedback Form — bharne ke baad Completed me (sirf admin dekhta hai)
+  feedback_forms: {
+    cols: ['id','your_name','department','feedback_for','employee_department','employee_is',
+           'suggestions','rating','submitted_by','submitted_by_name','submitted_by_email','created_at'],
+    autoFill: { created_at: 'NOW' }
+  },
   // Har hearing / update ki ek row — case ke andar tracker table
   legal_case_updates: {
     cols: ['id','case_id','hearing_date','proceedings','documents_filed','court_order',

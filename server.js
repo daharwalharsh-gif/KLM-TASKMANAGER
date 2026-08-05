@@ -3049,6 +3049,47 @@ app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) =>
 });
 
 // ══════════════════════════════════════════════════════
+// EMPLOYEE TO EMPLOYEE FEEDBACK FORM
+// ══════════════════════════════════════════════════════
+// Bharna sab kar sakte hain. Bhare hue feedback (Completed tab) SIRF admin
+// dekh sakta hai — wahan submit karne wale ka naam aur email dikhta hai.
+const FB_FIELDS = ['your_name','department','feedback_for','employee_department',
+  'employee_is','suggestions','rating'];
+
+// List — sirf admin
+app.get('/api/feedback', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM feedback_forms ORDER BY id DESC');
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Submit — koi bhi logged-in user
+app.post('/api/feedback', requireAuth, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!String(b.your_name || '').trim()) return res.status(400).json({ error: 'Your Name is required' });
+    if (!String(b.feedback_for || '').trim()) return res.status(400).json({ error: 'Please select the employee you are giving feedback for' });
+    const [me] = await db.query('SELECT name,email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const vals = FB_FIELDS.map(f => String(b[f] ?? '').trim());
+    await db.query(
+      `INSERT INTO feedback_forms (${FB_FIELDS.join(',')},submitted_by,submitted_by_name,submitted_by_email,created_at)
+       VALUES (${FB_FIELDS.map(() => '?').join(',')},?,?,?,?)`,
+      [...vals, req.session.userId, me[0]?.name || '', me[0]?.email || '', now]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Delete — sirf admin
+app.delete('/api/feedback/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await db.query('DELETE FROM feedback_forms WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
 // LEGAL CASE FORM — "Legal Case Versus Parties" case tracking
 // ══════════════════════════════════════════════════════
 // Only this doer (+ admin) can fill this form. A case stays "pending" until

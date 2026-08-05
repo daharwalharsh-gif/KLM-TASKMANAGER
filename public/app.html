@@ -1234,6 +1234,98 @@ tbody tr:last-child td{border-bottom:none;}
       <div id="lgDetailWrap" style="display:none"></div>
     </div>
 
+    <!-- ══════════════════════════════════════
+         EMPLOYEE TO EMPLOYEE FEEDBACK FORM
+    ══════════════════════════════════════ -->
+    <div id="fmsFbWrap" style="display:none">
+      <div class="page-header" style="margin-bottom:14px"><h2>📝 Employee to Employee Feedback Form</h2></div>
+
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <div class="tab-group" id="fbTabs">
+          <div class="tab active" id="fbTabForm" onclick="feedbackTab('form',this)">📝 Form Filling</div>
+          <div class="tab" id="fbTabDone" onclick="feedbackTab('completed',this)" style="display:none">✅ Completed</div>
+        </div>
+      </div>
+
+      <!-- ── FORM ── -->
+      <div id="fbFormWrap" class="chal-card">
+        <div class="chal-card-head">
+          <div class="chal-card-title">EMPLOYEE TO EMPLOYEE FEEDBACK FORM</div>
+          <div class="chal-card-sub">Fill the details below and submit your feedback.</div>
+        </div>
+        <div class="chal-card-body">
+          <div class="alert error" id="fbErr" style="display:none"></div>
+
+          <div class="lg-block lg-b1">
+            <div class="lg-block-head"><span class="lg-ico">🙋</span>Your Details</div>
+            <div class="lg-block-body">
+              <div class="chal-grid chal-grid-2">
+                <div class="chal-field"><label>Your Name <span class="chal-req">*</span></label>
+                  <input type="text" id="fb_your_name" placeholder="Enter your name"/></div>
+                <div class="chal-field"><label>Department</label>
+                  <input type="text" id="fb_department" placeholder="Your department"/></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lg-block lg-b2">
+            <div class="lg-block-head"><span class="lg-ico">👤</span>Employee You Are Giving Feedback For</div>
+            <div class="lg-block-body">
+              <div class="chal-grid chal-grid-2">
+                <div class="chal-field"><label>Name of the employee <span class="chal-req">*</span></label>
+                  <select id="fb_feedback_for"><option value="">-- Select --</option></select></div>
+                <div class="chal-field"><label>Employee's department</label>
+                  <input type="text" id="fb_employee_department" placeholder="Their department"/></div>
+                <div class="chal-field"><label>Employee is —</label>
+                  <select id="fb_employee_is">
+                    <option value="">-- Select --</option>
+                    <option value="Team member">Team member</option>
+                    <option value="Junior">Junior</option>
+                    <option value="Senior">Senior</option>
+                    <option value="Other- department">Other- department</option>
+                  </select></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lg-block lg-b3">
+            <div class="lg-block-head"><span class="lg-ico">💬</span>Your Feedback</div>
+            <div class="lg-block-body">
+              <div class="chal-grid chal-grid-2">
+                <div class="chal-field" style="grid-column:1/-1"><label>What suggestions would you give to help this employee improve?</label>
+                  <textarea id="fb_suggestions" placeholder="Your suggestions…"></textarea></div>
+              </div>
+              <div class="chal-field">
+                <label>Overall rating for this employee</label>
+                <div class="fb-rate" id="fb_rating_box">
+                  <label><input type="radio" name="fbRate" value="1"/> 1</label>
+                  <label><input type="radio" name="fbRate" value="2"/> 2</label>
+                  <label><input type="radio" name="fbRate" value="3"/> 3</label>
+                  <label><input type="radio" name="fbRate" value="4"/> 4</label>
+                  <label><input type="radio" name="fbRate" value="5"/> 5</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chal-actions">
+            <button class="btn btn-outline" onclick="feedbackFormReset()">↺ Reset</button>
+            <button class="btn btn-primary" id="fbSaveBtn" onclick="saveFeedback()">💾 Submit Feedback</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── COMPLETED (admin only) ── -->
+      <div id="fbListWrap" style="display:none">
+        <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+          <span id="fbCount" style="font-size:12px;font-weight:600;color:#64748b"></span>
+          <input type="text" id="fbSearch" placeholder="🔍 Search name / employee / department…" oninput="renderFeedbackList()"
+            style="margin-left:auto;padding:9px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:260px"/>
+        </div>
+        <div id="fbContent"></div>
+      </div>
+    </div>
+
     <!-- Train Container -->
     <div id="fmsTrainContainer" style="display:none;margin-bottom:16px">
       <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">
@@ -1747,6 +1839,9 @@ tbody tr:last-child td{border-bottom:none;}
       cursor:pointer;transition:box-shadow .15s,transform .1s}
     .lg-card:hover{box-shadow:0 8px 22px rgba(15,23,42,.10);transform:translateY(-1px)}
     .lg-chip{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+    .fb-rate{display:flex;gap:18px;flex-wrap:wrap;padding:4px 0}
+    .fb-rate label{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:#334155;cursor:pointer}
+    .fb-rate input[type=radio]{width:17px;height:17px;accent-color:#2563eb;cursor:pointer}
     .lg-file-chip{display:inline-flex;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;
       border-radius:20px;padding:5px 12px;font-size:12.5px;color:#1d4ed8;margin:0 6px 6px 0;text-decoration:none}
     .lg-file-chip a{color:#1d4ed8;text-decoration:none}
@@ -3954,6 +4049,137 @@ async function deleteLegalCase(id) {
   if (r && r.error) return showToast(r.error, 'error');
   showToast('Case deleted', 'success');
   legalBackToList();
+}
+
+// ══════════════════════════════════════════════════════
+// EMPLOYEE TO EMPLOYEE FEEDBACK FORM
+// Form sab bhar sakte hain. Completed tab SIRF admin ko dikhta hai —
+// wahan submit karne wale ka naam aur email dikhta hai.
+// ══════════════════════════════════════════════════════
+const FB_EMPLOYEES = ['Satyen Kumar','Jyoti','Shubham','Amit','Kiran','Kartik','Aarti','Kavita',
+  'Prateek','Nishant Sharma','Arjun','Tribhuvan Tyagi','Kajal','Ekta','Mohit Nagpal','Pankaj Sharma',
+  'Isha Karanwal','Riya Gautam','Sachit Chaudhary','ANU RAHI','Lucky Gulati','ANIL JI','Vipul Tyagi',
+  'Anisha','Divya'];
+const FB_TEXT_FIELDS = ['your_name','department','feedback_for','employee_department','employee_is','suggestions'];
+let _fbView = 'form';
+let _fbList = [];
+
+function fbIsAdmin() { return !!(ME && ME.role === 'admin'); }
+
+function feedbackTab(which, el) {
+  if (which === 'completed' && !fbIsAdmin()) return;
+  _fbView = which;
+  document.querySelectorAll('#fbTabs .tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  else {
+    const t = document.getElementById(which === 'form' ? 'fbTabForm' : 'fbTabDone');
+    if (t) t.classList.add('active');
+  }
+  const isForm = which === 'form';
+  document.getElementById('fbFormWrap').style.display = isForm ? '' : 'none';
+  document.getElementById('fbListWrap').style.display = isForm ? 'none' : '';
+  if (!isForm) loadFeedbackList();
+}
+
+function fillFbEmployees() {
+  const s = document.getElementById('fb_feedback_for');
+  if (!s || s.options.length > 1) return;
+  s.innerHTML = '<option value="">-- Select --</option>' +
+    FB_EMPLOYEES.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+}
+
+function feedbackFormReset() {
+  FB_TEXT_FIELDS.forEach(f => { const el = document.getElementById('fb_' + f); if (el) el.value = ''; });
+  document.querySelectorAll('#fb_rating_box input[type=radio]').forEach(r => { r.checked = false; });
+  document.getElementById('fbErr').style.display = 'none';
+}
+
+async function saveFeedback() {
+  const err = document.getElementById('fbErr');
+  const btn = document.getElementById('fbSaveBtn');
+  const fail = m => { err.textContent = m; err.style.display = 'block'; err.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+  err.style.display = 'none';
+
+  const body = {};
+  FB_TEXT_FIELDS.forEach(f => { const el = document.getElementById('fb_' + f); body[f] = el ? el.value.trim() : ''; });
+  const rate = document.querySelector('#fb_rating_box input[type=radio]:checked');
+  body.rating = rate ? rate.value : '';
+
+  if (!body.your_name) return fail('Your Name is required');
+  if (!body.feedback_for) return fail('Please select the employee you are giving feedback for');
+
+  btn.disabled = true; btn.textContent = '⏳ Saving…';
+  try {
+    const r = await api('/api/feedback', 'POST', body);
+    if (r && r.error) throw new Error(r.error);
+    feedbackFormReset();
+    showToast('Feedback submitted — thank you!', 'success');
+    if (fbIsAdmin()) feedbackTab('completed', document.getElementById('fbTabDone'));
+  } catch (e) {
+    fail(e.message || 'Something went wrong');
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Submit Feedback';
+  }
+}
+
+async function loadFeedbackList() {
+  const c = document.getElementById('fbContent');
+  c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Loading…</div>`;
+  const data = await api('/api/feedback');
+  if (data && data.error) {
+    c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;color:#ef4444">⚠️ ${escapeHtml(data.error)}</div>`;
+    return;
+  }
+  _fbList = Array.isArray(data) ? data : [];
+  renderFeedbackList();
+}
+
+function renderFeedbackList() {
+  const c = document.getElementById('fbContent');
+  const q = (document.getElementById('fbSearch')?.value || '').toLowerCase();
+  const list = _fbList.filter(x => !q ||
+    [x.your_name, x.feedback_for, x.department, x.employee_department, x.submitted_by_email]
+      .some(v => String(v || '').toLowerCase().includes(q)));
+  document.getElementById('fbCount').textContent = `${list.length} feedback${list.length === 1 ? '' : 's'}`;
+  if (!list.length) {
+    c.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">No feedback submitted yet</div>`;
+    return;
+  }
+  const stars = n => { const v = parseInt(n, 10); return v >= 1 && v <= 5 ? '★'.repeat(v) + '☆'.repeat(5 - v) : '—'; };
+  c.innerHTML = list.map(x => `
+    <div class="lg-card" style="cursor:default">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start">
+        <div style="min-width:0">
+          <div style="font-size:15px;font-weight:700;color:#1e293b">Feedback for: ${escapeHtml(x.feedback_for || '—')}</div>
+          <div style="font-size:12.5px;color:#64748b;margin-top:3px">
+            ${escapeHtml(x.employee_department || '—')}${x.employee_is ? ' · ' + escapeHtml(x.employee_is) : ''}
+          </div>
+        </div>
+        <div style="text-align:right;display:flex;align-items:flex-start;gap:12px">
+          <div>
+            <div style="font-size:12px;color:#64748b">Rating</div>
+            <div style="font-size:15px;color:#f59e0b;letter-spacing:1px">${stars(x.rating)}</div>
+          </div>
+          <button class="lg-del" title="Delete" onclick="deleteFeedback(${x.id})">🗑</button>
+        </div>
+      </div>
+      ${x.suggestions ? `<div style="margin-top:9px;padding-top:9px;border-top:1px solid #f1f5f9;font-size:13px;color:#334155">
+        <b style="color:#64748b">Suggestions:</b> ${escapeHtml(x.suggestions)}</div>` : ''}
+      <div style="margin-top:9px;padding-top:9px;border-top:1px solid #f1f5f9;font-size:12px;color:#64748b;
+                  display:flex;flex-wrap:wrap;gap:14px">
+        <span><b>Given by:</b> ${escapeHtml(x.your_name || '—')}${x.department ? ' (' + escapeHtml(x.department) + ')' : ''}</span>
+        <span><b>Submitted by:</b> ${escapeHtml(x.submitted_by_name || '—')}</span>
+        <span style="margin-left:auto;color:#1d4ed8;font-weight:600">✉️ ${escapeHtml(x.submitted_by_email || '—')}</span>
+      </div>
+    </div>`).join('');
+}
+
+async function deleteFeedback(id) {
+  if (!confirm('Delete this feedback?')) return;
+  const r = await api(`/api/feedback/${id}`, 'DELETE');
+  if (r && r.error) return showToast(r.error, 'error');
+  showToast('Feedback deleted', 'success');
+  loadFeedbackList();
 }
 
 function renderChallenges() {
@@ -8891,6 +9117,7 @@ async function loadFMSTasks() {
   emptyEl.style.display = 'none';
   document.getElementById('fmsChalWrap').style.display = 'none';
   document.getElementById('fmsLegalWrap').style.display = 'none';
+  document.getElementById('fmsFbWrap').style.display = 'none';
   document.getElementById('fmsSheetLink').style.display = 'none';
 
   const list = await api('/api/fms-tasks');
@@ -8901,7 +9128,9 @@ async function loadFMSTasks() {
     showToast(list.error, 'error');
     return;
   }
-  if ((!list || !list.length) && !canSeeChallenges() && !canSeeLegal()) {
+  // Feedback form sabke liye hai, isliye dropdown kabhi khaali nahi hota —
+  // "No FMS available" ab tabhi jab list bhi na ho aur koi form bhi allowed na ho.
+  if ((!list || !list.length) && !canSeeChallenges() && !canSeeLegal() && !ME) {
     sel.innerHTML = '<option value="">-- No FMS available --</option>';
     emptyEl.style.display = 'block';
     return;
@@ -8913,7 +9142,9 @@ async function loadFMSTasks() {
     // Open Challenges form — sirf allowed doers + admin ko ye option dikhta hai
     (canSeeChallenges() ? `<option value="${CHAL_OPT}">📝 Invincible Open Challenges Form</option>` : '') +
     // Legal Case form — sirf allowed doer + admin
-    (canSeeLegal() ? `<option value="${LEGAL_OPT}">⚖️ Legal Case Form</option>` : '');
+    (canSeeLegal() ? `<option value="${LEGAL_OPT}">⚖️ Legal Case Form</option>` : '') +
+    // Feedback form — sab bhar sakte hain
+    `<option value="${FB_OPT}">📝 Employee Feedback Form</option>`;
 
   // Auto-select first
   if (_fmsTasksList.length === 1) {
@@ -8929,6 +9160,7 @@ function canSeeChallenges() {
 }
 
 // Legal Case form ka special dropdown option
+const FB_OPT = '__feedback__';
 const LEGAL_OPT = '__legal__';
 function canSeeLegal() {
   return !!(ME && (ME.role === 'admin' || ME.canLegal));
@@ -8940,7 +9172,25 @@ async function onFMSTasksSelect() {
   const stepPanel = document.getElementById('fmsTaskStepPanel');
   const chalWrap = document.getElementById('fmsChalWrap');
   const legalWrap = document.getElementById('fmsLegalWrap');
+  const fbWrap = document.getElementById('fmsFbWrap');
   const emptyEl = document.getElementById('fmsTasksEmpty');
+
+  // Feedback form — FMS ka train/step view band, form + completed on
+  if (fmsId === FB_OPT) {
+    trainContainer.style.display = 'none';
+    stepPanel.style.display = 'none';
+    emptyEl.style.display = 'none';
+    chalWrap.style.display = 'none';
+    legalWrap.style.display = 'none';
+    updateFmsSheetLink('');
+    document.getElementById('fmsTasksRefreshBtn').style.display = 'none';
+    fbWrap.style.display = '';
+    fillFbEmployees();
+    document.getElementById('fbTabDone').style.display = fbIsAdmin() ? '' : 'none';
+    feedbackTab('form', document.getElementById('fbTabForm'));
+    return;
+  }
+  fbWrap.style.display = 'none';
 
   // Legal Case form — FMS ka train/step view band, form + pending + completed on
   if (fmsId === LEGAL_OPT) {
