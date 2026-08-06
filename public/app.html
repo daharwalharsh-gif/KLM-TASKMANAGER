@@ -279,26 +279,11 @@ tbody tr:last-child td{border-bottom:none;}
 .drag-handle:active{cursor:grabbing;}
 
 /* FMS Tasks Train */
-.fms-train-track{background:linear-gradient(180deg,#63b3ed 0%,#90cdf4 40%,#c3e5fb 70%,#dff0d8 100%);border-radius:16px;padding:58px 0 36px;overflow:hidden;position:relative;margin-bottom:16px;}
-/* Track ke peeche ka nazaara — pahaad, taare, ped aur jhaadiyan (parallax) */
-.fms-scene{position:absolute;left:0;right:0;pointer-events:none;background-repeat:repeat-x;}
-.fms-train-track::before,.fms-train-track::after{pointer-events:none;}
-.fms-moon{position:absolute;top:14px;right:46px;width:34px;height:34px;border-radius:50%;
-  background:radial-gradient(circle at 36% 34%,#fffbeb,#fde047 55%,#f59e0b);
-  box-shadow:0 0 26px 10px rgba(253,224,71,.45);z-index:0;pointer-events:none;}
-.fms-scene-hills{bottom:34px;height:150px;background-size:600px 150px;background-position-y:bottom;z-index:0;opacity:.85;
-  background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='150' viewBox='0 0 600 150'><g fill='%23ffffff' opacity='.92'><ellipse cx='95' cy='30' rx='26' ry='13'/><ellipse cx='118' cy='33' rx='19' ry='10'/><ellipse cx='74' cy='34' rx='17' ry='9'/><ellipse cx='330' cy='22' rx='22' ry='11'/><ellipse cx='350' cy='25' rx='16' ry='8'/><ellipse cx='312' cy='26' rx='14' ry='7'/><ellipse cx='515' cy='36' rx='20' ry='10'/><ellipse cx='534' cy='38' rx='14' ry='7'/></g><path d='M0 150 L0 106 L90 58 L180 106 L270 70 L360 110 L450 64 L540 104 L600 80 L600 150 Z' fill='%23a5c8e8'/><path d='M0 150 L0 122 L120 92 L240 124 L360 96 L480 126 L600 100 L600 150 Z' fill='%23a7d59a'/></svg>");
-  animation:fmsSceneMove calc(var(--train-dur,18s) * 5) linear infinite;--fms-tile:600px;}
-.fms-scene-trees{bottom:22px;height:130px;background-size:420px 130px;background-position-y:bottom;z-index:1;
-  background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='420' height='130' viewBox='0 0 420 130'><rect x='0' y='104' width='420' height='26' fill='%234d7c2a'/><path d='M0 104 Q40 98 80 104 T160 104 T240 104 T320 104 T420 104 L420 114 L0 114 Z' fill='%236aa832'/><rect x='42' y='84' width='7' height='22' fill='%23805b32'/><polygon points='45.5,20 64,52 27,52' fill='%234ca832'/><polygon points='45.5,38 69,74 22,74' fill='%233f8f28'/><polygon points='45.5,56 74,94 17,94' fill='%234ca832'/><rect x='147' y='82' width='7' height='24' fill='%23805b32'/><circle cx='150' cy='62' r='21' fill='%236cc23f'/><circle cx='133' cy='74' r='14' fill='%234ca832'/><circle cx='167' cy='74' r='14' fill='%234ca832'/><ellipse cx='236' cy='98' rx='31' ry='15' fill='%233f8f28'/><ellipse cx='215' cy='101' rx='18' ry='10' fill='%234ca832'/><rect x='307' y='88' width='6' height='18' fill='%23805b32'/><polygon points='310,42 326,68 294,68' fill='%234ca832'/><polygon points='310,58 331,94 289,94' fill='%233f8f28'/><ellipse cx='386' cy='99' rx='23' ry='12' fill='%234ca832'/><path d='M100 106 l3 -12 l3 12 z M108 106 l2 -8 l3 8 z' fill='%236cc23f'/><path d='M265 106 l3 -11 l3 11 z M273 106 l2 -7 l3 7 z' fill='%236cc23f'/><path d='M350 106 l3 -10 l3 10 z' fill='%236cc23f'/><circle cx='120' cy='100' r='2.6' fill='%23fde047'/><circle cx='128' cy='102' r='2.2' fill='%23fb7185'/><circle cx='290' cy='101' r='2.4' fill='%23fde047'/><circle cx='340' cy='100' r='2.4' fill='%23fb7185'/></svg>");
-  animation:fmsSceneMove calc(var(--train-dur,18s) * 2) linear infinite;--fms-tile:420px;}
-@keyframes fmsSceneMove{from{background-position-x:0}to{background-position-x:calc(-1 * var(--fms-tile))}}
-.fms-train-track.paused .fms-scene{animation-play-state:paused;}
-.fms-train-track::before{content:'';z-index:2;position:absolute;bottom:28px;left:0;right:0;height:5px;background:linear-gradient(90deg,#57534e 0%,#a8a29e 20%,#57534e 40%,#a8a29e 60%,#57534e 80%,#a8a29e 100%);border-radius:3px;}
-.fms-train-track::after{content:'';z-index:2;position:absolute;bottom:24px;left:0;right:0;height:12px;background:repeating-linear-gradient(90deg,#78350f 0,#78350f 30px,transparent 30px,transparent 50px);opacity:.55;}
-.fms-train-scroll{position:relative;z-index:3;display:flex;align-items:flex-end;gap:6px;padding:0 30px 14px;width:max-content;animation:trainScroll var(--train-dur,18s) linear infinite;}
+.fms-train-track{background:#0f172a;border-radius:16px;padding:24px 0 36px;overflow:hidden;position:relative;margin-bottom:16px;}
+.fms-train-track::before{content:'';position:absolute;bottom:28px;left:0;right:0;height:5px;background:linear-gradient(90deg,#1e293b 0%,#475569 20%,#1e293b 40%,#475569 60%,#1e293b 80%,#475569 100%);border-radius:3px;}
+.fms-train-track::after{content:'';position:absolute;bottom:24px;left:0;right:0;height:12px;background:repeating-linear-gradient(90deg,#334155 0,#334155 30px,transparent 30px,transparent 50px);opacity:.5;}
+.fms-train-scroll{display:flex;align-items:flex-end;gap:6px;padding:0 30px 14px;width:max-content;animation:trainScroll var(--train-dur,18s) linear infinite;}
 .fms-train-scroll:hover{animation-play-state:paused;}
-.fms-train-track:hover .fms-scene{animation-play-state:paused;}
 @keyframes trainScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 .fms-train-engine{flex-shrink:0;background:linear-gradient(135deg,#1e293b,#334155);border:2px solid #3b82f6;border-radius:10px 4px 4px 10px;padding:14px 18px;color:#fff;min-width:80px;text-align:center;font-size:24px;display:flex;flex-direction:column;align-items:center;position:relative;}
 .fms-train-engine::before,.fms-coach::before{content:'⬤';position:absolute;bottom:-14px;left:12px;color:#64748b;font-size:9px;}
@@ -306,8 +291,8 @@ tbody tr:last-child td{border-bottom:none;}
 .fms-coach{flex-shrink:0;border-radius:9px;padding:12px 14px;color:#fff;min-width:160px;max-width:200px;cursor:pointer;position:relative;transition:transform .2s,box-shadow .2s;border:2px solid rgba(255,255,255,.22);display:flex;flex-direction:column;gap:4px;background:#1e3a5f;box-shadow:0 8px 20px rgba(15,23,42,.42),0 2px 5px rgba(15,23,42,.3);}
 .fms-coach:hover{transform:translateY(-5px);box-shadow:0 14px 32px rgba(15,23,42,.5),0 3px 8px rgba(15,23,42,.35);}
 .fms-coach.active{border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.45),0 14px 30px rgba(15,23,42,.45);transform:translateY(-6px);}
-.fms-coach.not-mine{background:linear-gradient(135deg,#334155,#475569);opacity:.9;cursor:not-allowed;pointer-events:none;}
-.fms-coach.mine{background:linear-gradient(135deg,#1442b0,#2563eb);}
+.fms-coach.not-mine{background:#1e293b;opacity:.55;cursor:not-allowed;pointer-events:none;}
+.fms-coach.mine{background:linear-gradient(135deg,#1a56db,#3b82f6);}
 .fms-coach-num{font-size:10.5px;font-weight:800;opacity:.95;text-transform:uppercase;letter-spacing:.6px;text-shadow:0 1px 2px rgba(0,0,0,.5);}
 .fms-coach-name{font-size:12.5px;font-weight:800;line-height:1.32;word-break:break-word;text-shadow:0 1px 3px rgba(0,0,0,.55);}
 .fms-coach-doers{font-size:10.5px;font-weight:600;opacity:.95;margin-top:2px;text-shadow:0 1px 2px rgba(0,0,0,.45);}
@@ -1351,9 +1336,6 @@ tbody tr:last-child td{border-bottom:none;}
         </span>
       </div>
       <div class="fms-train-track" id="fmsTrainTrack">
-        <div class="fms-moon"></div>
-        <div class="fms-scene fms-scene-hills"></div>
-        <div class="fms-scene fms-scene-trees"></div>
         <div id="fmsTrainInner" class="fms-train-scroll"></div>
       </div>
       <div class="fms-train-speed">
@@ -10102,10 +10084,6 @@ function toggleTrainPause() {
   const scroll = document.getElementById('fmsTrainInner');
   const btn = document.getElementById('fmsTrainPauseBtn');
   if (scroll) scroll.style.animationPlayState = fmsTrainPaused ? 'paused' : 'running';
-  // Peeche ka nazaara bhi train ke saath ruke
-  document.querySelectorAll('#fmsTrainTrack .fms-scene').forEach(el => {
-    el.style.animationPlayState = fmsTrainPaused ? 'paused' : 'running';
-  });
   if (btn) btn.textContent = fmsTrainPaused ? '▶ Play' : '⏸ Pause';
 }
 
