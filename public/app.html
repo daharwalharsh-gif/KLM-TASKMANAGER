@@ -829,6 +829,8 @@ tbody tr:last-child td{border-bottom:none;}
         <!-- Pending + Completed ki poori list ka PDF — sirf admin -->
         <button class="btn btn-outline" id="tasksPdfBtn" onclick="exportTasksPDF()"
           style="color:#b45309;border-color:#fcd34d;display:none">📄 Checklist PDF</button>
+        <button class="btn btn-outline" id="checklistListBtn" onclick="exportChecklistDetailsPDF()"
+          style="color:#6d28d9;border-color:#ddd6fe;display:none">📋 Checklist Details</button>
       </div>
     </div>
     <!-- Status filter tabs -->
@@ -2894,6 +2896,7 @@ async function init() {
       document.getElementById('nav-master').style.display = 'flex';   // Master Sheet — admin only
       document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
       const pdb = document.getElementById('tasksPdfBtn'); if (pdb) { pdb.style.display = 'inline-flex'; syncPdfBtnLabel(); }
+      const clb = document.getElementById('checklistListBtn'); if (clb) clb.style.display = 'inline-flex';
     }
     if (ME.role === 'hod') {
       // HOD ko MIS dikhta hai (apne department ka)
@@ -5373,13 +5376,10 @@ function exportTasksPDF() {
     const [y, m, dd] = s.split('-');
     return `${dd}-${m}-${y}`;
   };
-  const isChecklist = typeLabel === 'Checklist';
-  const freq = v => { const f = String(v || '').trim(); return f ? f.charAt(0).toUpperCase() + f.slice(1) : '—'; };
   const rows = list => list.map((t, i) => `<tr>
       <td class="n">${i + 1}</td>
       <td>${escapeHtml(t.assignedToName || '—')}</td>
       <td>${escapeHtml(t.description || '—')}</td>
-      ${isChecklist ? `<td class="c">${freq(t.frequency)}</td>` : ''}
       <td>${escapeHtml(t.assignedByName || '—')}</td>
       <td class="c">${d(t.assigned_on)}</td>
       <td class="c">${d(t.due_date)}</td>
@@ -5388,7 +5388,7 @@ function exportTasksPDF() {
   const table = (title, list, color) => `
     <h2 style="border-left:5px solid ${color}">${title} <span class="cnt">${list.length}</span></h2>
     ${list.length ? `<table>
-      <thead><tr><th class="n">#</th><th>Doer</th><th>Task</th>${isChecklist ? '<th class="c">Frequency</th>' : ''}<th>Assignee</th>
+      <thead><tr><th class="n">#</th><th>Doer</th><th>Task</th><th>Assignee</th>
         <th class="c">Assigned On</th><th class="c">Due Date</th><th>Remarks</th></tr></thead>
       <tbody>${rows(list)}</tbody></table>`
     : `<p class="none">No tasks</p>`}`;
@@ -5413,34 +5413,6 @@ function exportTasksPDF() {
           <td class="c">${s.revised}</td><td class="c">${s.completed}</td><td class="c">${s.other}</td>
           <td class="c"><b>${tot}</b></td></tr>`; }).join('')}
     </tbody></table>`;
-
-  // Checklist ka master — kis doer ke paas kaunsa task aur kitni baar (weekly/monthly)
-  // Ek hi task kai baar repeat hota hai, isliye doer+task par ek hi row.
-  let master = '';
-  if (isChecklist) {
-    const uniq = new Map();
-    src.forEach(t => {
-      const doer = t.assignedToName || '—';
-      const task = t.description || '—';
-      const k = doer + '||' + task + '||' + String(t.frequency || '');
-      const e = uniq.get(k) || { doer, task, frequency: t.frequency, total: 0, pending: 0, completed: 0 };
-      e.total++;
-      if (t.status === 'pending') e.pending++;
-      else if (t.status === 'completed') e.completed++;
-      uniq.set(k, e);
-    });
-    const list = [...uniq.values()].sort((a, b) =>
-      a.doer.toLowerCase().localeCompare(b.doer.toLowerCase()) ||
-      a.task.toLowerCase().localeCompare(b.task.toLowerCase()));
-    master = `
-      <h2 style="border-left:5px solid #7c3aed">Checklist Master — Doer wise <span class="cnt">${list.length}</span></h2>
-      <table><thead><tr><th class="n">#</th><th>Doer Name</th><th>Task Name</th>
-        <th class="c">Frequency</th><th class="c">Total</th><th class="c">Pending</th><th class="c">Completed</th></tr></thead>
-      <tbody>${list.map((x, i) => `<tr>
-        <td class="n">${i + 1}</td><td>${escapeHtml(x.doer)}</td><td>${escapeHtml(x.task)}</td>
-        <td class="c"><b>${freq(x.frequency)}</b></td><td class="c">${x.total}</td>
-        <td class="c">${x.pending}</td><td class="c">${x.completed}</td></tr>`).join('')}</tbody></table>`;
-  }
 
   const now = new Date();
   const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -5474,7 +5446,6 @@ function exportTasksPDF() {
     <div><h1>KLM Task Manager</h1><div class="sub">${typeLabel} — Pending, Revised &amp; Completed (full list)</div></div>
     <div class="sub">${stamp}<br>Pending ${pending.length} · Revised ${revised.length} · Completed ${completed.length}<br>Total: ${pending.length + revised.length + completed.length}</div>
   </div>
-  ${master}
   ${summary}
   ${table('Pending Tasks', pending, '#f59e0b')}
   ${table('Revised Tasks (Revision Requested)', revised, '#8b5cf6')}
@@ -5486,6 +5457,83 @@ function exportTasksPDF() {
   if (!w) return showToast('Popup block ho gaya — browser me popup allow karo', 'error');
   w.document.open(); w.document.write(html); w.document.close();
   // Content render hone ke baad hi print dialog
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
+}
+
+
+// Checklist ka simple list PDF — sirf Doer, Task, Date aur Frequency.
+// Na pending/completed ka batwara, na koi summary. Sirf details.
+async function exportChecklistDetailsPDF() {
+  if (!(ME && ME.role === 'admin')) return showToast('Sirf admin', 'error');
+  const btn = document.getElementById('checklistListBtn');
+  const oldTxt = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Loading…'; }
+  let list = [];
+  try {
+    // Checklist tab khula ho ya na ho — hamesha checklist ka data laao
+    const data = await api('/api/tasks?type=checklist');
+    if (data && data.error) throw new Error(data.error);
+    list = (data.grouped || []).flatMap(g => g.tasks || []).concat(data.tasks || []);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = oldTxt; }
+    return showToast(e.message || 'Checklist load nahi hui', 'error');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = oldTxt; }
+  if (!list.length) return showToast('Koi checklist task nahi hai', 'error');
+
+  const d = v => { const s = String(v || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+    const [y, m, dd] = s.split('-'); return `${dd}-${m}-${y}`; };
+  const freq = v => { const f = String(v || '').trim().replace(/_/g, ' ');
+    return f ? f.charAt(0).toUpperCase() + f.slice(1) : '—'; };
+  list.sort((a, b) =>
+    String(a.assignedToName || '').toLowerCase().localeCompare(String(b.assignedToName || '').toLowerCase()) ||
+    String(a.due_date || '').localeCompare(String(b.due_date || '')));
+
+  const now = new Date();
+  const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+<title>KLM Task Manager — Checklist Details</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm; }
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:0;font-size:12px}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #6d28d9;padding-bottom:8px;margin-bottom:14px}
+  .head h1{margin:0;font-size:18px;color:#6d28d9}
+  .head .sub{font-size:11px;color:#64748b}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left;vertical-align:top;word-wrap:break-word}
+  th{background:#f5f3ff;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:#4c1d95}
+  tbody tr:nth-child(even){background:#faf9ff}
+  .n{width:34px;text-align:center}
+  .c{width:92px;text-align:center;white-space:nowrap}
+  th:nth-child(2),td:nth-child(2){width:150px}
+  thead{display:table-header-group}
+  tr{page-break-inside:avoid}
+  .foot{margin-top:14px;border-top:1px solid #e2e8f0;padding-top:6px;font-size:10px;color:#94a3b8;text-align:center}
+</style></head><body>
+  <div class="head">
+    <div><h1>Checklist Details</h1><div class="sub">KLM Task Manager</div></div>
+    <div class="sub">${stamp}<br>Total: ${list.length}</div>
+  </div>
+  <table>
+    <thead><tr><th class="n">#</th><th>Doer Name</th><th>Task Description</th>
+      <th class="c">Date</th><th class="c">Frequency</th></tr></thead>
+    <tbody>${list.map((t, i) => `<tr>
+      <td class="n">${i + 1}</td>
+      <td>${escapeHtml(t.assignedToName || '—')}</td>
+      <td>${escapeHtml(t.description || '—')}</td>
+      <td class="c">${d(t.due_date)}</td>
+      <td class="c">${freq(t.frequency)}</td>
+    </tr>`).join('')}</tbody>
+  </table>
+  <div class="foot">KLM Task Manager · ${stamp}</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) return showToast('Popup blocked — please allow popups', 'error');
+  w.document.open(); w.document.write(html); w.document.close();
   setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
 }
 
