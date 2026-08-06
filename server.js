@@ -2528,6 +2528,14 @@ app.post('/api/fms', requireAuth, requireAdmin, async (req, res) => {
   try {
     await conn.beginTransaction();
     const { fmsName, sheetName, sheetId, headerRow, totalSteps, steps } = req.body;
+    // Double-click / double-submit se pehle 3-3 copy ban jaati thi. Same sheet +
+    // same tab wali FMS dobara nahi banegi.
+    const [dup] = await conn.query('SELECT id,fms_name FROM fms_sheets WHERE sheet_id=? AND sheet_name=?',
+      [sheetId, sheetName]);
+    if (dup[0]) {
+      await conn.rollback();
+      return res.status(400).json({ error: `Ye sheet pehle se "${dup[0].fms_name}" ke naam se add hai — dobara add nahi hogi` });
+    }
     const [result] = await conn.query(
       `INSERT INTO fms_sheets (fms_name,sheet_name,sheet_id,header_row,total_steps,created_by) VALUES (?,?,?,?,?,?)`,
       [fmsName||sheetName, sheetName, sheetId, headerRow||1, totalSteps||1, req.session.userId]
