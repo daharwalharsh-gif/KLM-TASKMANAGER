@@ -1155,7 +1155,7 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
       where += ` AND t.due_date >= '${ownerFyStart()}'`;
     }
 
-    const [tasks] = await db.query(`SELECT t.id,'${type||'delegation'}' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,${isDeleg?"COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,":"'no' AS approval,0 AS waiting_approval,t.remarks,"}DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,DATE_FORMAT(t.created_at,'%Y-%m-%d') AS assigned_on,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail,u2.role AS assignedByRole FROM ${table} t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id ${where} ORDER BY t.due_date ASC`, params);
+    const [tasks] = await db.query(`SELECT t.id,'${type||'delegation'}' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,${isDeleg?"'' AS frequency,":"COALESCE(t.frequency,'') AS frequency,"}${isDeleg?"COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,":"'no' AS approval,0 AS waiting_approval,t.remarks,"}DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,DATE_FORMAT(t.created_at,'%Y-%m-%d') AS assigned_on,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail,u2.role AS assignedByRole FROM ${table} t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id ${where} ORDER BY t.due_date ASC`, params);
 
     // ── Comments attach karo (count + latest) taaki table me dikh sakein ──
     // Pehle comment sirf 💬 modal kholne par dikhta tha; list me koi ishara nahi tha.

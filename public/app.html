@@ -5373,10 +5373,13 @@ function exportTasksPDF() {
     const [y, m, dd] = s.split('-');
     return `${dd}-${m}-${y}`;
   };
+  const isChecklist = typeLabel === 'Checklist';
+  const freq = v => { const f = String(v || '').trim(); return f ? f.charAt(0).toUpperCase() + f.slice(1) : '—'; };
   const rows = list => list.map((t, i) => `<tr>
       <td class="n">${i + 1}</td>
       <td>${escapeHtml(t.assignedToName || '—')}</td>
       <td>${escapeHtml(t.description || '—')}</td>
+      ${isChecklist ? `<td class="c">${freq(t.frequency)}</td>` : ''}
       <td>${escapeHtml(t.assignedByName || '—')}</td>
       <td class="c">${d(t.assigned_on)}</td>
       <td class="c">${d(t.due_date)}</td>
@@ -5385,7 +5388,7 @@ function exportTasksPDF() {
   const table = (title, list, color) => `
     <h2 style="border-left:5px solid ${color}">${title} <span class="cnt">${list.length}</span></h2>
     ${list.length ? `<table>
-      <thead><tr><th class="n">#</th><th>Doer</th><th>Task</th><th>Assignee</th>
+      <thead><tr><th class="n">#</th><th>Doer</th><th>Task</th>${isChecklist ? '<th class="c">Frequency</th>' : ''}<th>Assignee</th>
         <th class="c">Assigned On</th><th class="c">Due Date</th><th>Remarks</th></tr></thead>
       <tbody>${rows(list)}</tbody></table>`
     : `<p class="none">No tasks</p>`}`;
@@ -5410,6 +5413,34 @@ function exportTasksPDF() {
           <td class="c">${s.revised}</td><td class="c">${s.completed}</td><td class="c">${s.other}</td>
           <td class="c"><b>${tot}</b></td></tr>`; }).join('')}
     </tbody></table>`;
+
+  // Checklist ka master — kis doer ke paas kaunsa task aur kitni baar (weekly/monthly)
+  // Ek hi task kai baar repeat hota hai, isliye doer+task par ek hi row.
+  let master = '';
+  if (isChecklist) {
+    const uniq = new Map();
+    src.forEach(t => {
+      const doer = t.assignedToName || '—';
+      const task = t.description || '—';
+      const k = doer + '||' + task + '||' + String(t.frequency || '');
+      const e = uniq.get(k) || { doer, task, frequency: t.frequency, total: 0, pending: 0, completed: 0 };
+      e.total++;
+      if (t.status === 'pending') e.pending++;
+      else if (t.status === 'completed') e.completed++;
+      uniq.set(k, e);
+    });
+    const list = [...uniq.values()].sort((a, b) =>
+      a.doer.toLowerCase().localeCompare(b.doer.toLowerCase()) ||
+      a.task.toLowerCase().localeCompare(b.task.toLowerCase()));
+    master = `
+      <h2 style="border-left:5px solid #7c3aed">Checklist Master — Doer wise <span class="cnt">${list.length}</span></h2>
+      <table><thead><tr><th class="n">#</th><th>Doer Name</th><th>Task Name</th>
+        <th class="c">Frequency</th><th class="c">Total</th><th class="c">Pending</th><th class="c">Completed</th></tr></thead>
+      <tbody>${list.map((x, i) => `<tr>
+        <td class="n">${i + 1}</td><td>${escapeHtml(x.doer)}</td><td>${escapeHtml(x.task)}</td>
+        <td class="c"><b>${freq(x.frequency)}</b></td><td class="c">${x.total}</td>
+        <td class="c">${x.pending}</td><td class="c">${x.completed}</td></tr>`).join('')}</tbody></table>`;
+  }
 
   const now = new Date();
   const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -5443,6 +5474,7 @@ function exportTasksPDF() {
     <div><h1>KLM Task Manager</h1><div class="sub">${typeLabel} — Pending, Revised &amp; Completed (full list)</div></div>
     <div class="sub">${stamp}<br>Pending ${pending.length} · Revised ${revised.length} · Completed ${completed.length}<br>Total: ${pending.length + revised.length + completed.length}</div>
   </div>
+  ${master}
   ${summary}
   ${table('Pending Tasks', pending, '#f59e0b')}
   ${table('Revised Tasks (Revision Requested)', revised, '#8b5cf6')}
