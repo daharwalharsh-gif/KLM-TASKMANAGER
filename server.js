@@ -939,6 +939,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Whether the Legal Case form shows in the FMS dropdown
     rows[0].canLegal = req.session.role === 'admin' ||
       LEGAL_EMAILS.has((rows[0].email || '').trim().toLowerCase());
+    // Sabki leave dekh/approve kar sakta hai ya nahi (admin + HR)
+    rows[0].canLeaves = req.session.role === 'admin' ||
+      LEAVE_APPROVER_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3996,9 +3999,26 @@ app.get('/api/week-plan/history/:employeeId', requireAuth, requireAdminOrHod, as
 // ──────────────────────────────────────────────────────
 
 // List leaves. Admin: sabki (filter ?employee= & ?status=). Baaki: sirf apni.
+// Leave approve/reject admin ke alawa ye bhi kar sakte hain (HR).
+// Inhe sabki leave dikhti hai, bilkul admin ki tarah.
+const LEAVE_APPROVER_EMAILS = new Set([
+  'hr@klmahajan.com',        // Mr. Satyen Kumar
+]);
+async function canApproveLeaves(req) {
+  if (req.session.role === 'admin') return true;
+  try {
+    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    return LEAVE_APPROVER_EMAILS.has((rows[0]?.email || '').trim().toLowerCase());
+  } catch (e) { return false; }
+}
+async function requireLeaveApprover(req, res, next) {
+  if (await canApproveLeaves(req)) return next();
+  res.status(403).json({ error: 'Not allowed' });
+}
+
 app.get('/api/leaves', requireAuth, async (req, res) => {
   try {
-    const isAdmin = req.session.role === 'admin';
+    const isAdmin = await canApproveLeaves(req);
     const uid = req.session.userId;
     const { employee, status } = req.query;
     const where = [];
@@ -4045,8 +4065,8 @@ app.post('/api/leaves', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Approve / Reject — SIRF Admin
-app.put('/api/leaves/:id/decision', requireAuth, requireAdmin, async (req, res) => {
+// Approve / Reject — Admin ya HR
+app.put('/api/leaves/:id/decision', requireAuth, requireLeaveApprover, async (req, res) => {
   try {
     const { decision, note } = req.body;
     if (!['approved','rejected'].includes(decision)) return res.status(400).json({ error: 'Invalid decision' });
@@ -4064,7 +4084,7 @@ app.put('/api/leaves/:id/decision', requireAuth, requireAdmin, async (req, res) 
 // Delete — owner apni ya admin koi bhi
 app.delete('/api/leaves/:id', requireAuth, async (req, res) => {
   try {
-    const isAdmin = req.session.role === 'admin';
+    const isAdmin = await canApproveLeaves(req);
     const [r] = await db.query(`SELECT user_id FROM leave_tracker WHERE id=?`, [req.params.id]);
     if (!r[0]) return res.status(404).json({ error: 'Leave not found' });
     if (!isAdmin && r[0].user_id !== req.session.userId) return res.status(403).json({ error: 'Not allowed' });
