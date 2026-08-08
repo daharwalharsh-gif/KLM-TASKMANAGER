@@ -1066,12 +1066,9 @@ tbody tr:last-child td{border-bottom:none;}
       </select>
     </div>
 
-    <!-- Jab koi form select nahi — saare form card ke roop me -->
-    <div id="formsHome">
-      <div style="font-size:13px;color:#64748b;margin-bottom:16px">
-        Pick a form from the dropdown above, or click any card below.
-      </div>
-      <div class="forms-grid" id="formsGrid"></div>
+    <!-- Jab tak koi form chuna nahi — bas ek line, koi box nahi -->
+    <div id="formsHome" style="font-size:13px;color:#94a3b8;padding:4px 2px">
+      Select a form from the dropdown above to open it.
     </div>
 
     <div id="fmsChalWrap" style="display:none">
@@ -2079,15 +2076,6 @@ tbody tr:last-child td{border-bottom:none;}
     .pcr-trail-meta{font-size:11px;color:#94a3b8;font-weight:600;margin-bottom:2px}
     .pcr-done{border-left:3px solid #86efac;background:#f0fdf4;border-radius:0 10px 10px 0;padding:10px 14px;margin-top:10px;font-size:13.5px;color:#166534;white-space:pre-wrap}
 
-    /* ── Forms page — saare forms ek jagah ── */
-    .forms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px}
-    .form-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px;cursor:pointer;
-      transition:transform .15s,box-shadow .15s,border-color .15s;box-shadow:0 4px 14px rgba(15,23,42,.05)}
-    .form-card:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(15,23,42,.11);border-color:#c7d2fe}
-    .form-card-ico{width:48px;height:48px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:23px;margin-bottom:13px}
-    .form-card-name{font-size:15.5px;font-weight:800;color:#1e293b;margin-bottom:6px}
-    .form-card-desc{font-size:12.5px;color:#64748b;line-height:1.55;min-height:56px}
-    .form-card-go{font-size:12.5px;font-weight:800;margin-top:10px}
     @media (max-width:900px){ .pcr-row,.pcr-mini-row{grid-template-columns:1fr;gap:5px} .pcr-two{grid-template-columns:1fr} }
 
     /* Legal Case form — section heading, checkbox groups, note strip */
@@ -11255,22 +11243,14 @@ function downloadPcrPdf() {
 // ══════════════════════════════════════════════════════
 // FORMS — ek hi jagah par task manager ke saare forms
 // ══════════════════════════════════════════════════════
-// Har card FMS Tasks page par ja kar wahi form khol deta hai, taaki
-// koi bhi form dhoondhne ke liye dropdown me scroll na karna pade.
+// Sirf ek dropdown — form chunte hi wahi form khulta hai. Jis form ki
+// permission nahi, wo dropdown me aata hi nahi.
 function formsCatalogue() {
   return [
-    { key: PCR_OPT,   icon: '🗂️', name: 'Daily PC Report',
-      desc: 'Daily review of a system (FMS) — PC, doer-wise remarks, owner & PC remarks.',
-      color: '#4f46e5', bg: '#eef2ff', show: true },
-    { key: CHAL_OPT,  icon: '📝', name: 'Invincible Open Challenges Form',
-      desc: 'Party challenge / complaint with responsible person and resolution tracking.',
-      color: '#0d9488', bg: '#f0fdfa', show: canSeeChallenges() },
-    { key: LEGAL_OPT, icon: '⚖️', name: 'Legal Case Form',
-      desc: 'Case tracking — hearing updates until the case is closed.',
-      color: '#b45309', bg: '#fffbeb', show: canSeeLegal() },
-    { key: FB_OPT,    icon: '💬', name: 'Employee Feedback Form',
-      desc: 'Employee to employee feedback and suggestions.',
-      color: '#be185d', bg: '#fdf2f8', show: true }
+    { key: PCR_OPT,   icon: '🗂️', name: 'Daily PC Report',                 show: true },
+    { key: CHAL_OPT,  icon: '📝', name: 'Invincible Open Challenges Form', show: canSeeChallenges() },
+    { key: LEGAL_OPT, icon: '⚖️', name: 'Legal Case Form',                 show: canSeeLegal() },
+    { key: FB_OPT,    icon: '💬', name: 'Employee Feedback Form',          show: true }
   ].filter(f => f.show);
 }
 
@@ -11291,13 +11271,6 @@ function loadFormsPage() {
     forms.map(f => `<option value="${f.key}">${f.icon} ${escapeHtml(f.name)}</option>`).join('');
   if (cur && forms.some(f => f.key === cur)) sel.value = cur;
 
-  // Cards
-  document.getElementById('formsGrid').innerHTML = forms.map(f => `<div class="form-card" onclick="openFormFromCard('${f.key}')">
-      <div class="form-card-ico" style="background:${f.bg};color:${f.color}">${f.icon}</div>
-      <div class="form-card-name">${escapeHtml(f.name)}</div>
-      <div class="form-card-desc">${escapeHtml(f.desc)}</div>
-      <div class="form-card-go" style="color:${f.color}">Open Form →</div>
-    </div>`).join('');
   document.getElementById('formsCount').textContent = forms.length + ' form' + (forms.length === 1 ? '' : 's') + ' available';
 
   return onFormSelect();
@@ -11336,11 +11309,6 @@ async function onFormSelect() {
   }
 }
 
-// Card par click — dropdown wahi set karke form khol do
-function openFormFromCard(key) {
-  document.getElementById('formsSelect').value = key;
-  return onFormSelect();
-}
 
 // ══════════════════════════════════════════════════════
 // PRODUCTION MANAGEMENT — O to D (Merchant FMS) sheet ka data
