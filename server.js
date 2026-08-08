@@ -3078,6 +3078,130 @@ app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) =>
 });
 
 // ══════════════════════════════════════════════════════
+// PRODUCTION MANAGEMENT
+// ══════════════════════════════════════════════════════
+// O to D — Merchant FMS sheet (FMS3 tab) se Buyer name, PI number aur
+// order amount uthate hain. Order date par filter lagta hai.
+// Sheet me header row 6 par hai: B=Buyer name, C=Order date,
+// G=PI number, O=order amount.
+const PROD_SHEET_ID = '1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY';
+const PROD_TAB = 'FMS3';
+const PROD_HEADER_ROW = 6;
+
+// Sheet me date "DD/MM/YYYY" ya "DD/MM/YYYY HH:mm:ss" hoti hai -> YYYY-MM-DD
+function prodIsoDate(v) {
+  const s = String(v || '').trim();
+  if (!s) return '';
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[0] : '';
+}
+
+app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const wantDate = String(req.query.date || '').trim();
+    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    const r = await sheetsApi.spreadsheets.values.get({
+      spreadsheetId: PROD_SHEET_ID, range: `${PROD_TAB}!A:O`
+    });
+    const all = r.data.values || [];
+    const dataRows = all.slice(PROD_HEADER_ROW);   // header row 6 ke baad se
+    const rows = [];
+    for (const row of dataRows) {
+      const buyer = String(row[1] || '').trim();      // B
+      const orderDate = prodIsoDate(row[2]);          // C
+      const piNo = String(row[6] || '').trim();       // G
+      const amount = String(row[14] || '').trim();    // O
+      if (!buyer && !piNo) continue;                  // khali row chhodo
+      rows.push({ buyer, orderDate, piNo, amount, rowKey: piNo + '|' + orderDate });
+    }
+    // App me bhare hue column jod do
+    const [saved] = await db.query('SELECT * FROM production_rows');
+    const byKey = {};
+    for (const s of saved) byKey[String(s.row_key)] = s;
+    for (const x of rows) {
+      const s = byKey[x.rowKey] || {};
+      x.description = s.description || '';
+      x.inrWorking = s.inr_working || '';
+      x.plannedOtd = s.planned_otd || '';
+      x.plannedProduction = s.planned_production || '';
+      x.dispatchedDates = s.dispatched_dates || '';
+    }
+    // Filter ke liye kaunsi dates maujood hain
+    const dates = [...new Set(rows.map(x => x.orderDate).filter(Boolean))].sort().reverse();
+    const list = wantDate ? rows.filter(x => x.orderDate === wantDate) : rows;
+    res.json({ rows: list, total: rows.length, dates });
+  } catch (err) {
+    console.error('Production sheet read FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Ek cell save — jo column app me bharte hain
+const PROD_EDITABLE = { description: 'description', inrWorking: 'inr_working',
+  plannedOtd: 'planned_otd', plannedProduction: 'planned_production', dispatchedDates: 'dispatched_dates' };
+
+app.put('/api/production/cell', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { rowKey, piNo, field, value } = req.body || {};
+    const col = PROD_EDITABLE[field];
+    if (!rowKey || !col) return res.status(400).json({ error: 'rowKey aur sahi field zaroori hai' });
+    const val = String(value ?? '').trim();
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const [ex] = await db.query('SELECT id FROM production_rows WHERE row_key=?', [rowKey]);
+    if (ex[0]) {
+      await db.query(`UPDATE production_rows SET ${col}=?, updated_by=?, updated_at=? WHERE row_key=?`,
+        [val, req.session.userId, now, rowKey]);
+    } else {
+      await db.query(
+        `INSERT INTO production_rows (row_key,pi_no,description,inr_working,planned_otd,planned_production,dispatched_dates,updated_by,updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [rowKey, String(piNo || '').trim(),
+         col === 'description' ? val : '', col === 'inr_working' ? val : '',
+         col === 'planned_otd' ? val : '', col === 'planned_production' ? val : '',
+         col === 'dispatched_dates' ? val : '', req.session.userId, now]);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Drag-fill — ek hi value kai rows me (Excel jaisa neeche kheenchna)
+app.put('/api/production/fill', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { rows, field, value } = req.body || {};
+    const col = PROD_EDITABLE[field];
+    if (!col || !Array.isArray(rows) || !rows.length)
+      return res.status(400).json({ error: 'rows aur sahi field zaroori hai' });
+    if (rows.length > 500) return res.status(400).json({ error: 'Ek baar me 500 se zyada rows nahi' });
+    const val = String(value ?? '').trim();
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const [existing] = await db.query('SELECT row_key FROM production_rows');
+    const have = new Set(existing.map(x => String(x.row_key)));
+    let done = 0;
+    for (const r of rows) {
+      const key = String(r.rowKey || '').trim();
+      if (!key) continue;
+      if (have.has(key)) {
+        await db.query(`UPDATE production_rows SET ${col}=?, updated_by=?, updated_at=? WHERE row_key=?`,
+          [val, req.session.userId, now, key]);
+      } else {
+        await db.query(
+          `INSERT INTO production_rows (row_key,pi_no,description,inr_working,planned_otd,planned_production,dispatched_dates,updated_by,updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+          [key, String(r.piNo || '').trim(),
+           col === 'description' ? val : '', col === 'inr_working' ? val : '',
+           col === 'planned_otd' ? val : '', col === 'planned_production' ? val : '',
+           col === 'dispatched_dates' ? val : '', req.session.userId, now]);
+        have.add(key);
+      }
+      done++;
+    }
+    res.json({ success: true, count: done });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
 // EMPLOYEE TO EMPLOYEE FEEDBACK FORM
 // ══════════════════════════════════════════════════════
 // Bharna sab kar sakte hain. Bhare hue feedback (Completed tab) SIRF admin

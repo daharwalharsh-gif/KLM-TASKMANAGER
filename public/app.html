@@ -532,6 +532,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16M8 6v12M16 6v12"/></svg>
       <span class="nav-label-text">Master Sheet</span>
     </div>
+    <div class="nav-item" id="nav-production" style="display:none" onclick="navigate('production',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+      <span class="nav-label-text">Production Management</span>
+    </div>
     <div class="nav-item" id="nav-catalogues" onclick="navigate('catalogues',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
       <span class="nav-label-text">Invincible Catalog</span>
@@ -1642,6 +1646,101 @@ tbody tr:last-child td{border-bottom:none;}
         <button class="btn btn-primary" onclick="saveMasterLink()">💾 Save</button>
       </div>
     </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       PRODUCTION MANAGEMENT — O to D Merchant FMS ka data
+  ══════════════════════════════════════ -->
+  <style>
+    .pm-tbl{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff}
+    .pm-tbl th{background:#eef2ff;color:#3730a3;font-size:11px;font-weight:800;text-transform:none;
+      letter-spacing:.2px;padding:10px 10px;border:1px solid #c7d2fe;text-align:left;vertical-align:middle;line-height:1.3}
+    .pm-tbl td{padding:9px 10px;border:1px solid #e2e8f0;vertical-align:top;color:#1e293b}
+    .pm-tbl tbody tr:nth-child(even){background:#f8fafc}
+    .pm-tbl tbody tr:hover{background:#eff6ff}
+    .pm-wrap{overflow-x:auto;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+    .pm-empty{padding:30px;text-align:center;color:#94a3b8;font-size:13px}
+    .pm-bar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;background:#fff;border:1px solid #e2e8f0;
+      border-radius:12px;padding:14px 16px;margin-bottom:14px}
+    .pm-bar label{display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
+    .pm-bar input[type=date],.pm-bar input[type=text]{padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;
+      font-size:13px;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff}
+    .pm-bar input:focus{border-color:#4f46e5}
+    .pm-count{font-size:12px;font-weight:700;color:#4f46e5;margin-left:auto}
+    .pm-th{display:flex;align-items:center;gap:6px;justify-content:space-between}
+    .pm-filt{background:none;border:none;color:#6366f1;cursor:pointer;font-size:11px;padding:0 2px;line-height:1;border-radius:4px}
+    .pm-filt:hover{background:#c7d2fe}
+    .pm-filt.on{background:#4f46e5;color:#fff}
+    .pm-numcol{text-align:right;white-space:nowrap}
+    .pm-tbl th.pm-numcol{cursor:pointer}
+    .pm-tbl th.pm-numcol:hover{background:#e0e7ff}
+    .pm-n{text-align:center;color:#94a3b8}
+    .pm-sub{font-size:11px;color:#94a3b8;margin-top:2px}
+    .pm-edit{padding:4px 5px!important}
+    .pm-in{width:100%;border:1px solid transparent;border-radius:6px;padding:5px 7px;font-size:12.5px;
+      font-family:'Inter',sans-serif;background:transparent;color:#1e293b;outline:none;box-sizing:border-box}
+    .pm-in:hover{border-color:#e2e8f0;background:#fff}
+    .pm-in:focus{border-color:#4f46e5;background:#fff;box-shadow:0 0 0 2px rgba(79,70,229,.12)}
+    .pm-calc{font-size:11px;color:#4f46e5;font-weight:700;text-align:right;padding:0 7px;margin-top:1px}
+    .pm-pos{color:#16a34a} .pm-neg{color:#dc2626;background:#fef2f2}
+    .pm-sel{cursor:pointer;font-weight:700}
+    .pm-edit{position:relative}
+    .pm-fill{position:absolute;right:2px;bottom:2px;width:9px;height:9px;background:#4f46e5;border:1.5px solid #fff;
+      border-radius:2px;cursor:crosshair;opacity:0;transition:opacity .12s;z-index:2}
+    .pm-edit:hover .pm-fill,.pm-edit:focus-within .pm-fill{opacity:1}
+    .pm-fillmark{box-shadow:inset 0 0 0 2px #4f46e5}
+    .pm-dispatch{background:#dcfce7!important}
+    .pm-dispatch .pm-sel{color:#15803d}
+    .pm-cancel{background:#fee2e2!important}
+    .pm-cancel .pm-sel{color:#b91c1c}
+    .pm-selcol{background:#eef2ff!important;box-shadow:inset 2px 0 0 #4f46e5,inset -2px 0 0 #4f46e5}
+    .pm-tbl tfoot td{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:9px 10px}
+    .pm-sum{background:#4f46e5;color:#fff;border-radius:9px;padding:9px 14px;font-size:13px;margin-bottom:12px}
+    .pm-pop{position:absolute;z-index:9999;background:#fff;border:1px solid #cbd5e1;border-radius:10px;
+      box-shadow:0 12px 30px rgba(15,23,42,.18);width:250px;padding:10px}
+    .pm-pop-search{width:100%;padding:7px 9px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12.5px;
+      font-family:'Inter',sans-serif;outline:none;margin-bottom:7px;box-sizing:border-box}
+    .pm-pop-acts{display:flex;gap:6px;margin-bottom:7px}
+    .pm-pop-acts button{flex:1;background:#f1f5f9;border:none;border-radius:6px;padding:5px;font-size:11.5px;
+      cursor:pointer;color:#475569;font-family:'Inter',sans-serif}
+    .pm-pop-acts button:hover{background:#e2e8f0}
+    .pm-pop-list{max-height:210px;overflow-y:auto;border:1px solid #f1f5f9;border-radius:7px;padding:5px}
+    .pm-pop-list label{display:flex;align-items:center;gap:7px;padding:4px 5px;font-size:12.5px;cursor:pointer;border-radius:5px}
+    .pm-pop-list label:hover{background:#f8fafc}
+    .pm-pop-list input{width:14px;height:14px;accent-color:#4f46e5;cursor:pointer;flex:0 0 auto}
+    .pm-pop-list span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pm-pop-foot{display:flex;gap:7px;justify-content:flex-end;margin-top:9px}
+  </style>
+  <div id="page-production" class="page">
+    <div class="page-header">
+      <h2>Production Management</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <a id="pmSheetLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener"
+           href="https://docs.google.com/spreadsheets/d/1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY/edit?gid=1595875426#gid=1595875426">📄 Open Google Sheet ↗</a>
+        <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe"
+          onclick="exportProductionPDF()">📄 PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="loadProduction()">🔄 Refresh</button>
+      </div>
+    </div>
+
+    <div class="pm-bar">
+      <div>
+        <label>Order Date</label>
+        <input type="date" id="pmDate" onchange="loadProduction()"/>
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('pmDate').value='';loadProduction()">✕ Clear</button>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <label>Search</label>
+        <input type="text" id="pmSearch" placeholder="Buyer / PI number…" oninput="renderProduction()" style="width:100%"/>
+      </div>
+      <span class="pm-count" id="pmCount"></span>
+    </div>
+
+    <div class="pm-sum" id="pmSum" style="display:none"></div>
+    <div id="pmContent"></div>
   </div>
 
   <!-- ══════════════════════════════════════
@@ -2894,6 +2993,7 @@ async function init() {
       document.getElementById('nav-mis').style.display = 'flex';
       document.getElementById('nav-fms').style.display = 'flex';
       document.getElementById('nav-master').style.display = 'flex';   // Master Sheet — admin only
+      const npm = document.getElementById('nav-production'); if (npm) npm.style.display = 'flex';
       document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
       const pdb = document.getElementById('tasksPdfBtn'); if (pdb) { pdb.style.display = 'inline-flex'; syncPdfBtnLabel(); }
       const clb = document.getElementById('checklistListBtn'); if (clb) clb.style.display = 'inline-flex';
@@ -2994,7 +3094,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',master:'Master Sheet',catalogues:'Invincible Catalogues'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -3013,6 +3113,7 @@ function navigate(page, el) {
   if (page==='records') loadRecords();
   if (page==='leaves') loadLeaves();
   if (page==='master') loadMasterSheet();
+  if (page==='production') loadProduction();
   if (page==='catalogues') loadCatalogues();
   closeSidebar();   // mobile drawer band karo nav ke baad
   window.scrollTo(0,0);
@@ -10632,6 +10733,372 @@ async function submitTaskTransfer() {
   if (typeof loadTransferBadge === 'function') loadTransferBadge();
 }
 
+
+
+// ══════════════════════════════════════════════════════
+// PRODUCTION MANAGEMENT — O to D (Merchant FMS) sheet ka data
+// Sheet se aate hain: Buyer name, PI number, Amount.
+// Baaki column yahin bharte hain aur DB me save hote hain.
+//   • DAYS  = Planned production − Planned OTD (apne aap)
+//   • INR Working me formula chalta hai: =D*80 ya =D3*93 (D = Amount)
+//   • Har column par filter, Amount ka total, aur PDF button
+// ══════════════════════════════════════════════════════
+let _pmRows = [];
+let _pmFilters = {};      // { field: Set(values) }  — khali = sab
+
+const PM_COLS = [
+  { f: 'buyer',             label: 'Buyer Name',                    w: 150 },
+  { f: 'description',       label: 'DESCRIPTION',                   w: 160, edit: 'text' },
+  { f: 'piNo',              label: 'PI NO',                         w: 120 },
+  { f: 'amount',            label: 'Amount &nbsp;( USD)',           w: 110, num: true },
+  { f: 'inrWorking',        label: 'INR Working USD 80, Euro 93',   w: 150, edit: 'formula', num: true },
+  { f: 'plannedOtd',        label: 'Planned dates As Per Otd fms',  w: 150, edit: 'date' },
+  { f: 'plannedProduction', label: 'Planned dates As Per production', w: 150, edit: 'date' },
+  { f: 'days',              label: 'DAYS',                          w: 70,  calc: true },
+  { f: 'dispatchedDates',   label: 'Dispatched dates',              w: 140, edit: 'select' },
+];
+
+function pmNum(v) {
+  const s = String(v ?? '').replace(/[^0-9.\-]/g, '');
+  if (!s.trim()) return null;          // khali cell khali hi rahe, 0 na bane
+  const n = Number(s);
+  return isNaN(n) ? null : n;
+}
+function pmDate(v) {
+  const s = String(v || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '';
+  const [y, m, d] = s.split('-'); return `${d}-${m}-${y}`;
+}
+// DAYS = production − otd (dono dates ke beech ke din)
+function pmDays(x) {
+  const a = String(x.plannedOtd || '').slice(0, 10), b = String(x.plannedProduction || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b)) return '';
+  return Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+}
+// "=D3*93" / "=D*80" -> Amount se guna. Sirf number aur + - * / ( ) chalte hain.
+function pmFormula(raw, amount) {
+  const s = String(raw || '').trim();
+  if (!s.startsWith('=')) return { display: s, value: pmNum(s) };
+  const amt = pmNum(amount);
+  const expr = s.slice(1).replace(/[A-Za-z]+\d*/g, String(amt === null ? 0 : amt));
+  if (!/^[0-9+\-*/().\s]+$/.test(expr)) return { display: s, value: null, bad: true };
+  try {
+    const v = Function('"use strict";return (' + expr + ')')();
+    return (typeof v === 'number' && isFinite(v)) ? { display: v, value: v, formula: s } : { display: s, value: null, bad: true };
+  } catch (e) { return { display: s, value: null, bad: true }; }
+}
+function pmShown(x, f) {
+  if (f === 'days') return pmDays(x);
+  if (f === 'inrWorking') { const r = pmFormula(x.inrWorking, x.amount); return r.value !== null ? r.value : r.display; }
+  return x[f] ?? '';
+}
+function pmCell(x, f) {
+  const v = pmShown(x, f);
+  if (f === 'amount' || f === 'inrWorking') { const n = pmNum(v); return n === null ? (v || '—') : n.toLocaleString('en-IN'); }
+  if (f === 'plannedOtd' || f === 'plannedProduction') return pmDate(v) || '—';
+  return (v === '' || v === null || v === undefined) ? '—' : v;
+}
+
+async function loadProduction() {
+  const c = document.getElementById('pmContent');
+  c.innerHTML = '<div class="pm-wrap"><div class="pm-empty">⏳ Sheet se data aa raha hai…</div></div>';
+  const date = (document.getElementById('pmDate').value || '').trim();
+  const r = await api('/api/production' + (date ? '?date=' + encodeURIComponent(date) : ''));
+  if (!r || r.error) {
+    c.innerHTML = `<div class="pm-wrap"><div class="pm-empty" style="color:#ef4444">⚠️ ${escapeHtml((r && r.error) || 'Data load nahi hua')}</div></div>`;
+    return;
+  }
+  _pmRows = Array.isArray(r.rows) ? r.rows : [];
+  _pmFilters = {};
+  renderProduction();
+}
+
+// Filter + search lagne ke baad kaunsi rows bachi
+function pmVisible() {
+  const q = (document.getElementById('pmSearch')?.value || '').toLowerCase().trim();
+  return _pmRows.filter(x => {
+    if (q && !String(x.buyer || '').toLowerCase().includes(q) && !String(x.piNo || '').toLowerCase().includes(q)) return false;
+    for (const f of Object.keys(_pmFilters)) {
+      const set = _pmFilters[f];
+      if (set && set.size && !set.has(String(pmShown(x, f) ?? ''))) return false;
+    }
+    return true;
+  });
+}
+
+function renderProduction() {
+  const c = document.getElementById('pmContent');
+  const list = pmVisible();
+  document.getElementById('pmCount').textContent = `${list.length} order(s)`;
+  if (!list.length) {
+    c.innerHTML = '<div class="pm-wrap"><div class="pm-empty">Koi order nahi mila</div></div>';
+    return;
+  }
+  const th = PM_COLS.map(col => `
+    <th style="min-width:${col.w}px" class="${col.num ? 'pm-numcol' : ''}"
+        ${col.num ? `onclick="pmSelectCol('${col.f}')" title="Total dekhne ke liye click karo"` : ''}>
+      <div class="pm-th">
+        <span>${col.label}</span>
+        <button class="pm-filt ${(_pmFilters[col.f] && _pmFilters[col.f].size) ? 'on' : ''}"
+          onclick="event.stopPropagation();pmOpenFilter('${col.f}',this)" title="Filter">▾</button>
+      </div>
+    </th>`).join('');
+
+  const rows = list.map((x, i) => {
+    const tds = PM_COLS.map(col => {
+      const val = pmCell(x, col.f);
+      if (col.edit === 'date') {
+        return `<td class="pm-edit" data-row="${i}" data-f="${col.f}"><input type="date" class="pm-in" value="${escapeHtml(String(x[col.f] || '').slice(0,10))}"
+          onchange="pmSave('${escapeHtml(x.rowKey)}','${escapeHtml(x.piNo)}','${col.f}',this.value)"/>${pmHandle(col.f, i)}</td>`;
+      }
+      if (col.edit === 'formula') {
+        // Normal me hisaab dikhta hai; click karte hi formula, bahar jate hi phir hisaab
+        const raw = String(x.inrWorking || '');
+        const shown = raw.trim().startsWith('=') ? val : raw;
+        return `<td class="pm-edit pm-numcol" data-row="${i}" data-f="${col.f}">
+          <input type="text" class="pm-in" value="${escapeHtml(String(shown))}" data-raw="${escapeHtml(raw)}"
+          title="Formula: =D*80 ya =D*93 (D = Amount)"
+          onfocus="this.value=this.dataset.raw"
+          onblur="pmBlurFormula(this,'${escapeHtml(x.rowKey)}')"
+          onchange="pmSave('${escapeHtml(x.rowKey)}','${escapeHtml(x.piNo)}','${col.f}',this.value)"/>
+          ${pmHandle(col.f, i)}</td>`;
+      }
+      if (col.edit === 'text') {
+        return `<td class="pm-edit" data-row="${i}" data-f="${col.f}"><input type="text" class="pm-in" value="${escapeHtml(String(x[col.f] || ''))}"
+          onchange="pmSave('${escapeHtml(x.rowKey)}','${escapeHtml(x.piNo)}','${col.f}',this.value)"/>${pmHandle(col.f, i)}</td>`;
+      }
+      if (col.edit === 'select') {
+        const cur = String(x[col.f] || '');
+        const cls = cur === 'Dispatch' ? 'pm-dispatch' : cur === 'Cancel' ? 'pm-cancel' : '';
+        return `<td class="pm-edit ${cls}" data-row="${i}" data-f="${col.f}">${pmHandle(col.f, i)}<select class="pm-in pm-sel"
+          onchange="pmSave('${escapeHtml(x.rowKey)}','${escapeHtml(x.piNo)}','${col.f}',this.value)">
+          <option value="">—</option>
+          <option value="Dispatch" ${cur === 'Dispatch' ? 'selected' : ''}>Dispatch</option>
+          <option value="Cancel" ${cur === 'Cancel' ? 'selected' : ''}>Cancel</option>
+        </select></td>`;
+      }
+      if (col.calc) {
+        const d = pmDays(x);
+        const cls = d === '' ? '' : (Number(d) < 0 ? 'pm-neg' : 'pm-pos');
+        return `<td class="pm-numcol ${cls}"><b>${d === '' ? '—' : d}</b></td>`;
+      }
+      if (col.f === 'buyer') {
+        return `<td><b>${escapeHtml(x.buyer || '—')}</b><div class="pm-sub">Order: ${pmDate(x.orderDate) || '—'}</div></td>`;
+      }
+      return `<td class="${col.num ? 'pm-numcol' : ''}">${escapeHtml(String(val))}</td>`;
+    }).join('');
+    return `<tr><td class="pm-n">${i + 1}</td>${tds}</tr>`;
+  }).join('');
+
+  // Neeche total — Amount aur INR Working ka jod
+  const sum = f => list.reduce((n, x) => n + (pmNum(pmShown(x, f)) || 0), 0);
+  const foot = PM_COLS.map(col => col.num
+    ? `<td class="pm-numcol"><b>${sum(col.f).toLocaleString('en-IN')}</b></td>`
+    : `<td>${col.f === 'buyer' ? '<b>TOTAL</b>' : ''}</td>`).join('');
+
+  c.innerHTML = `<div class="pm-wrap"><table class="pm-tbl">
+    <thead><tr><th class="pm-n" style="width:40px">#</th>${th}</tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td class="pm-n"></td>${foot}</tr></tfoot>
+  </table></div>`;
+}
+
+// Cell ke kone me chhota chaukor — usse pakad kar neeche kheencho
+function pmHandle(f, i) {
+  return `<span class="pm-fill" title="Neeche kheencho — sab me lag jayega (double click = neeche ke sab)"
+    onmousedown="pmFillStart(event,'${f}',${i})" ondblclick="pmFillAll('${f}',${i})"></span>`;
+}
+
+// Formula wale cell se bahar nikalte hi hisaab dikhao
+function pmBlurFormula(el, rowKey) {
+  const row = _pmRows.find(x => x.rowKey === rowKey);
+  if (!row) return;
+  const raw = String(row.inrWorking || '');
+  el.dataset.raw = raw;
+  const r = pmFormula(raw, row.amount);
+  el.value = raw.trim().startsWith('=')
+    ? (r.value === null ? raw : r.value.toLocaleString('en-IN'))
+    : raw;
+}
+
+// ── Drag to fill ──
+let _pmFill = null;
+function pmFillStart(e, f, fromIdx) {
+  e.preventDefault(); e.stopPropagation();
+  const list = pmVisible();
+  const src = list[fromIdx];
+  if (!src) return;
+  const val = f === 'inrWorking' ? String(src.inrWorking || '') : String(src[f] || '');
+  _pmFill = { f, fromIdx, toIdx: fromIdx, val, list };
+  document.body.style.userSelect = 'none';
+}
+function pmFillMark(toIdx) {
+  document.querySelectorAll('.pm-fillmark').forEach(el => el.classList.remove('pm-fillmark'));
+  if (!_pmFill) return;
+  const a = Math.min(_pmFill.fromIdx, toIdx), b = Math.max(_pmFill.fromIdx, toIdx);
+  for (let i = a; i <= b; i++) {
+    const td = document.querySelector(`#pmContent td[data-row="${i}"][data-f="${_pmFill.f}"]`);
+    if (td) td.classList.add('pm-fillmark');
+  }
+}
+document.addEventListener('mousemove', e => {
+  if (!_pmFill) return;
+  const td = e.target.closest ? e.target.closest(`#pmContent td[data-f="${_pmFill.f}"]`) : null;
+  if (td && td.dataset.row !== undefined) { _pmFill.toIdx = Number(td.dataset.row); pmFillMark(_pmFill.toIdx); }
+});
+document.addEventListener('mouseup', async () => {
+  if (!_pmFill) return;
+  const fill = _pmFill; _pmFill = null;
+  document.body.style.userSelect = '';
+  document.querySelectorAll('.pm-fillmark').forEach(el => el.classList.remove('pm-fillmark'));
+  if (fill.toIdx === fill.fromIdx) return;
+  const a = Math.min(fill.fromIdx, fill.toIdx), b = Math.max(fill.fromIdx, fill.toIdx);
+  await pmFillRange(fill.f, fill.val, fill.list.slice(a, b + 1));
+});
+// Handle par double click -> neeche ke saare rows
+async function pmFillAll(f, fromIdx) {
+  const list = pmVisible();
+  const src = list[fromIdx]; if (!src) return;
+  const val = f === 'inrWorking' ? String(src.inrWorking || '') : String(src[f] || '');
+  await pmFillRange(f, val, list.slice(fromIdx));
+}
+async function pmFillRange(f, val, rows) {
+  if (!rows.length) return;
+  showToast(`⏳ ${rows.length} rows me lag raha hai…`);
+  const r = await api('/api/production/fill', 'PUT',
+    { field: f, value: val, rows: rows.map(x => ({ rowKey: x.rowKey, piNo: x.piNo })) });
+  if (r && r.error) return showToast(r.error, 'error');
+  rows.forEach(x => { const row = _pmRows.find(y => y.rowKey === x.rowKey); if (row) row[f] = val; });
+  renderProduction();
+  showToast(`✅ ${r.count || rows.length} rows me lag gaya`, 'success');
+}
+
+async function pmSave(rowKey, piNo, field, value) {
+  const r = await api('/api/production/cell', 'PUT', { rowKey, piNo, field, value });
+  if (r && r.error) return showToast(r.error, 'error');
+  const row = _pmRows.find(x => x.rowKey === rowKey);
+  if (row) row[field] = value;
+  renderProduction();      // DAYS aur total dobara nikal aayenge
+  showToast('Saved', 'success');
+}
+
+// Amount / INR column par click -> uska total
+function pmSelectCol(f) {
+  const list = pmVisible();
+  const total = list.reduce((n, x) => n + (pmNum(pmShown(x, f)) || 0), 0);
+  const label = (PM_COLS.find(c => c.f === f) || {}).label || f;
+  document.querySelectorAll('.pm-tbl td, .pm-tbl th').forEach(el => el.classList.remove('pm-selcol'));
+  const idx = PM_COLS.findIndex(c => c.f === f) + 1;   // 0 = "#"
+  document.querySelectorAll('.pm-tbl tr').forEach(tr => {
+    const cell = tr.children[idx]; if (cell) cell.classList.add('pm-selcol');
+  });
+  document.getElementById('pmSum').innerHTML =
+    `<b>${label.replace(/&nbsp;/g, ' ')}</b> · ${list.length} rows · Total: <b>${total.toLocaleString('en-IN')}</b>`;
+  document.getElementById('pmSum').style.display = '';
+}
+
+// ── Column filter popup ──
+function pmOpenFilter(f, btn) {
+  const old = document.getElementById('pmFilterPop'); if (old) old.remove();
+  const vals = [...new Set(_pmRows.map(x => String(pmShown(x, f) ?? '')))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const sel = _pmFilters[f] || new Set();
+  const pop = document.createElement('div');
+  pop.id = 'pmFilterPop'; pop.className = 'pm-pop';
+  pop.innerHTML = `
+    <input type="text" class="pm-pop-search" placeholder="🔍 Search…" oninput="pmFilterSearch(this.value)"/>
+    <div class="pm-pop-acts">
+      <button onclick="pmFilterAll('${f}',true)">✓ All</button>
+      <button onclick="pmFilterAll('${f}',false)">✕ None</button>
+    </div>
+    <div class="pm-pop-list" id="pmPopList">
+      ${vals.map(v => `<label data-v="${escapeHtml(v.toLowerCase())}">
+        <input type="checkbox" value="${escapeHtml(v)}" ${(!sel.size || sel.has(v)) ? 'checked' : ''}/>
+        <span>${escapeHtml(v === '' ? '(khali)' : v)}</span></label>`).join('')}
+    </div>
+    <div class="pm-pop-foot">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('pmFilterPop').remove()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="pmApplyFilter('${f}')">Apply</button>
+    </div>`;
+  document.body.appendChild(pop);
+  const r = btn.getBoundingClientRect();
+  pop.style.top = (r.bottom + window.scrollY + 4) + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left + window.scrollX - 120, window.innerWidth - 260)) + 'px';
+}
+function pmFilterSearch(q) {
+  const s = String(q || '').toLowerCase();
+  document.querySelectorAll('#pmPopList label').forEach(l => {
+    l.style.display = !s || (l.dataset.v || '').includes(s) ? '' : 'none';
+  });
+}
+function pmFilterAll(f, on) {
+  document.querySelectorAll('#pmPopList label').forEach(l => {
+    if (l.style.display !== 'none') l.querySelector('input').checked = on;
+  });
+}
+function pmApplyFilter(f) {
+  const boxes = [...document.querySelectorAll('#pmPopList input[type=checkbox]')];
+  const picked = boxes.filter(b => b.checked).map(b => b.value);
+  if (picked.length === boxes.length) delete _pmFilters[f];
+  else _pmFilters[f] = new Set(picked);
+  document.getElementById('pmFilterPop').remove();
+  renderProduction();
+}
+
+// ── PDF ──
+function exportProductionPDF() {
+  const list = pmVisible();
+  if (!list.length) return showToast('Koi row nahi hai', 'error');
+  const now = new Date();
+  const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const dateSel = (document.getElementById('pmDate').value || '').trim();
+  const sum = f => list.reduce((n, x) => n + (pmNum(pmShown(x, f)) || 0), 0);
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+<title>KLM Task Manager — Production Management</title>
+<style>
+  @page { size: A4 landscape; margin: 10mm; }
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:0;font-size:10.5px}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #4f46e5;padding-bottom:7px;margin-bottom:12px}
+  .head h1{margin:0;font-size:17px;color:#4f46e5}
+  .head .sub{font-size:10.5px;color:#64748b}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th,td{border:1px solid #cbd5e1;padding:5px 6px;text-align:left;vertical-align:top;word-wrap:break-word}
+  th{background:#eef2ff;color:#3730a3;font-size:9.5px}
+  tbody tr:nth-child(even){background:#f8fafc}
+  tfoot td{background:#eef2ff;font-weight:bold}
+  .c{text-align:center;white-space:nowrap}
+  .r{text-align:right;white-space:nowrap}
+  thead{display:table-header-group} tr{page-break-inside:avoid}
+  .foot{margin-top:12px;border-top:1px solid #e2e8f0;padding-top:5px;font-size:9.5px;color:#94a3b8;text-align:center}
+</style></head><body>
+  <div class="head">
+    <div><h1>Production Management</h1><div class="sub">O to D — Merchant FMS${dateSel ? ' · Order date: ' + pmDate(dateSel) : ''}</div></div>
+    <div class="sub">${stamp}<br>Total: ${list.length} order(s)</div>
+  </div>
+  <table>
+    <thead><tr><th style="width:26px">#</th>${PM_COLS.map(c => `<th>${c.label.replace(/&nbsp;/g,' ')}</th>`).join('')}</tr></thead>
+    <tbody>${list.map((x, i) => `<tr><td class="c">${i + 1}</td>${PM_COLS.map(c => {
+      const v = pmCell(x, c.f);
+      const cls = c.num ? 'r' : (c.calc || c.edit === 'date' ? 'c' : '');
+      return `<td class="${cls}">${escapeHtml(String(v))}</td>`;
+    }).join('')}</tr>`).join('')}</tbody>
+    <tfoot><tr><td></td>${PM_COLS.map(c => c.num
+      ? `<td class="r">${sum(c.f).toLocaleString('en-IN')}</td>`
+      : `<td>${c.f === 'buyer' ? 'TOTAL' : ''}</td>`).join('')}</tr></tfoot>
+  </table>
+  <div class="foot">KLM Task Manager · ${stamp}</div>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return showToast('Popup blocked — please allow popups', 'error');
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
+}
+
+// Bahar click par filter popup band
+document.addEventListener('click', e => {
+  const pop = document.getElementById('pmFilterPop');
+  if (pop && !pop.contains(e.target) && !e.target.closest('.pm-filt')) pop.remove();
+});
 
 // ══════════════════════════════════════════════════════
 // INVINCIBLE CATALOGUES — two tabs: Catalogues (list) + Upload Catalogues (admin only).

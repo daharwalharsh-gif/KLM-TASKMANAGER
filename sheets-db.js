@@ -110,6 +110,13 @@ const SCHEMA = {
            'status','created_by','created_at','updated_at','done_at','done_by'],
     autoFill: { created_at: 'NOW', updated_at: 'NOW' }
   },
+  // Production Management — sheet se Buyer/PI/Amount aate hain, ye column
+  // yahin app me bharte hain (row_key = PI number + order date).
+  production_rows: {
+    cols: ['id','row_key','pi_no','description','inr_working','planned_otd',
+           'planned_production','dispatched_dates','updated_by','updated_at'],
+    autoFill: { updated_at: 'NOW' }
+  },
   // Employee to Employee Feedback Form — bharne ke baad Completed me (sirf admin dekhta hai)
   feedback_forms: {
     cols: ['id','your_name','department','feedback_for','employee_department','employee_is',
