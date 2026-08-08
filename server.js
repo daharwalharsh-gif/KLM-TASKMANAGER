@@ -3078,6 +3078,121 @@ app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) =>
 });
 
 // ══════════════════════════════════════════════════════
+// DAILY PC REPORT — har FMS (system) ka daily review
+// ══════════════════════════════════════════════════════
+// Form bharte hi status "pending". Pending me jitni baar chaho remark add karo
+// (har remark pc_report_updates me alag row). Done par "completed".
+const PCR_STATUSES = ['pending', 'completed'];
+const PCR_NAMES = ['Ekta', 'Sachin'];
+
+// Ek FMS ke saare doers (har step ke doers milakar, ek baar hi)
+app.get('/api/pc-reports/doers/:fmsId', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT DISTINCT u.id AS userId, u.name
+       FROM fms_steps fst
+       JOIN fms_step_doers fsd ON fsd.step_id = fst.id
+       JOIN users u ON u.id = fsd.user_id
+       WHERE fst.fms_id = ?`, [req.params.fmsId]);
+    const seen = new Set(); const out = [];
+    for (const r of rows) {
+      const k = String(r.userId);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ userId: r.userId, name: r.name });
+    }
+    out.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    res.json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// List — naye pehle, har review ke saath uske saare remarks
+app.get('/api/pc-reports', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT r.*, u.name AS createdByName, u2.name AS doneByName
+       FROM pc_reports r
+       LEFT JOIN users u ON r.created_by = u.id
+       LEFT JOIN users u2 ON r.done_by = u2.id
+       ORDER BY r.id DESC`);
+    const [ups] = await db.query('SELECT * FROM pc_report_updates ORDER BY id ASC');
+    const byCase = new Map();
+    for (const u of ups) {
+      const k = String(u.report_id);
+      if (!byCase.has(k)) byCase.set(k, []);
+      byCase.get(k).push(u);
+    }
+    for (const r of rows) {
+      try { r.doerList = JSON.parse(r.doer_remarks || '[]') || []; } catch (e) { r.doerList = []; }
+      r.updates = byCase.get(String(r.id)) || [];
+    }
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Create — form submit, seedha Pending me
+app.post('/api/pc-reports', requireAuth, async (req, res) => {
+  try {
+    const { fmsId, fmsName, pcName, doerRemarks, ownerRemarks, pcRemarks, priority } = req.body || {};
+    if (!fmsName || !String(fmsName).trim()) return res.status(400).json({ error: 'System Name is required' });
+    if (!pcName || !PCR_NAMES.includes(String(pcName).trim())) return res.status(400).json({ error: 'PC Name is required' });
+    const doers = Array.isArray(doerRemarks) ? doerRemarks.map(d => ({
+      userId: String(d.userId ?? ''), name: String(d.name || ''), remark: String(d.remark || '').trim()
+    })) : [];
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await db.query(
+      `INSERT INTO pc_reports (fms_id,fms_name,pc_name,doer_remarks,owner_remarks,pc_remarks,priority,status,created_by,created_at,updated_at,done_remarks,done_at,done_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [fmsId || '', String(fmsName).trim(), String(pcName).trim(), JSON.stringify(doers),
+       String(ownerRemarks || '').trim(), String(pcRemarks || '').trim(),
+       ['low', 'medium', 'high'].includes(priority) ? priority : 'medium',
+       'pending', req.session.userId, now, now, '', '', '']);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Remark add — jitni baar chaho, kaam poora hone tak
+app.post('/api/pc-reports/:id/updates', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM pc_reports WHERE id=?', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Report not found' });
+    const remark = String((req.body || {}).remark || '').trim();
+    if (!remark) return res.status(400).json({ error: 'Remark is required' });
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const [me] = await db.query('SELECT name FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    await db.query(
+      `INSERT INTO pc_report_updates (report_id,remark,entered_by,entered_by_name,created_at) VALUES (?,?,?,?,?)`,
+      [req.params.id, remark, req.session.userId, me[0]?.name || '', now]);
+    await db.query('UPDATE pc_reports SET updated_at=? WHERE id=?', [now, req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Done — Pending se Completed me
+app.post('/api/pc-reports/:id/done', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM pc_reports WHERE id=?', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Report not found' });
+    const remarks = String((req.body || {}).remarks || '').trim();
+    if (!remarks) return res.status(400).json({ error: 'Closing remarks are required to mark done' });
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await db.query(
+      `UPDATE pc_reports SET status='completed', done_remarks=?, done_at=?, done_by=?, updated_at=? WHERE id=?`,
+      [remarks, now, req.session.userId, now, req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Delete — admin only (remarks bhi saath me)
+app.delete('/api/pc-reports/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await db.query('DELETE FROM pc_report_updates WHERE report_id=?', [req.params.id]);
+    await db.query('DELETE FROM pc_reports WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
 // PRODUCTION MANAGEMENT
 // ══════════════════════════════════════════════════════
 // O to D — Merchant FMS sheet (FMS3 tab) se Buyer name, PI number aur

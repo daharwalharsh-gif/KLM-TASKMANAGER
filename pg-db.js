@@ -116,6 +116,19 @@ const SCHEMA = {
            'planned_production','dispatched_dates','updated_by','updated_at'],
     autoFill: { updated_at: 'NOW' }
   },
+  // Daily PC Report — har FMS ka daily review: PC + doer-wise remarks, owner/PC remarks.
+  // doer_remarks = JSON array [{userId, name, remark}]
+  pc_reports: {
+    cols: ['id','fms_id','fms_name','pc_name','doer_remarks','owner_remarks','pc_remarks',
+           'priority','status','created_by','created_at','updated_at',
+           'done_remarks','done_at','done_by'],
+    autoFill: { created_at: 'NOW', updated_at: 'NOW' }
+  },
+  // Daily PC Report ke andar jitni baar remark add ho — har ek ki alag row
+  pc_report_updates: {
+    cols: ['id','report_id','remark','entered_by','entered_by_name','created_at'],
+    autoFill: { created_at: 'NOW' }
+  },
   // Employee to Employee Feedback Form — bharne ke baad Completed me (sirf admin dekhta hai)
   feedback_forms: {
     cols: ['id','your_name','department','feedback_for','employee_department','employee_is',
@@ -148,7 +161,7 @@ const INT_COLS = new Set([
   'id','assigned_to','assigned_by','user_id','task_id','requested_by','requested_to',
   'employee_id','hod_id','target_count','improvement_pct','fms_id','step_id','step_order',
   'total_steps','header_row','from_user','to_user','waiting_approval','created_by','decided_by','sort_order',
-  'case_id'
+  'case_id','report_id'
 ]);
 
 // ══════════════════════════════════════════════════════════════════
