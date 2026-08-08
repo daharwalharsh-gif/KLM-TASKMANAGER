@@ -9658,6 +9658,11 @@ function canSeeLegal() {
   return !!(ME && (ME.role === 'admin' || ME.canLegal));
 }
 
+// Daily PC Report — sirf Ms. Ekta, Mr. Sachin Kumar aur admin
+function canSeePcReport() {
+  return !!(ME && (ME.role === 'admin' || ME.canPcReport));
+}
+
 async function onFMSTasksSelect() {
   const fmsId = document.getElementById('fmsTasksSelect').value;
   const trainContainer = document.getElementById('fmsTrainContainer');
@@ -11247,7 +11252,7 @@ function downloadPcrPdf() {
 // permission nahi, wo dropdown me aata hi nahi.
 function formsCatalogue() {
   return [
-    { key: PCR_OPT,   icon: '🗂️', name: 'Daily PC Report',                 show: true },
+    { key: PCR_OPT,   icon: '🗂️', name: 'Daily PC Report',                 show: canSeePcReport() },
     { key: CHAL_OPT,  icon: '📝', name: 'Invincible Open Challenges Form', show: canSeeChallenges() },
     { key: LEGAL_OPT, icon: '⚖️', name: 'Legal Case Form',                 show: canSeeLegal() },
     { key: FB_OPT,    icon: '💬', name: 'Employee Feedback Form',          show: true }

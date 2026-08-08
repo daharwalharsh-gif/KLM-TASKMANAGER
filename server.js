@@ -939,6 +939,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Whether the Legal Case form shows in the FMS dropdown
     rows[0].canLegal = req.session.role === 'admin' ||
       LEGAL_EMAILS.has((rows[0].email || '').trim().toLowerCase());
+    // Daily PC Report form Forms dropdown me dikhe ya nahi (admin + Ekta/Sachin)
+    rows[0].canPcReport = req.session.role === 'admin' ||
+      PCR_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     // Sabki leave dekh/approve kar sakta hai ya nahi (admin + HR)
     rows[0].canLeaves = req.session.role === 'admin' ||
       LEAVE_APPROVER_EMAILS.has((rows[0].email || '').trim().toLowerCase());
@@ -3085,8 +3088,26 @@ app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) =>
 const PCR_STATUSES = ['pending', 'completed'];
 const PCR_NAMES = ['Ekta', 'Sachin'];
 
+// Ye form sirf in dono ko dikhta hai (+ admin ko hamesha). Baaki kisi ko
+// na Forms dropdown me option aayega, na API se data milega.
+const PCR_EMAILS = new Set([
+  'pc@klmahajan.com',    // Ms. Ekta
+  'mis@klmahajan.com',   // Mr. Sachin Kumar
+]);
+async function canUsePcReports(req) {
+  if (req.session.role === 'admin') return true;
+  try {
+    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    return PCR_EMAILS.has((rows[0]?.email || '').trim().toLowerCase());
+  } catch (e) { return false; }
+}
+async function requirePcReportAccess(req, res, next) {
+  if (await canUsePcReports(req)) return next();
+  res.status(403).json({ error: 'Not allowed' });
+}
+
 // Ek FMS ke saare doers (har step ke doers milakar, ek baar hi)
-app.get('/api/pc-reports/doers/:fmsId', requireAuth, async (req, res) => {
+app.get('/api/pc-reports/doers/:fmsId', requireAuth, requirePcReportAccess, async (req, res) => {
   try {
     const [rows] = await db.query(
       `SELECT DISTINCT u.id AS userId, u.name
@@ -3107,7 +3128,7 @@ app.get('/api/pc-reports/doers/:fmsId', requireAuth, async (req, res) => {
 });
 
 // List — naye pehle, har review ke saath uske saare remarks
-app.get('/api/pc-reports', requireAuth, async (req, res) => {
+app.get('/api/pc-reports', requireAuth, requirePcReportAccess, async (req, res) => {
   try {
     const [rows] = await db.query(
       `SELECT r.*, u.name AS createdByName, u2.name AS doneByName
@@ -3131,7 +3152,7 @@ app.get('/api/pc-reports', requireAuth, async (req, res) => {
 });
 
 // Create — form submit, seedha Pending me
-app.post('/api/pc-reports', requireAuth, async (req, res) => {
+app.post('/api/pc-reports', requireAuth, requirePcReportAccess, async (req, res) => {
   try {
     const { fmsId, fmsName, pcName, doerRemarks, ownerRemarks, pcRemarks, priority } = req.body || {};
     if (!fmsName || !String(fmsName).trim()) return res.status(400).json({ error: 'System Name is required' });
@@ -3152,7 +3173,7 @@ app.post('/api/pc-reports', requireAuth, async (req, res) => {
 });
 
 // Remark add — jitni baar chaho, kaam poora hone tak
-app.post('/api/pc-reports/:id/updates', requireAuth, async (req, res) => {
+app.post('/api/pc-reports/:id/updates', requireAuth, requirePcReportAccess, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM pc_reports WHERE id=?', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Report not found' });
@@ -3169,7 +3190,7 @@ app.post('/api/pc-reports/:id/updates', requireAuth, async (req, res) => {
 });
 
 // Done — Pending se Completed me
-app.post('/api/pc-reports/:id/done', requireAuth, async (req, res) => {
+app.post('/api/pc-reports/:id/done', requireAuth, requirePcReportAccess, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM pc_reports WHERE id=?', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Report not found' });
