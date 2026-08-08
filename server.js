@@ -131,21 +131,25 @@ const _dbReady = db.init()
 // internal tool, and the only way in-memory caching can stay correct
 // across serverless instances.
 // ══════════════════════════════════════════════════════
-if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-  // 1. Reload-before — only for data routes (skip static assets).
-  //    Mutations (POST/PUT/DELETE/PATCH) pe force=true → TTL ignore, hamesha
-  //    fresh PG state se shuru ho (warna stale memory ka full-rewrite flush
-  //    dusre instance ka data mita deta — CSV bulk upload adhoora reh jaata tha).
-  // Login read-only hai (sirf users padhta hai) — ise force PG reload ki zaroorat
-  // nahi; entry point fast rahe. Baaki mutations pe force zaroori (data-loss guard).
-  const READONLY_POST = new Set(['/login']);
-  app.use('/api', async (req, res, next) => {
-    const isMutation = req.method !== 'GET' && req.method !== 'HEAD' && !READONLY_POST.has(req.path);
-    try { await db.reload(isMutation); }
-    catch (err) { console.error('  ❌ Pre-request reload failed:', err.message); }
-    next();
-  });
+// 1. Reload-before — only for data routes (skip static assets).
+//    Mutations (POST/PUT/DELETE/PATCH) pe force=true → TTL ignore, hamesha
+//    fresh PG state se shuru ho (warna stale memory ka full-rewrite flush
+//    dusre instance ka data mita deta — CSV bulk upload adhoora reh jaata tha).
+// Login read-only hai (sirf users padhta hai) — ise force PG reload ki zaroorat
+// nahi; entry point fast rahe. Baaki mutations pe force zaroori (data-loss guard).
+//
+// Ye guard pehle sirf Vercel par lagta tha. Par jo bhi process isi Postgres se
+// juda ho (local dev server bhi) uski purani memory ka full-table flush live
+// data mita sakta hai — isliye ab ye har jagah chalta hai.
+const READONLY_POST = new Set(['/login']);
+app.use('/api', async (req, res, next) => {
+  const isMutation = req.method !== 'GET' && req.method !== 'HEAD' && !READONLY_POST.has(req.path);
+  try { await db.reload(isMutation); }
+  catch (err) { console.error('  ❌ Pre-request reload failed:', err.message); }
+  next();
+});
 
+if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
   // 2. Flush-after — wrap res.json so pending writes hit the sheet
   //    before the response is sent and the instance is reaped.
   app.use((req, res, next) => {
@@ -3124,6 +3128,16 @@ app.get('/api/pc-reports/doers/:fmsId', requireAuth, requirePcReportAccess, asyn
     }
     out.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
     res.json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// "System Name" dropdown — saare FMS, chahe user kisi ka doer ho ya na ho.
+// (/api/fms-tasks sirf apne FMS deta hai, isliye alag endpoint.)
+app.get('/api/pc-reports/systems', requireAuth, requirePcReportAccess, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT id, fms_name, sheet_name FROM fms_sheets');
+    rows.sort((a, b) => String(a.fms_name || a.sheet_name || '').localeCompare(String(b.fms_name || b.sheet_name || '')));
+    res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

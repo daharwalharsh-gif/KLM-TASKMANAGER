@@ -10911,17 +10911,20 @@ function pcrTab(which, el) {
   if (!isForm) renderPcrList();
 }
 
-// System Name dropdown = saare FMS jo is user ko dikhte hain.
-// Forms page se seedha aane par FMS list load nahi hoti, isliye yahin le aate hain.
+// System Name dropdown = SAARE FMS. Apna khud ka endpoint, kyunki
+// /api/fms-tasks sirf wahi FMS deta hai jinka user doer ho — Ekta/Sachin
+// kisi ke doer nahi, unhe dropdown khaali milta tha.
+let _pcrSystems = [];
 async function fillPcrSystems() {
-  if (!_fmsTasksList || !_fmsTasksList.length) {
-    const list = await api('/api/fms-tasks');
-    _fmsTasksList = Array.isArray(list) ? list : [];
-  }
   const sel = document.getElementById('pcrSystem');
+  if (!_pcrSystems.length) {
+    sel.innerHTML = '<option value="">Loading systems…</option>';
+    const list = await api('/api/pc-reports/systems');
+    _pcrSystems = Array.isArray(list) ? list : [];
+  }
   const cur = sel.value;
   sel.innerHTML = '<option value="">Select system</option>' +
-    (_fmsTasksList || []).map(f =>
+    _pcrSystems.map(f =>
       `<option value="${f.id}">${escapeHtml(f.fms_name || f.sheet_name || ('FMS ' + f.id))}</option>`).join('');
   if (cur) sel.value = cur;
 }
