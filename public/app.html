@@ -1000,6 +1000,80 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
 
     <!-- OPEN CHALLENGES — FMS dropdown se khulta hai -->
+    <!-- Train Container -->
+    <div id="fmsTrainContainer" style="display:none;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">
+        Process Flow — Click a step to view tasks
+        <span id="fmsTrainLegend" style="margin-left:12px;font-weight:400;text-transform:none">
+          <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:linear-gradient(135deg,#1a56db,#3b82f6);display:inline-block"></span> Your step</span>
+          <span style="margin-left:10px;display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:#1e293b;display:inline-block;opacity:.5"></span> Other step</span>
+        </span>
+      </div>
+      <div class="fms-train-track" id="fmsTrainTrack">
+        <div id="fmsTrainInner" class="fms-train-scroll"></div>
+      </div>
+      <div class="fms-train-speed">
+        <span>🐢</span>
+        <input type="range" id="fmsTrainSpeedSlider" min="5" max="60" value="18" oninput="setTrainSpeed(this.value)"/>
+        <span>🐇</span>
+        <span style="margin-left:8px;color:#1e293b;font-weight:600" id="fmsTrainSpeedLabel">18s</span>
+        <button class="btn btn-outline btn-sm" style="margin-left:auto" id="fmsTrainPauseBtn" onclick="toggleTrainPause()">⏸ Pause</button>
+      </div>
+    </div>
+
+    <!-- Selected Step Info + Rows -->
+    <div id="fmsTaskStepPanel" style="display:none">
+      <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 18px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Selected Step</div>
+          <div id="fmsTaskStepName" style="font-size:16px;font-weight:700;color:#1e293b;margin-top:2px">—</div>
+          <div id="fmsTaskStepDoers" style="font-size:12px;color:#64748b;margin-top:2px"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="fmsTaskRowCount" style="font-size:13px;color:#ef4444;font-weight:600"></span>
+          <button class="btn btn-outline btn-sm" onclick="loadFMSTaskRows()" id="fmsTaskLoadBtn">Load Tasks</button>
+        </div>
+      </div>
+
+      <!-- Rows table -->
+      <div id="fmsTaskRowsContainer">
+        <div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
+          Click "Load Tasks" to fetch pending rows for this step
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="fmsTasksEmpty" class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;display:none">
+      No FMS assigned to you yet.
+    </div>
+  </div>
+
+  <!-- ── FORMS — task manager ke saare forms ek jagah ── -->
+  <div id="page-forms" class="page">
+    <div class="page-header">
+      <h2>Forms</h2>
+      <span id="formsCount" style="font-size:12px;font-weight:700;color:#64748b"></span>
+    </div>
+
+    <!-- Select Form — FMS Tasks jaisa dropdown -->
+    <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px 18px;margin-bottom:18px;
+      display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <label style="font-size:13px;font-weight:700;color:#475569;white-space:nowrap">Select Form:</label>
+      <select id="formsSelect" onchange="onFormSelect()"
+        style="flex:1;min-width:260px;padding:11px 13px;border:1.5px solid #e2e8f0;border-radius:10px;
+        font-size:14px;font-family:'Inter',sans-serif;font-weight:600;color:#1e293b;outline:none;cursor:pointer;background:#fff">
+      </select>
+    </div>
+
+    <!-- Jab koi form select nahi — saare form card ke roop me -->
+    <div id="formsHome">
+      <div style="font-size:13px;color:#64748b;margin-bottom:16px">
+        Pick a form from the dropdown above, or click any card below.
+      </div>
+      <div class="forms-grid" id="formsGrid"></div>
+    </div>
+
     <div id="fmsChalWrap" style="display:none">
       <div class="page-header" style="margin-bottom:14px"><h2>Invincible Open Challenges Form</h2></div>
 
@@ -1435,66 +1509,6 @@ tbody tr:last-child td{border-bottom:none;}
         <div id="pcrContent"></div>
       </div>
     </div>
-
-    <!-- Train Container -->
-    <div id="fmsTrainContainer" style="display:none;margin-bottom:16px">
-      <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">
-        Process Flow — Click a step to view tasks
-        <span id="fmsTrainLegend" style="margin-left:12px;font-weight:400;text-transform:none">
-          <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:linear-gradient(135deg,#1a56db,#3b82f6);display:inline-block"></span> Your step</span>
-          <span style="margin-left:10px;display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:#1e293b;display:inline-block;opacity:.5"></span> Other step</span>
-        </span>
-      </div>
-      <div class="fms-train-track" id="fmsTrainTrack">
-        <div id="fmsTrainInner" class="fms-train-scroll"></div>
-      </div>
-      <div class="fms-train-speed">
-        <span>🐢</span>
-        <input type="range" id="fmsTrainSpeedSlider" min="5" max="60" value="18" oninput="setTrainSpeed(this.value)"/>
-        <span>🐇</span>
-        <span style="margin-left:8px;color:#1e293b;font-weight:600" id="fmsTrainSpeedLabel">18s</span>
-        <button class="btn btn-outline btn-sm" style="margin-left:auto" id="fmsTrainPauseBtn" onclick="toggleTrainPause()">⏸ Pause</button>
-      </div>
-    </div>
-
-    <!-- Selected Step Info + Rows -->
-    <div id="fmsTaskStepPanel" style="display:none">
-      <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:14px 18px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div>
-          <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Selected Step</div>
-          <div id="fmsTaskStepName" style="font-size:16px;font-weight:700;color:#1e293b;margin-top:2px">—</div>
-          <div id="fmsTaskStepDoers" style="font-size:12px;color:#64748b;margin-top:2px"></div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span id="fmsTaskRowCount" style="font-size:13px;color:#ef4444;font-weight:600"></span>
-          <button class="btn btn-outline btn-sm" onclick="loadFMSTaskRows()" id="fmsTaskLoadBtn">Load Tasks</button>
-        </div>
-      </div>
-
-      <!-- Rows table -->
-      <div id="fmsTaskRowsContainer">
-        <div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
-          Click "Load Tasks" to fetch pending rows for this step
-        </div>
-      </div>
-    </div>
-
-    <!-- Empty state -->
-    <div id="fmsTasksEmpty" class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;display:none">
-      No FMS assigned to you yet.
-    </div>
-  </div>
-
-  <!-- ── FORMS — task manager ke saare forms ek jagah ── -->
-  <div id="page-forms" class="page">
-    <div class="page-header">
-      <h2>Forms</h2>
-      <span id="formsCount" style="font-size:12px;font-weight:700;color:#64748b"></span>
-    </div>
-    <div style="font-size:13px;color:#64748b;margin-bottom:16px">
-      Click any card below to open that form directly.
-    </div>
-    <div class="forms-grid" id="formsGrid"></div>
   </div>
 
   <!-- ── MIS REPORT ── -->
@@ -9614,10 +9628,6 @@ async function loadFMSTasks() {
   trainContainer.style.display = 'none';
   stepPanel.style.display = 'none';
   emptyEl.style.display = 'none';
-  document.getElementById('fmsChalWrap').style.display = 'none';
-  document.getElementById('fmsLegalWrap').style.display = 'none';
-  document.getElementById('fmsFbWrap').style.display = 'none';
-  document.getElementById('fmsPcrWrap').style.display = 'none';
   document.getElementById('fmsSheetLink').style.display = 'none';
 
   const list = await api('/api/fms-tasks');
@@ -9628,25 +9638,17 @@ async function loadFMSTasks() {
     showToast(list.error, 'error');
     return;
   }
-  // Feedback form sabke liye hai, isliye dropdown kabhi khaali nahi hota —
-  // "No FMS available" ab tabhi jab list bhi na ho aur koi form bhi allowed na ho.
-  if ((!list || !list.length) && !canSeeChallenges() && !canSeeLegal() && !ME) {
+  if (!list || !list.length) {
     sel.innerHTML = '<option value="">-- No FMS available --</option>';
     emptyEl.style.display = 'block';
     return;
   }
 
   _fmsTasksList = Array.isArray(list) ? list : [];
+  // Forms (Open Challenges / Legal / Feedback / Daily PC Report) ab alag "Forms"
+  // page par hain — is dropdown me sirf FMS rehte hain.
   sel.innerHTML = '<option value="">-- Select an FMS --</option>' +
-    _fmsTasksList.map(f => `<option value="${f.id}">${f.fms_name || f.sheet_name}</option>`).join('') +
-    // Open Challenges form — sirf allowed doers + admin ko ye option dikhta hai
-    (canSeeChallenges() ? `<option value="${CHAL_OPT}">📝 Invincible Open Challenges Form</option>` : '') +
-    // Legal Case form — sirf allowed doer + admin
-    (canSeeLegal() ? `<option value="${LEGAL_OPT}">⚖️ Legal Case Form</option>` : '') +
-    // Feedback form — sab bhar sakte hain
-    `<option value="${FB_OPT}">📝 Employee Feedback Form</option>` +
-    // Daily PC Report — sab bhar sakte hain
-    `<option value="${PCR_OPT}">🗂️ Daily PC Report</option>`;
+    _fmsTasksList.map(f => `<option value="${f.id}">${f.fms_name || f.sheet_name}</option>`).join('');
 
   // Auto-select first
   if (_fmsTasksList.length === 1) {
@@ -9672,75 +9674,8 @@ async function onFMSTasksSelect() {
   const fmsId = document.getElementById('fmsTasksSelect').value;
   const trainContainer = document.getElementById('fmsTrainContainer');
   const stepPanel = document.getElementById('fmsTaskStepPanel');
-  const chalWrap = document.getElementById('fmsChalWrap');
-  const legalWrap = document.getElementById('fmsLegalWrap');
-  const fbWrap = document.getElementById('fmsFbWrap');
-  const pcrWrap = document.getElementById('fmsPcrWrap');
   const emptyEl = document.getElementById('fmsTasksEmpty');
 
-  // Daily PC Report — FMS ka train/step view band, form + pending + completed on
-  if (fmsId === PCR_OPT) {
-    trainContainer.style.display = 'none';
-    stepPanel.style.display = 'none';
-    emptyEl.style.display = 'none';
-    chalWrap.style.display = 'none';
-    legalWrap.style.display = 'none';
-    fbWrap.style.display = 'none';
-    updateFmsSheetLink('');
-    document.getElementById('fmsTasksRefreshBtn').style.display = 'none';
-    pcrWrap.style.display = '';
-    fillPcrSystems();
-    resetPcrForm();
-    pcrTab('form', document.getElementById('pcrTabForm'));
-    await loadPcrList();
-    return;
-  }
-  pcrWrap.style.display = 'none';
-
-  // Feedback form — FMS ka train/step view band, form + completed on
-  if (fmsId === FB_OPT) {
-    trainContainer.style.display = 'none';
-    stepPanel.style.display = 'none';
-    emptyEl.style.display = 'none';
-    chalWrap.style.display = 'none';
-    legalWrap.style.display = 'none';
-    updateFmsSheetLink('');
-    document.getElementById('fmsTasksRefreshBtn').style.display = 'none';
-    fbWrap.style.display = '';
-    fillFbEmployees();
-    document.getElementById('fbTabDone').style.display = fbIsAdmin() ? '' : 'none';
-    feedbackTab('form', document.getElementById('fbTabForm'));
-    return;
-  }
-  fbWrap.style.display = 'none';
-
-  // Legal Case form — FMS ka train/step view band, form + pending + completed on
-  if (fmsId === LEGAL_OPT) {
-    trainContainer.style.display = 'none';
-    stepPanel.style.display = 'none';
-    emptyEl.style.display = 'none';
-    chalWrap.style.display = 'none';
-    updateFmsSheetLink('');
-    document.getElementById('fmsTasksRefreshBtn').style.display = 'none';
-    legalWrap.style.display = '';
-    legalTab('form', document.getElementById('lgTabForm'));
-    return;
-  }
-  legalWrap.style.display = 'none';
-
-  // Open Challenges form — FMS ka train/step view band, form + pending + completed on
-  if (fmsId === CHAL_OPT) {
-    trainContainer.style.display = 'none';
-    stepPanel.style.display = 'none';
-    emptyEl.style.display = 'none';
-    updateFmsSheetLink('');
-    document.getElementById('fmsTasksRefreshBtn').style.display = 'none';
-    chalWrap.style.display = '';
-    challengeTab('form', document.getElementById('chalTabForm'));
-    await loadChallenges();
-    return;
-  }
-  chalWrap.style.display = 'none';
   document.getElementById('fmsTasksRefreshBtn').style.display = _fmsTasksList.length ? 'flex' : 'none';
 
   if (!fmsId) {
@@ -10983,8 +10918,13 @@ function pcrTab(which, el) {
   if (!isForm) renderPcrList();
 }
 
-// System Name dropdown = saare FMS jo is user ko dikhte hain
-function fillPcrSystems() {
+// System Name dropdown = saare FMS jo is user ko dikhte hain.
+// Forms page se seedha aane par FMS list load nahi hoti, isliye yahin le aate hain.
+async function fillPcrSystems() {
+  if (!_fmsTasksList || !_fmsTasksList.length) {
+    const list = await api('/api/fms-tasks');
+    _fmsTasksList = Array.isArray(list) ? list : [];
+  }
   const sel = document.getElementById('pcrSystem');
   const cur = sel.value;
   sel.innerHTML = '<option value="">Select system</option>' +
@@ -11334,31 +11274,72 @@ function formsCatalogue() {
   ].filter(f => f.show);
 }
 
+// Kaunsa form kis wrapper me hai
+const FORM_WRAPS = {};
+
 function loadFormsPage() {
-  const box = document.getElementById('formsGrid');
   const forms = formsCatalogue();
-  box.innerHTML = forms.map(f => `<div class="form-card" onclick="openFormFromCard('${f.key}')">
+  FORM_WRAPS[CHAL_OPT] = 'fmsChalWrap';
+  FORM_WRAPS[LEGAL_OPT] = 'fmsLegalWrap';
+  FORM_WRAPS[FB_OPT] = 'fmsFbWrap';
+  FORM_WRAPS[PCR_OPT] = 'fmsPcrWrap';
+
+  // Dropdown — FMS Tasks jaisa
+  const sel = document.getElementById('formsSelect');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">-- Select a Form --</option>' +
+    forms.map(f => `<option value="${f.key}">${f.icon} ${escapeHtml(f.name)}</option>`).join('');
+  if (cur && forms.some(f => f.key === cur)) sel.value = cur;
+
+  // Cards
+  document.getElementById('formsGrid').innerHTML = forms.map(f => `<div class="form-card" onclick="openFormFromCard('${f.key}')">
       <div class="form-card-ico" style="background:${f.bg};color:${f.color}">${f.icon}</div>
       <div class="form-card-name">${escapeHtml(f.name)}</div>
       <div class="form-card-desc">${escapeHtml(f.desc)}</div>
       <div class="form-card-go" style="color:${f.color}">Open Form →</div>
     </div>`).join('');
   document.getElementById('formsCount').textContent = forms.length + ' form' + (forms.length === 1 ? '' : 's') + ' available';
+
+  return onFormSelect();
 }
 
-// Card se seedha us form par — FMS Tasks page khol kar dropdown set karte hain
-async function openFormFromCard(key) {
-  navigate('fms-tasks', document.getElementById('nav-fms-tasks'));
-  for (let i = 0; i < 40; i++) {
-    const sel = document.getElementById('fmsTasksSelect');
-    if (sel && [...sel.options].some(o => o.value === key)) {
-      sel.value = key;
-      await onFMSTasksSelect();
-      return;
-    }
-    await new Promise(r => setTimeout(r, 150));
+// Dropdown se form chuna — sirf wahi form dikhao
+async function onFormSelect() {
+  const key = document.getElementById('formsSelect').value;
+  const allowed = new Set(formsCatalogue().map(f => f.key));
+
+  Object.values(FORM_WRAPS).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  document.getElementById('formsHome').style.display = key ? 'none' : '';
+  if (!key || !allowed.has(key)) return;
+
+  const el = document.getElementById(FORM_WRAPS[key]);
+  if (!el) return;
+  el.style.display = '';
+
+  if (key === PCR_OPT) {
+    await fillPcrSystems();
+    resetPcrForm();
+    pcrTab('form', document.getElementById('pcrTabForm'));
+    await loadPcrList();
+  } else if (key === FB_OPT) {
+    fillFbEmployees();
+    document.getElementById('fbTabDone').style.display = fbIsAdmin() ? '' : 'none';
+    feedbackTab('form', document.getElementById('fbTabForm'));
+  } else if (key === LEGAL_OPT) {
+    legalTab('form', document.getElementById('lgTabForm'));
+  } else if (key === CHAL_OPT) {
+    challengeTab('form', document.getElementById('chalTabForm'));
+    await loadChallenges();
   }
-  showToast('Form is still loading — please try again', 'error');
+}
+
+// Card par click — dropdown wahi set karke form khol do
+function openFormFromCard(key) {
+  document.getElementById('formsSelect').value = key;
+  return onFormSelect();
 }
 
 // ══════════════════════════════════════════════════════
