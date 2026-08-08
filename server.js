@@ -3277,6 +3277,7 @@ app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
       x.plannedOtd = s.planned_otd || '';
       x.plannedProduction = s.planned_production || '';
       x.dispatchedDates = s.dispatched_dates || '';
+      x.dispatchRemarks = s.dispatch_remarks || '';
     }
     // Filter ke liye kaunsi dates maujood hain
     const dates = [...new Set(rows.map(x => x.orderDate).filter(Boolean))].sort().reverse();
@@ -3290,7 +3291,8 @@ app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
 
 // Ek cell save — jo column app me bharte hain
 const PROD_EDITABLE = { description: 'description', inrWorking: 'inr_working',
-  plannedOtd: 'planned_otd', plannedProduction: 'planned_production', dispatchedDates: 'dispatched_dates' };
+  plannedOtd: 'planned_otd', plannedProduction: 'planned_production', dispatchedDates: 'dispatched_dates',
+  dispatchRemarks: 'dispatch_remarks' };
 
 app.put('/api/production/cell', requireAuth, requireAdmin, async (req, res) => {
   try {

@@ -1820,6 +1820,11 @@ tbody tr:last-child td{border-bottom:none;}
     .pm-dispatch .pm-sel{color:#15803d}
     .pm-cancel{background:#fee2e2!important}
     .pm-cancel .pm-sel{color:#b91c1c}
+    .pm-rem{width:100%;margin-top:4px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;
+      font-size:11.5px;font-family:'Inter',sans-serif;color:#1e293b;background:rgba(255,255,255,.75);
+      outline:none;box-sizing:border-box}
+    .pm-rem:focus{border-color:#4f46e5;background:#fff}
+    .pm-rem::placeholder{color:#94a3b8}
     .pm-selcol{background:#eef2ff!important;box-shadow:inset 2px 0 0 #4f46e5,inset -2px 0 0 #4f46e5}
     .pm-tbl tfoot td{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:9px 10px}
     .pm-sum{background:#4f46e5;color:#fff;border-radius:9px;padding:9px 14px;font-size:13px;margin-bottom:12px}
@@ -11338,7 +11343,7 @@ const PM_COLS = [
   { f: 'plannedOtd',        label: 'Planned dates As Per Otd fms',  w: 150, edit: 'date' },
   { f: 'plannedProduction', label: 'Planned dates As Per production', w: 150, edit: 'date' },
   { f: 'days',              label: 'DAYS',                          w: 70,  calc: true },
-  { f: 'dispatchedDates',   label: 'Dispatched dates',              w: 140, edit: 'select' },
+  { f: 'dispatchedDates',   label: 'Dispatched dates',              w: 185, edit: 'select' },
 ];
 
 function pmNum(v) {
@@ -11451,14 +11456,21 @@ function renderProduction() {
           onchange="pmSave('${escapeHtml(x.rowKey)}','${escapeHtml(x.piNo)}','${col.f}',this.value)"/>${pmHandle(col.f, i)}</td>`;
       }
       if (col.edit === 'select') {
+        // Dispatch / Cancel chunte hi neeche chhota remarks box aa jaata hai
         const cur = String(x[col.f] || '');
+        const rem = String(x.dispatchRemarks || '');
         const cls = cur === 'Dispatch' ? 'pm-dispatch' : cur === 'Cancel' ? 'pm-cancel' : '';
+        const remBox = cur
+          ? `<input type="text" class="pm-rem" value="${escapeHtml(rem)}" placeholder="Remarks…"
+              title="${escapeHtml(rem)}"
+              onchange="pmSave('${escapeHtml(x.rowKey)}','${escapeHtml(x.piNo)}','dispatchRemarks',this.value)"/>`
+          : '';
         return `<td class="pm-edit ${cls}" data-row="${i}" data-f="${col.f}">${pmHandle(col.f, i)}<select class="pm-in pm-sel"
           onchange="pmSave('${escapeHtml(x.rowKey)}','${escapeHtml(x.piNo)}','${col.f}',this.value)">
           <option value="">—</option>
           <option value="Dispatch" ${cur === 'Dispatch' ? 'selected' : ''}>Dispatch</option>
           <option value="Cancel" ${cur === 'Cancel' ? 'selected' : ''}>Cancel</option>
-        </select></td>`;
+        </select>${remBox}</td>`;
       }
       if (col.calc) {
         const d = pmDays(x);
@@ -11661,9 +11673,13 @@ function exportProductionPDF() {
   <table>
     <thead><tr><th style="width:26px">#</th>${PM_COLS.map(c => `<th>${c.label.replace(/&nbsp;/g,' ')}</th>`).join('')}</tr></thead>
     <tbody>${list.map((x, i) => `<tr><td class="c">${i + 1}</td>${PM_COLS.map(c => {
-      const v = pmCell(x, c.f);
+      let v = String(pmCell(x, c.f));
+      // Dispatch / Cancel ke saath uska remark bhi PDF me
+      if (c.f === 'dispatchedDates' && String(x.dispatchRemarks || '').trim()) {
+        v = (v === '—' ? '' : v + ' — ') + String(x.dispatchRemarks).trim();
+      }
       const cls = c.num ? 'r' : (c.calc || c.edit === 'date' ? 'c' : '');
-      return `<td class="${cls}">${escapeHtml(String(v))}</td>`;
+      return `<td class="${cls}">${escapeHtml(v)}</td>`;
     }).join('')}</tr>`).join('')}</tbody>
     <tfoot><tr><td></td>${PM_COLS.map(c => c.num
       ? `<td class="r">${sum(c.f).toLocaleString('en-IN')}</td>`
