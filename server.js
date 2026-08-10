@@ -3085,6 +3085,143 @@ app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) =>
 });
 
 // ══════════════════════════════════════════════════════
+// PPC — PMS Garments / PMS Boxing se production planning
+// ══════════════════════════════════════════════════════
+// Dono sheet ka "PMS" tab ek jaisa hai: header row 6, data row 7 se.
+// B=Buyer name, C=Code, D=Size, E=Colour, F=Quantity, J=PI number,
+// K=PI approval date, Q=unique id.
+// Steps "Steps Directory" tab se aate hain, aur kaun sa step kis order par
+// poora hua ye "Data" tab (Unique Key + Step Code + status) se.
+const PPC_SHEETS = {
+  garments: { key: 'garments', label: 'PMS Garments', id: '1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg' },
+  boxing:   { key: 'boxing',   label: 'PMS Boxing',   id: '1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM' }
+};
+const PPC_TAB = 'PMS';
+const PPC_HEADER_ROW = 6;
+
+// Sheet me date DD-MM-YYYY ya DD/MM/YYYY dono me aati hai -> YYYY-MM-DD
+function ppcIsoDate(v) {
+  const s = String(v || '').trim();
+  if (!s) return '';
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
+  const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m2 ? m2[0] : '';
+}
+
+app.get('/api/ppc', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const key = String(req.query.sheet || 'garments').trim().toLowerCase();
+    const cfg = PPC_SHEETS[key];
+    if (!cfg) return res.status(400).json({ error: 'Unknown sheet' });
+    const from = ppcIsoDate(req.query.from) || String(req.query.from || '').trim();
+    const to   = ppcIsoDate(req.query.to)   || String(req.query.to   || '').trim();
+
+    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    const grab = async (range) => {
+      try {
+        const r = await sheetsApi.spreadsheets.values.get({ spreadsheetId: cfg.id, range });
+        return r.data.values || [];
+      } catch (e) { return []; }
+    };
+    const [pms, stepRows, dataRows] = await Promise.all([
+      grab(`${PPC_TAB}!A:Q`),
+      grab('Steps Directory!A2:C'),
+      grab('Data!A:D')
+    ]);
+
+    // Steps — sheet ke apne steps, usi kram me
+    const steps = [];
+    for (const r of stepRows) {
+      const name = String(r[0] || '').trim();
+      const code = String(r[2] || '').trim();
+      if (!name || !code) continue;
+      steps.push({ code, name });
+    }
+    steps.sort((a, b) => {
+      const n = s => parseInt(String(s).replace(/\D+/g, ''), 10) || 0;
+      return n(a.code) - n(b.code);
+    });
+
+    // Kaun sa step kis unique id par Done
+    const doneMap = {};   // uniqueId -> Set(stepCode)
+    for (const r of dataRows) {
+      const uid = String(r[0] || '').trim();
+      const code = String(r[1] || '').trim();
+      const st = String(r[3] || '').trim().toLowerCase();
+      if (!uid || !code) continue;
+      if (st && st !== 'done') continue;
+      (doneMap[uid] = doneMap[uid] || new Set()).add(code);
+    }
+
+    // App me bhare hue manual column
+    const [saved] = await db.query('SELECT * FROM ppc_rows');
+    const byKey = {};
+    for (const s of saved) byKey[String(s.row_key)] = s;
+
+    const rows = [];
+    for (const row of pms.slice(PPC_HEADER_ROW)) {
+      const buyer   = String(row[1]  || '').trim();   // B
+      const code    = String(row[2]  || '').trim();   // C
+      const size    = String(row[3]  || '').trim();   // D
+      const colour  = String(row[4]  || '').trim();   // E
+      const qty     = String(row[5]  || '').trim();   // F
+      const piNo    = String(row[9]  || '').trim();   // J
+      const piAppr  = ppcIsoDate(row[10]);            // K
+      const uniqueId= String(row[16] || '').trim();   // Q
+      if (!buyer && !piNo && !uniqueId) continue;
+      if (from && (!piAppr || piAppr < from)) continue;
+      if (to   && (!piAppr || piAppr > to))   continue;
+
+      const rowKey = key + '|' + (uniqueId || (piNo + '|' + code + '|' + size + '|' + colour));
+      const s = byKey[rowKey] || {};
+      const done = doneMap[uniqueId] || new Set();
+      rows.push({
+        rowKey, uniqueId, buyer, piNo, code, colour, size, orderQty: qty, piApprovalDate: piAppr,
+        deliveryDate: s.delivery_date || '',
+        priority:     s.priority || '',
+        statusText:   s.status_text || '',
+        doneSteps: steps.filter(st => done.has(st.code)).map(st => st.code)
+      });
+    }
+
+    res.json({ sheet: cfg.key, label: cfg.label, sheetId: cfg.id, steps, rows, total: rows.length,
+      sheets: Object.values(PPC_SHEETS).map(s => ({ key: s.key, label: s.label })) });
+  } catch (err) {
+    console.error('PPC sheet read FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Manual column — delivery date, priority, status
+const PPC_EDITABLE = { deliveryDate: 'delivery_date', priority: 'priority', statusText: 'status_text' };
+app.put('/api/ppc/cell', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { rowKey, uniqueId, sheetKey, field, value } = req.body || {};
+    const col = PPC_EDITABLE[field];
+    if (!rowKey || !col) return res.status(400).json({ error: 'rowKey aur sahi field zaroori hai' });
+    const val = String(value ?? '').trim();
+    if (field === 'priority' && val && !['High', 'Low'].includes(val)) {
+      return res.status(400).json({ error: 'Priority High ya Low hi ho sakti hai' });
+    }
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const [ex] = await db.query('SELECT id FROM ppc_rows WHERE row_key=?', [rowKey]);
+    if (ex[0]) {
+      await db.query(`UPDATE ppc_rows SET ${col}=?, updated_by=?, updated_at=? WHERE row_key=?`,
+        [val, req.session.userId, now, rowKey]);
+    } else {
+      await db.query(
+        `INSERT INTO ppc_rows (row_key,sheet_key,unique_id,delivery_date,priority,status_text,updated_by,updated_at)
+         VALUES (?,?,?,?,?,?,?,?)`,
+        [rowKey, String(sheetKey || ''), String(uniqueId || ''),
+         col === 'delivery_date' ? val : '', col === 'priority' ? val : '',
+         col === 'status_text' ? val : '', req.session.userId, now]);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
 // DAILY PC REPORT — har FMS (system) ka daily review
 // ══════════════════════════════════════════════════════
 // Form bharte hi status "pending". Pending me jitni baar chaho remark add karo

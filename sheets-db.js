@@ -130,6 +130,12 @@ const SCHEMA = {
     cols: ['id','report_id','remark','entered_by','entered_by_name','created_at'],
     autoFill: { created_at: 'NOW' }
   },
+  // PPC — PMS Garments / Boxing ke order par manual column
+  // (row_key = sheetKey + '|' + unique id)
+  ppc_rows: {
+    cols: ['id','row_key','sheet_key','unique_id','delivery_date','priority','status_text','updated_by','updated_at'],
+    autoFill: { updated_at: 'NOW' }
+  },
   // Employee to Employee Feedback Form — bharne ke baad Completed me (sirf admin dekhta hai)
   feedback_forms: {
     cols: ['id','your_name','department','feedback_for','employee_department','employee_is',

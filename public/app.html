@@ -1825,6 +1825,18 @@ tbody tr:last-child td{border-bottom:none;}
       outline:none;box-sizing:border-box}
     .pm-rem:focus{border-color:#4f46e5;background:#fff}
     .pm-rem::placeholder{color:#94a3b8}
+    /* ── PPC ── */
+    .ppc-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+    .ppc-tab{padding:8px 14px;border:1.5px solid #e2e8f0;border-radius:9px;background:#fff;cursor:pointer;
+      font-size:12.5px;font-weight:600;color:#475569;white-space:nowrap;transition:all .13s}
+    .ppc-tab:hover{border-color:#c7d2fe;background:#f8faff}
+    .ppc-tab.active{background:#4f46e5;border-color:#4f46e5;color:#fff}
+    .ppc-st{text-align:center}
+    .ppc-pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;white-space:nowrap}
+    .ppc-done{background:#dcfce7;color:#15803d}
+    .ppc-pend{background:#fef3c7;color:#b45309}
+    .ppc-high{background:#fee2e2!important} .ppc-high .pm-sel{color:#b91c1c;font-weight:700}
+    .ppc-low{background:#dcfce7!important}  .ppc-low .pm-sel{color:#15803d;font-weight:700}
     .pm-selcol{background:#eef2ff!important;box-shadow:inset 2px 0 0 #4f46e5,inset -2px 0 0 #4f46e5}
     .pm-tbl tfoot td{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:9px 10px}
     .pm-sum{background:#4f46e5;color:#fff;border-radius:9px;padding:9px 14px;font-size:13px;margin-bottom:12px}
@@ -1852,9 +1864,11 @@ tbody tr:last-child td{border-bottom:none;}
         <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe"
           onclick="exportProductionPDF()">📄 PDF</button>
         <button class="btn btn-outline btn-sm" onclick="loadProduction()">🔄 Refresh</button>
+        <button class="btn btn-primary btn-sm" onclick="showPPC()">🧵 PPC</button>
       </div>
     </div>
 
+    <div id="pmMain">
     <div class="pm-bar">
       <div>
         <label>Order Date</label>
@@ -1873,6 +1887,47 @@ tbody tr:last-child td{border-bottom:none;}
 
     <div class="pm-sum" id="pmSum" style="display:none"></div>
     <div id="pmContent"></div>
+    </div><!-- /pmMain -->
+
+    <!-- ── PPC — PMS Garments / PMS Boxing ── -->
+    <div id="ppcWrap" style="display:none">
+      <div class="page-header" style="margin-bottom:14px">
+        <h2 style="font-size:19px">🧵 PPC</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <a id="ppcSheetLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="#">📄 Open Google Sheet ↗</a>
+          <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="exportPPCPDF()">📄 PDF</button>
+          <button class="btn btn-outline btn-sm" onclick="loadPPC()">🔄 Refresh</button>
+          <button class="btn btn-outline btn-sm" onclick="hidePPC()">← Production</button>
+        </div>
+      </div>
+
+      <div class="pm-bar">
+        <div>
+          <label>Sheet</label>
+          <select id="ppcSheet" onchange="_ppcStep='';loadPPC()" style="min-width:170px"></select>
+        </div>
+        <div>
+          <label>PI Approval From</label>
+          <input type="date" id="ppcFrom" onchange="loadPPC()"/>
+        </div>
+        <div>
+          <label>To</label>
+          <input type="date" id="ppcTo" onchange="loadPPC()"/>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button class="btn btn-outline btn-sm" onclick="ppcClearDates()">✕ Clear</button>
+        </div>
+        <div style="flex:1;min-width:190px">
+          <label>Search</label>
+          <input type="text" id="ppcSearch" placeholder="Buyer / PI / Code / Colour…" oninput="renderPPC()" style="width:100%"/>
+        </div>
+        <span class="pm-count" id="ppcCount"></span>
+      </div>
+
+      <div class="ppc-tabs" id="ppcTabs"></div>
+      <div id="ppcContent"></div>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════
@@ -10894,6 +10949,206 @@ async function submitTaskTransfer() {
 }
 
 
+
+// ══════════════════════════════════════════════════════
+// PPC — PMS Garments / PMS Boxing (Production Management ke andar)
+// ══════════════════════════════════════════════════════
+// Sheet chuno -> uske apne steps ke tab bante hain. Har step tab me us step
+// ka Done/Pending dikhta hai. Delivery date, Priority aur Status manual hain.
+let _ppcData = { rows: [], steps: [], sheets: [], label: '', sheetId: '' };
+let _ppcStep = '';      // '' = All Orders
+let _ppcLoading = false;
+
+function showPPC() {
+  document.getElementById('pmMain').style.display = 'none';
+  document.getElementById('ppcWrap').style.display = '';
+  document.getElementById('topbarTitle').textContent = 'PPC';
+  loadPPC();
+}
+function hidePPC() {
+  document.getElementById('ppcWrap').style.display = 'none';
+  document.getElementById('pmMain').style.display = '';
+  document.getElementById('topbarTitle').textContent = 'Production Management';
+}
+
+async function loadPPC() {
+  if (_ppcLoading) return;
+  _ppcLoading = true;
+  const box = document.getElementById('ppcContent');
+  box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
+  const sheet = document.getElementById('ppcSheet').value || 'garments';
+  const from = document.getElementById('ppcFrom').value || '';
+  const to = document.getElementById('ppcTo').value || '';
+  const q = `/api/ppc?sheet=${encodeURIComponent(sheet)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  const r = await api(q);
+  _ppcLoading = false;
+  if (!r || r.error) {
+    box.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">⚠️ ${escapeHtml((r && r.error) || 'Load failed')}</div>`;
+    return;
+  }
+  _ppcData = r;
+  // Sheet dropdown pehli baar bharo
+  const sel = document.getElementById('ppcSheet');
+  if (sel.options.length !== (r.sheets || []).length) {
+    sel.innerHTML = (r.sheets || []).map(s => `<option value="${s.key}">${escapeHtml(s.label)}</option>`).join('');
+    sel.value = r.sheet;
+  }
+  const link = document.getElementById('ppcSheetLink');
+  if (link) link.href = 'https://docs.google.com/spreadsheets/d/' + r.sheetId + '/edit';
+  if (_ppcStep && !(r.steps || []).some(s => s.code === _ppcStep)) _ppcStep = '';
+  renderPPCTabs();
+  renderPPC();
+}
+
+// Sheet ke jitne steps — utne tab (+ All Orders)
+function renderPPCTabs() {
+  const steps = _ppcData.steps || [];
+  document.getElementById('ppcTabs').innerHTML =
+    `<div class="ppc-tab ${_ppcStep === '' ? 'active' : ''}" onclick="ppcStep('')">📋 All Orders</div>` +
+    steps.map((s, i) => `<div class="ppc-tab ${_ppcStep === s.code ? 'active' : ''}" onclick="ppcStep('${s.code}')"
+        title="${escapeHtml(s.code)}">${i + 1}. ${escapeHtml(s.name)}</div>`).join('');
+}
+function ppcStep(code) { _ppcStep = code; renderPPCTabs(); renderPPC(); }
+
+function ppcVisible() {
+  const q = (document.getElementById('ppcSearch').value || '').trim().toLowerCase();
+  return (_ppcData.rows || []).filter(x => !q ||
+    [x.buyer, x.piNo, x.code, x.colour, x.size, x.statusText].join(' ').toLowerCase().includes(q));
+}
+
+const PPC_COLS = [
+  { f: 'buyer',          label: 'Buyer Name',        w: 170 },
+  { f: 'piNo',           label: 'PI Number',         w: 115 },
+  { f: 'code',           label: 'Code',              w: 110 },
+  { f: 'colour',         label: 'Colour',            w: 115 },
+  { f: 'size',           label: 'Size',              w: 70  },
+  { f: 'orderQty',       label: 'Order Qty',         w: 80, num: true },
+  { f: 'deliveryDate',   label: 'Delivery Date',     w: 140, edit: 'date' },
+  { f: 'piApprovalDate', label: 'PI Approval Date',  w: 130 },
+  { f: 'priority',       label: 'Priority',          w: 110, edit: 'priority' },
+  { f: 'statusText',     label: 'Status',            w: 160, edit: 'text' }
+];
+
+function ppcFmtDate(v) {
+  const s = String(v || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+  const [y, m, d] = s.split('-');
+  return `${d}-${m}-${y}`;
+}
+
+function renderPPC() {
+  const list = ppcVisible();
+  const step = (_ppcData.steps || []).find(s => s.code === _ppcStep);
+  const box = document.getElementById('ppcContent');
+  document.getElementById('ppcCount').textContent = list.length + ' order(s)';
+
+  if (!list.length) {
+    box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Is filter par koi order nahi.</div>';
+    return;
+  }
+
+  const cols = PPC_COLS.concat(step ? [{ f: '__step', label: step.name + ' — Status', w: 150, stepCol: true }] : []);
+  const head = `<tr><th style="width:34px">#</th>` +
+    cols.map(c => `<th style="width:${c.w}px" class="${c.num ? 'pm-numcol' : ''}">${escapeHtml(c.label)}</th>`).join('') + `</tr>`;
+
+  const body = list.map((x, i) => `<tr>
+    <td class="pm-n">${i + 1}</td>` + cols.map(c => {
+      if (c.stepCol) {
+        const done = (x.doneSteps || []).includes(step.code);
+        return `<td class="ppc-st"><span class="ppc-pill ${done ? 'ppc-done' : 'ppc-pend'}">${done ? '✅ Done' : '⏳ Pending'}</span></td>`;
+      }
+      if (c.edit === 'date') {
+        return `<td class="pm-edit"><input type="date" class="pm-in" value="${escapeHtml(String(x[c.f] || ''))}"
+          onchange="ppcSave('${escapeHtml(x.rowKey)}','${escapeHtml(x.uniqueId)}','${c.f}',this.value)"/></td>`;
+      }
+      if (c.edit === 'text') {
+        return `<td class="pm-edit"><input type="text" class="pm-in" value="${escapeHtml(String(x[c.f] || ''))}" placeholder="Status…"
+          onchange="ppcSave('${escapeHtml(x.rowKey)}','${escapeHtml(x.uniqueId)}','${c.f}',this.value)"/></td>`;
+      }
+      if (c.edit === 'priority') {
+        const cur = String(x[c.f] || '');
+        const cls = cur === 'High' ? 'ppc-high' : cur === 'Low' ? 'ppc-low' : '';
+        return `<td class="pm-edit ${cls}"><select class="pm-in pm-sel"
+          onchange="ppcSave('${escapeHtml(x.rowKey)}','${escapeHtml(x.uniqueId)}','${c.f}',this.value)">
+          <option value="">—</option>
+          <option value="High" ${cur === 'High' ? 'selected' : ''}>High</option>
+          <option value="Low" ${cur === 'Low' ? 'selected' : ''}>Low</option>
+        </select></td>`;
+      }
+      const v = c.f === 'piApprovalDate' ? ppcFmtDate(x[c.f]) : (String(x[c.f] ?? '').trim() || '—');
+      return `<td class="${c.num ? 'pm-numcol' : ''}">${escapeHtml(v)}</td>`;
+    }).join('') + `</tr>`).join('');
+
+  const qty = list.reduce((n, x) => n + (pmNum(x.orderQty) || 0), 0);
+  const foot = `<tr><td></td>` + cols.map((c, i) =>
+    c.f === 'orderQty' ? `<td class="pm-numcol">${qty.toLocaleString('en-IN')}</td>`
+    : `<td>${i === 0 ? 'TOTAL' : ''}</td>`).join('') + `</tr>`;
+
+  box.innerHTML = `<div style="overflow-x:auto"><table class="pm-tbl ppc-tbl">
+    <thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>`;
+}
+
+async function ppcSave(rowKey, uniqueId, field, value) {
+  const r = await api('/api/ppc/cell', 'PUT',
+    { rowKey, uniqueId, sheetKey: document.getElementById('ppcSheet').value, field, value });
+  if (r && r.error) return showToast(r.error, 'error');
+  const row = (_ppcData.rows || []).find(x => x.rowKey === rowKey);
+  if (row) row[field] = value;
+  renderPPC();
+  showToast('Saved', 'success');
+}
+
+function ppcClearDates() {
+  document.getElementById('ppcFrom').value = '';
+  document.getElementById('ppcTo').value = '';
+  loadPPC();
+}
+
+function exportPPCPDF() {
+  const list = ppcVisible();
+  if (!list.length) return showToast('Koi row nahi hai', 'error');
+  const step = (_ppcData.steps || []).find(s => s.code === _ppcStep);
+  const cols = PPC_COLS.concat(step ? [{ f: '__step', label: step.name + ' — Status' }] : []);
+  const now = new Date();
+  const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const from = document.getElementById('ppcFrom').value, to = document.getElementById('ppcTo').value;
+  const range = (from || to) ? ` · PI approval: ${from ? ppcFmtDate(from) : '…'} to ${to ? ppcFmtDate(to) : '…'}` : '';
+  const qty = list.reduce((n, x) => n + (pmNum(x.orderQty) || 0), 0);
+  const cell = (x, c) => {
+    if (c.f === '__step') return (x.doneSteps || []).includes(step.code) ? 'Done' : 'Pending';
+    if (c.f === 'deliveryDate' || c.f === 'piApprovalDate') return ppcFmtDate(x[c.f]);
+    return String(x[c.f] ?? '').trim() || '—';
+  };
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>KLM Task Manager — PPC</title><style>
+    @page { size: A4 landscape; margin: 10mm; }
+    *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:0;font-size:10.5px}
+    .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #4f46e5;padding-bottom:7px;margin-bottom:12px}
+    .head h1{margin:0;font-size:17px;color:#4f46e5} .head .sub{font-size:10.5px;color:#64748b}
+    table{width:100%;border-collapse:collapse;table-layout:fixed}
+    th,td{border:1px solid #cbd5e1;padding:5px 6px;text-align:left;vertical-align:top;word-wrap:break-word}
+    th{background:#eef2ff;color:#3730a3;font-size:9.5px}
+    tbody tr:nth-child(even){background:#f8fafc}
+    tfoot td{background:#eef2ff;font-weight:bold}
+    .foot{margin-top:10px;font-size:9px;color:#94a3b8;text-align:center}
+  </style></head><body>
+  <div class="head">
+    <div><h1>PPC — ${escapeHtml(_ppcData.label || '')}</h1>
+      <div class="sub">${escapeHtml(step ? step.name : 'All Orders')}${range}</div></div>
+    <div class="sub">${stamp}<br>Total: ${list.length} order(s)</div>
+  </div>
+  <table>
+    <thead><tr><th style="width:26px">#</th>${cols.map(c => `<th>${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
+    <tbody>${list.map((x, i) => `<tr><td>${i + 1}</td>${cols.map(c => `<td>${escapeHtml(cell(x, c))}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tfoot><tr><td></td>${cols.map((c, i) => c.f === 'orderQty'
+      ? `<td>${qty.toLocaleString('en-IN')}</td>` : `<td>${i === 0 ? 'TOTAL' : ''}</td>`).join('')}</tr></tfoot>
+  </table>
+  <div class="foot">KLM Task Manager · ${stamp}</div>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return showToast('Popup blocked — please allow popups', 'error');
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
+}
 
 // ══════════════════════════════════════════════════════
 // DAILY PC REPORT — system (FMS) ka daily review
