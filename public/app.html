@@ -11756,10 +11756,11 @@ let _pmFilters = {};      // { field: Set(values) }  — khali = sab
 const PM_COLS = [
   { f: 'buyer',             label: 'Buyer Name',                    w: 150 },
   { f: 'description',       label: 'DESCRIPTION',                   w: 160, edit: 'text' },
+  { f: 'leadTime',          label: 'Lead Time',                     w: 85,  num: true },
   { f: 'piNo',              label: 'PI NO',                         w: 120 },
   { f: 'amount',            label: 'Amount &nbsp;( USD)',           w: 110, num: true },
   { f: 'inrWorking',        label: 'INR Working USD 80, Euro 93',   w: 150, edit: 'formula', num: true },
-  { f: 'plannedOtd',        label: 'Planned dates As Per Otd fms',  w: 150, edit: 'date' },
+  { f: 'plannedOtd',        label: 'Planned dates As Per Otd fms',  w: 150, dateOnly: true },
   { f: 'plannedProduction', label: 'Planned dates As Per production', w: 150, edit: 'date' },
   { f: 'days',              label: 'DAYS',                          w: 70,  calc: true },
   { f: 'dispatchedDates',   label: 'Dispatched dates',              w: 185, edit: 'select' },
@@ -11890,6 +11891,9 @@ function renderProduction() {
           <option value="Dispatch" ${cur === 'Dispatch' ? 'selected' : ''}>Dispatch</option>
           <option value="Cancel" ${cur === 'Cancel' ? 'selected' : ''}>Cancel</option>
         </select>${remBox}</td>`;
+      }
+      if (col.dateOnly) {
+        return `<td class="pm-numcol" style="text-align:center">${escapeHtml(pmDate(x[col.f]) || '—')}</td>`;
       }
       if (col.calc) {
         const d = pmDays(x);

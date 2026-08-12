@@ -3390,7 +3390,7 @@ app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
     const wantDate = String(req.query.date || '').trim();
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
     const r = await sheetsApi.spreadsheets.values.get({
-      spreadsheetId: PROD_SHEET_ID, range: `${PROD_TAB}!A:O`
+      spreadsheetId: PROD_SHEET_ID, range: `${PROD_TAB}!A:CT`
     });
     const all = r.data.values || [];
     const dataRows = all.slice(PROD_HEADER_ROW);   // header row 6 ke baad se
@@ -3398,10 +3398,14 @@ app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
     for (const row of dataRows) {
       const buyer = String(row[1] || '').trim();      // B
       const orderDate = prodIsoDate(row[2]);          // C
+      const leadTime = String(row[3] || '').trim();   // D  — Lead time
       const piNo = String(row[6] || '').trim();       // G
       const amount = String(row[14] || '').trim();    // O
+      // CT = "Dispatch the goods" section ka Planned — yahi "Planned dates
+      // As Per Otd fms" column me dikhta hai (manual nahi, sheet se aata hai)
+      const plannedOtd = prodIsoDate(row[97]);        // CT
       if (!buyer && !piNo) continue;                  // khali row chhodo
-      rows.push({ buyer, orderDate, piNo, amount, rowKey: piNo + '|' + orderDate });
+      rows.push({ buyer, orderDate, leadTime, piNo, amount, plannedOtd, rowKey: piNo + '|' + orderDate });
     }
     // App me bhare hue column jod do
     const [saved] = await db.query('SELECT * FROM production_rows');
@@ -3411,7 +3415,6 @@ app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
       const s = byKey[x.rowKey] || {};
       x.description = s.description || '';
       x.inrWorking = s.inr_working || '';
-      x.plannedOtd = s.planned_otd || '';
       x.plannedProduction = s.planned_production || '';
       x.dispatchedDates = s.dispatched_dates || '';
       x.dispatchRemarks = s.dispatch_remarks || '';
@@ -3427,8 +3430,9 @@ app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // Ek cell save — jo column app me bharte hain
+// plannedOtd ab sheet (CT) se aata hai, isliye editable nahi
 const PROD_EDITABLE = { description: 'description', inrWorking: 'inr_working',
-  plannedOtd: 'planned_otd', plannedProduction: 'planned_production', dispatchedDates: 'dispatched_dates',
+  plannedProduction: 'planned_production', dispatchedDates: 'dispatched_dates',
   dispatchRemarks: 'dispatch_remarks' };
 
 app.put('/api/production/cell', requireAuth, requireAdmin, async (req, res) => {
