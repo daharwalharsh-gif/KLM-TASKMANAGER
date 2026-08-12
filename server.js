@@ -3510,7 +3510,6 @@ app.get('/api/feedback', requireAuth, requireAdmin, async (req, res) => {
 app.post('/api/feedback', requireAuth, async (req, res) => {
   try {
     const b = req.body || {};
-    if (!String(b.your_name || '').trim()) return res.status(400).json({ error: 'Your Name is required' });
     if (!String(b.feedback_for || '').trim()) return res.status(400).json({ error: 'Please select the employee you are giving feedback for' });
     const [me] = await db.query('SELECT name,email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');

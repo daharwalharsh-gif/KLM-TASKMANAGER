@@ -1341,7 +1341,7 @@ tbody tr:last-child td{border-bottom:none;}
             <div class="lg-block-head"><span class="lg-ico">🙋</span>Your Details</div>
             <div class="lg-block-body">
               <div class="chal-grid chal-grid-2">
-                <div class="chal-field"><label>Your Name <span class="chal-req">*</span></label>
+                <div class="chal-field"><label>Your Name</label>
                   <input type="text" id="fb_your_name" placeholder="Enter your name"/></div>
                 <div class="chal-field"><label>Department</label>
                   <input type="text" id="fb_department" placeholder="Your department"/></div>
@@ -4528,7 +4528,6 @@ async function saveFeedback() {
   const rate = document.querySelector('#fb_rating_box input[type=radio]:checked');
   body.rating = rate ? rate.value : '';
 
-  if (!body.your_name) return fail('Your Name is required');
   if (!body.feedback_for) return fail('Please select the employee you are giving feedback for');
 
   btn.disabled = true; btn.textContent = '⏳ Saving…';
