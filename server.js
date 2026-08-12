@@ -3952,6 +3952,81 @@ app.get('/f/:id', async (req, res) => {
 });
 
 // Mark row as done — writes actual (date only) + delay reason to sheet
+// ── BULK DONE — sirf Garments PMS aur Boxing PMS ──
+// In dono sheet ke har step me ek "Status" dropdown (Done,Cancel) hai. Bulk me
+// har chuni hui row par actual date, doer name aur Status = "Done" likh dete
+// hain — baaki koi FMS is route se nahi chalta.
+const BULK_DONE_SHEETS = new Set([
+  '1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg',   // Garments PMS
+  '1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM'    // Boxing PMS
+]);
+const BULK_DONE_MAX = 500;
+
+app.post('/api/fms-tasks/:fmsId/steps/:stepId/bulk-done', requireAuth, async (req, res) => {
+  try {
+    const { rowNumbers, actualValue } = req.body || {};
+    const rows = Array.isArray(rowNumbers)
+      ? [...new Set(rowNumbers.map(n => parseInt(n, 10)).filter(n => n > 0))] : [];
+    if (!rows.length) return res.status(400).json({ error: 'No rows selected' });
+    if (rows.length > BULK_DONE_MAX) return res.status(400).json({ error: `Up to ${BULK_DONE_MAX} rows at a time` });
+    if (!actualValue) return res.status(400).json({ error: 'actualValue required' });
+
+    const [sheets] = await db.query('SELECT * FROM fms_sheets WHERE id=?', [req.params.fmsId]);
+    if (!sheets[0]) return res.status(404).json({ error: 'FMS not found' });
+    const sheet = sheets[0];
+    const spreadsheetId = extractSpreadsheetId(sheet.sheet_id);
+    if (!BULK_DONE_SHEETS.has(spreadsheetId)) {
+      return res.status(403).json({ error: 'Bulk done is available only for Garments PMS and Boxing PMS' });
+    }
+
+    const [steps] = await db.query('SELECT * FROM fms_steps WHERE id=? AND fms_id=?', [req.params.stepId, req.params.fmsId]);
+    if (!steps[0]) return res.status(404).json({ error: 'Step not found' });
+    const step = steps[0];
+    const actualCol = (step.actual_col || '').toUpperCase();
+    if (!actualCol) return res.status(400).json({ error: 'Actual column not configured for this step' });
+
+    // Status wala dropdown — jisme "Done" option ho
+    const [extras] = await db.query('SELECT * FROM fms_extra_rows WHERE step_id=?', [step.id]);
+    const statusCols = extras
+      .filter(r => String(r.field_type || '') === 'dropdown' && r.col_letter &&
+        String(r.dropdown_options || '').split(',').map(o => o.trim().toLowerCase()).includes('done'))
+      .map(r => String(r.col_letter).toUpperCase());
+
+    let doerName = '';
+    if (step.doer_name_col) {
+      const [u] = await db.query('SELECT name FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+      doerName = u[0]?.name || '';
+    }
+
+    const tabName = sheet.sheet_name || 'Sheet1';
+    const batchData = [];
+    for (const rowNumber of rows) {
+      batchData.push({ range: `${tabName}!${actualCol}${rowNumber}`, values: [[actualValue]] });
+      for (const c of statusCols) batchData.push({ range: `${tabName}!${c}${rowNumber}`, values: [['Done']] });
+      if (doerName && step.doer_name_col) {
+        batchData.push({ range: `${tabName}!${String(step.doer_name_col).toUpperCase()}${rowNumber}`, values: [[doerName]] });
+      }
+    }
+
+    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets']);
+    const writeResp = await sheetsApi.spreadsheets.values.batchUpdate({
+      spreadsheetId,
+      requestBody: { valueInputOption: 'USER_ENTERED', data: batchData }
+    });
+
+    // Cache saaf — warna 60s tak wahi rows dobara pending me dikhengi
+    for (const key of _fmsSheetCache.keys()) {
+      if (key.startsWith(spreadsheetId + '|')) _fmsSheetCache.delete(key);
+    }
+
+    res.json({ success: true, count: rows.length, statusCols,
+      updatedCells: writeResp.data?.totalUpdatedCells || 0 });
+  } catch (err) {
+    console.error('FMS bulk done FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, res) => {
   try {
     const { rowNumber, actualValue, delayReason, extraInputs } = req.body;

@@ -1837,6 +1837,12 @@ tbody tr:last-child td{border-bottom:none;}
     .ppc-pend{background:#fef3c7;color:#b45309}
     .ppc-high{background:#fee2e2!important} .ppc-high .pm-sel{color:#b91c1c;font-weight:700}
     .ppc-low{background:#dcfce7!important}  .ppc-low .pm-sel{color:#15803d;font-weight:700}
+    /* ── FMS bulk done (Garments / Boxing PMS) ── */
+    .fms-bulk-bar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:10px;
+      background:#0f172a;color:#fff;border-radius:11px;padding:10px 14px;margin-bottom:10px;
+      box-shadow:0 8px 22px rgba(15,23,42,.28)}
+    .fms-bulk-count{font-size:13px;font-weight:700;margin-right:auto}
+    .fms-bulk-cb,.fms-bulk-cb-head{width:17px;height:17px;accent-color:#16a34a;cursor:pointer}
     .pm-selcol{background:#eef2ff!important;box-shadow:inset 2px 0 0 #4f46e5,inset -2px 0 0 #4f46e5}
     .pm-tbl tfoot td{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:9px 10px}
     .pm-sum{background:#4f46e5;color:#fff;border-radius:9px;padding:9px 14px;font-size:13px;margin-bottom:12px}
@@ -2815,6 +2821,40 @@ tbody tr:last-child td{border-bottom:none;}
 
 <!-- Legal Case — Done (close case) -->
 <!-- Daily PC Report — remark add karo (kaam poora hone tak jitni baar chaho) -->
+<!-- Bulk Done — beech me proper confirm box (browser ka apna popup nahi) -->
+<div class="modal-overlay" id="fmsBulkModal">
+  <div class="modal" style="max-width:470px">
+    <h3>✅ Mark as Done</h3>
+    <div class="alert error" id="fmsBulkErr" style="display:none"></div>
+    <div style="font-size:14px;color:#1e293b;line-height:1.6">
+      Mark <b id="fmsBulkN">0</b> selected row(s) as Done?
+    </div>
+    <div style="margin-top:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px">
+      <div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px">
+        This will be written to the sheet
+      </div>
+      <div style="display:flex;gap:9px;padding:3px 0;font-size:13px;color:#334155">
+        <span style="min-width:120px;color:#64748b">Completed on</span>
+        <b id="fmsBulkStamp">—</b>
+      </div>
+      <div style="display:flex;gap:9px;padding:3px 0;font-size:13px;color:#334155">
+        <span style="min-width:120px;color:#64748b">Status</span>
+        <b style="color:#15803d">Done</b>
+      </div>
+    </div>
+    <div id="fmsBulkProgress" style="display:none;margin-top:12px">
+      <div style="font-size:12.5px;color:#4f46e5;font-weight:700" id="fmsBulkProgTxt">Saving…</div>
+      <div style="height:7px;background:#e2e8f0;border-radius:20px;overflow:hidden;margin-top:6px">
+        <div id="fmsBulkProgBar" style="height:100%;width:0%;background:#4f46e5;transition:width .25s"></div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" id="fmsBulkCancel" onclick="closeModal('fmsBulkModal')">Cancel</button>
+      <button class="btn btn-green" id="fmsBulkGo" onclick="fmsBulkDoneGo()">✅ Mark Done</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="pcrRemarkModal">
   <div class="modal" style="max-width:520px">
     <h3>💬 Add Remark</h3>
@@ -9869,6 +9909,9 @@ async function loadFMSTaskRows() {
   window._fmsCurrentColKeys = colKeys;
   // Reset per-column filters on every fresh load
   window._fmsColFilters = {};
+  // Bulk done sirf Garments/Boxing PMS me — har fresh load par selection saaf
+  const bulkOn = fmsBulkAllowed();
+  window._fmsSel = new Set();
 
   document.getElementById('fmsTaskRowsContainer').innerHTML = `
     <div class="fms-search-bar">
@@ -9878,11 +9921,17 @@ async function loadFMSTaskRows() {
       <span class="fms-search-count" id="fmsRowSearchCount">${r.rows.length} row(s)</span>
       <button class="fms-search-clear" onclick="clearFMSRowSearch()" style="display:none" id="fmsRowSearchClearBtn">✕ Clear</button>
     </div>
+    <div id="fmsBulkBar" class="fms-bulk-bar" style="display:none">
+      <span id="fmsBulkCount" class="fms-bulk-count"></span>
+      <button class="btn btn-green btn-sm" id="fmsBulkBtn" onclick="fmsBulkDone()">✅ All Done</button>
+      <button class="btn btn-outline btn-sm" onclick="fmsClearSel()">✕ Clear</button>
+    </div>
     <div class="fms-step-rows-table">
       <div class="fms-step-rows-scroll" id="fmsRowsScroll">
         <table>
           <thead>
             <tr>
+              ${bulkOn ? '<th style="width:38px"><input type="checkbox" id="fmsBulkAll" class="fms-bulk-cb-head" onchange="fmsToggleAllVisible(this.checked)" title="Select all"/></th>' : ''}
               <th>Action</th>
               ${colKeys.map(k => {
                 const text = _fmsEscHtml(k);
@@ -9908,17 +9957,25 @@ function renderFMSTaskRows(rowsToShow) {
   const tbody = document.getElementById('fmsRowsTbody');
   if (!tbody) return;
   if (!rowsToShow.length) {
-    tbody.innerHTML = `<tr><td colspan="${colKeys.length + 2}" style="padding:24px;text-align:center;color:#94a3b8;font-size:13px">No matching rows. Try a different search.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colKeys.length + (fmsBulkAllowed() ? 3 : 2)}" style="padding:24px;text-align:center;color:#94a3b8;font-size:13px">No matching rows. Try a different search.</td></tr>`;
     return;
   }
+  const bulkOn = fmsBulkAllowed();
   tbody.innerHTML = rowsToShow.map(row => {
     const origIdx = allRows.indexOf(row);
+    const rn = String(row.sheetRowNumber);
+    const cb = bulkOn
+      ? `<td><input type="checkbox" class="fms-bulk-cb" data-row="${rn}" ${window._fmsSel.has(rn) ? 'checked' : ''}
+           onchange="fmsToggleRow('${rn}',this.checked)" title="Select for All Done"/></td>`
+      : '';
     return `<tr>
+      ${cb}
       <td><button class="fms-done-btn" onclick="openFMSDoneModal(${origIdx})">✅ Done</button></td>
       ${colKeys.map(k => `<td>${row.data[k] || '—'}</td>`).join('')}
       <td><span class="fms-status-badge">⏳ Pending</span></td>
     </tr>`;
   }).join('');
+  fmsSyncBulkBar();
 }
 
 // Convert a cell value to the canonical string used by the per-column
@@ -10949,6 +11006,114 @@ async function submitTaskTransfer() {
 }
 
 
+
+// ══════════════════════════════════════════════════════
+// BULK DONE — sirf Garments PMS aur Boxing PMS
+// ══════════════════════════════════════════════════════
+// Har row ke Done button ke saath ek checkbox. Jaise hi koi tick hota hai
+// upar ek "All Done" patti aa jaati hai — ek click me sabhi chuni hui rows
+// sheet par Done ho jaati hain (Status column me "Done" bhi likh jaata hai).
+const FMS_BULK_SHEETS = [
+  '1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg',   // Garments PMS
+  '1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM'    // Boxing PMS
+];
+const FMS_BULK_CHUNK = 100;
+window._fmsSel = new Set();
+
+function fmsBulkAllowed() {
+  return FMS_BULK_SHEETS.includes(fmsSheetIdOf(fmsTasksActiveFmsId));
+}
+
+function fmsToggleRow(rowNum, on) {
+  if (on) window._fmsSel.add(String(rowNum)); else window._fmsSel.delete(String(rowNum));
+  fmsSyncBulkBar();
+}
+
+// Header wala checkbox — jo rows abhi dikh rahi hain unhe select/deselect
+function fmsToggleAllVisible(on) {
+  document.querySelectorAll('#fmsRowsTbody .fms-bulk-cb').forEach(cb => {
+    cb.checked = on;
+    if (on) window._fmsSel.add(String(cb.dataset.row)); else window._fmsSel.delete(String(cb.dataset.row));
+  });
+  fmsSyncBulkBar();
+}
+
+function fmsClearSel() {
+  window._fmsSel = new Set();
+  document.querySelectorAll('#fmsRowsTbody .fms-bulk-cb').forEach(cb => cb.checked = false);
+  const head = document.getElementById('fmsBulkAll');
+  if (head) head.checked = false;
+  fmsSyncBulkBar();
+}
+
+// Upar ki patti — tabhi dikhti hai jab kam se kam ek row tick ho
+function fmsSyncBulkBar() {
+  const bar = document.getElementById('fmsBulkBar');
+  if (!bar) return;
+  const n = window._fmsSel.size;
+  bar.style.display = n ? '' : 'none';
+  const c = document.getElementById('fmsBulkCount');
+  if (c) c.textContent = n + ' row' + (n === 1 ? '' : 's') + ' selected';
+  const head = document.getElementById('fmsBulkAll');
+  if (head) {
+    const boxes = [...document.querySelectorAll('#fmsRowsTbody .fms-bulk-cb')];
+    head.checked = boxes.length > 0 && boxes.every(b => b.checked);
+  }
+}
+
+// Confirm box kholo — browser ka apna popup nahi
+function fmsBulkDone() {
+  const rows = [...window._fmsSel];
+  if (!rows.length) return showToast('Please select at least one row', 'error');
+  const now = new Date(); const pad = n => String(n).padStart(2, '0');
+  window._fmsBulkStamp = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  document.getElementById('fmsBulkN').textContent = rows.length;
+  document.getElementById('fmsBulkStamp').textContent = window._fmsBulkStamp;
+  document.getElementById('fmsBulkErr').style.display = 'none';
+  document.getElementById('fmsBulkProgress').style.display = 'none';
+  document.getElementById('fmsBulkProgBar').style.width = '0%';
+  document.getElementById('fmsBulkGo').disabled = false;
+  document.getElementById('fmsBulkCancel').disabled = false;
+  openModal('fmsBulkModal');
+}
+
+async function fmsBulkDoneGo() {
+  const rows = [...window._fmsSel];
+  const err = document.getElementById('fmsBulkErr');
+  const go = document.getElementById('fmsBulkGo');
+  const cancel = document.getElementById('fmsBulkCancel');
+  const prog = document.getElementById('fmsBulkProgress');
+  const bar = document.getElementById('fmsBulkProgBar');
+  const txt = document.getElementById('fmsBulkProgTxt');
+  if (!rows.length) return closeModal('fmsBulkModal');
+
+  err.style.display = 'none';
+  go.disabled = true; cancel.disabled = true;
+  prog.style.display = '';
+  const actualValue = window._fmsBulkStamp;
+
+  let done = 0;
+  for (let i = 0; i < rows.length; i += FMS_BULK_CHUNK) {
+    const chunk = rows.slice(i, i + FMS_BULK_CHUNK);
+    txt.textContent = `Saving ${done + 1}–${done + chunk.length} of ${rows.length}…`;
+    const r = await api(`/api/fms-tasks/${fmsTasksActiveFmsId}/steps/${fmsTasksActiveStepId}/bulk-done`,
+      'POST', { rowNumbers: chunk, actualValue });
+    if (r && r.error) {
+      go.disabled = false; cancel.disabled = false;
+      prog.style.display = 'none';
+      err.textContent = done ? `${done} row(s) saved, then failed: ${r.error}` : r.error;
+      err.style.display = 'block';
+      if (done) { fmsClearSel(); await loadFMSTaskRows(); }
+      return;
+    }
+    done += chunk.length;
+    bar.style.width = Math.round((done / rows.length) * 100) + '%';
+  }
+  closeModal('fmsBulkModal');
+  fmsClearSel();
+  showToast(`✅ ${done} row(s) marked Done`, 'success');
+  await loadFMSTaskRows();
+}
 
 // ══════════════════════════════════════════════════════
 // PPC — PMS Garments / PMS Boxing (Production Management ke andar)
