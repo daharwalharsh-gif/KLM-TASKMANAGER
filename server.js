@@ -3390,7 +3390,7 @@ app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
     const wantDate = String(req.query.date || '').trim();
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
     const r = await sheetsApi.spreadsheets.values.get({
-      spreadsheetId: PROD_SHEET_ID, range: `${PROD_TAB}!A:CT`
+      spreadsheetId: PROD_SHEET_ID, range: `${PROD_TAB}!A:CU`
     });
     const all = r.data.values || [];
     const dataRows = all.slice(PROD_HEADER_ROW);   // header row 6 ke baad se
@@ -3401,9 +3401,11 @@ app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
       const leadTime = String(row[3] || '').trim();   // D  — Lead time
       const piNo = String(row[6] || '').trim();       // G
       const amount = String(row[14] || '').trim();    // O
-      // CT = "Dispatch the goods" section ka Planned — yahi "Planned dates
-      // As Per Otd fms" column me dikhta hai (manual nahi, sheet se aata hai)
-      const plannedOtd = prodIsoDate(row[97]);        // CT
+      // CT = "Dispatch the goods" section ka Planned, CU = uska Actual.
+      // Planned date sirf tab dikhani hai jab dispatch abhi hua na ho, yaani
+      // Actual (CU) khaali ho. Dispatch ho chuka to column blank rehta hai.
+      const dispatchActual = String(row[98] || '').trim();   // CU
+      const plannedOtd = dispatchActual ? '' : prodIsoDate(row[97]);   // CT
       if (!buyer && !piNo) continue;                  // khali row chhodo
       rows.push({ buyer, orderDate, leadTime, piNo, amount, plannedOtd, rowKey: piNo + '|' + orderDate });
     }
