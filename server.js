@@ -3402,10 +3402,11 @@ app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
       const piNo = String(row[6] || '').trim();       // G
       const amount = String(row[14] || '').trim();    // O
       // CT = "Dispatch the goods" section ka Planned, CU = uska Actual.
-      // Planned date sirf tab dikhani hai jab dispatch abhi hua na ho, yaani
-      // Actual (CU) khaali ho. Dispatch ho chuka to column blank rehta hai.
+      // Sirf wahi order dikhte hain jinka dispatch abhi baaki hai, yaani CU
+      // khaali ho. Actual bhar gaya (dispatch ho gaya) to row list me nahi aati.
       const dispatchActual = String(row[98] || '').trim();   // CU
-      const plannedOtd = dispatchActual ? '' : prodIsoDate(row[97]);   // CT
+      if (dispatchActual) continue;
+      const plannedOtd = prodIsoDate(row[97]);               // CT
       if (!buyer && !piNo) continue;                  // khali row chhodo
       rows.push({ buyer, orderDate, leadTime, piNo, amount, plannedOtd, rowKey: piNo + '|' + orderDate });
     }
