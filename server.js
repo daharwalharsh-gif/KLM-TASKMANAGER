@@ -2712,10 +2712,10 @@ const FULL_VIEW_FMS = {
   names: ['invincible offline o2d fms', 'invincible crm fms',
           'order to dispatch fms offline domestic dashboard', 'crm fms domestic offline']
 };
-// Ms. Kiran ko ye do PMS poori dikhni chahiye (saare steps + saari rows)
+// Ms. Kiran ko ye teen poore dikhne chahiye (saare steps + saari rows)
 const FULL_VIEW_PMS = {
-  ids: [2, 1],   // Garments PMS, Boxing PMS
-  names: ['garments pms', 'boxing pms']
+  ids: [2, 1, 11],   // Garments PMS, Boxing PMS, Sampling FMS
+  names: ['garments pms', 'boxing pms', 'sampling fms']
 };
 const FMS_FULL_VIEW = {
   'amit@invincible.in': FULL_VIEW_FMS,
