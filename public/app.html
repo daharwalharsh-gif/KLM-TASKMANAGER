@@ -1710,59 +1710,17 @@ tbody tr:last-child td{border-bottom:none;}
       .ms-title{font-size:14px}
     }
   </style>
-  <!-- ── DEPARTMENT — HOD / MDO / CARMA / PSDM ka reference board ── -->
+  <!-- ── DEPARTMENT — company ke poster jaisi tables ── -->
   <div id="page-department" class="page">
     <div class="page-header">
       <h2>Department</h2>
       <span id="dpCount" style="font-size:12px;font-weight:700;color:#64748b"></span>
     </div>
-
-    <div class="dp-sec">
-      <div class="dp-sec-head">
-        <span class="dp-sec-ico" style="background:#eef2ff;color:#4f46e5">🏢</span>
-        <div>
-          <div class="dp-sec-title">List of HOD's and Executives</div>
-          <div class="dp-sec-sub">HOD and executives, department by department</div>
-        </div>
-        <div class="dp-sec-line"></div>
-      </div>
-      <div class="dp-grid" id="dpHodGrid"></div>
-    </div>
-
-    <div class="dp-sec">
-      <div class="dp-sec-head">
-        <span class="dp-sec-ico" style="background:#f0fdfa;color:#0d9488">🔠</span>
-        <div>
-          <div class="dp-sec-title">CARMA</div>
-          <div class="dp-sec-sub">From system creation to accountability — who owns each step</div>
-        </div>
-        <div class="dp-sec-line"></div>
-      </div>
-      <div class="dp-carma-grid" id="dpCarma"></div>
-    </div>
-
-    <div class="dp-sec">
-      <div class="dp-sec-head">
-        <span class="dp-sec-ico" style="background:#fffbeb;color:#d97706">🧩</span>
-        <div>
-          <div class="dp-sec-title">Problem Solver Decision Making (PSDM)</div>
-          <div class="dp-sec-sub">Who to go to for which kind of problem</div>
-        </div>
-        <div class="dp-sec-line"></div>
-      </div>
-      <div id="dpPsdm"></div>
-    </div>
-
-    <div class="dp-sec">
-      <div class="dp-sec-head">
-        <span class="dp-sec-ico" style="background:#fdf2f8;color:#be185d">👥</span>
-        <div>
-          <div class="dp-sec-title">List of MDO's and Executives</div>
-          <div class="dp-sec-sub">Which executive sits under which MDO, and in which department</div>
-        </div>
-        <div class="dp-sec-line"></div>
-      </div>
-      <div class="dp-grid" id="dpMdo"></div>
+    <div class="dp-wrap">
+      <div class="dp-block" id="dpHodTbl"></div>
+      <div class="dp-block" id="dpCarmaTbl"></div>
+      <div class="dp-block" id="dpPsdmTbl"></div>
+      <div class="dp-block" id="dpMdoTbl"></div>
     </div>
   </div>
 
@@ -1885,76 +1843,35 @@ tbody tr:last-child td{border-bottom:none;}
       outline:none;box-sizing:border-box}
     .pm-rem:focus{border-color:#4f46e5;background:#fff}
     .pm-rem::placeholder{color:#94a3b8}
-    /* ── Department board (HOD / MDO / CARMA / PSDM) ── */
-    .dp-sec{margin-bottom:26px}
-    .dp-sec-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-    .dp-sec-ico{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex:0 0 auto}
-    .dp-sec-title{font-size:15.5px;font-weight:800;color:#1e293b;letter-spacing:.2px}
-    .dp-sec-sub{font-size:12px;color:#94a3b8;margin-top:1px}
-    .dp-sec-line{flex:1;height:1px;background:linear-gradient(90deg,#e2e8f0,transparent)}
+    /* ── Department board — poster jaisi tables ── */
+    .dp-wrap{max-width:1080px}
+    .dp-block{margin-bottom:30px}
+    .dp-poster{width:100%;border-collapse:collapse;background:#fff;font-size:13.5px;
+      border:2px solid var(--dpLine,#0f172a);box-shadow:0 8px 24px rgba(15,23,42,.09)}
+    .dp-poster th,.dp-poster td{border:1px solid var(--dpLine,#0f172a);padding:9px 13px;vertical-align:middle}
+    .dp-ttl{background:var(--dpHead,#1e3a8a);color:#fff;text-align:center;font-size:15.5px;font-weight:800;
+      letter-spacing:.6px;padding:12px 10px;text-transform:none}
+    .dp-poster thead tr:nth-child(2) th{background:var(--dpSub,#e8eefc);color:#0f172a;
+      font-size:12.5px;font-weight:800;text-align:center;letter-spacing:.2px}
+    .dp-poster tbody tr:hover td{background:var(--dpHov,#f6f9ff)}
+    .dp-c{text-align:center}
+    .dp-sn{font-weight:800;color:#334155;width:58px}
+    .dp-dept{font-weight:800;color:#0f172a}
+    .dp-hod{font-weight:700;color:var(--dpAccent,#1d4ed8)}
+    .dp-exec{color:#0f172a;font-weight:600}
+    .dp-mdo{font-weight:800;color:var(--dpAccent,#1d4ed8)}
+    .dp-area{color:var(--dpArea,#c2410c);font-weight:600}
+    .dp-role{font-weight:800;color:#0f172a;letter-spacing:.4px}
+    .dp-letter{font-size:22px;font-weight:900;color:var(--dpAccent,#1d4ed8);width:70px;line-height:1}
+    .dp-carma-t{font-weight:800;color:#0f172a}
+    .dp-carma-w{color:var(--dpArea,#c2410c);font-weight:700}
 
-    .dp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:14px}
-    .dp-card{background:#fff;border:1px solid #e2e8f0;border-radius:15px;overflow:hidden;
-      box-shadow:0 4px 14px rgba(15,23,42,.05);transition:transform .14s,box-shadow .14s}
-    .dp-card:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(15,23,42,.1)}
-    .dp-card-wide{grid-column:1/-1}
-    .dp-card-top{display:flex;align-items:center;gap:10px;padding:11px 15px;
-      background:var(--dpBg,#eef2ff);border-bottom:1px solid var(--dpBd,#c7d2fe)}
-    .dp-num{width:22px;height:22px;border-radius:7px;background:var(--dpC,#4f46e5);color:#fff;
-      font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-    .dp-dept{font-size:14px;font-weight:800;color:var(--dpT,#3730a3)}
-    .dp-own{margin-left:auto;font-size:11px;font-weight:700;color:var(--dpT,#3730a3);
-      background:#fff;border:1px solid var(--dpBd,#c7d2fe);border-radius:20px;padding:3px 11px}
-
-    .dp-hod{display:flex;align-items:center;gap:11px;padding:13px 15px 11px}
-    .dp-ava{width:36px;height:36px;border-radius:11px;background:var(--dpC,#4f46e5);color:#fff;
-      font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;letter-spacing:.4px}
-    .dp-ava-sm{width:27px;height:27px;border-radius:8px;font-size:11px;margin-right:8px;vertical-align:middle}
-    .dp-lbl{font-size:10px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px}
-    .dp-name{font-size:14px;font-weight:700;color:#1e293b;margin-top:1px}
-    .dp-exec-wrap{padding:0 15px 14px}
-    .dp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
-    .dp-chip{font-size:12px;font-weight:600;color:var(--dpT,#3730a3);background:var(--dpBg,#eef2ff);
-      border:1px solid var(--dpBd,#c7d2fe);border-radius:20px;padding:4px 11px}
-    .dp-none{font-size:12px;color:#cbd5e1;font-style:italic;padding-top:4px}
-
-    .dp-carma-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px}
-    .dp-carma{background:#fff;border:1px solid var(--dpBd,#c7d2fe);border-top:4px solid var(--dpC,#4f46e5);
-      border-radius:13px;padding:15px 16px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,.05)}
-    .dp-carma-l{font-size:32px;font-weight:900;color:var(--dpC,#4f46e5);line-height:1}
-    .dp-carma-t{font-size:13.5px;font-weight:800;color:#1e293b;margin-top:6px}
-    .dp-carma-w{font-size:12px;color:#64748b;margin-top:5px;background:var(--dpBg,#eef2ff);
-      border-radius:20px;padding:4px 10px;display:inline-block}
-
-    .dp-tbl{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;
-      border-radius:13px;overflow:hidden;box-shadow:0 4px 14px rgba(15,23,42,.05)}
-    .dp-tbl th{background:#f8fafc;font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;
-      letter-spacing:.5px;text-align:left;padding:11px 15px;border-bottom:1px solid #e2e8f0}
-    .dp-tbl td{padding:11px 15px;border-bottom:1px solid #f1f5f9;font-size:13.5px;color:#334155;vertical-align:middle}
-    .dp-tbl tbody tr:last-child td{border-bottom:none}
-    .dp-tbl tbody tr:hover{background:#f8faff}
-    .dp-role{font-size:10.5px;font-weight:800;padding:3px 10px;border-radius:20px;letter-spacing:.4px}
-    .dp-role-hod{background:#eef2ff;color:#4338ca}
-    .dp-role-ea{background:#fdf2f8;color:#be185d}
-    .dp-role-pc{background:#ecfeff;color:#0e7490}
-
-    .dp-mdo-list{padding:6px 15px 13px}
-    .dp-mdo-row{display:flex;align-items:center;gap:0;padding:7px 0;border-bottom:1px dashed #f1f5f9}
-    .dp-mdo-row:last-child{border-bottom:none}
-    .dp-mdo-dept{margin-left:auto;font-size:12px;font-weight:600;color:var(--dpT,#3730a3);
-      background:var(--dpBg,#eef2ff);border-radius:20px;padding:3px 11px;white-space:nowrap}
-
-    .dp-t1{--dpC:#4f46e5;--dpBg:#eef2ff;--dpBd:#c7d2fe;--dpT:#3730a3}
-    .dp-t2{--dpC:#0d9488;--dpBg:#f0fdfa;--dpBd:#99f6e4;--dpT:#0f766e}
-    .dp-t3{--dpC:#d97706;--dpBg:#fffbeb;--dpBd:#fde68a;--dpT:#b45309}
-    .dp-t4{--dpC:#be185d;--dpBg:#fdf2f8;--dpBd:#fbcfe8;--dpT:#9d174d}
-    .dp-t5{--dpC:#2563eb;--dpBg:#eff6ff;--dpBd:#bfdbfe;--dpT:#1d4ed8}
-    .dp-t6{--dpC:#16a34a;--dpBg:#f0fdf4;--dpBd:#bbf7d0;--dpT:#15803d}
-    .dp-t7{--dpC:#7c3aed;--dpBg:#faf5ff;--dpBd:#e9d5ff;--dpT:#6d28d9}
-    .dp-t8{--dpC:#c2410c;--dpBg:#fff7ed;--dpBd:#fed7aa;--dpT:#9a3412}
-    .dp-t9{--dpC:#0e7490;--dpBg:#ecfeff;--dpBd:#a5f3fc;--dpT:#155e75}
-    .dp-t10{--dpC:#dc2626;--dpBg:#fef2f2;--dpBd:#fecaca;--dpT:#b91c1c}
-    @media (max-width:700px){ .dp-mdo-dept{margin-left:0;margin-top:4px} .dp-mdo-row{flex-wrap:wrap} }
+    /* har poster ka apna rang */
+    .dp-p1{--dpLine:#1e3a8a;--dpHead:#1e3a8a;--dpSub:#e8eefc;--dpAccent:#1d4ed8;--dpArea:#b45309;--dpHov:#f6f9ff}
+    .dp-p2{--dpLine:#0f766e;--dpHead:#0f766e;--dpSub:#e3f7f4;--dpAccent:#0d9488;--dpArea:#b45309;--dpHov:#f4fdfb}
+    .dp-p3{--dpLine:#b45309;--dpHead:#b45309;--dpSub:#fdf1dc;--dpAccent:#0f172a;--dpArea:#c2410c;--dpHov:#fffbf3}
+    .dp-p4{--dpLine:#9d174d;--dpHead:#9d174d;--dpSub:#fce8f0;--dpAccent:#9d174d;--dpArea:#c2410c;--dpHov:#fff7fa}
+    @media (max-width:820px){ .dp-poster{font-size:12px} .dp-poster th,.dp-poster td{padding:7px 8px} }
     /* ── PPC ── */
     .ppc-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
     .ppc-tab{padding:8px 14px;border:1.5px solid #e2e8f0;border-radius:9px;background:#fff;cursor:pointer;
@@ -11195,70 +11112,81 @@ const DEPT_MDOS = [
   { mdo: 'Sachin', execs: [], own: 'PC (PMS)' },
 ];
 
-// Har card ka apna rang — ek hi palette baar baar ghoomta hai
-const DEPT_TONES = ['dp-t1','dp-t2','dp-t3','dp-t4','dp-t5','dp-t6','dp-t7','dp-t8','dp-t9','dp-t10'];
-function deptInitials(n) {
-  return String(n || '').replace(/\(.*?\)/g, '').trim().split(/\s+/)
-    .filter(w => !/^(sir|mam|ji)$/i.test(w)).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
-}
-
 function loadDepartment() {
-  // 1. HOD aur unke executives
-  document.getElementById('dpHodGrid').innerHTML = DEPT_HODS.map((d, i) => `
-    <div class="dp-card ${DEPT_TONES[i % DEPT_TONES.length]}">
-      <div class="dp-card-top">
-        <span class="dp-num">${i + 1}</span>
-        <div class="dp-dept">${escapeHtml(d.dept)}</div>
-      </div>
-      <div class="dp-hod">
-        <span class="dp-ava">${deptInitials(d.hod)}</span>
-        <div>
-          <div class="dp-lbl">HOD</div>
-          <div class="dp-name">${escapeHtml(d.hod)}</div>
-        </div>
-      </div>
-      ${d.execs.length ? `<div class="dp-exec-wrap">
-        <div class="dp-lbl">Executives · ${d.execs.length}</div>
-        <div class="dp-chips">${d.execs.map(e => `<span class="dp-chip">${escapeHtml(e)}</span>`).join('')}</div>
-      </div>` : `<div class="dp-exec-wrap"><div class="dp-none">No executive listed</div></div>`}
-    </div>`).join('');
+  // ── 1. List of HOD's and Executives ──
+  let r1 = '';
+  DEPT_HODS.forEach((d, i) => {
+    const n = Math.max(1, d.execs.length);
+    const sp = n > 1 ? ` rowspan="${n}"` : '';
+    r1 += `<tr>
+      <td class="dp-c dp-sn"${sp}>${i + 1}</td>
+      <td class="dp-dept"${sp}>${escapeHtml(d.dept)}</td>
+      <td class="dp-hod"${sp}>${escapeHtml(d.hod)}</td>
+      <td class="dp-exec">${d.execs.length ? escapeHtml(d.execs[0]) : ''}</td>
+    </tr>`;
+    for (let k = 1; k < d.execs.length; k++) r1 += `<tr><td class="dp-exec">${escapeHtml(d.execs[k])}</td></tr>`;
+  });
+  document.getElementById('dpHodTbl').innerHTML = `
+    <table class="dp-poster dp-p1">
+      <thead>
+        <tr><th colspan="4" class="dp-ttl">List of HOD's and Executives</th></tr>
+        <tr><th style="width:58px">S.No.</th><th style="width:190px">Department</th>
+            <th style="width:200px">HOD</th><th>Executives</th></tr>
+      </thead>
+      <tbody>${r1}</tbody>
+    </table>`;
 
-  // 2. CARMA
-  document.getElementById('dpCarma').innerHTML = DEPT_CARMA.map((c, i) => `
-    <div class="dp-carma ${DEPT_TONES[i % DEPT_TONES.length]}">
-      <div class="dp-carma-l">${c.l}</div>
-      <div class="dp-carma-t">${escapeHtml(c.title)}</div>
-      <div class="dp-carma-w">${escapeHtml(c.who)}</div>
-    </div>`).join('');
-
-  // 3. PSDM
-  document.getElementById('dpPsdm').innerHTML = `
-    <table class="dp-tbl">
-      <thead><tr><th style="width:190px">HOD</th><th style="width:110px">Department</th><th>Area of Expertise</th></tr></thead>
-      <tbody>${DEPT_PSDM.map((p, i) => `<tr>
-        <td><span class="dp-ava dp-ava-sm ${DEPT_TONES[i % DEPT_TONES.length]}">${deptInitials(p.name)}</span>
-            <b>${escapeHtml(p.name)}</b></td>
-        <td><span class="dp-role dp-role-${p.role.toLowerCase()}">${escapeHtml(p.role)}</span></td>
-        <td>${escapeHtml(p.area)}</td>
+  // ── 2. CARMA ──
+  document.getElementById('dpCarmaTbl').innerHTML = `
+    <table class="dp-poster dp-p2">
+      <thead><tr><th colspan="3" class="dp-ttl">CARMA</th></tr></thead>
+      <tbody>${DEPT_CARMA.map(c => `<tr>
+        <td class="dp-c dp-letter">${c.l}</td>
+        <td class="dp-carma-t">${escapeHtml(c.title)}</td>
+        <td class="dp-carma-w">${escapeHtml(c.who)}</td>
       </tr>`).join('')}</tbody>
     </table>`;
 
-  // 4. MDO aur unke executives
-  document.getElementById('dpMdo').innerHTML = DEPT_MDOS.map((m, i) => `
-    <div class="dp-card dp-card-wide ${DEPT_TONES[(i + 3) % DEPT_TONES.length]}">
-      <div class="dp-card-top">
-        <span class="dp-num">${i + 1}</span>
-        <div class="dp-dept">${escapeHtml(m.mdo)}</div>
-        ${m.own ? `<span class="dp-own">${escapeHtml(m.own)}</span>` : ''}
-      </div>
-      ${m.execs.length ? `<div class="dp-mdo-list">
-        ${m.execs.map(e => `<div class="dp-mdo-row">
-          <span class="dp-ava dp-ava-sm">${deptInitials(e.name)}</span>
-          <span class="dp-name">${escapeHtml(e.name)}</span>
-          <span class="dp-mdo-dept">${escapeHtml(e.dept)}</span>
-        </div>`).join('')}
-      </div>` : `<div class="dp-exec-wrap"><div class="dp-none">No executive listed</div></div>`}
-    </div>`).join('');
+  // ── 3. Problem Solver Decision Making (PSDM) ──
+  document.getElementById('dpPsdmTbl').innerHTML = `
+    <table class="dp-poster dp-p3">
+      <thead>
+        <tr><th colspan="3" class="dp-ttl">Problem Solver Decision Making (PSDM)</th></tr>
+        <tr><th style="width:190px">HOD</th><th style="width:150px">Department</th><th>Area of Expertise</th></tr>
+      </thead>
+      <tbody>${DEPT_PSDM.map(p => `<tr>
+        <td class="dp-hod">${escapeHtml(p.name)}</td>
+        <td class="dp-c dp-role">${escapeHtml(p.role)}</td>
+        <td class="dp-area">${escapeHtml(p.area)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+
+  // ── 4. List of MDO's and Executives ──
+  let r4 = '';
+  DEPT_MDOS.forEach((m, i) => {
+    const n = Math.max(1, m.execs.length);
+    const sp = n > 1 ? ` rowspan="${n}"` : '';
+    const first = m.execs[0];
+    r4 += `<tr>
+      <td class="dp-c dp-sn"${sp}>${i + 1}</td>
+      <td class="dp-mdo"${sp}>${escapeHtml(m.mdo)}</td>
+      <td class="dp-exec">${first ? escapeHtml(first.name) : ''}</td>
+      <td class="dp-area">${first ? escapeHtml(first.dept) : escapeHtml(m.own || '')}</td>
+    </tr>`;
+    for (let k = 1; k < m.execs.length; k++) r4 += `<tr>
+      <td class="dp-exec">${escapeHtml(m.execs[k].name)}</td>
+      <td class="dp-area">${escapeHtml(m.execs[k].dept)}</td>
+    </tr>`;
+  });
+  document.getElementById('dpMdoTbl').innerHTML = `
+    <table class="dp-poster dp-p4">
+      <thead>
+        <tr><th colspan="4" class="dp-ttl">List of MDO's and Executives</th></tr>
+        <tr><th style="width:58px">S.No.</th><th style="width:190px">MDO</th>
+            <th style="width:200px">Executives</th><th>Departments</th></tr>
+      </thead>
+      <tbody>${r4}</tbody>
+    </table>`;
 
   const totalExec = DEPT_HODS.reduce((n, d) => n + d.execs.length, 0);
   document.getElementById('dpCount').textContent =
