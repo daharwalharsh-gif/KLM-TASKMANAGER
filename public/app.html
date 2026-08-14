@@ -532,6 +532,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
       <span class="nav-label-text">Forms</span>
     </div>
+    <div class="nav-item" id="nav-department" onclick="navigate('department',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+      <span class="nav-label-text">Department</span>
+    </div>
     <div class="nav-item" id="nav-master" style="display:none" onclick="navigate('master',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16M8 6v12M16 6v12"/></svg>
       <span class="nav-label-text">Master Sheet</span>
@@ -1706,6 +1710,62 @@ tbody tr:last-child td{border-bottom:none;}
       .ms-title{font-size:14px}
     }
   </style>
+  <!-- ── DEPARTMENT — HOD / MDO / CARMA / PSDM ka reference board ── -->
+  <div id="page-department" class="page">
+    <div class="page-header">
+      <h2>Department</h2>
+      <span id="dpCount" style="font-size:12px;font-weight:700;color:#64748b"></span>
+    </div>
+
+    <div class="dp-sec">
+      <div class="dp-sec-head">
+        <span class="dp-sec-ico" style="background:#eef2ff;color:#4f46e5">🏢</span>
+        <div>
+          <div class="dp-sec-title">List of HOD's and Executives</div>
+          <div class="dp-sec-sub">HOD and executives, department by department</div>
+        </div>
+        <div class="dp-sec-line"></div>
+      </div>
+      <div class="dp-grid" id="dpHodGrid"></div>
+    </div>
+
+    <div class="dp-sec">
+      <div class="dp-sec-head">
+        <span class="dp-sec-ico" style="background:#f0fdfa;color:#0d9488">🔠</span>
+        <div>
+          <div class="dp-sec-title">CARMA</div>
+          <div class="dp-sec-sub">From system creation to accountability — who owns each step</div>
+        </div>
+        <div class="dp-sec-line"></div>
+      </div>
+      <div class="dp-carma-grid" id="dpCarma"></div>
+    </div>
+
+    <div class="dp-sec">
+      <div class="dp-sec-head">
+        <span class="dp-sec-ico" style="background:#fffbeb;color:#d97706">🧩</span>
+        <div>
+          <div class="dp-sec-title">Problem Solver Decision Making (PSDM)</div>
+          <div class="dp-sec-sub">Who to go to for which kind of problem</div>
+        </div>
+        <div class="dp-sec-line"></div>
+      </div>
+      <div id="dpPsdm"></div>
+    </div>
+
+    <div class="dp-sec">
+      <div class="dp-sec-head">
+        <span class="dp-sec-ico" style="background:#fdf2f8;color:#be185d">👥</span>
+        <div>
+          <div class="dp-sec-title">List of MDO's and Executives</div>
+          <div class="dp-sec-sub">Which executive sits under which MDO, and in which department</div>
+        </div>
+        <div class="dp-sec-line"></div>
+      </div>
+      <div class="dp-grid" id="dpMdo"></div>
+    </div>
+  </div>
+
   <div id="page-master" class="page">
     <div class="page-header">
       <h2>Master Sheet</h2>
@@ -1825,6 +1885,76 @@ tbody tr:last-child td{border-bottom:none;}
       outline:none;box-sizing:border-box}
     .pm-rem:focus{border-color:#4f46e5;background:#fff}
     .pm-rem::placeholder{color:#94a3b8}
+    /* ── Department board (HOD / MDO / CARMA / PSDM) ── */
+    .dp-sec{margin-bottom:26px}
+    .dp-sec-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+    .dp-sec-ico{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex:0 0 auto}
+    .dp-sec-title{font-size:15.5px;font-weight:800;color:#1e293b;letter-spacing:.2px}
+    .dp-sec-sub{font-size:12px;color:#94a3b8;margin-top:1px}
+    .dp-sec-line{flex:1;height:1px;background:linear-gradient(90deg,#e2e8f0,transparent)}
+
+    .dp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:14px}
+    .dp-card{background:#fff;border:1px solid #e2e8f0;border-radius:15px;overflow:hidden;
+      box-shadow:0 4px 14px rgba(15,23,42,.05);transition:transform .14s,box-shadow .14s}
+    .dp-card:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(15,23,42,.1)}
+    .dp-card-wide{grid-column:1/-1}
+    .dp-card-top{display:flex;align-items:center;gap:10px;padding:11px 15px;
+      background:var(--dpBg,#eef2ff);border-bottom:1px solid var(--dpBd,#c7d2fe)}
+    .dp-num{width:22px;height:22px;border-radius:7px;background:var(--dpC,#4f46e5);color:#fff;
+      font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+    .dp-dept{font-size:14px;font-weight:800;color:var(--dpT,#3730a3)}
+    .dp-own{margin-left:auto;font-size:11px;font-weight:700;color:var(--dpT,#3730a3);
+      background:#fff;border:1px solid var(--dpBd,#c7d2fe);border-radius:20px;padding:3px 11px}
+
+    .dp-hod{display:flex;align-items:center;gap:11px;padding:13px 15px 11px}
+    .dp-ava{width:36px;height:36px;border-radius:11px;background:var(--dpC,#4f46e5);color:#fff;
+      font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;letter-spacing:.4px}
+    .dp-ava-sm{width:27px;height:27px;border-radius:8px;font-size:11px;margin-right:8px;vertical-align:middle}
+    .dp-lbl{font-size:10px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px}
+    .dp-name{font-size:14px;font-weight:700;color:#1e293b;margin-top:1px}
+    .dp-exec-wrap{padding:0 15px 14px}
+    .dp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+    .dp-chip{font-size:12px;font-weight:600;color:var(--dpT,#3730a3);background:var(--dpBg,#eef2ff);
+      border:1px solid var(--dpBd,#c7d2fe);border-radius:20px;padding:4px 11px}
+    .dp-none{font-size:12px;color:#cbd5e1;font-style:italic;padding-top:4px}
+
+    .dp-carma-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px}
+    .dp-carma{background:#fff;border:1px solid var(--dpBd,#c7d2fe);border-top:4px solid var(--dpC,#4f46e5);
+      border-radius:13px;padding:15px 16px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,.05)}
+    .dp-carma-l{font-size:32px;font-weight:900;color:var(--dpC,#4f46e5);line-height:1}
+    .dp-carma-t{font-size:13.5px;font-weight:800;color:#1e293b;margin-top:6px}
+    .dp-carma-w{font-size:12px;color:#64748b;margin-top:5px;background:var(--dpBg,#eef2ff);
+      border-radius:20px;padding:4px 10px;display:inline-block}
+
+    .dp-tbl{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;
+      border-radius:13px;overflow:hidden;box-shadow:0 4px 14px rgba(15,23,42,.05)}
+    .dp-tbl th{background:#f8fafc;font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;
+      letter-spacing:.5px;text-align:left;padding:11px 15px;border-bottom:1px solid #e2e8f0}
+    .dp-tbl td{padding:11px 15px;border-bottom:1px solid #f1f5f9;font-size:13.5px;color:#334155;vertical-align:middle}
+    .dp-tbl tbody tr:last-child td{border-bottom:none}
+    .dp-tbl tbody tr:hover{background:#f8faff}
+    .dp-role{font-size:10.5px;font-weight:800;padding:3px 10px;border-radius:20px;letter-spacing:.4px}
+    .dp-role-hod{background:#eef2ff;color:#4338ca}
+    .dp-role-ea{background:#fdf2f8;color:#be185d}
+    .dp-role-pc{background:#ecfeff;color:#0e7490}
+
+    .dp-mdo-list{padding:6px 15px 13px}
+    .dp-mdo-row{display:flex;align-items:center;gap:0;padding:7px 0;border-bottom:1px dashed #f1f5f9}
+    .dp-mdo-row:last-child{border-bottom:none}
+    .dp-mdo-dept{margin-left:auto;font-size:12px;font-weight:600;color:var(--dpT,#3730a3);
+      background:var(--dpBg,#eef2ff);border-radius:20px;padding:3px 11px;white-space:nowrap}
+
+    .dp-t1{--dpC:#4f46e5;--dpBg:#eef2ff;--dpBd:#c7d2fe;--dpT:#3730a3}
+    .dp-t2{--dpC:#0d9488;--dpBg:#f0fdfa;--dpBd:#99f6e4;--dpT:#0f766e}
+    .dp-t3{--dpC:#d97706;--dpBg:#fffbeb;--dpBd:#fde68a;--dpT:#b45309}
+    .dp-t4{--dpC:#be185d;--dpBg:#fdf2f8;--dpBd:#fbcfe8;--dpT:#9d174d}
+    .dp-t5{--dpC:#2563eb;--dpBg:#eff6ff;--dpBd:#bfdbfe;--dpT:#1d4ed8}
+    .dp-t6{--dpC:#16a34a;--dpBg:#f0fdf4;--dpBd:#bbf7d0;--dpT:#15803d}
+    .dp-t7{--dpC:#7c3aed;--dpBg:#faf5ff;--dpBd:#e9d5ff;--dpT:#6d28d9}
+    .dp-t8{--dpC:#c2410c;--dpBg:#fff7ed;--dpBd:#fed7aa;--dpT:#9a3412}
+    .dp-t9{--dpC:#0e7490;--dpBg:#ecfeff;--dpBd:#a5f3fc;--dpT:#155e75}
+    .dp-t10{--dpC:#dc2626;--dpBg:#fef2f2;--dpBd:#fecaca;--dpT:#b91c1c}
+    @media (max-width:700px){ .dp-mdo-dept{margin-left:0;margin-top:4px} .dp-mdo-row{flex-wrap:wrap} }
     /* ── PPC ── */
     .ppc-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
     .ppc-tab{padding:8px 14px;border:1.5px solid #e2e8f0;border-radius:9px;background:#fff;cursor:pointer;
@@ -3399,7 +3529,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues',forms:'Forms'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -3421,6 +3551,7 @@ function navigate(page, el) {
   if (page==='production') loadProduction();
   if (page==='catalogues') loadCatalogues();
   if (page==='forms') loadFormsPage();
+  if (page==='department') loadDepartment();
   closeSidebar();   // mobile drawer band karo nav ke baad
   window.scrollTo(0,0);
 }
@@ -11005,6 +11136,134 @@ async function submitTaskTransfer() {
 }
 
 
+
+// ══════════════════════════════════════════════════════
+// DEPARTMENT — HOD, MDO, CARMA aur PSDM ka reference board
+// ══════════════════════════════════════════════════════
+// Ye poori tarah static hai (company ke posters se) — koi sheet/DB nahi.
+// Naam badalne ho to bas in list ko edit kar dena.
+
+const DEPT_HODS = [
+  { dept: 'Sales / Merchant',  hod: 'Kiran Mam',           execs: ['Aradhana', 'Isha', 'Riya', 'Divya'] },
+  { dept: 'Merchant Boxing',   hod: 'Aarti Mam',           execs: [] },
+  { dept: 'Sales Offline',     hod: 'Kajal / Amit Sir',    execs: ['Kashvi', 'Sanjana', 'Mohit'] },
+  { dept: 'Sales Online',      hod: 'Amit Sir',            execs: ['Sachit', 'Pankaj', 'Arjun'] },
+  { dept: 'HR',                hod: 'Satyen Sir',          execs: ['Dipanshu'] },
+  { dept: 'Purchase',          hod: 'Shubham Sir',         execs: ['Amit'] },
+  { dept: 'Designing',         hod: 'Nishant Sir',         execs: [] },
+  { dept: 'Social Media',      hod: 'Kajal',               execs: [] },
+  { dept: 'PPC Manager',       hod: 'Tribhuvan Tyagi',     execs: [] },
+  { dept: 'Production',        hod: 'Dharmendra Masterji', execs: [] },
+];
+
+const DEPT_CARMA = [
+  { l: 'C', title: 'System Creation', who: 'HOD + PC + SCT' },
+  { l: 'A', title: 'Alignment',       who: 'HOD + PC + SCT' },
+  { l: 'R', title: 'Roll Out',        who: 'MIS + PC' },
+  { l: 'M', title: 'Monitoring',      who: 'PC' },
+  { l: 'A', title: 'Accountability',  who: 'EM + MIS' },
+];
+
+const DEPT_PSDM = [
+  { name: 'Priyanka',    role: 'EA',  area: 'MM, MDO, HR / Executives' },
+  { name: 'Ekta',        role: 'PC',  area: 'Systems' },
+  { name: 'Kiran Mam',   role: 'HOD', area: 'Apparels / Quality' },
+  { name: 'Aarti Mam',   role: 'HOD', area: 'Boxing / Quality' },
+  { name: 'Amit Sir',    role: 'HOD', area: 'Invincible' },
+  { name: 'Shubham Sir', role: 'HOD', area: 'Purchase + Operations (Order to FK)' },
+  { name: 'Tyagi Ji',    role: 'HOD', area: 'Cut - Dispatch' },
+  { name: 'Kajal',       role: 'HOD', area: 'Invincible Offline' },
+  { name: 'Satyen Sir',  role: 'HOD', area: 'Maintenance, Audit, Attendance, Late Coming' },
+];
+
+const DEPT_MDOS = [
+  { mdo: 'Priyanka (EA)', execs: [
+      { name: 'Riya',      dept: 'Merchant (Apparel)' },
+      { name: 'Divya',     dept: 'Sampling' },
+      { name: 'Aradhana',  dept: 'Invincible Merchant' },
+      { name: 'Isha',      dept: 'CRM Export' },
+      { name: 'Sanjana',   dept: 'CRM Offline' },
+      { name: 'Kashvi',    dept: 'Sales Coordinator (Invincible)' },
+      { name: 'Mohit',     dept: 'Billing Executive (Invincible)' },
+      { name: 'Amit',      dept: 'Purchase Executive' },
+      { name: 'Sachit',    dept: 'Online Executive' },
+      { name: 'Deepanshu', dept: 'HR Executive' },
+      { name: 'Deepak',    dept: 'DEO (Production)' },
+      { name: 'Rohit',     dept: 'Production Coordinator (Factory)' },
+    ] },
+  { mdo: 'Ekta',   execs: [], own: 'PC (FMS, Checklist)' },
+  { mdo: 'Sachin', execs: [], own: 'PC (PMS)' },
+];
+
+// Har card ka apna rang — ek hi palette baar baar ghoomta hai
+const DEPT_TONES = ['dp-t1','dp-t2','dp-t3','dp-t4','dp-t5','dp-t6','dp-t7','dp-t8','dp-t9','dp-t10'];
+function deptInitials(n) {
+  return String(n || '').replace(/\(.*?\)/g, '').trim().split(/\s+/)
+    .filter(w => !/^(sir|mam|ji)$/i.test(w)).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+}
+
+function loadDepartment() {
+  // 1. HOD aur unke executives
+  document.getElementById('dpHodGrid').innerHTML = DEPT_HODS.map((d, i) => `
+    <div class="dp-card ${DEPT_TONES[i % DEPT_TONES.length]}">
+      <div class="dp-card-top">
+        <span class="dp-num">${i + 1}</span>
+        <div class="dp-dept">${escapeHtml(d.dept)}</div>
+      </div>
+      <div class="dp-hod">
+        <span class="dp-ava">${deptInitials(d.hod)}</span>
+        <div>
+          <div class="dp-lbl">HOD</div>
+          <div class="dp-name">${escapeHtml(d.hod)}</div>
+        </div>
+      </div>
+      ${d.execs.length ? `<div class="dp-exec-wrap">
+        <div class="dp-lbl">Executives · ${d.execs.length}</div>
+        <div class="dp-chips">${d.execs.map(e => `<span class="dp-chip">${escapeHtml(e)}</span>`).join('')}</div>
+      </div>` : `<div class="dp-exec-wrap"><div class="dp-none">No executive listed</div></div>`}
+    </div>`).join('');
+
+  // 2. CARMA
+  document.getElementById('dpCarma').innerHTML = DEPT_CARMA.map((c, i) => `
+    <div class="dp-carma ${DEPT_TONES[i % DEPT_TONES.length]}">
+      <div class="dp-carma-l">${c.l}</div>
+      <div class="dp-carma-t">${escapeHtml(c.title)}</div>
+      <div class="dp-carma-w">${escapeHtml(c.who)}</div>
+    </div>`).join('');
+
+  // 3. PSDM
+  document.getElementById('dpPsdm').innerHTML = `
+    <table class="dp-tbl">
+      <thead><tr><th style="width:190px">HOD</th><th style="width:110px">Department</th><th>Area of Expertise</th></tr></thead>
+      <tbody>${DEPT_PSDM.map((p, i) => `<tr>
+        <td><span class="dp-ava dp-ava-sm ${DEPT_TONES[i % DEPT_TONES.length]}">${deptInitials(p.name)}</span>
+            <b>${escapeHtml(p.name)}</b></td>
+        <td><span class="dp-role dp-role-${p.role.toLowerCase()}">${escapeHtml(p.role)}</span></td>
+        <td>${escapeHtml(p.area)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+
+  // 4. MDO aur unke executives
+  document.getElementById('dpMdo').innerHTML = DEPT_MDOS.map((m, i) => `
+    <div class="dp-card dp-card-wide ${DEPT_TONES[(i + 3) % DEPT_TONES.length]}">
+      <div class="dp-card-top">
+        <span class="dp-num">${i + 1}</span>
+        <div class="dp-dept">${escapeHtml(m.mdo)}</div>
+        ${m.own ? `<span class="dp-own">${escapeHtml(m.own)}</span>` : ''}
+      </div>
+      ${m.execs.length ? `<div class="dp-mdo-list">
+        ${m.execs.map(e => `<div class="dp-mdo-row">
+          <span class="dp-ava dp-ava-sm">${deptInitials(e.name)}</span>
+          <span class="dp-name">${escapeHtml(e.name)}</span>
+          <span class="dp-mdo-dept">${escapeHtml(e.dept)}</span>
+        </div>`).join('')}
+      </div>` : `<div class="dp-exec-wrap"><div class="dp-none">No executive listed</div></div>`}
+    </div>`).join('');
+
+  const totalExec = DEPT_HODS.reduce((n, d) => n + d.execs.length, 0);
+  document.getElementById('dpCount').textContent =
+    `${DEPT_HODS.length} departments · ${totalExec} executives · ${DEPT_PSDM.length} problem solvers`;
+}
 
 // ══════════════════════════════════════════════════════
 // BULK DONE — sirf Garments PMS aur Boxing PMS
