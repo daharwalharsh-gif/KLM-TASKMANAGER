@@ -3085,6 +3085,112 @@ app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) =>
 });
 
 // ══════════════════════════════════════════════════════
+// O TO D REPORT — On Time Delivery (MIS ka tab)
+// ══════════════════════════════════════════════════════
+// Wahi O-to-D Merchant FMS sheet (FMS3). Columns:
+//   C = Order date, D = Lead time, E = Merchant name (khaali ho to J),
+//   G = PI number, CS = Order value, CT = Planned, CU = Actual.
+// CT bhara + CU bhara  -> Dispatched
+// CT bhara + CU khaali -> Pending
+// Rows Planned date ke mahine se group hoti hain aur har mahine ka
+// TOTAL AMOUNT MONTHLY nikalta hai.
+const OTOD_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const tab = String(req.query.tab || 'pending').toLowerCase() === 'dispatched' ? 'dispatched' : 'pending';
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
+    const month = String(req.query.month || '').trim();   // YYYY-MM
+
+    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    const r = await sheetsApi.spreadsheets.values.get({
+      spreadsheetId: PROD_SHEET_ID, range: `${PROD_TAB}!A:CU`
+    });
+    const all = (r.data.values || []).slice(PROD_HEADER_ROW);
+
+    const [saved] = await db.query('SELECT * FROM otod_rows');
+    const byKey = {};
+    for (const s of saved) byKey[String(s.row_key)] = s;
+
+    const rows = [];
+    const monthSet = new Set();
+    for (const row of all) {
+      const piNo = String(row[6] || '').trim();
+      const planned = prodIsoDate(row[97]);              // CT
+      const actual = String(row[98] || '').trim();       // CU
+      if (!piNo || !planned) continue;                   // Planned date ke bina report me nahi
+      if (tab === 'pending' && actual) continue;
+      if (tab === 'dispatched' && !actual) continue;
+
+      monthSet.add(planned.slice(0, 7));
+      if (from && planned < from) continue;
+      if (to && planned > to) continue;
+      if (month && planned.slice(0, 7) !== month) continue;
+
+      const orderDate = prodIsoDate(row[2]);             // C
+      const rowKey = piNo + '|' + orderDate;
+      const s = byKey[rowKey] || {};
+      rows.push({
+        rowKey, piNo, orderDate,
+        leadTime: String(row[3] || '').trim(),           // D
+        merchant: String(row[4] || '').trim() || String(row[9] || '').trim(),   // E, warna J
+        orderValue: String(row[96] || '').trim(),        // CS
+        planned,
+        actualDate: prodIsoDate(row[98]),
+        checkDate: s.check_date || ''
+      });
+    }
+
+    rows.sort((a, b) => a.planned < b.planned ? -1 : a.planned > b.planned ? 1 : 0);
+
+    // Mahine ke hisaab se group + har mahine ka total
+    const groups = [];
+    for (const x of rows) {
+      const key = x.planned.slice(0, 7);
+      let g = groups[groups.length - 1];
+      if (!g || g.month !== key) {
+        const [y, m] = key.split('-');
+        g = { month: key, label: `${OTOD_MONTHS[Number(m) - 1] || m} ${y}`, rows: [], total: 0 };
+        groups.push(g);
+      }
+      g.rows.push(x);
+      const n = Number(String(x.orderValue).replace(/[^0-9.\-]/g, ''));
+      if (!isNaN(n)) g.total += n;
+    }
+
+    const months = [...monthSet].sort().map(k => {
+      const [y, m] = k.split('-');
+      return { key: k, label: `${OTOD_MONTHS[Number(m) - 1] || m} ${y}` };
+    });
+    const grand = groups.reduce((n, g) => n + g.total, 0);
+    res.json({ tab, groups, months, total: rows.length, grandTotal: grand });
+  } catch (err) {
+    console.error('O to D report FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Pending wale tab ka manual date column
+app.put('/api/otod/cell', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { rowKey, piNo, checkDate } = req.body || {};
+    if (!rowKey) return res.status(400).json({ error: 'rowKey zaroori hai' });
+    const val = String(checkDate ?? '').trim();
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const [ex] = await db.query('SELECT id FROM otod_rows WHERE row_key=?', [rowKey]);
+    if (ex[0]) {
+      await db.query('UPDATE otod_rows SET check_date=?, updated_by=?, updated_at=? WHERE row_key=?',
+        [val, req.session.userId, now, rowKey]);
+    } else {
+      await db.query('INSERT INTO otod_rows (row_key,pi_no,check_date,updated_by,updated_at) VALUES (?,?,?,?,?)',
+        [rowKey, String(piNo || ''), val, req.session.userId, now]);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
 // PPC — PMS Garments / PMS Boxing se production planning
 // ══════════════════════════════════════════════════════
 // Dono sheet ka "PMS" tab ek jaisa hai: header row 6, data row 7 se.

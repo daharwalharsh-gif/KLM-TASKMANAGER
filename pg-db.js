@@ -129,6 +129,11 @@ const SCHEMA = {
     cols: ['id','report_id','remark','entered_by','entered_by_name','created_at'],
     autoFill: { created_at: 'NOW' }
   },
+  // O to D Report — Pending list ka manual "Check Date" column
+  otod_rows: {
+    cols: ['id','row_key','pi_no','check_date','updated_by','updated_at'],
+    autoFill: { updated_at: 'NOW' }
+  },
   // PPC — PMS Garments / Boxing ke order par manual column
   // (row_key = sheetKey + '|' + unique id)
   ppc_rows: {

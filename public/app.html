@@ -1563,6 +1563,7 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="tab" id="misTabFMS" onclick="switchMisTab('fms',this)">FMS MIS</div>
           <div class="tab" id="misTabAll" onclick="switchMisTab('all',this)">All MIS</div>
           <div class="tab" id="misTabTAT" onclick="switchMisTab('fmstat',this)">📅 New FMS Report</div>
+          <div class="tab" id="misTabOtod" onclick="switchMisTab('otod',this)">📦 O to D Report</div>
         </div>
       </div>
     </div>
@@ -1847,6 +1848,34 @@ tbody tr:last-child td{border-bottom:none;}
       outline:none;box-sizing:border-box}
     .pm-rem:focus{border-color:#4f46e5;background:#fff}
     .pm-rem::placeholder{color:#94a3b8}
+    /* ── O to D Report (MIS) ── */
+    .otod-bar{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:13px 16px;margin-bottom:14px;
+      display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+    .otod-f label{display:block;font-size:10.5px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+    .otod-f input,.otod-f select{padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;
+      font-family:'Inter',sans-serif;outline:none;background:#fff;color:#1e293b}
+    .otod-f input:focus,.otod-f select:focus{border-color:#4f46e5}
+    .otod-count{margin-left:auto;font-size:12.5px;font-weight:800;color:#4f46e5}
+    .otod-tbl{width:100%;border-collapse:collapse;background:#fff;font-size:13px;border:2px solid #1e3a8a;
+      box-shadow:0 8px 24px rgba(15,23,42,.08)}
+    .otod-tbl th,.otod-tbl td{border:1px solid #94a3b8;padding:8px 11px;vertical-align:middle}
+    .otod-ttl{background:#1e3a8a;color:#fff;text-align:center;font-size:15px;font-weight:800;letter-spacing:.5px;padding:11px}
+    .otod-tbl thead tr:nth-child(2) th{background:#dbeafe;color:#0f172a;font-size:11.5px;font-weight:800;text-align:center}
+    .otod-tbl thead .otod-th-total{background:#fca5a5;color:#7f1d1d}
+    .otod-c{text-align:center;white-space:nowrap}
+    .otod-r{text-align:right;white-space:nowrap;font-weight:600}
+    .otod-pi{font-weight:700;color:#1d4ed8}
+    .otod-total{background:#fef2f2;text-align:right;font-weight:800;color:#0f172a;white-space:nowrap;font-size:14px}
+    .otod-gap td{border:none;height:12px;background:#f1f5f9}
+    .otod-tbl tbody tr:not(.otod-gap):hover td{background:#f6f9ff}
+    .otod-tbl tfoot td{background:#eef2ff;font-weight:800;color:#3730a3}
+    .otod-edit{padding:4px 6px!important}
+    .otod-in{width:100%;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12.5px;
+      font-family:'Inter',sans-serif;outline:none;box-sizing:border-box}
+    .otod-in:focus{border-color:#4f46e5}
+    .otod-late{color:#dc2626;font-weight:800}
+    .otod-ok{color:#16a34a;font-weight:800}
+
     /* ── Department board — poster jaisi tables ── */
     .dp-wrap{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
     .dp-col{display:flex;flex-direction:column;gap:22px;min-width:0}
@@ -7610,6 +7639,12 @@ function switchMisTab(type, el) {
     const hasOptions = document.getElementById('misDoerFilter') && document.getElementById('misDoerFilter').options.length > 1;
     doerWrap.style.display = (type !== 'fms' && type !== 'fmstat' && hasOptions) ? '' : 'none';
   }
+  if (type === 'otod') {
+    // O to D Report apne hi filter/tab ke saath chalti hai
+    document.getElementById('misResults').innerHTML = otodShell();
+    loadOtod();
+    return;
+  }
   if (type === 'fmstat') {
     if (misTATData.length) renderFMSTAT(misTATData);
     else document.getElementById('misResults').innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Click Generate to load New FMS Report</div>`;
@@ -11058,6 +11093,241 @@ async function submitTaskTransfer() {
 }
 
 
+
+// ══════════════════════════════════════════════════════
+// O TO D REPORT — On Time Delivery (MIS ka tab)
+// ══════════════════════════════════════════════════════
+// Dispatched = Planned aur Actual dono bhare. Pending = Planned bhara,
+// Actual khaali. Rows Planned ke mahine se group hoti hain aur har mahine
+// ka TOTAL AMOUNT MONTHLY ek merged cell me aata hai (Excel jaisa).
+let _otodTab = 'pending';
+let _otodData = { groups: [], months: [], total: 0, grandTotal: 0 };
+let _otodLoading = false;
+
+function otodNum(v) {
+  const n = Number(String(v ?? '').replace(/[^0-9.\-]/g, ''));
+  return isNaN(n) ? null : n;
+}
+function otodMoney(v) {
+  const n = otodNum(v);
+  return n === null ? '' : n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function otodDate(v) {
+  const s = String(v || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '';
+  const [y, m, d] = s.split('-');
+  return `${d}-${m}-${y}`;
+}
+// Planned aur chuni hui date ke beech kitne din
+function otodDays(planned, picked) {
+  const a = String(planned || '').slice(0, 10), b = String(picked || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b)) return '';
+  return Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+}
+
+function otodShell() {
+  return `
+  <div class="otod-bar">
+    <div class="tab-group otod-tabs">
+      <div class="tab ${_otodTab === 'pending' ? 'active' : ''}" onclick="otodSwitch('pending')">⏳ Pending</div>
+      <div class="tab ${_otodTab === 'dispatched' ? 'active' : ''}" onclick="otodSwitch('dispatched')">✅ Dispatched</div>
+    </div>
+    <div class="otod-f"><label>Planned From</label><input type="date" id="otodFrom" onchange="loadOtod()"/></div>
+    <div class="otod-f"><label>To</label><input type="date" id="otodTo" onchange="loadOtod()"/></div>
+    <div class="otod-f"><label>Month</label><select id="otodMonth" onchange="loadOtod()"></select></div>
+    <div class="otod-f"><label>&nbsp;</label>
+      <button class="btn btn-outline btn-sm" onclick="otodClear()">✕ Clear</button></div>
+    <div class="otod-f"><label>&nbsp;</label>
+      <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="otodPDF()">📄 PDF</button></div>
+    <span class="otod-count" id="otodCount"></span>
+  </div>
+  <div id="otodContent"></div>`;
+}
+
+function otodSwitch(tab) { _otodTab = tab; loadOtod(); }
+function otodClear() {
+  const f = document.getElementById('otodFrom'), t = document.getElementById('otodTo'), m = document.getElementById('otodMonth');
+  if (f) f.value = ''; if (t) t.value = ''; if (m) m.value = '';
+  loadOtod();
+}
+
+async function loadOtod() {
+  if (_otodLoading) return;
+  const res = document.getElementById('misResults');
+  if (!document.getElementById('otodContent')) res.innerHTML = otodShell();
+  // tab highlight
+  document.querySelectorAll('#misResults .otod-tabs .tab').forEach(t =>
+    t.classList.toggle('active', t.textContent.toLowerCase().includes(_otodTab)));
+
+  const from = document.getElementById('otodFrom')?.value || '';
+  const to = document.getElementById('otodTo')?.value || '';
+  const month = document.getElementById('otodMonth')?.value || '';
+  document.getElementById('otodContent').innerHTML =
+    '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
+
+  _otodLoading = true;
+  const r = await api(`/api/otod?tab=${_otodTab}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&month=${encodeURIComponent(month)}`);
+  _otodLoading = false;
+  if (!r || r.error) {
+    document.getElementById('otodContent').innerHTML =
+      `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">⚠️ ${escapeHtml((r && r.error) || 'Load failed')}</div>`;
+    return;
+  }
+  _otodData = r;
+
+  const sel = document.getElementById('otodMonth');
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">All months</option>' +
+      (r.months || []).map(m => `<option value="${m.key}">${escapeHtml(m.label)}</option>`).join('');
+    if (cur && (r.months || []).some(m => m.key === cur)) sel.value = cur;
+  }
+  renderOtod();
+}
+
+function renderOtod() {
+  const pending = _otodTab === 'pending';
+  const groups = _otodData.groups || [];
+  const cnt = document.getElementById('otodCount');
+  if (cnt) cnt.textContent = `${_otodData.total || 0} order(s) · ₹ ${otodMoney(_otodData.grandTotal || 0)}`;
+
+  if (!groups.length) {
+    document.getElementById('otodContent').innerHTML =
+      '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Is filter par koi order nahi.</div>';
+    return;
+  }
+
+  const extra = pending ? 2 : 0;
+  let body = '';
+  groups.forEach((g, gi) => {
+    g.rows.forEach((x, i) => {
+      const first = i === 0;
+      const days = pending ? otodDays(x.planned, x.checkDate) : '';
+      const dCls = days === '' ? '' : (Number(days) > 0 ? 'otod-late' : 'otod-ok');
+      body += `<tr>
+        <td>${escapeHtml(otodDate(x.orderDate))}</td>
+        <td class="otod-c">${escapeHtml(x.leadTime)}</td>
+        <td>${escapeHtml(x.merchant)}</td>
+        <td class="otod-pi">${escapeHtml(x.piNo)}</td>
+        <td class="otod-r">${escapeHtml(otodMoney(x.orderValue))}</td>
+        <td class="otod-c">${escapeHtml(otodDate(x.planned))}</td>
+        ${!pending ? `<td class="otod-c">${escapeHtml(otodDate(x.actualDate))}</td>` : ''}
+        ${pending ? `<td class="otod-edit"><input type="date" class="otod-in" value="${escapeHtml(x.checkDate || '')}"
+             onchange="otodSaveDate('${escapeHtml(x.rowKey)}','${escapeHtml(x.piNo)}',this.value)"/></td>
+           <td class="otod-c ${dCls}">${days === '' ? '—' : days}</td>` : ''}
+        ${first ? `<td class="otod-total" rowspan="${g.rows.length}">${escapeHtml(otodMoney(g.total))}</td>` : ''}
+      </tr>`;
+    });
+    if (gi < groups.length - 1) body += `<tr class="otod-gap"><td colspan="${7 + extra + (pending ? 0 : 1) - 1}"></td></tr>`;
+  });
+
+  document.getElementById('otodContent').innerHTML = `
+    <div style="overflow-x:auto">
+      <table class="otod-tbl">
+        <thead>
+          <tr><th colspan="${7 + extra + (pending ? 0 : 1)}" class="otod-ttl">On Time Delivery — ${pending ? 'Pending' : 'Dispatched'}</th></tr>
+          <tr>
+            <th>Order date</th><th>Lead time</th><th>Merchant name</th><th>PI number</th>
+            <th>Order value</th><th>Planned</th>
+            ${!pending ? '<th>Actual</th>' : ''}
+            ${pending ? '<th>Check Date</th><th>Days</th>' : ''}
+            <th class="otod-th-total">TOTAL AMOUNT MONTHLY</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr>
+          <td colspan="${4}">GRAND TOTAL — ${_otodData.total} order(s)</td>
+          <td class="otod-r">${escapeHtml(otodMoney(_otodData.grandTotal))}</td>
+          <td colspan="${2 + extra + (pending ? 0 : 1) - 1}"></td>
+          <td class="otod-total">${escapeHtml(otodMoney(_otodData.grandTotal))}</td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+}
+
+async function otodSaveDate(rowKey, piNo, checkDate) {
+  const r = await api('/api/otod/cell', 'PUT', { rowKey, piNo, checkDate });
+  if (r && r.error) return showToast(r.error, 'error');
+  for (const g of (_otodData.groups || [])) {
+    const row = g.rows.find(x => x.rowKey === rowKey);
+    if (row) row.checkDate = checkDate;
+  }
+  renderOtod();
+  showToast('Saved', 'success');
+}
+
+function otodPDF() {
+  const groups = _otodData.groups || [];
+  if (!groups.length) return showToast('Koi row nahi hai', 'error');
+  const pending = _otodTab === 'pending';
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const stamp = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const from = document.getElementById('otodFrom')?.value || '', to = document.getElementById('otodTo')?.value || '';
+  const mSel = document.getElementById('otodMonth');
+  const mTxt = mSel && mSel.value ? mSel.options[mSel.selectedIndex].text : '';
+  const range = [from ? 'From ' + otodDate(from) : '', to ? 'To ' + otodDate(to) : '', mTxt].filter(Boolean).join(' · ');
+
+  let body = '';
+  groups.forEach((g, gi) => {
+    g.rows.forEach((x, i) => {
+      const days = pending ? otodDays(x.planned, x.checkDate) : '';
+      body += `<tr>
+        <td>${escapeHtml(otodDate(x.orderDate))}</td>
+        <td class="c">${escapeHtml(x.leadTime)}</td>
+        <td>${escapeHtml(x.merchant)}</td>
+        <td>${escapeHtml(x.piNo)}</td>
+        <td class="r">${escapeHtml(otodMoney(x.orderValue))}</td>
+        <td class="c">${escapeHtml(otodDate(x.planned))}</td>
+        ${!pending ? `<td class="c">${escapeHtml(otodDate(x.actualDate))}</td>` : ''}
+        ${pending ? `<td class="c">${escapeHtml(otodDate(x.checkDate))}</td><td class="c">${days === '' ? '' : days}</td>` : ''}
+        ${i === 0 ? `<td class="r tot" rowspan="${g.rows.length}">${escapeHtml(otodMoney(g.total))}</td>` : ''}
+      </tr>`;
+    });
+    if (gi < groups.length - 1) body += `<tr class="gap"><td colspan="${pending ? 8 : 7}"></td></tr>`;
+  });
+
+  const cols = pending ? 9 : 8;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>O to D Report — On Time Delivery</title><style>
+    @page { size: A4 landscape; margin: 10mm; }
+    *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;font-size:10.5px}
+    .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1e3a8a;padding-bottom:7px;margin-bottom:12px}
+    .head h1{margin:0;font-size:17px;color:#1e3a8a} .head .sub{font-size:10.5px;color:#64748b}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #94a3b8;padding:4px 6px;text-align:left;vertical-align:middle}
+    thead th{background:#dbeafe;font-size:9.5px;font-weight:bold;text-align:center}
+    .ttl{background:#1e3a8a;color:#fff;font-size:13px;text-align:center;padding:7px}
+    .c{text-align:center} .r{text-align:right;white-space:nowrap}
+    .tot{background:#fee2e2;font-weight:bold;text-align:right}
+    .gap td{border:none;height:9px;background:#fff}
+    tfoot td{background:#eef2ff;font-weight:bold}
+    .foot{margin-top:10px;font-size:9px;color:#94a3b8;text-align:center}
+  </style></head><body>
+  <div class="head">
+    <div><h1>O to D Report — On Time Delivery</h1>
+      <div class="sub">${pending ? 'Pending (Planned bhara, Actual baaki)' : 'Dispatched (Planned aur Actual dono bhare)'}${range ? ' · ' + escapeHtml(range) : ''}</div></div>
+    <div class="sub">${stamp}<br>${_otodData.total} order(s)</div>
+  </div>
+  <table>
+    <thead>
+      <tr><th colspan="${cols}" class="ttl">On Time Delivery</th></tr>
+      <tr><th>Order date</th><th>Lead time</th><th>Merchant name</th><th>PI number</th>
+          <th>Order value</th><th>Planned</th>
+          ${!pending ? '<th>Actual</th>' : ''}
+          ${pending ? '<th>Check Date</th><th>Days</th>' : ''}
+          <th>TOTAL AMOUNT MONTHLY</th></tr>
+    </thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr><td colspan="4">GRAND TOTAL</td><td class="r">${escapeHtml(otodMoney(_otodData.grandTotal))}</td>
+      <td colspan="${cols - 6}"></td><td class="r">${escapeHtml(otodMoney(_otodData.grandTotal))}</td></tr></tfoot>
+  </table>
+  <div class="foot">KLM Task Manager · ${stamp}</div>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return showToast('Popup blocked — please allow popups', 'error');
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
+}
 
 // ══════════════════════════════════════════════════════
 // DEPARTMENT — HOD, MDO, CARMA aur PSDM ka reference board
