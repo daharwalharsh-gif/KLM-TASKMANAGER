@@ -3105,34 +3105,78 @@ app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) =>
 // Sheet ek hi baar padhte hain aur SAARI rows bhej dete hain (Pending +
 // Dispatched dono). Tab switch, date/month filter aur grouping sab UI par
 // hoti hai — isliye baar-baar API nahi chalti.
+//
+// Do source:
+//   merchant   = O to D Merchant FMS (FMS3)  -> Planned CT, Actual CU
+//   invincible = Invincible O to D Offline (FMS tab) -> Step 6 "Invoice
+//                generate to dispatch": Planned AE, Actual AF, Dispatch
+//                Status AT. Baaki headings B/C/D/E/F aur order date J.
+// PROD_SHEET_ID neeche define hota hai, isliye config handler ke andar banate hain
+function otodSources() {
+  return {
+    merchant: {
+      label: 'O to D Report',
+      sheetId: PROD_SHEET_ID, tab: PROD_TAB, headerRow: PROD_HEADER_ROW, range: 'A:CU'
+    },
+    invincible: {
+      label: 'Invincible O to D Offline',
+      sheetId: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw',
+      tab: 'FMS', headerRow: 6, range: 'A:AT'
+    }
+  };
+}
+
 app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
   try {
+    const SRC = otodSources();
+    const src = SRC[String(req.query.src || 'merchant')] ? String(req.query.src || 'merchant') : 'merchant';
+    const cfg = SRC[src];
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
     const r = await sheetsApi.spreadsheets.values.get({
-      spreadsheetId: PROD_SHEET_ID, range: `${PROD_TAB}!A:CU`
+      spreadsheetId: cfg.sheetId, range: `${cfg.tab}!${cfg.range}`
     });
-    const all = (r.data.values || []).slice(PROD_HEADER_ROW);
+    const all = (r.data.values || []).slice(cfg.headerRow);
 
     const rows = [];
     for (const row of all) {
-      const piNo = String(row[6] || '').trim();
-      const planned = prodIsoDate(row[97]);              // CT
-      const actual = String(row[98] || '').trim();       // CU
-      if (!piNo || !planned) continue;                   // Planned date ke bina report me nahi
-      const orderDate = prodIsoDate(row[2]);             // C
-      rows.push({
-        rowKey: piNo + '|' + orderDate, piNo, orderDate,
-        buyer: String(row[1] || '').trim(),               // B
-        leadTime: String(row[3] || '').trim(),            // D
-        merchant: String(row[4] || '').trim() || String(row[9] || '').trim(),   // E, warna J
-        orderValue: String(row[96] || '').trim(),         // CS
-        planned,
-        actualDate: prodIsoDate(row[98]),                 // CU
-        dispatched: !!actual
-      });
+      if (src === 'invincible') {
+        const party = String(row[1] || '').trim();          // B
+        const planned = prodIsoDate(row[30]);               // AE
+        const actual = String(row[31] || '').trim();        // AF
+        if (!party || !planned) continue;
+        rows.push({
+          rowKey: party + '|' + (row[12] || '') + '|' + planned,
+          party,
+          qty: String(row[2] || '').trim(),                 // C
+          creditDays: String(row[3] || '').trim(),          // D
+          paymentTerms: String(row[4] || '').trim(),        // E
+          mrp: String(row[5] || '').trim(),                 // F
+          orderDate: prodIsoDate(row[9]),                   // J
+          planned,
+          actualDate: prodIsoDate(row[31]),                 // AF
+          dispatchStatus: String(row[45] || '').trim(),     // AT
+          dispatched: !!actual
+        });
+      } else {
+        const piNo = String(row[6] || '').trim();
+        const planned = prodIsoDate(row[97]);              // CT
+        const actual = String(row[98] || '').trim();       // CU
+        if (!piNo || !planned) continue;
+        const orderDate = prodIsoDate(row[2]);             // C
+        rows.push({
+          rowKey: piNo + '|' + orderDate, piNo, orderDate,
+          buyer: String(row[1] || '').trim(),               // B
+          leadTime: String(row[3] || '').trim(),            // D
+          merchant: String(row[4] || '').trim() || String(row[9] || '').trim(),   // E, warna J
+          orderValue: String(row[96] || '').trim(),         // CS
+          planned,
+          actualDate: prodIsoDate(row[98]),                 // CU
+          dispatched: !!actual
+        });
+      }
     }
     rows.sort((x, y) => x.planned < y.planned ? -1 : x.planned > y.planned ? 1 : 0);
-    res.json({ rows, total: rows.length });
+    res.json({ src, label: cfg.label, rows, total: rows.length });
   } catch (err) {
     console.error('O to D report FAILED:', err.message);
     res.status(500).json({ error: err.message });

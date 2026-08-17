@@ -1564,6 +1564,7 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="tab" id="misTabAll" onclick="switchMisTab('all',this)">All MIS</div>
           <div class="tab" id="misTabTAT" onclick="switchMisTab('fmstat',this)">📅 New FMS Report</div>
           <div class="tab" id="misTabOtod" onclick="switchMisTab('otod',this)">📦 Export O to D Report</div>
+          <div class="tab" id="misTabOtodInv" onclick="switchMisTab('otodinv',this)">📦 Export Invincible O to D Offline</div>
         </div>
       </div>
     </div>
@@ -7636,9 +7637,11 @@ function switchMisTab(type, el) {
     const hasOptions = document.getElementById('misDoerFilter') && document.getElementById('misDoerFilter').options.length > 1;
     doerWrap.style.display = (type !== 'fms' && type !== 'fmstat' && hasOptions) ? '' : 'none';
   }
-  if (type === 'otod') {
-    // O to D Report apne hi filter/tab ke saath chalti hai. Sheet ek hi baar
-    // padhi jaati hai — dobara tab kholne par wahi data.
+  if (type === 'otod' || type === 'otodinv') {
+    // Dono O to D report apne hi filter/tab ke saath chalti hain. Har sheet
+    // ek hi baar padhi jaati hai — dobara tab kholne par wahi data.
+    _otodSrc = type === 'otodinv' ? 'invincible' : 'merchant';
+    _otodTab = 'pending';
     document.getElementById('misResults').innerHTML = otodShell();
     loadOtod();
     return;
@@ -11126,8 +11129,12 @@ function otodDays(planned, picked) {
 
 // Sheet ek hi baar padhte hain — uske baad tab badalna, date/month filter
 // sab yahin (client par) hota hai, koi dobara API call nahi. Naya data chahiye
-// to Refresh dabao.
-let _otodAll = null;
+// to Refresh dabao. Dono report (merchant / invincible) apne apne cache me.
+let _otodSrc = 'merchant';
+const _otodCache = { merchant: null, invincible: null };
+const OTOD_TITLE = { merchant: 'On Time Delivery', invincible: 'Invincible O to D Offline' };
+const OTOD_TOTAL_HEAD = { merchant: 'TOTAL AMOUNT MONTHLY', invincible: 'TOTAL QUANTITY MONTHLY' };
+const OTOD_TOTAL_FIELD = { merchant: 'orderValue', invincible: 'qty' };
 
 function otodShell() {
   return `
@@ -11169,19 +11176,19 @@ function otodClear() {
 async function loadOtod(force) {
   if (_otodLoading) return;
   if (!document.getElementById('otodContent')) document.getElementById('misResults').innerHTML = otodShell();
-  if (_otodAll && !force) { renderOtod(); return; }
+  if (_otodCache[_otodSrc] && !force) { renderOtod(); return; }
 
   document.getElementById('otodContent').innerHTML =
     '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
   _otodLoading = true;
-  const r = await api('/api/otod');
+  const r = await api('/api/otod?src=' + _otodSrc);
   _otodLoading = false;
   if (!r || r.error) {
     document.getElementById('otodContent').innerHTML =
       `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">⚠️ ${escapeHtml((r && r.error) || 'Load failed')}</div>`;
     return;
   }
-  _otodAll = r.rows || [];
+  _otodCache[_otodSrc] = r.rows || [];
   renderOtod();
 }
 
@@ -11191,7 +11198,7 @@ function otodFiltered() {
   const from = document.getElementById('otodFrom')?.value || '';
   const to = document.getElementById('otodTo')?.value || '';
   const month = document.getElementById('otodMonth')?.value || '';
-  return (_otodAll || []).filter(x => !!x.dispatched === want)
+  return (_otodCache[_otodSrc] || []).filter(x => !!x.dispatched === want)
     .filter(x => (!from || x.planned >= from) && (!to || x.planned <= to) && (!month || x.planned.slice(0, 7) === month));
 }
 const OTOD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -11205,13 +11212,28 @@ function otodGroups(rows) {
     let g = out[out.length - 1];
     if (!g || g.month !== key) { g = { month: key, label: otodMonthLabel(key), rows: [], total: 0 }; out.push(g); }
     g.rows.push(x);
-    g.total += otodNum(x.orderValue) || 0;
+    g.total += otodTotalOf(x);
   }
   return out;
 }
 
-// Report ke columns — dono tab me ek jaise (Pending me Actual/Days khaali)
+// Report ke columns — Pending me Actual/Days khaali rehte hain
 function otodCols() {
+  if (_otodSrc === 'invincible') {
+    return [
+      { k: 'sr',             h: 'Sr No.',         cls: 'otod-c otod-sr' },
+      { k: 'party',          h: 'Party name' },
+      { k: 'qty',            h: 'Total quantity', cls: 'otod-r', num: true },
+      { k: 'creditDays',     h: 'credit days',    cls: 'otod-c' },
+      { k: 'paymentTerms',   h: 'payment terms',  cls: 'otod-c' },
+      { k: 'mrp',            h: 'MRP',            cls: 'otod-c' },
+      { k: 'orderDate',      h: 'Date of order',  cls: 'otod-c', date: true },
+      { k: 'planned',        h: 'Planned',        cls: 'otod-c', date: true },
+      { k: 'actualDate',     h: 'Actual',         cls: 'otod-c', date: true },
+      { k: 'days',           h: 'Days',           cls: 'otod-c', days: true },
+      { k: 'dispatchStatus', h: 'Dispatch Status',cls: 'otod-c' },
+    ];
+  }
   return [
     { k: 'sr',         h: 'Sr No.',        cls: 'otod-c otod-sr' },
     { k: 'buyer',      h: 'Buyer name' },
@@ -11229,8 +11251,14 @@ function otodVal(x, c, sr) {
   if (c.k === 'sr') return String(sr);
   if (c.days) { const d = otodDays(x.planned, x.actualDate); return d === '' ? '' : String(d); }
   if (c.money) return otodMoney(x[c.k]);
+  if (c.num) { const n = otodNum(x[c.k]); return n === null ? '' : n.toLocaleString('en-IN'); }
   if (c.date) return otodDate(x[c.k]);
   return String(x[c.k] ?? '');
+}
+// Monthly total ka number — merchant me Order value, invincible me Total quantity
+function otodTotalOf(x) { return otodNum(x[OTOD_TOTAL_FIELD[_otodSrc]]) || 0; }
+function otodTotalFmt(n) {
+  return _otodSrc === 'invincible' ? Number(n || 0).toLocaleString('en-IN') : otodMoney(n);
 }
 
 function renderOtod() {
@@ -11243,13 +11271,13 @@ function renderOtod() {
   const sel = document.getElementById('otodMonth');
   if (sel) {
     const want = _otodTab === 'dispatched';
-    const keys = [...new Set((_otodAll || []).filter(x => !!x.dispatched === want).map(x => x.planned.slice(0, 7)))].sort();
+    const keys = [...new Set((_otodCache[_otodSrc] || []).filter(x => !!x.dispatched === want).map(x => x.planned.slice(0, 7)))].sort();
     const cur = sel.value;
     const opts = '<option value="">All months</option>' + keys.map(k => `<option value="${k}">${escapeHtml(otodMonthLabel(k))}</option>`).join('');
     if (sel.innerHTML !== opts) { sel.innerHTML = opts; if (cur && keys.includes(cur)) sel.value = cur; }
   }
   const cnt = document.getElementById('otodCount');
-  if (cnt) cnt.textContent = `${rows.length} order(s) · ₹ ${otodMoney(grand)}`;
+  if (cnt) cnt.textContent = `${rows.length} order(s) · ${_otodSrc === 'invincible' ? otodTotalFmt(grand) + ' qty' : '₹ ' + otodMoney(grand)}`;
 
   if (!groups.length) {
     document.getElementById('otodContent').innerHTML =
@@ -11266,7 +11294,7 @@ function renderOtod() {
         const cls = (c.cls || '') + (c.days && v !== '' ? (Number(v) > 0 ? ' otod-late' : ' otod-ok') : '');
         return `<td class="${cls}">${escapeHtml(v || (c.days || c.k === 'actualDate' ? '' : v))}</td>`;
       }).join('')}` +
-      (i === 0 ? `<td class="otod-total" rowspan="${g.rows.length}">${escapeHtml(otodMoney(g.total))}</td>` : '') + `</tr>`;
+      (i === 0 ? `<td class="otod-total" rowspan="${g.rows.length}">${escapeHtml(otodTotalFmt(g.total))}</td>` : '') + `</tr>`;
     });
     if (gi < groups.length - 1) body += `<tr class="otod-gap"><td colspan="${cols.length + 1}"></td></tr>`;
   });
@@ -11275,15 +11303,13 @@ function renderOtod() {
     <div style="overflow-x:auto">
       <table class="otod-tbl">
         <thead>
-          <tr><th colspan="${cols.length + 1}" class="otod-ttl">On Time Delivery — ${_otodTab === 'pending' ? 'Pending' : 'Dispatched'}</th></tr>
-          <tr>${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}<th class="otod-th-total">TOTAL AMOUNT MONTHLY</th></tr>
+          <tr><th colspan="${cols.length + 1}" class="otod-ttl">${escapeHtml(OTOD_TITLE[_otodSrc])} — ${_otodTab === 'pending' ? 'Pending' : 'Dispatched'}</th></tr>
+          <tr>${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}<th class="otod-th-total">${escapeHtml(OTOD_TOTAL_HEAD[_otodSrc])}</th></tr>
         </thead>
         <tbody>${body}</tbody>
         <tfoot><tr>
-          <td colspan="6">GRAND TOTAL — ${rows.length} order(s)</td>
-          <td class="otod-r">${escapeHtml(otodMoney(grand))}</td>
-          <td colspan="3"></td>
-          <td class="otod-total">${escapeHtml(otodMoney(grand))}</td>
+          <td colspan="${cols.length}">GRAND TOTAL — ${rows.length} order(s)</td>
+          <td class="otod-total">${escapeHtml(otodTotalFmt(grand))}</td>
         </tr></tfoot>
       </table>
     </div>`;
@@ -11297,16 +11323,16 @@ function otodExport() {
   const grand = groups.reduce((n, g) => n + g.total, 0);
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   let sr = 0;
-  const lines = [cols.map(c => q(c.h)).concat(q('TOTAL AMOUNT MONTHLY')).join(',')];
+  const lines = [cols.map(c => q(c.h)).concat(q(OTOD_TOTAL_HEAD[_otodSrc])).join(',')];
   groups.forEach((g, gi) => {
     g.rows.forEach((x, i) => { sr++;
-      lines.push(cols.map(c => q(otodVal(x, c, sr))).concat(q(i === 0 ? otodMoney(g.total) : '')).join(',')); });
+      lines.push(cols.map(c => q(otodVal(x, c, sr))).concat(q(i === 0 ? otodTotalFmt(g.total) : '')).join(',')); });
     if (gi < groups.length - 1) lines.push('');
   });
-  lines.push(cols.map((c, i) => q(i === 0 ? 'GRAND TOTAL' : '')).concat(q(otodMoney(grand))).join(','));
+  lines.push(cols.map((c, i) => q(i === 0 ? 'GRAND TOTAL' : '')).concat(q(otodTotalFmt(grand))).join(','));
 
   const now = new Date(); const pad = n => String(n).padStart(2, '0');
-  const name = `O-to-D-${_otodTab}-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}.csv`;
+  const name = `${_otodSrc === 'invincible' ? 'Invincible-O-to-D' : 'O-to-D'}-${_otodTab}-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}.csv`;
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name;
@@ -11331,11 +11357,11 @@ function otodPDF() {
   groups.forEach((g, gi) => {
     g.rows.forEach((x, i) => { sr++;
       body += `<tr>${cols.map(c => `<td class="${(c.cls || '').replace(/otod-/g, '')}">${escapeHtml(otodVal(x, c, sr))}</td>`).join('')}` +
-        (i === 0 ? `<td class="r tot" rowspan="${g.rows.length}">${escapeHtml(otodMoney(g.total))}</td>` : '') + `</tr>`; });
+        (i === 0 ? `<td class="r tot" rowspan="${g.rows.length}">${escapeHtml(otodTotalFmt(g.total))}</td>` : '') + `</tr>`; });
     if (gi < groups.length - 1) body += `<tr class="gap"><td colspan="${cols.length + 1}"></td></tr>`;
   });
 
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>O to D Report — On Time Delivery</title><style>
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${OTOD_TITLE[_otodSrc]} Report</title><style>
     @page { size: A4 landscape; margin: 9mm; }
     *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;font-size:9.5px}
     .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1e3a8a;padding-bottom:7px;margin-bottom:11px}
@@ -11351,18 +11377,17 @@ function otodPDF() {
     .foot{margin-top:9px;font-size:8px;color:#94a3b8;text-align:center}
   </style></head><body>
   <div class="head">
-    <div><h1>O to D Report — On Time Delivery</h1>
+    <div><h1>${escapeHtml(OTOD_TITLE[_otodSrc])} Report</h1>
       <div class="sub">${_otodTab === 'pending' ? 'Pending — Planned bhara, Actual baaki' : 'Dispatched — Planned aur Actual dono bhare'}${range ? ' · ' + escapeHtml(range) : ''}</div></div>
     <div class="sub">${stamp}<br>${rows.length} order(s)</div>
   </div>
   <table>
     <thead>
-      <tr><th colspan="${cols.length + 1}" class="ttl">On Time Delivery</th></tr>
-      <tr>${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}<th>TOTAL AMOUNT MONTHLY</th></tr>
+      <tr><th colspan="${cols.length + 1}" class="ttl">${escapeHtml(OTOD_TITLE[_otodSrc])}</th></tr>
+      <tr>${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}<th>${escapeHtml(OTOD_TOTAL_HEAD[_otodSrc])}</th></tr>
     </thead>
     <tbody>${body}</tbody>
-    <tfoot><tr><td colspan="6">GRAND TOTAL</td><td class="r">${escapeHtml(otodMoney(grand))}</td>
-      <td colspan="3"></td><td class="r">${escapeHtml(otodMoney(grand))}</td></tr></tfoot>
+    <tfoot><tr><td colspan="${cols.length}">GRAND TOTAL</td><td class="r">${escapeHtml(otodTotalFmt(grand))}</td></tr></tfoot>
   </table>
   <div class="foot">KLM Task Manager · ${stamp}</div>
   </body></html>`;
