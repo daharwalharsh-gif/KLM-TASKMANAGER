@@ -730,7 +730,7 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
     }
     const rows = fetched.rows;
 
-    let fmsPending = 0, fmsDone = 0, fmsOverdue = 0, fmsDoneInRange = 0, fmsPendingInRange = 0;
+    let fmsPending = 0, fmsDone = 0, fmsOverdue = 0, fmsDoneInRange = 0, fmsPendingInRange = 0, fmsOverdueInRange = 0;
     const perStep = [];
 
     for (const step of activeSteps) {
@@ -776,10 +776,10 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
         return creditDoerIds.filter(id => mappedUids.includes(id));
       }
 
-      let stepPending = 0, stepDone = 0, stepOverdue = 0, stepDoneInRange = 0, stepPendingInRange = 0;
+      let stepPending = 0, stepDone = 0, stepOverdue = 0, stepDoneInRange = 0, stepPendingInRange = 0, stepOverdueInRange = 0;
       const stepPendingRows = []; // collectPending ke liye — pending row ka detail (+ kis doer ko credited)
       const perDoerStep = {}; // uid -> {pending,done,overdue,doneInRange,pendingInRange} — SIRF is doer ki rows se
-      for (const id of creditDoerIds) perDoerStep[id] = { pending: 0, done: 0, overdue: 0, doneInRange: 0, pendingInRange: 0 };
+      for (const id of creditDoerIds) perDoerStep[id] = { pending: 0, done: 0, overdue: 0, doneInRange: 0, pendingInRange: 0, overdueInRange: 0 };
 
       for (const row of rows) {
         const planVal = (row[planIdx] || '').trim();
@@ -799,10 +799,12 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
           // OVERDUE = plan date nikal chuki aur abhi tak done nahi
           if (isOverdue) stepOverdue++;
           if (inRange) stepPendingInRange++;
+          if (isOverdue && inRange) stepOverdueInRange++;
           for (const id of rowDoerIds) {
             perDoerStep[id].pending++;
             if (isOverdue) perDoerStep[id].overdue++;
             if (inRange) perDoerStep[id].pendingInRange++;
+            if (isOverdue && inRange) perDoerStep[id].overdueInRange++;
           }
           if (collectPending) {
             stepPendingRows.push({
@@ -831,23 +833,26 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       fmsOverdue += stepOverdue;
       fmsDoneInRange += stepDoneInRange;
       fmsPendingInRange += stepPendingInRange;
+      fmsOverdueInRange += stepOverdueInRange;
 
       for (const d of creditDoers) {
         const ds = perDoerStep[String(d.id)];
-        if (!result.perUser[d.id]) result.perUser[d.id] = { pending: 0, done: 0, total: 0, overdue: 0, doneInRange: 0, pendingInRange: 0 };
+        if (!result.perUser[d.id]) result.perUser[d.id] = { pending: 0, done: 0, total: 0, overdue: 0, doneInRange: 0, pendingInRange: 0, overdueInRange: 0 };
         result.perUser[d.id].pending += ds.pending;
         result.perUser[d.id].done    += ds.done;
         result.perUser[d.id].total   += ds.pending + ds.done;
         result.perUser[d.id].overdue        += ds.overdue;
         result.perUser[d.id].doneInRange    += ds.doneInRange;
         result.perUser[d.id].pendingInRange += ds.pendingInRange;
+        result.perUser[d.id].overdueInRange += ds.overdueInRange;
         // Step-wise reporting per user (MIS breakdown popup ke liye) — is doer ki apni rows ka hisaab
         if (ds.pending + ds.done + ds.overdue + ds.doneInRange > 0) {
           if (!result.perUserSteps[d.id]) result.perUserSteps[d.id] = [];
           result.perUserSteps[d.id].push({
             fmsName, stepName: step.step_name, stepOrder: step.step_order,
             pending: ds.pending, done: ds.done, overdue: ds.overdue,
-            doneInRange: ds.doneInRange, pendingInRange: ds.pendingInRange
+            doneInRange: ds.doneInRange, pendingInRange: ds.pendingInRange,
+            overdueInRange: ds.overdueInRange
           });
         }
         if (collectPending && stepPendingRows.length) {
@@ -868,6 +873,7 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
         overdue: stepOverdue,
         doneInRange: stepDoneInRange,
         pendingInRange: stepPendingInRange,
+        overdueInRange: stepOverdueInRange,
         total: stepPending + stepDone
       });
     }
@@ -880,6 +886,7 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       overdue: fmsOverdue,
       doneInRange: fmsDoneInRange,
       pendingInRange: fmsPendingInRange,
+      overdueInRange: fmsOverdueInRange,
       total: fmsPending + fmsDone,
       steps: perStep
     });
@@ -2078,14 +2085,13 @@ app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
 
     const rows = Object.values(userMap).map(u => {
       const d = u.delegation, c = u.checklist;
-      const fms = fmsUserMap[u.userId] || { total: 0, pending: 0, done: 0, overdue: 0, doneInRange: 0, pendingInRange: 0 };
+      const fms = fmsUserMap[u.userId] || { total: 0, pending: 0, done: 0, overdue: 0, doneInRange: 0, pendingInRange: 0, overdueInRange: 0 };
       const fmsDoneR = fms.doneInRange || 0;
-      const fmsOver = fms.overdue || 0;
-      // PENDING = ACTUAL pending (jo doer FMS Tasks page pe sach me dekhta hai), NOT plan-date-in-range.
-      // Pehle pendingInRange use hota tha — usse summary aur step-wise breakdown ke numbers
-      // aapas me match nahi karte the (header 360 vs steps ka jod 506). Ab dono ek hi cheez:
-      // row-filter mapping ke baad us doer ki asli pending rows.
-      const fmsPendActual = fms.pending || 0;
+      // Date range lagi hai to PENDING aur OVERDUE bhi usi range ke — jis task ki
+      // planned date is window me hai wahi ginte hain. Header aur step-wise dono
+      // ek hi cheez se bante hain, isliye jod hamesha match karta hai.
+      const fmsOver = fms.overdueInRange || 0;
+      const fmsPendActual = fms.pendingInRange || 0;
       const fmsRangeTotal = fmsDoneR + fmsPendActual;
       const totalAll = d.total + c.total + fmsRangeTotal;
       const pendingAll = d.pending + c.pending + fmsPendActual;
@@ -2103,6 +2109,7 @@ app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
       return { ...u,
         title: titleMap[u.userId] || '',
         fms: { total: fmsRangeTotal, pending: fmsPendActual, done: fmsDoneR, overdue: fmsOver,
+               pendingAll: fms.pending || 0, overdueAll: fms.overdue || 0,
                backlog: fmsPendActual, target: isFmsDoer ? fmsTarget : 0, due: fmsDue,
                isDoer: isFmsDoer, score: fmsScore },
         fmsSteps: fmsStepsMap[u.userId] || [],

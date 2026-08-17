@@ -8123,8 +8123,8 @@ function renderFMSMIS(data) {
         <td style="font-size:12px;color:#64748b">${s.doers}</td>
         <td style="font-weight:600;color:#1a56db">${s.total}</td>
         <td style="color:#16a34a;font-weight:700">${s.doneInRange !== undefined ? s.doneInRange : '—'}</td>
-        <td style="color:#ef4444;font-weight:600">${s.pending}</td>
-        <td style="color:#dc2626;font-weight:700">${s.overdue !== undefined ? s.overdue : '—'}</td>
+        <td style="color:#ef4444;font-weight:600">${s.pendingInRange !== undefined ? s.pendingInRange : s.pending}</td>
+        <td style="color:#dc2626;font-weight:700">${s.overdueInRange !== undefined ? s.overdueInRange : (s.overdue !== undefined ? s.overdue : '—')}</td>
         <td style="color:#10b981;font-weight:600">${s.done}</td>
         <td>
           ${s.total > 0 ? `
@@ -8142,8 +8142,8 @@ function renderFMSMIS(data) {
           <div style="display:flex;gap:16px;font-size:13px;flex-wrap:wrap">
             <span>Total: <strong style="color:#1a56db">${fms.total}</strong></span>
             <span>Done (range): <strong style="color:#16a34a">${fms.doneInRange !== undefined ? fms.doneInRange : '—'}</strong></span>
-            <span>Pending: <strong style="color:#ef4444">${fms.pending}</strong></span>
-            <span>Overdue: <strong style="color:#dc2626">${fms.overdue !== undefined ? fms.overdue : '—'}</strong></span>
+            <span>Pending (range): <strong style="color:#ef4444">${fms.pendingInRange !== undefined ? fms.pendingInRange : fms.pending}</strong></span>
+            <span>Overdue (range): <strong style="color:#dc2626">${fms.overdueInRange !== undefined ? fms.overdueInRange : (fms.overdue !== undefined ? fms.overdue : '—')}</strong></span>
             <span>Done (all): <strong style="color:#10b981">${fms.done}</strong></span>
             ${hasError ? `<span style="color:#dc2626;font-size:11px">⚠️ ${fms.error}</span>` : ''}
           </div>
@@ -8398,8 +8398,9 @@ async function openAllMISDetail(userId, userName, rangeType) {
       </div>
       <div style="display:flex;gap:14px;font-size:12px;flex-wrap:wrap;padding:8px 10px;background:#faf5ff;border-radius:8px;margin-bottom:10px">
         <span>Done (this range): <strong style="color:#16a34a">${fms.done}</strong></span>
-        <span>Pending (actual): <strong style="color:#ef4444">${fms.pending}</strong></span>
-        <span>Overdue (all time): <strong style="color:#dc2626">${fms.overdue}</strong></span>
+        <span>Pending (this range): <strong style="color:#ef4444">${fms.pending}</strong></span>
+        <span>Overdue (this range): <strong style="color:#dc2626">${fms.overdue}</strong></span>
+        <span style="color:#94a3b8">All-time pending: <strong>${fms.pendingAll !== undefined ? fms.pendingAll : fms.pending}</strong></span>
       </div>
       ${(emp.fmsSteps && emp.fmsSteps.length) ? `
       <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px">Step-wise breakdown:</div>
@@ -8411,8 +8412,8 @@ async function openAllMISDetail(userId, userName, rangeType) {
               <td style="color:#64748b">${s.fmsName}</td>
               <td>Step ${s.stepOrder}: ${s.stepName}</td>
               <td style="color:#16a34a;font-weight:700">${s.doneInRange}</td>
-              <td style="color:#ef4444;font-weight:600">${s.pending}</td>
-              <td style="color:${s.overdue>0?'#dc2626':'#94a3b8'};font-weight:700">${s.overdue}</td>
+              <td style="color:#ef4444;font-weight:600">${s.pendingInRange !== undefined ? s.pendingInRange : s.pending}</td>
+              <td style="color:${(s.overdueInRange||0)>0?'#dc2626':'#94a3b8'};font-weight:700">${s.overdueInRange !== undefined ? s.overdueInRange : s.overdue}</td>
             </tr>`).join('')}</tbody>
         </table>
       </div>` : ''}
