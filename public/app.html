@@ -1856,7 +1856,10 @@ tbody tr:last-child td{border-bottom:none;}
     .otod-f input,.otod-f select{padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;
       font-family:'Inter',sans-serif;outline:none;background:#fff;color:#1e293b}
     .otod-f input:focus,.otod-f select:focus{border-color:#4f46e5}
-    .otod-count{margin-left:auto;font-size:12.5px;font-weight:800;color:#4f46e5}
+    .otod-count{margin-left:auto;font-size:12.5px;font-weight:800;color:#4f46e5;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .otod-pct{font-size:12px;font-weight:800;padding:4px 11px;border-radius:20px;white-space:nowrap}
+    .otod-pct-p{background:#fef3c7;color:#b45309;border:1px solid #fde68a}
+    .otod-pct-d{background:#dcfce7;color:#15803d;border:1px solid #bbf7d0}
     .otod-tbl{width:100%;border-collapse:collapse;background:#fff;font-size:13px;border:2px solid #1e3a8a;
       box-shadow:0 8px 24px rgba(15,23,42,.08)}
     .otod-tbl th,.otod-tbl td{border:1px solid #94a3b8;padding:8px 11px;vertical-align:middle}
@@ -11192,14 +11195,26 @@ async function loadOtod(force) {
   renderOtod();
 }
 
-// Abhi ke tab + filter ke hisaab se rows
-function otodFiltered() {
-  const want = _otodTab === 'dispatched';
+// Sirf date/month filter (tab chhod kar) — percentage dono ko milakar banta hai
+function otodDateFiltered() {
   const from = document.getElementById('otodFrom')?.value || '';
   const to = document.getElementById('otodTo')?.value || '';
   const month = document.getElementById('otodMonth')?.value || '';
-  return (_otodCache[_otodSrc] || []).filter(x => !!x.dispatched === want)
-    .filter(x => (!from || x.planned >= from) && (!to || x.planned <= to) && (!month || x.planned.slice(0, 7) === month));
+  return (_otodCache[_otodSrc] || []).filter(x =>
+    (!from || x.planned >= from) && (!to || x.planned <= to) && (!month || x.planned.slice(0, 7) === month));
+}
+// Abhi ke tab + filter ke hisaab se rows
+function otodFiltered() {
+  const want = _otodTab === 'dispatched';
+  return otodDateFiltered().filter(x => !!x.dispatched === want);
+}
+// Kitna % pending, kitna % dispatched (filter ke andar dono milakar)
+function otodPct() {
+  const all = otodDateFiltered();
+  const pend = all.filter(x => !x.dispatched).length;
+  const p = n => all.length ? Math.round((n / all.length) * 1000) / 10 : 0;
+  return { total: all.length, pending: pend, dispatched: all.length - pend,
+           pendingPct: p(pend), dispatchedPct: p(all.length - pend) };
 }
 const OTOD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function otodMonthLabel(k) { const [y, m] = k.split('-'); return `${OTOD_MON[Number(m) - 1] || m} ${y}`; }
@@ -11274,8 +11289,14 @@ function renderOtod() {
     const opts = '<option value="">All months</option>' + keys.map(k => `<option value="${k}">${escapeHtml(otodMonthLabel(k))}</option>`).join('');
     if (sel.innerHTML !== opts) { sel.innerHTML = opts; if (cur && keys.includes(cur)) sel.value = cur; }
   }
+  // Upar ka summary: kitne order, kitne paise, aur kitna % pending / dispatched
   const cnt = document.getElementById('otodCount');
-  if (cnt) cnt.textContent = `${rows.length} order(s) · ₹ ${otodMoney(grand)}`;
+  if (cnt) {
+    const pc = otodPct();
+    cnt.innerHTML = `${rows.length} order(s) · ₹ ${otodMoney(grand)}` +
+      (pc.total ? `<span class="otod-pct otod-pct-p">⏳ ${pc.pendingPct}% pending</span>` +
+                  `<span class="otod-pct otod-pct-d">✅ ${pc.dispatchedPct}% dispatched</span>` : '');
+  }
 
   if (!groups.length) {
     document.getElementById('otodContent').innerHTML =
@@ -11377,7 +11398,7 @@ function otodPDF() {
   <div class="head">
     <div><h1>${escapeHtml(OTOD_TITLE[_otodSrc])} Report</h1>
       <div class="sub">${_otodTab === 'pending' ? 'Pending — Planned bhara, Actual baaki' : 'Dispatched — Planned aur Actual dono bhare'}${range ? ' · ' + escapeHtml(range) : ''}</div></div>
-    <div class="sub">${stamp}<br>${rows.length} order(s)</div>
+    <div class="sub">${stamp}<br>${rows.length} order(s)<br>⏳ ${otodPct().pendingPct}% pending · ✅ ${otodPct().dispatchedPct}% dispatched</div>
   </div>
   <table>
     <thead>
