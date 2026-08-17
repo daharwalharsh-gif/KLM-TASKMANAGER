@@ -3094,15 +3094,12 @@ app.delete('/api/challenges/:id', requireAuth, requireAdmin, async (req, res) =>
 // CT bhara + CU khaali -> Pending
 // Rows Planned date ke mahine se group hoti hain aur har mahine ka
 // TOTAL AMOUNT MONTHLY nikalta hai.
-const OTOD_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+// Sheet ek hi baar padhte hain aur SAARI rows bhej dete hain (Pending +
+// Dispatched dono). Tab switch, date/month filter aur grouping sab UI par
+// hoti hai — isliye baar-baar API nahi chalti.
 app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const tab = String(req.query.tab || 'pending').toLowerCase() === 'dispatched' ? 'dispatched' : 'pending';
-    const from = String(req.query.from || '').trim();
-    const to = String(req.query.to || '').trim();
-    const month = String(req.query.month || '').trim();   // YYYY-MM
-
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
     const r = await sheetsApi.spreadsheets.values.get({
       spreadsheetId: PROD_SHEET_ID, range: `${PROD_TAB}!A:CU`
@@ -3110,20 +3107,11 @@ app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
     const all = (r.data.values || []).slice(PROD_HEADER_ROW);
 
     const rows = [];
-    const monthSet = new Set();
     for (const row of all) {
       const piNo = String(row[6] || '').trim();
       const planned = prodIsoDate(row[97]);              // CT
       const actual = String(row[98] || '').trim();       // CU
       if (!piNo || !planned) continue;                   // Planned date ke bina report me nahi
-      if (tab === 'pending' && actual) continue;
-      if (tab === 'dispatched' && !actual) continue;
-
-      monthSet.add(planned.slice(0, 7));
-      if (from && planned < from) continue;
-      if (to && planned > to) continue;
-      if (month && planned.slice(0, 7) !== month) continue;
-
       const orderDate = prodIsoDate(row[2]);             // C
       rows.push({
         rowKey: piNo + '|' + orderDate, piNo, orderDate,
@@ -3132,33 +3120,12 @@ app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
         merchant: String(row[4] || '').trim() || String(row[9] || '').trim(),   // E, warna J
         orderValue: String(row[96] || '').trim(),         // CS
         planned,
-        actualDate: prodIsoDate(row[98])                  // CU
+        actualDate: prodIsoDate(row[98]),                 // CU
+        dispatched: !!actual
       });
     }
-
-    rows.sort((a, b) => a.planned < b.planned ? -1 : a.planned > b.planned ? 1 : 0);
-
-    // Mahine ke hisaab se group + har mahine ka total
-    const groups = [];
-    for (const x of rows) {
-      const key = x.planned.slice(0, 7);
-      let g = groups[groups.length - 1];
-      if (!g || g.month !== key) {
-        const [y, m] = key.split('-');
-        g = { month: key, label: `${OTOD_MONTHS[Number(m) - 1] || m} ${y}`, rows: [], total: 0 };
-        groups.push(g);
-      }
-      g.rows.push(x);
-      const n = Number(String(x.orderValue).replace(/[^0-9.\-]/g, ''));
-      if (!isNaN(n)) g.total += n;
-    }
-
-    const months = [...monthSet].sort().map(k => {
-      const [y, m] = k.split('-');
-      return { key: k, label: `${OTOD_MONTHS[Number(m) - 1] || m} ${y}` };
-    });
-    const grand = groups.reduce((n, g) => n + g.total, 0);
-    res.json({ tab, groups, months, total: rows.length, grandTotal: grand });
+    rows.sort((x, y) => x.planned < y.planned ? -1 : x.planned > y.planned ? 1 : 0);
+    res.json({ rows, total: rows.length });
   } catch (err) {
     console.error('O to D report FAILED:', err.message);
     res.status(500).json({ error: err.message });
