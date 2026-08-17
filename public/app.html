@@ -1564,7 +1564,7 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="tab" id="misTabAll" onclick="switchMisTab('all',this)">All MIS</div>
           <div class="tab" id="misTabTAT" onclick="switchMisTab('fmstat',this)">📅 New FMS Report</div>
           <div class="tab" id="misTabOtod" onclick="switchMisTab('otod',this)">📦 Export O to D Report</div>
-          <div class="tab" id="misTabOtodInv" onclick="switchMisTab('otodinv',this)">📦 Export Invincible O to D Offline</div>
+          <div class="tab" id="misTabOtodInv" onclick="switchMisTab('otodinv',this)">📦 Invincible O to D Offline</div>
         </div>
       </div>
     </div>
@@ -11133,8 +11133,8 @@ function otodDays(planned, picked) {
 let _otodSrc = 'merchant';
 const _otodCache = { merchant: null, invincible: null };
 const OTOD_TITLE = { merchant: 'On Time Delivery', invincible: 'Invincible O to D Offline' };
-const OTOD_TOTAL_HEAD = { merchant: 'TOTAL AMOUNT MONTHLY', invincible: 'TOTAL QUANTITY MONTHLY' };
-const OTOD_TOTAL_FIELD = { merchant: 'orderValue', invincible: 'qty' };
+const OTOD_TOTAL_HEAD = { merchant: 'TOTAL AMOUNT MONTHLY', invincible: 'TOTAL MRP MONTHLY' };
+const OTOD_TOTAL_FIELD = { merchant: 'orderValue', invincible: 'mrp' };
 
 function otodShell() {
   return `
@@ -11226,7 +11226,7 @@ function otodCols() {
       { k: 'qty',            h: 'Total quantity', cls: 'otod-r', num: true },
       { k: 'creditDays',     h: 'credit days',    cls: 'otod-c' },
       { k: 'paymentTerms',   h: 'payment terms',  cls: 'otod-c' },
-      { k: 'mrp',            h: 'MRP',            cls: 'otod-c' },
+      { k: 'mrp',            h: 'MRP',            cls: 'otod-r', money: true },
       { k: 'orderDate',      h: 'Date of order',  cls: 'otod-c', date: true },
       { k: 'planned',        h: 'Planned',        cls: 'otod-c', date: true },
       { k: 'actualDate',     h: 'Actual',         cls: 'otod-c', date: true },
@@ -11257,9 +11257,7 @@ function otodVal(x, c, sr) {
 }
 // Monthly total ka number — merchant me Order value, invincible me Total quantity
 function otodTotalOf(x) { return otodNum(x[OTOD_TOTAL_FIELD[_otodSrc]]) || 0; }
-function otodTotalFmt(n) {
-  return _otodSrc === 'invincible' ? Number(n || 0).toLocaleString('en-IN') : otodMoney(n);
-}
+function otodTotalFmt(n) { return otodMoney(n); }
 
 function renderOtod() {
   const rows = otodFiltered();
@@ -11277,7 +11275,7 @@ function renderOtod() {
     if (sel.innerHTML !== opts) { sel.innerHTML = opts; if (cur && keys.includes(cur)) sel.value = cur; }
   }
   const cnt = document.getElementById('otodCount');
-  if (cnt) cnt.textContent = `${rows.length} order(s) · ${_otodSrc === 'invincible' ? otodTotalFmt(grand) + ' qty' : '₹ ' + otodMoney(grand)}`;
+  if (cnt) cnt.textContent = `${rows.length} order(s) · ₹ ${otodMoney(grand)}`;
 
   if (!groups.length) {
     document.getElementById('otodContent').innerHTML =
