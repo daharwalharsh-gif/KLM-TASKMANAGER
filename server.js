@@ -3109,10 +3109,6 @@ app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
     });
     const all = (r.data.values || []).slice(PROD_HEADER_ROW);
 
-    const [saved] = await db.query('SELECT * FROM otod_rows');
-    const byKey = {};
-    for (const s of saved) byKey[String(s.row_key)] = s;
-
     const rows = [];
     const monthSet = new Set();
     for (const row of all) {
@@ -3129,16 +3125,14 @@ app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
       if (month && planned.slice(0, 7) !== month) continue;
 
       const orderDate = prodIsoDate(row[2]);             // C
-      const rowKey = piNo + '|' + orderDate;
-      const s = byKey[rowKey] || {};
       rows.push({
-        rowKey, piNo, orderDate,
-        leadTime: String(row[3] || '').trim(),           // D
+        rowKey: piNo + '|' + orderDate, piNo, orderDate,
+        buyer: String(row[1] || '').trim(),               // B
+        leadTime: String(row[3] || '').trim(),            // D
         merchant: String(row[4] || '').trim() || String(row[9] || '').trim(),   // E, warna J
-        orderValue: String(row[96] || '').trim(),        // CS
+        orderValue: String(row[96] || '').trim(),         // CS
         planned,
-        actualDate: prodIsoDate(row[98]),
-        checkDate: s.check_date || ''
+        actualDate: prodIsoDate(row[98])                  // CU
       });
     }
 
@@ -3169,25 +3163,6 @@ app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
     console.error('O to D report FAILED:', err.message);
     res.status(500).json({ error: err.message });
   }
-});
-
-// Pending wale tab ka manual date column
-app.put('/api/otod/cell', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { rowKey, piNo, checkDate } = req.body || {};
-    if (!rowKey) return res.status(400).json({ error: 'rowKey zaroori hai' });
-    const val = String(checkDate ?? '').trim();
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const [ex] = await db.query('SELECT id FROM otod_rows WHERE row_key=?', [rowKey]);
-    if (ex[0]) {
-      await db.query('UPDATE otod_rows SET check_date=?, updated_by=?, updated_at=? WHERE row_key=?',
-        [val, req.session.userId, now, rowKey]);
-    } else {
-      await db.query('INSERT INTO otod_rows (row_key,pi_no,check_date,updated_by,updated_at) VALUES (?,?,?,?,?)',
-        [rowKey, String(piNo || ''), val, req.session.userId, now]);
-    }
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ══════════════════════════════════════════════════════
