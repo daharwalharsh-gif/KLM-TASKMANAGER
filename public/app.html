@@ -227,6 +227,7 @@ tbody tr:last-child td{border-bottom:none;}
 /* MIS Report */
 .mis-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
 .mis-table-wrap{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;}
+.mis-table-wrap.tbl-freeze{overflow:auto;}
 /* Frozen table header — scroll karne par heading (thead) chipki rehti hai.
    Wrapper khud scroll container banta hai (max-height + overflow:auto) taaki
    sticky window/modal ke overflow-clipping ke bina reliably kaam kare. */
@@ -7812,7 +7813,7 @@ function renderMIS(data) {
   }).join('');
 
   container.innerHTML = `
-    <div class="mis-table-wrap">
+    <div class="mis-table-wrap tbl-freeze" style="max-height:calc(100vh - 250px)">
       <table>
         <thead><tr>
           <th>Name <span style="font-weight:400;color:#94a3b8;font-size:10px">(click for details)</span></th>
@@ -8142,7 +8143,7 @@ function renderFMSMIS(data) {
       </tr>`).join('');
 
     return `
-      <div class="mis-table-wrap" style="margin-bottom:16px">
+      <div class="mis-table-wrap tbl-freeze" style="margin-bottom:16px;max-height:calc(100vh - 260px)">
         <div style="background:#f8fafc;padding:12px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div style="font-size:14px;font-weight:700;color:#1e293b">📊 ${fms.fmsName}</div>
           <div style="display:flex;gap:16px;font-size:13px;flex-wrap:wrap">
