@@ -146,6 +146,11 @@ const SCHEMA = {
     cols: ['id','case_id','hearing_date','proceedings','documents_filed','court_order',
            'next_hearing_date','follow_up','files','entered_by','created_at'],
     autoFill: { created_at: 'NOW' }
+  },
+  // Company ki chhutti list — sabko dikhti hai, add/remove sirf admin
+  holidays: {
+    cols: ['id','holiday_date','name','created_by','created_at'],
+    autoFill: { created_at: 'NOW' }
   }
 };
 

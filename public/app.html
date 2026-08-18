@@ -223,6 +223,28 @@ tbody tr:last-child td{border-bottom:none;}
 /* Holiday list */
 .holiday-item{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f1f5f9;font-size:13px;}
 .holiday-item:last-child{border-bottom:none;}
+/* Holiday poster — company ki chhutti list */
+.hol-wrap{display:grid;grid-template-columns:290px 1fr;gap:20px;align-items:start}
+.hol-wrap.only-poster{grid-template-columns:1fr}
+.hol-poster{border:2px solid #0f172a;background:#fff;border-radius:4px;overflow:hidden}
+.hol-poster .hp-head{text-align:center;padding:11px 12px;border-bottom:2px solid #0f172a;background:#f8fafc}
+.hol-poster .hp-co{font-size:16px;font-weight:800;letter-spacing:.6px;color:#0f172a}
+.hol-poster .hp-ad{font-size:10.5px;color:#475569;margin-top:4px;line-height:1.4}
+.hol-scroll{max-height:400px;overflow:auto}
+.hol-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.hol-tbl th{position:sticky;top:0;z-index:2;background:#e2e8f0;color:#0f172a;font-weight:800;
+  padding:8px 8px;border:1px solid #0f172a;text-align:center;white-space:nowrap}
+.hol-tbl td{padding:7px 8px;border:1px solid #94a3b8;text-align:center;color:#0f172a}
+.hol-tbl td.hp-nm{font-weight:700}
+.hol-tbl tr.hp-past td{color:#94a3b8;background:#f8fafc}
+.hol-tbl tr.hp-next td{background:#fef9c3;font-weight:800}
+.hol-empty{padding:22px;text-align:center;color:#94a3b8;font-size:13px}
+.hol-note-emo{font-size:44px;line-height:1}
+.hol-note-ttl{font-size:19px;font-weight:800;color:#0f172a;margin-top:8px}
+.hol-note-sub{font-size:13px;color:#475569;margin-top:6px;line-height:1.6}
+.hol-note-box{margin-top:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;
+  padding:12px 14px;text-align:left;font-size:13px;color:#78350f}
+.hol-note-box b{display:block;font-size:14px;color:#0f172a}
 
 /* MIS Report */
 .mis-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
@@ -2541,23 +2563,45 @@ tbody tr:last-child td{border-bottom:none;}
      HOLIDAYS MODAL
 ══════════════════════════════════════ -->
 <div class="modal-overlay" id="holidayModal">
-  <div class="modal">
+  <div class="modal" style="width:940px;max-width:95vw">
     <h3>🗓 Holidays</h3>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Date</label>
-        <input type="date" id="hDate"/>
+    <div class="hol-wrap" id="holWrap">
+      <div id="holAdminPane">
+        <div class="form-row">
+          <div class="form-group">
+            <label>From Date</label>
+            <input type="date" id="hDate"/>
+          </div>
+          <div class="form-group">
+            <label>To Date <span style="color:#94a3b8;font-weight:400;font-size:11px">(optional)</span></label>
+            <input type="date" id="hDateTo"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Holiday Name</label>
+            <input type="text" id="hName" placeholder="e.g. Diwali"/>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-bottom:16px" onclick="addHoliday()">Add Holiday</button>
+        <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Holiday List</div>
+        <div id="holidayList" style="max-height:260px;overflow-y:auto"></div>
       </div>
-      <div class="form-group">
-        <label>Holiday Name</label>
-        <input type="text" id="hName" placeholder="e.g. Diwali"/>
-      </div>
+      <div id="holPoster"></div>
     </div>
-    <button class="btn btn-primary" style="width:100%;margin-bottom:16px" onclick="addHoliday()">Add Holiday</button>
-    <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Holiday List</div>
-    <div id="holidayList" style="max-height:280px;overflow-y:auto"></div>
     <div style="margin-top:16px">
       <button class="btn btn-outline" style="width:100%" onclick="closeModal('holidayModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Holiday notice — app khulte hi sabko dikhta hai -->
+<div class="modal-overlay" id="holNoticeModal">
+  <div class="modal" style="max-width:430px;text-align:center">
+    <div id="holNoticeBody"></div>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal('holNoticeModal')">OK</button>
+      <button class="btn btn-primary" style="flex:1" onclick="closeModal('holNoticeModal');openHoliday()">View Holiday List</button>
     </div>
   </div>
 </div>
@@ -3344,7 +3388,7 @@ let ME = null;
 let dashType = 'all';
 let tasksType = 'delegation';
 let dashChartInst = null;
-let holidays = JSON.parse(localStorage.getItem('tm_holidays') || '[]');
+let holidays = [];   // server se aati hai — /api/holidays
 let transferMode = false;
 let pendingTransferTaskIds = []; // task IDs that already have pending transfer
 // Dashboard date sort: 0=default(API order), 1=asc(oldest first), 2=desc(newest first)
@@ -3414,6 +3458,7 @@ async function init() {
     if (isOwnerLanding) navigate('owner', document.getElementById('nav-owner'));
     else loadDashboard();
     buildMobileNav();
+    setTimeout(checkHolidayNotice, 1200);   // app khulte hi holiday notice
     loadApprovalBadge();
     loadTransferBadge();
     loadNotifications();
@@ -6803,54 +6848,157 @@ async function saveChecklist() {
 // ══════════════════════════════════════════════════════
 // HOLIDAYS
 // ══════════════════════════════════════════════════════
-function openHoliday() {
-  const today = new Date().toISOString().split('T')[0];
-  document.getElementById('hDate').value='';
-  document.getElementById('hDate').min=today;
-  document.getElementById('hName').value='';
-  renderHolidayList();
+// Aaj ki tareekh local time me (toISOString UTC me chala jaata hai)
+function holToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function holPlusDays(n) {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const HOL_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function holDayName(d) { return HOL_DAYS[new Date(d + 'T00:00:00').getDay()] || ''; }
+// Poster wali date — 26-Jan-26
+function holPosterDate(d) {
+  const dt = new Date(d + 'T00:00:00');
+  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${String(dt.getDate()).padStart(2,'0')}-${M[dt.getMonth()]}-${String(dt.getFullYear()).slice(2)}`;
+}
+
+async function loadHolidays() {
+  const r = await api('/api/holidays');
+  holidays = Array.isArray(r) ? r : [];
+  return holidays;
+}
+
+async function openHoliday() {
+  const isAdmin = ME && ME.role === 'admin';
+  const pane = document.getElementById('holAdminPane');
+  pane.style.display = isAdmin ? '' : 'none';
+  document.getElementById('holWrap').classList.toggle('only-poster', !isAdmin);
+  if (isAdmin) {
+    const today = holToday();
+    ['hDate','hDateTo'].forEach(id => { const e = document.getElementById(id); e.value = ''; e.min = today; });
+    document.getElementById('hName').value = '';
+  }
+  document.getElementById('holPoster').innerHTML = '<div class="hol-empty">Loading…</div>';
   document.getElementById('holidayModal').classList.add('open');
+  await loadHolidays();
+  renderHolidayList();
+  renderHolidayPoster();
 }
 
 async function addHoliday() {
-  const date = document.getElementById('hDate').value;
+  const from = document.getElementById('hDate').value;
+  const to = document.getElementById('hDateTo').value || from;
   const name = document.getElementById('hName').value.trim();
-  if (!date||!name) { showToast('Date and name required!'); return; }
+  if (!from || !name) { showToast('From date and holiday name are required', 'error'); return; }
+  if (to < from) { showToast('To date cannot be before From date', 'error'); return; }
 
-  // Save holiday
-  holidays.push({date,name});
-  holidays.sort((a,b)=>a.date.localeCompare(b.date));
-  localStorage.setItem('tm_holidays', JSON.stringify(holidays));
+  const r = await api('/api/holidays', 'POST', { from, to, name });
+  if (!r || r.error) { showToast((r && r.error) || 'Could not add holiday', 'error'); return; }
 
-  // Auto-delete checklist tasks on this holiday date
-  const result = await api('/api/tasks/delete-by-date','DELETE',{date});
-  const deleted = result.deleted || 0;
-
-  document.getElementById('hDate').value='';
-  document.getElementById('hName').value='';
+  document.getElementById('hDate').value = '';
+  document.getElementById('hDateTo').value = '';
+  document.getElementById('hName').value = '';
+  await loadHolidays();
   renderHolidayList();
+  renderHolidayPoster();
 
-  if (deleted > 0) {
-    showToast(`Holiday added! ${deleted} checklist task(s) auto-deleted for ${formatDate(date)}`);
-  } else {
-    showToast(`Holiday added! No checklist tasks were on ${formatDate(date)}`);
-  }
+  const bits = [`${r.added} holiday(s) added`];
+  if (r.skipped) bits.push(`${r.skipped} already in the list`);
+  if (r.deleted) bits.push(`${r.deleted} checklist task(s) removed`);
+  showToast(bits.join(' · '));
 }
 
-function deleteHoliday(idx) {
-  holidays.splice(idx,1);
-  localStorage.setItem('tm_holidays', JSON.stringify(holidays));
+async function deleteHoliday(id) {
+  const r = await api('/api/holidays/' + id, 'DELETE');
+  if (!r || r.error) { showToast((r && r.error) || 'Could not remove holiday', 'error'); return; }
+  await loadHolidays();
   renderHolidayList();
+  renderHolidayPoster();
+  showToast('Holiday removed');
 }
 
 function renderHolidayList() {
   const container = document.getElementById('holidayList');
+  if (!container) return;
   if (!holidays.length) { container.innerHTML='<div class="empty" style="padding:16px">No holidays added yet</div>'; return; }
-  container.innerHTML = holidays.map((h,i)=>`
+  container.innerHTML = holidays.map(h=>`
     <div class="holiday-item">
-      <span><strong>${formatDate(h.date)}</strong> — ${h.name}</span>
-      <button class="action-btn delete" onclick="deleteHoliday(${i})">Remove</button>
+      <span><strong>${escapeHtml(formatDate(h.date))}</strong> — ${escapeHtml(h.name)}</span>
+      <button class="action-btn delete" onclick="deleteHoliday(${h.id})">Remove</button>
     </div>`).join('');
+}
+
+// Poster — bilkul company ki chhutti list jaisa
+function renderHolidayPoster() {
+  const box = document.getElementById('holPoster');
+  if (!box) return;
+  const today = holToday();
+  const next = holidays.find(x => x.date >= today);
+  const rows = holidays.map((x, i) => `
+    <tr class="${x.date < today ? 'hp-past' : (next && x.id === next.id ? 'hp-next' : '')}">
+      <td>${i + 1}</td>
+      <td>${escapeHtml(holPosterDate(x.date))}</td>
+      <td>${escapeHtml(holDayName(x.date))}</td>
+      <td class="hp-nm">${escapeHtml(x.name)}</td>
+    </tr>`).join('');
+  box.innerHTML = `
+    <div class="hol-poster">
+      <div class="hp-head">
+        <div class="hp-co">K.L. MAHAJAN &amp; SONS</div>
+        <div class="hp-ad">521 Achauranda Road, Sector 2, MDA, Partapur,<br>Meerut, Uttar Pradesh 250103</div>
+      </div>
+      ${holidays.length ? `<div class="hol-scroll"><table class="hol-tbl">
+        <thead><tr><th style="width:52px">S. no</th><th>Date</th><th>Day</th><th>Holiday name</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>` : '<div class="hol-empty">No holidays added yet</div>'}
+    </div>`;
+}
+
+// ── App khulte hi holiday notice — sabko (user + admin) ──
+async function checkHolidayNotice() {
+  try {
+    const list = await loadHolidays();
+    if (!list.length) return;
+    const today = holToday(), tomorrow = holPlusDays(1);
+    let seen = {};
+    try { seen = JSON.parse(localStorage.getItem('tm_hol_seen') || '{}'); } catch (e) { seen = {}; }
+
+    const onToday = list.filter(x => x.date === today && !seen['s' + today + '_' + x.id]);
+    const onTomorrow = list.filter(x => x.date === tomorrow && !seen['s' + today + '_' + x.id]);
+    // Nayi add hui chhuttiyan jo abhi aani hain
+    const fresh = list.filter(x => x.date > tomorrow && !seen['n' + x.id]);
+    if (!onToday.length && !onTomorrow.length && !fresh.length) return;
+
+    let html = '';
+    if (onToday.length) {
+      html = `<div class="hol-note-emo">🎉</div>
+        <div class="hol-note-ttl">Today is a Holiday</div>
+        <div class="hol-note-sub">${onToday.map(x => escapeHtml(x.name)).join(', ')}<br>${escapeHtml(formatDate(today))} · ${escapeHtml(holDayName(today))}</div>`;
+    } else if (onTomorrow.length) {
+      html = `<div class="hol-note-emo">🎉</div>
+        <div class="hol-note-ttl">Tomorrow is a Holiday</div>
+        <div class="hol-note-sub">${onTomorrow.map(x => escapeHtml(x.name)).join(', ')}<br>${escapeHtml(formatDate(tomorrow))} · ${escapeHtml(holDayName(tomorrow))}</div>`;
+    } else {
+      html = `<div class="hol-note-emo">🗓</div>
+        <div class="hol-note-ttl">${fresh.length > 1 ? 'New Holidays Added' : 'New Holiday Added'}</div>
+        <div class="hol-note-sub">The company holiday list has been updated.</div>`;
+    }
+    if (fresh.length) {
+      html += '<div class="hol-note-box">' + fresh.slice(0, 6).map(x =>
+        `<b>${escapeHtml(x.name)}</b>${escapeHtml(formatDate(x.date))} · ${escapeHtml(holDayName(x.date))}`).join('<hr style="border:none;border-top:1px solid #fde68a;margin:8px 0">') +
+        (fresh.length > 6 ? `<div style="margin-top:8px">+ ${fresh.length - 6} more…</div>` : '') + '</div>';
+    }
+    document.getElementById('holNoticeBody').innerHTML = html;
+    document.getElementById('holNoticeModal').classList.add('open');
+
+    onToday.concat(onTomorrow).forEach(x => { seen['s' + today + '_' + x.id] = 1; });
+    fresh.forEach(x => { seen['n' + x.id] = 1; });
+    localStorage.setItem('tm_hol_seen', JSON.stringify(seen));
+  } catch (e) { console.error('holiday notice:', e); }
 }
 
 function formatDate(d) {

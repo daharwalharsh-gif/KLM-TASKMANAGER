@@ -1461,6 +1461,69 @@ app.delete('/api/tasks/delete-by-date', requireAuth, requireAdmin, async (req, r
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ══════════════════════════════════════════════════════
+// HOLIDAYS — company ki chhutti list. Pehle ye sirf browser ke
+// localStorage me thi (har user ki apni), isliye kisi aur ko pata hi
+// nahi chalta tha. Ab DB me hai — sab logo ko ek hi list dikhti hai
+// aur app khulte hi notice popup aata hai.
+// ══════════════════════════════════════════════════════
+function holIso(v) {
+  const s = String(v || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+}
+// from se to tak ki saari tareekhein (dono shaamil), zyada se zyada 366
+function holDatesBetween(from, to) {
+  const out = [];
+  const a = new Date(from + 'T00:00:00'), b = new Date(to + 'T00:00:00');
+  for (let d = a; d <= b && out.length < 366; d.setDate(d.getDate() + 1)) {
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+// Sabhi logged-in users padh sakte hain
+app.get('/api/holidays', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      'SELECT id, holiday_date, name, created_at FROM holidays ORDER BY holiday_date ASC');
+    res.json(rows.map(r => ({ id: Number(r.id), date: holIso(r.holiday_date), name: r.name || '' }))
+                 .filter(r => r.date));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Add — sirf admin. { from, to, name } — range ki har date ek row banti hai.
+app.post('/api/holidays', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    const from = holIso(req.body.from || req.body.date);
+    const to = holIso(req.body.to) || from;
+    if (!from || !name) return res.status(400).json({ error: 'Date and holiday name are required' });
+    if (to < from) return res.status(400).json({ error: 'To date cannot be before From date' });
+
+    const dates = holDatesBetween(from, to);
+    const [ex] = await db.query('SELECT holiday_date FROM holidays');
+    const have = new Set(ex.map(r => holIso(r.holiday_date)));
+    const fresh = dates.filter(d => !have.has(d));
+
+    let deleted = 0;
+    for (const d of fresh) {
+      await db.query('INSERT INTO holidays (holiday_date, name, created_by) VALUES (?,?,?)',
+        [d, name, req.session.userId]);
+      // Completed task kabhi nahi hatate — wo history hai (MIS unhi par bani hai)
+      const [r] = await db.query("DELETE FROM checklist_tasks WHERE due_date=? AND status<>'completed'", [d]);
+      deleted += (r.affectedRows || 0);
+    }
+    res.json({ success: true, added: fresh.length, skipped: dates.length - fresh.length, deleted });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/holidays/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const [r] = await db.query('DELETE FROM holidays WHERE id=?', [parseInt(req.params.id)]);
+    res.json({ success: true, deleted: r.affectedRows || 0 });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Count checklist tasks for a user (all time or by year, optionally filtered by frequency).
 // v16: completed tasks are EXCLUDED — bulk delete sirf pending/revised pe lagti hai.
 app.get('/api/tasks/checklist-year-count', requireAuth, requireAdmin, async (req, res) => {
