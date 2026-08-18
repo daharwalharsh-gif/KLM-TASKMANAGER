@@ -1861,11 +1861,19 @@ tbody tr:last-child td{border-bottom:none;}
     .otod-pct{font-size:12px;font-weight:800;padding:4px 11px;border-radius:20px;white-space:nowrap}
     .otod-pct-p{background:#fef3c7;color:#b45309;border:1px solid #fde68a}
     .otod-pct-d{background:#dcfce7;color:#15803d;border:1px solid #bbf7d0}
-    .otod-tbl{width:100%;border-collapse:collapse;background:#fff;font-size:13px;border:2px solid #1e3a8a;
-      box-shadow:0 8px 24px rgba(15,23,42,.08)}
+    .otod-tbl{width:100%;border-collapse:separate;border-spacing:0;background:#fff;font-size:13px;
+      border:2px solid #1e3a8a;border-top:none}
     .otod-tbl th,.otod-tbl td{border:1px solid #94a3b8;padding:8px 11px;vertical-align:middle}
-    .otod-ttl{background:#1e3a8a;color:#fff;text-align:center;font-size:15px;font-weight:800;letter-spacing:.5px;padding:11px}
-    .otod-tbl thead tr:nth-child(2) th{background:#dbeafe;color:#0f172a;font-size:11.5px;font-weight:800;text-align:center}
+    .otod-ttl{background:#1e3a8a;color:#fff;text-align:center;font-size:15px;font-weight:800;letter-spacing:.5px;
+      padding:11px;border:2px solid #1e3a8a;border-bottom:none}
+    .otod-scroll{overflow:auto;max-height:calc(100vh - 330px);-webkit-overflow-scrolling:touch;
+      box-shadow:0 8px 24px rgba(15,23,42,.08)}
+    .otod-tbl thead th{position:sticky;top:0;z-index:6;background:#dbeafe;color:#0f172a;
+      font-size:11.5px;font-weight:800;text-align:center;box-shadow:inset 0 -1px 0 #94a3b8}
+    .otod-filt{display:inline-block;margin-left:5px;color:#1d4ed8;cursor:pointer;font-size:11px;
+      padding:0 3px;border-radius:4px;line-height:1}
+    .otod-filt:hover{background:#bfdbfe}
+    .otod-filt.on{background:#1d4ed8;color:#fff}
     .otod-tbl thead .otod-th-total{background:#fca5a5;color:#7f1d1d}
     .otod-c{text-align:center;white-space:nowrap}
     .otod-r{text-align:right;white-space:nowrap;font-weight:600}
@@ -11166,6 +11174,7 @@ function otodShell() {
 // Tab badalna sirf dobara draw — sheet dobara nahi padhi jaati
 function otodSwitch(tab) {
   _otodTab = tab;
+  otodClearColFilters();
   document.querySelectorAll('#misResults .otod-tabs .tab').forEach(t =>
     t.classList.toggle('active', t.textContent.toLowerCase().includes(tab)));
   const m = document.getElementById('otodMonth'); if (m) m.value = '';
@@ -11174,6 +11183,7 @@ function otodSwitch(tab) {
 function otodClear() {
   const f = document.getElementById('otodFrom'), t = document.getElementById('otodTo'), m = document.getElementById('otodMonth');
   if (f) f.value = ''; if (t) t.value = ''; if (m) m.value = '';
+  otodClearColFilters();
   renderOtod();
 }
 
@@ -11204,11 +11214,91 @@ function otodDateFiltered() {
   return (_otodCache[_otodSrc] || []).filter(x =>
     (!from || x.planned >= from) && (!to || x.planned <= to) && (!month || x.planned.slice(0, 7) === month));
 }
-// Abhi ke tab + filter ke hisaab se rows
+// Abhi ke tab + date filter + column filter ke hisaab se rows
 function otodFiltered() {
   const want = _otodTab === 'dispatched';
-  return otodDateFiltered().filter(x => !!x.dispatched === want);
+  const base = otodDateFiltered().filter(x => !!x.dispatched === want);
+  if (!Object.keys(_otodColFilters).length) return base;
+  return base.filter((x, i) => otodPassCols(x, i + 1));
 }
+// Har column ka apna filter — { colKey: Set(chuni hui values) }
+let _otodColFilters = {};
+function otodClearColFilters() { _otodColFilters = {}; }
+
+// Ek row filter par khari utarti hai ya nahi
+function otodPassCols(x, sr) {
+  const cols = otodCols();
+  for (const [k, set] of Object.entries(_otodColFilters)) {
+    const c = cols.find(cc => cc.k === k);
+    if (!c) continue;
+    if (!set.has(otodVal(x, c, sr))) return false;
+  }
+  return true;
+}
+
+// Header ke ▾ par click — us column ki saari values checkbox me
+function otodOpenFilter(k, btn) {
+  const old = document.getElementById('otodFilterPop'); if (old) old.remove();
+  const c = otodCols().find(cc => cc.k === k); if (!c) return;
+  // Values sirf un rows se jo abhi ke tab + date filter me hain
+  const base = otodDateFiltered().filter(x => !!x.dispatched === (_otodTab === 'dispatched'));
+  const vals = [...new Set(base.map((x, i) => otodVal(x, c, i + 1)))]
+    .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  const sel = _otodColFilters[k] || new Set();
+
+  const pop = document.createElement('div');
+  pop.id = 'otodFilterPop';
+  pop.className = 'pm-pop';
+  pop.innerHTML = `
+    <input type="text" class="pm-pop-search" placeholder="🔍 Search…" oninput="otodFilterSearch(this.value)"/>
+    <div class="pm-pop-acts">
+      <button type="button" data-all="1">✓ All</button>
+      <button type="button" data-all="0">✕ None</button>
+    </div>
+    <div class="pm-pop-list" id="otodPopList">
+      ${vals.map(v => `<label data-v="${escapeHtml(String(v).toLowerCase())}">
+        <input type="checkbox" value="${escapeHtml(String(v))}" ${(!sel.size || sel.has(v)) ? 'checked' : ''}/>
+        <span>${escapeHtml(v === '' ? '(khali)' : String(v))}</span></label>`).join('')}
+    </div>
+    <div class="pm-pop-foot">
+      <button type="button" class="btn btn-outline btn-sm" data-act="cancel">Cancel</button>
+      <button type="button" class="btn btn-primary btn-sm" data-act="apply">Apply</button>
+    </div>`;
+  document.body.appendChild(pop);
+  pop.querySelectorAll('[data-all]').forEach(b =>
+    b.onclick = () => otodFilterAll(b.dataset.all === '1'));
+  pop.querySelector('[data-act=cancel]').onclick = () => pop.remove();
+  pop.querySelector('[data-act=apply]').onclick = () => otodApplyFilter(k);
+
+  const r = btn.getBoundingClientRect();
+  pop.style.top = (r.bottom + window.scrollY + 4) + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left + window.scrollX - 120, window.innerWidth - 260)) + 'px';
+}
+function otodFilterSearch(q) {
+  const s = String(q || '').toLowerCase();
+  document.querySelectorAll('#otodPopList label').forEach(l => {
+    l.style.display = !s || (l.dataset.v || '').includes(s) ? '' : 'none';
+  });
+}
+function otodFilterAll(on) {
+  document.querySelectorAll('#otodPopList label').forEach(l => {
+    if (l.style.display !== 'none') l.querySelector('input').checked = on;
+  });
+}
+function otodApplyFilter(k) {
+  const boxes = [...document.querySelectorAll('#otodPopList input[type=checkbox]')];
+  const picked = boxes.filter(b => b.checked).map(b => b.value);
+  if (picked.length === boxes.length) delete _otodColFilters[k];
+  else _otodColFilters[k] = new Set(picked);
+  const p = document.getElementById('otodFilterPop'); if (p) p.remove();
+  renderOtod();
+}
+// Bahar click par filter popup band
+document.addEventListener('click', e => {
+  const pop = document.getElementById('otodFilterPop');
+  if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('.otod-filt'))) pop.remove();
+});
+
 // Kitna % pending, kitna % dispatched (filter ke andar dono milakar)
 function otodPct() {
   const all = otodDateFiltered();
@@ -11320,11 +11410,13 @@ function renderOtod() {
   });
 
   document.getElementById('otodContent').innerHTML = `
-    <div style="overflow-x:auto">
+    <div class="otod-ttl">${escapeHtml(OTOD_TITLE[_otodSrc])} — ${_otodTab === 'pending' ? 'Pending' : 'Dispatched'}</div>
+    <div class="otod-scroll">
       <table class="otod-tbl">
         <thead>
-          <tr><th colspan="${cols.length + 1}" class="otod-ttl">${escapeHtml(OTOD_TITLE[_otodSrc])} — ${_otodTab === 'pending' ? 'Pending' : 'Dispatched'}</th></tr>
-          <tr>${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}<th class="otod-th-total">${escapeHtml(OTOD_TOTAL_HEAD[_otodSrc])}</th></tr>
+          <tr>${cols.map(c => `<th>${escapeHtml(c.h)}${c.k === 'sr' ? '' :
+            `<span class="otod-filt ${_otodColFilters[c.k] ? 'on' : ''}" title="Filter ${escapeHtml(c.h)}"
+               onclick="otodOpenFilter('${c.k}',this)">▾</span>`}</th>`).join('')}<th class="otod-th-total">${escapeHtml(OTOD_TOTAL_HEAD[_otodSrc])}</th></tr>
         </thead>
         <tbody>${body}</tbody>
         <tfoot><tr>
