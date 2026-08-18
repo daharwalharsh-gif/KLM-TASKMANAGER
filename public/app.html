@@ -1874,11 +1874,11 @@ tbody tr:last-child td{border-bottom:none;}
       padding:0 3px;border-radius:4px;line-height:1}
     .otod-filt:hover{background:#bfdbfe}
     .otod-filt.on{background:#1d4ed8;color:#fff}
-    .otod-tbl thead .otod-th-total{background:#fca5a5;color:#7f1d1d}
+    .otod-tbl thead .otod-th-total{background:#dbeafe;color:#0f172a}
     .otod-c{text-align:center;white-space:nowrap}
     .otod-r{text-align:right;white-space:nowrap;font-weight:600}
     .otod-pi{font-weight:700;color:#1d4ed8}
-    .otod-total{background:#fef2f2;text-align:right;font-weight:800;color:#0f172a;white-space:nowrap;font-size:14px}
+    .otod-total{background:#fff;text-align:right;font-weight:800;color:#0f172a;white-space:nowrap;font-size:14px}
     .otod-sr{font-weight:700;color:#64748b;width:52px}
     .otod-late{color:#dc2626;font-weight:800}
     .otod-ok{color:#16a34a;font-weight:800}
@@ -7681,6 +7681,19 @@ async function generateMIS() {
   // Init dept filter visibility
   initMISDeptFilter();
 
+  // O to D report: upar ki START/END DATE hi Planned From/To ban jaati hai
+  if (misType === 'otod' || misType === 'otodinv') {
+    if (!document.getElementById('otodContent')) document.getElementById('misResults').innerHTML = otodShell();
+    const of = document.getElementById('otodFrom'), ot = document.getElementById('otodTo'),
+          om = document.getElementById('otodMonth');
+    if (of) of.value = start;
+    if (ot) ot.value = end;
+    if (om) om.value = '';
+    otodClearColFilters();
+    await loadOtod(true);
+    return;
+  }
+
   document.getElementById('misResults').innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Loading…</div>`;
 
   if (misType === 'fmstat') {
@@ -11144,6 +11157,8 @@ function otodDays(planned, picked) {
 // to Refresh dabao. Dono report (merchant / invincible) apne apne cache me.
 let _otodSrc = 'merchant';
 const _otodCache = { merchant: null, invincible: null };
+const _otodFetchedAt = { merchant: 0, invincible: 0 };
+const OTOD_STALE_MS = 2 * 60 * 1000;
 const OTOD_TITLE = { merchant: 'On Time Delivery', invincible: 'Invincible O to D Offline' };
 const OTOD_TOTAL_HEAD = { merchant: 'TOTAL AMOUNT MONTHLY', invincible: 'TOTAL MRP MONTHLY' };
 const OTOD_TOTAL_FIELD = { merchant: 'orderValue', invincible: 'mrp' };
@@ -11190,7 +11205,8 @@ function otodClear() {
 async function loadOtod(force) {
   if (_otodLoading) return;
   if (!document.getElementById('otodContent')) document.getElementById('misResults').innerHTML = otodShell();
-  if (_otodCache[_otodSrc] && !force) { renderOtod(); return; }
+  const fresh = Date.now() - (_otodFetchedAt[_otodSrc] || 0) < OTOD_STALE_MS;
+  if (_otodCache[_otodSrc] && !force && fresh) { renderOtod(); return; }
 
   document.getElementById('otodContent').innerHTML =
     '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
@@ -11203,6 +11219,7 @@ async function loadOtod(force) {
     return;
   }
   _otodCache[_otodSrc] = r.rows || [];
+  _otodFetchedAt[_otodSrc] = Date.now();
   renderOtod();
 }
 
@@ -11211,8 +11228,10 @@ function otodDateFiltered() {
   const from = document.getElementById('otodFrom')?.value || '';
   const to = document.getElementById('otodTo')?.value || '';
   const month = document.getElementById('otodMonth')?.value || '';
+  const till = otodTillYM();
   return (_otodCache[_otodSrc] || []).filter(x =>
-    (!from || x.planned >= from) && (!to || x.planned <= to) && (!month || x.planned.slice(0, 7) === month));
+    (!from || x.planned >= from) && (!to || x.planned <= to) &&
+    (!month || (month === 'till' ? x.planned.slice(0, 7) <= till : x.planned.slice(0, 7) === month)));
 }
 // Abhi ke tab + date filter + column filter ke hisaab se rows
 function otodFiltered() {
@@ -11308,6 +11327,11 @@ function otodPct() {
            pendingPct: p(pend), dispatchedPct: p(all.length - pend) };
 }
 const OTOD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// Abhi ka mahina (YYYY-MM) — "Till current month" filter ke liye
+function otodTillYM() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
 function otodMonthLabel(k) { const [y, m] = k.split('-'); return `${OTOD_MON[Number(m) - 1] || m} ${y}`; }
 
 // Mahine ke hisaab se group + har mahine ka total
@@ -11344,7 +11368,8 @@ function otodCols() {
     { k: 'sr',         h: 'Sr No.',        cls: 'otod-c otod-sr' },
     { k: 'buyer',      h: 'Buyer name' },
     { k: 'orderDate',  h: 'Order date',    cls: 'otod-c', date: true },
-    { k: 'leadTime',   h: 'Lead time',     cls: 'otod-c' },
+    { k: 'delayDays',  h: 'Delay Days',    cls: 'otod-c', gap: true },
+    { k: 'leadTime',   h: 'Plan Lead Time',cls: 'otod-c' },
     { k: 'merchant',   h: 'Merchant name' },
     { k: 'piNo',       h: 'PI number',     cls: 'otod-pi' },
     { k: 'orderValue', h: 'Order value',   cls: 'otod-r', money: true },
@@ -11355,6 +11380,7 @@ function otodCols() {
 }
 function otodVal(x, c, sr) {
   if (c.k === 'sr') return String(sr);
+  if (c.gap) { const d = otodDays(x.orderDate, x.planned); return d === '' ? '' : String(d); }
   if (c.days) { const d = otodDays(x.planned, x.actualDate); return d === '' ? '' : String(d); }
   if (c.money) return otodMoney(x[c.k]);
   if (c.num) { const n = otodNum(x[c.k]); return n === null ? '' : n.toLocaleString('en-IN'); }
@@ -11377,8 +11403,10 @@ function renderOtod() {
     const want = _otodTab === 'dispatched';
     const keys = [...new Set((_otodCache[_otodSrc] || []).filter(x => !!x.dispatched === want).map(x => x.planned.slice(0, 7)))].sort();
     const cur = sel.value;
-    const opts = '<option value="">All months</option>' + keys.map(k => `<option value="${k}">${escapeHtml(otodMonthLabel(k))}</option>`).join('');
-    if (sel.innerHTML !== opts) { sel.innerHTML = opts; if (cur && keys.includes(cur)) sel.value = cur; }
+    const opts = '<option value="">All months</option>' +
+      `<option value="till">Till ${escapeHtml(otodMonthLabel(otodTillYM()))}</option>` +
+      keys.map(k => `<option value="${k}">${escapeHtml(otodMonthLabel(k))}</option>`).join('');
+    if (sel.innerHTML !== opts) { sel.innerHTML = opts; if (cur && (cur === 'till' || keys.includes(cur))) sel.value = cur; }
   }
   // Upar ka summary: kitne order, kitne paise, aur kitna % pending / dispatched
   const cnt = document.getElementById('otodCount');
@@ -11483,7 +11511,7 @@ function otodPDF() {
     thead th{background:#dbeafe;font-size:8.5px;font-weight:bold;text-align:center}
     .ttl{background:#1e3a8a;color:#fff;font-size:12.5px;text-align:center;padding:6px}
     .c{text-align:center} .r{text-align:right;white-space:nowrap} .sr{text-align:center;width:30px} .pi{font-weight:bold}
-    .tot{background:#fee2e2;font-weight:bold;text-align:right}
+    .tot{font-weight:bold;text-align:right}
     .gap td{border:none;height:8px;background:#fff}
     tfoot td{background:#eef2ff;font-weight:bold}
     .foot{margin-top:9px;font-size:8px;color:#94a3b8;text-align:center}
