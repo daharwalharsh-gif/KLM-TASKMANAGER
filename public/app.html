@@ -11637,13 +11637,10 @@ async function loadOtod(force) {
 function otodDateFiltered() {
   const from = document.getElementById('otodFrom')?.value || '';
   const to = document.getElementById('otodTo')?.value || '';
-  const till = otodTillYM();
   return (_otodCache[_otodSrc] || []).filter(x => {
     if (from && x.planned < from) return false;
     if (to && x.planned > to) return false;
-    const ym = x.planned.slice(0, 7);
-    if (_otodTill && ym > till) return false;
-    if (_otodMonths.size && !_otodMonths.has(ym)) return false;
+    if (_otodMonths.size && !_otodMonths.has(x.planned.slice(0, 7))) return false;
     return true;
   });
 }
@@ -11657,8 +11654,7 @@ function otodFiltered() {
 // Month filter — ek se zyada mahine tick kar sakte hain. Tick karte hi
 // list turant badal jaati hai (koi Apply nahi).
 let _otodMonths = new Set();   // 'YYYY-MM'
-let _otodTill = false;         // "Till <abhi ka mahina>" — aage wale month chhod do
-function otodClearMonths() { _otodMonths = new Set(); _otodTill = false; }
+function otodClearMonths() { _otodMonths = new Set(); }
 
 // Abhi ke tab ke saare mahine (jinke order hain)
 function otodMonthKeys() {
@@ -11668,16 +11664,15 @@ function otodMonthKeys() {
 }
 function otodMonthBtnText() {
   const n = _otodMonths.size;
-  if (_otodTill && !n) return 'Till ' + otodMonthLabel(otodTillYM());
   if (!n) return 'All months';
-  if (n === 1) return otodMonthLabel([..._otodMonths][0]) + (_otodTill ? ' · Till date' : '');
-  return n + ' months' + (_otodTill ? ' · Till date' : '');
+  if (n === 1) return otodMonthLabel([..._otodMonths][0]);
+  return n + ' months';
 }
 function otodSyncMonthBtn() {
   const b = document.getElementById('otodMonthBtn'), t = document.getElementById('otodMonthTxt');
   if (!b || !t) return;
   t.textContent = otodMonthBtnText();
-  b.classList.toggle('on', _otodMonths.size > 0 || _otodTill);
+  b.classList.toggle('on', _otodMonths.size > 0);
 }
 
 function otodOpenMonths(btn) {
@@ -11693,9 +11688,6 @@ function otodOpenMonths(btn) {
       <button type="button" data-m="none">✕ Clear</button>
     </div>
     <div class="pm-pop-list" id="otodMonthList">
-      <label style="border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:4px">
-        <input type="checkbox" data-till="1" ${_otodTill ? 'checked' : ''}/>
-        <span><b>Till ${escapeHtml(otodMonthLabel(otodTillYM()))}</b></span></label>
       ${keys.map(k => `<label><input type="checkbox" value="${k}" ${_otodMonths.has(k) ? 'checked' : ''}/>
         <span>${escapeHtml(otodMonthLabel(k))}</span></label>`).join('') ||
         '<div style="padding:8px;color:#94a3b8;font-size:12px">No months</div>'}
@@ -11705,8 +11697,7 @@ function otodOpenMonths(btn) {
   // Tick karte hi turant filter lag jaata hai
   pop.querySelectorAll('#otodMonthList input').forEach(inp => {
     inp.onchange = () => {
-      if (inp.dataset.till) _otodTill = inp.checked;
-      else if (inp.checked) _otodMonths.add(inp.value);
+      if (inp.checked) _otodMonths.add(inp.value);
       else _otodMonths.delete(inp.value);
       otodSyncMonthBtn();
       renderOtod();
@@ -11818,11 +11809,6 @@ function otodPct() {
            pendingPct: p(pend), dispatchedPct: p(all.length - pend) };
 }
 const OTOD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-// Abhi ka mahina (YYYY-MM) — "Till current month" filter ke liye
-function otodTillYM() {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-}
 function otodMonthLabel(k) { const [y, m] = k.split('-'); return `${OTOD_MON[Number(m) - 1] || m} ${y}`; }
 
 // Mahine ke hisaab se group + har mahine ka total
@@ -11969,7 +11955,7 @@ function otodPDF() {
   const now = new Date(); const pad = n => String(n).padStart(2, '0');
   const stamp = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
   const from = document.getElementById('otodFrom')?.value || '', to = document.getElementById('otodTo')?.value || '';
-  const mTxt = (_otodMonths.size || _otodTill) ? otodMonthBtnText() : '';
+  const mTxt = _otodMonths.size ? otodMonthBtnText() : '';
   const range = [from ? 'From ' + otodDate(from) : '', to ? 'To ' + otodDate(to) : '', mTxt].filter(Boolean).join(' · ');
 
   let sr = 0, body = '';
