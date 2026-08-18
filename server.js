@@ -953,6 +953,8 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Daily PC Report form Forms dropdown me dikhe ya nahi (admin + Ekta/Sachin)
     rows[0].canPcReport = req.session.role === 'admin' ||
       PCR_EMAILS.has((rows[0].email || '').trim().toLowerCase());
+    // Time Scheduler tab dikhe ya nahi — SIRF ye do emails (admin ko bhi nahi)
+    rows[0].canScheduler = SCHEDULER_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     // Sabki leave dekh/approve kar sakta hai ya nahi (admin + HR)
     rows[0].canLeaves = req.session.role === 'admin' ||
       LEAVE_APPROVER_EMAILS.has((rows[0].email || '').trim().toLowerCase());
@@ -1462,11 +1464,118 @@ app.delete('/api/tasks/delete-by-date', requireAuth, requireAdmin, async (req, r
 });
 
 // ══════════════════════════════════════════════════════
+// TIME SCHEDULER — roz ka routine. Sirf Ms. Ekta (pc@) aur
+// Mr. Harsh (daharwal.harsh@) ke liye — admin ko bhi nahi dikhta.
+// Har banda apna hi schedule dekhta/badalta hai.
+// ══════════════════════════════════════════════════════
+const SCHEDULER_EMAILS = new Set([
+  'pc@klmahajan.com',
+  'daharwal.harsh@e-marketing.io',
+]);
+async function requireScheduler(req, res, next) {
+  try {
+    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    if (SCHEDULER_EMAILS.has((rows[0]?.email || '').trim().toLowerCase())) return next();
+  } catch (e) {}
+  res.status(403).json({ error: 'Not allowed' });
+}
+function schIsoDate(v) {
+  const t = String(v || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : '';
+}
+function schTime(v) {
+  const t = String(v || '').trim();
+  return /^\d{2}:\d{2}$/.test(t) ? t : (/^\d{2}:\d{2}:\d{2}$/.test(t) ? t.slice(0, 5) : '');
+}
+
+app.get('/api/scheduler', requireAuth, requireScheduler, async (req, res) => {
+  try {
+    const from = schIsoDate(req.query.from), to = schIsoDate(req.query.to);
+    const where = ['user_id=?']; const p = [req.session.userId];
+    if (from) { where.push('sch_date >= ?'); p.push(from); }
+    if (to) { where.push('sch_date <= ?'); p.push(to); }
+    const [rows] = await db.query(
+      `SELECT id, sch_date, start_time, end_time, title, remarks, status, completed_at
+       FROM time_schedules WHERE ${where.join(' AND ')} ORDER BY sch_date ASC, start_time ASC`, p);
+    res.json(rows.map(r => ({
+      id: Number(r.id), date: schIsoDate(r.sch_date), startTime: schTime(r.start_time),
+      endTime: schTime(r.end_time), title: r.title || '', remarks: r.remarks || '',
+      status: r.status === 'completed' ? 'completed' : 'pending', completedAt: r.completed_at || ''
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Add — ek din ka, ya "repeat till" wali date tak har din ka
+app.post('/api/scheduler', requireAuth, requireScheduler, async (req, res) => {
+  try {
+    const title = String(req.body.title || '').trim();
+    const date = schIsoDate(req.body.date);
+    const till = schIsoDate(req.body.till) || date;
+    const startTime = schTime(req.body.startTime);
+    const endTime = schTime(req.body.endTime);
+    const remarks = String(req.body.remarks || '').trim();
+    if (!title || !date || !startTime) return res.status(400).json({ error: 'Date, start time and task are required' });
+    if (endTime && endTime < startTime) return res.status(400).json({ error: 'End time cannot be before start time' });
+    if (till < date) return res.status(400).json({ error: 'Repeat-till date cannot be before the start date' });
+
+    const dates = [];
+    for (let d = date; d <= till && dates.length < 366; d = nextIsoDay(d)) dates.push(d);
+    for (const d of dates) {
+      await db.query(
+        `INSERT INTO time_schedules (user_id, sch_date, start_time, end_time, title, remarks, status)
+         VALUES (?,?,?,?,?,?,?)`,
+        [req.session.userId, d, startTime, endTime, title, remarks, 'pending']);
+    }
+    res.json({ success: true, added: dates.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Done / Undo / edit
+app.put('/api/scheduler/:id', requireAuth, requireScheduler, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [own] = await db.query('SELECT id FROM time_schedules WHERE id=? AND user_id=?', [id, req.session.userId]);
+    if (!own[0]) return res.status(404).json({ error: 'Not found' });
+
+    if (req.body.status) {
+      const st = req.body.status === 'completed' ? 'completed' : 'pending';
+      await db.query('UPDATE time_schedules SET status=?, completed_at=? WHERE id=?',
+        [st, st === 'completed' ? new Date().toISOString().slice(0, 19).replace('T', ' ') : '', id]);
+    } else {
+      const title = String(req.body.title || '').trim();
+      const startTime = schTime(req.body.startTime), endTime = schTime(req.body.endTime);
+      const date = schIsoDate(req.body.date);
+      if (!title || !date || !startTime) return res.status(400).json({ error: 'Date, start time and task are required' });
+      if (endTime && endTime < startTime) return res.status(400).json({ error: 'End time cannot be before start time' });
+      await db.query('UPDATE time_schedules SET sch_date=?, start_time=?, end_time=?, title=?, remarks=? WHERE id=?',
+        [date, startTime, endTime, title, String(req.body.remarks || '').trim(), id]);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/scheduler/:id', requireAuth, requireScheduler, async (req, res) => {
+  try {
+    const [r] = await db.query('DELETE FROM time_schedules WHERE id=? AND user_id=?',
+      [parseInt(req.params.id), req.session.userId]);
+    res.json({ success: true, deleted: r.affectedRows || 0 });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
 // HOLIDAYS — company ki chhutti list. Pehle ye sirf browser ke
 // localStorage me thi (har user ki apni), isliye kisi aur ko pata hi
 // nahi chalta tha. Ab DB me hai — sab logo ko ek hi list dikhti hai
 // aur app khulte hi notice popup aata hai.
 // ══════════════════════════════════════════════════════
+// YYYY-MM-DD ko local hi rakhte hue agla din. (toISOString UTC me convert kar
+// deta hai — IST me aadhi raat 18:30 UTC hoti hai, isliye date ek din peeche
+// chali jaati thi.)
+function nextIsoDay(d) {
+  const dt = new Date(d + 'T12:00:00');
+  dt.setDate(dt.getDate() + 1);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
 function holIso(v) {
   const s = String(v || '').trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
@@ -1474,10 +1583,7 @@ function holIso(v) {
 // from se to tak ki saari tareekhein (dono shaamil), zyada se zyada 366
 function holDatesBetween(from, to) {
   const out = [];
-  const a = new Date(from + 'T00:00:00'), b = new Date(to + 'T00:00:00');
-  for (let d = a; d <= b && out.length < 366; d.setDate(d.getDate() + 1)) {
-    out.push(d.toISOString().slice(0, 10));
-  }
+  for (let d = from; d <= to && out.length < 366; d = nextIsoDay(d)) out.push(d);
   return out;
 }
 

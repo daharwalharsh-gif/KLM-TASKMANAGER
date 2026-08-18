@@ -571,6 +571,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
       <span class="nav-label-text">Invincible Catalog</span>
     </div>
+    <div class="nav-item" id="nav-scheduler" style="display:none" onclick="navigate('scheduler',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span class="nav-label-text">Time Scheduler</span>
+    </div>
     <div class="nav-item" id="nav-leaves" onclick="navigate('leaves',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
       <span class="nav-label-text">Leave Tracker</span>
@@ -2142,6 +2146,77 @@ tbody tr:last-child td{border-bottom:none;}
     .leave-row{padding:14px 18px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
     .leave-input{padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;box-sizing:border-box}
   </style>
+  <style>
+    .sch-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;background:#fff;border:1px solid #e2e8f0;
+      border-radius:12px;padding:16px 18px;margin-bottom:16px}
+    .sch-f{display:flex;flex-direction:column;gap:5px}
+    .sch-f label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
+    .sch-in{padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;
+      font-family:'Inter',sans-serif;outline:none;box-sizing:border-box}
+    .sch-in:focus{border-color:#6366f1}
+    .sch-tabs{display:flex;gap:4px;background:#f1f5f9;padding:3px;border-radius:8px;width:fit-content}
+    .sch-day{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:16px}
+    .sch-day-head{background:linear-gradient(90deg,#e0e7ff,#eef2ff);padding:11px 18px;display:flex;
+      justify-content:space-between;align-items:center;font-weight:800;color:#3730a3;font-size:13.5px}
+    .sch-day-head .sch-cnt{font-weight:700;font-size:12px;color:#4f46e5}
+    .sch-row{display:flex;align-items:center;gap:14px;padding:12px 18px;border-top:1px solid #f1f5f9}
+    .sch-row:hover{background:#f8fafc}
+    .sch-time{min-width:132px;font-weight:800;color:#0f172a;font-size:13px;white-space:nowrap}
+    .sch-time span{display:block;font-weight:600;color:#94a3b8;font-size:11px}
+    .sch-main{flex:1;min-width:0}
+    .sch-ttl{font-weight:700;color:#0f172a;font-size:13.5px}
+    .sch-rem{font-size:12px;color:#64748b;margin-top:3px}
+    .sch-acts{display:flex;gap:7px;flex-shrink:0}
+    .sch-done .sch-ttl{text-decoration:line-through;color:#94a3b8}
+    .sch-done{background:#f8fafc}
+    .sch-badge{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:20px;margin-left:8px}
+    .sch-badge.p{background:#fef3c7;color:#92400e}
+    .sch-badge.c{background:#dcfce7;color:#166534}
+    .sch-stat{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+    .sch-card{flex:1;min-width:150px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px}
+    .sch-card .n{font-size:26px;font-weight:800;line-height:1.2}
+    .sch-card .l{font-size:12px;color:#64748b;font-weight:600}
+  </style>
+  <div id="page-scheduler" class="page">
+    <div class="page-header">
+      <h2>Time Scheduler</h2>
+    </div>
+
+    <!-- Add karo -->
+    <div class="sch-bar">
+      <div class="sch-f"><label>Date</label><input type="date" id="schDate" class="sch-in"/></div>
+      <div class="sch-f"><label>From</label><input type="time" id="schStart" class="sch-in"/></div>
+      <div class="sch-f"><label>To</label><input type="time" id="schEnd" class="sch-in"/></div>
+      <div class="sch-f" style="flex:1;min-width:220px"><label>Routine / Task</label>
+        <input type="text" id="schTitle" class="sch-in" placeholder="e.g. Morning production review"/></div>
+      <div class="sch-f" style="flex:1;min-width:180px"><label>Remarks (optional)</label>
+        <input type="text" id="schRemarks" class="sch-in" placeholder="notes"/></div>
+      <div class="sch-f"><label>Repeat daily till (optional)</label><input type="date" id="schTill" class="sch-in"/></div>
+      <div class="sch-f"><label>&nbsp;</label>
+        <button class="btn btn-primary" id="schSaveBtn" onclick="saveSchedule()">+ Add</button></div>
+      <div class="sch-f" id="schCancelWrap" style="display:none"><label>&nbsp;</label>
+        <button class="btn btn-outline" onclick="cancelScheduleEdit()">Cancel</button></div>
+    </div>
+
+    <div class="sch-stat" id="schStats"></div>
+
+    <!-- Pending / Completed -->
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div class="sch-tabs">
+        <div class="tab active" id="schTabPending" onclick="schSwitch('pending')">⏳ Pending</div>
+        <div class="tab" id="schTabCompleted" onclick="schSwitch('completed')">✅ Completed</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div class="sch-f"><label>From date</label><input type="date" id="schFrom" class="sch-in" onchange="loadScheduler()"/></div>
+        <div class="sch-f"><label>To date</label><input type="date" id="schTo" class="sch-in" onchange="loadScheduler()"/></div>
+        <button class="btn btn-outline btn-sm" onclick="schToday()">Today</button>
+        <button class="btn btn-outline btn-sm" onclick="schClearRange()">All dates</button>
+      </div>
+    </div>
+
+    <div id="schList"></div>
+  </div>
+
   <div id="page-leaves" class="page">
     <div class="page-header">
       <h2>Leave Tracker</h2>
@@ -3423,6 +3498,8 @@ async function init() {
 
     setAvatarDisplay(ME.profile_image, initials);
 
+    // Time Scheduler — SIRF Ms. Ekta (pc@) aur Mr. Harsh ko
+    if (ME.canScheduler) document.getElementById('nav-scheduler').style.display = 'flex';
     // Owner Dashboard — SIRF in emails ko dikhe (owner-only)
     const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'manik@klmahajan.com'];
     if (OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
@@ -3535,7 +3612,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -3553,6 +3630,7 @@ function navigate(page, el) {
   if (page==='mis') initMISDeptFilter();
   if (page==='records') loadRecords();
   if (page==='leaves') loadLeaves();
+  if (page==='scheduler') openScheduler();
   if (page==='master') loadMasterSheet();
   if (page==='production') loadProduction();
   if (page==='catalogues') loadCatalogues();
@@ -6843,6 +6921,183 @@ async function saveChecklist() {
   suc.style.display='block';
 
   setTimeout(()=>{ closeModal('checklistModal'); loadDashboard(); }, 2000);
+}
+
+// ══════════════════════════════════════════════════════
+// TIME SCHEDULER — roz ka routine (Pending / Completed)
+// ══════════════════════════════════════════════════════
+let _schTab = 'pending';
+let _schRows = [];
+let _schEditId = null;
+
+function schIsoToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const SCH_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function schDayLabel(d) {
+  const dt = new Date(d + 'T00:00:00');
+  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const today = schIsoToday();
+  const tag = d === today ? ' · Today' : '';
+  return `${String(dt.getDate()).padStart(2,'0')} ${M[dt.getMonth()]} ${dt.getFullYear()} · ${SCH_DAYS[dt.getDay()]}${tag}`;
+}
+// 14:30 -> 02:30 PM
+function schTime12(t) {
+  if (!/^\d{2}:\d{2}$/.test(t || '')) return '';
+  let [H, M] = t.split(':').map(Number);
+  const ap = H >= 12 ? 'PM' : 'AM';
+  H = H % 12; if (H === 0) H = 12;
+  return `${String(H).padStart(2,'0')}:${String(M).padStart(2,'0')} ${ap}`;
+}
+
+function openScheduler() {
+  const today = schIsoToday();
+  const d = document.getElementById('schDate');
+  if (d && !d.value) d.value = today;
+  const f = document.getElementById('schFrom'), t = document.getElementById('schTo');
+  if (f && !f.value && (!t || !t.value)) { f.value = today; t.value = today; }
+  loadScheduler();
+}
+
+function schToday() {
+  const today = schIsoToday();
+  document.getElementById('schFrom').value = today;
+  document.getElementById('schTo').value = today;
+  loadScheduler();
+}
+function schClearRange() {
+  document.getElementById('schFrom').value = '';
+  document.getElementById('schTo').value = '';
+  loadScheduler();
+}
+function schSwitch(tab) {
+  _schTab = tab;
+  document.getElementById('schTabPending').classList.toggle('active', tab === 'pending');
+  document.getElementById('schTabCompleted').classList.toggle('active', tab === 'completed');
+  renderScheduler();
+}
+
+async function loadScheduler() {
+  const from = document.getElementById('schFrom')?.value || '';
+  const to = document.getElementById('schTo')?.value || '';
+  const box = document.getElementById('schList');
+  if (box) box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
+  const q = [];
+  if (from) q.push('from=' + from);
+  if (to) q.push('to=' + to);
+  const r = await api('/api/scheduler' + (q.length ? '?' + q.join('&') : ''));
+  _schRows = Array.isArray(r) ? r : [];
+  renderScheduler();
+}
+
+async function saveSchedule() {
+  const date = document.getElementById('schDate').value;
+  const startTime = document.getElementById('schStart').value;
+  const endTime = document.getElementById('schEnd').value;
+  const title = document.getElementById('schTitle').value.trim();
+  const remarks = document.getElementById('schRemarks').value.trim();
+  const till = document.getElementById('schTill').value;
+  if (!date || !startTime || !title) { showToast('Date, From time and Routine are required', 'error'); return; }
+  if (endTime && endTime < startTime) { showToast('To time cannot be before From time', 'error'); return; }
+
+  let r;
+  if (_schEditId) r = await api('/api/scheduler/' + _schEditId, 'PUT', { date, startTime, endTime, title, remarks });
+  else r = await api('/api/scheduler', 'POST', { date, startTime, endTime, title, remarks, till });
+  if (!r || r.error) { showToast((r && r.error) || 'Could not save', 'error'); return; }
+
+  showToast(_schEditId ? 'Routine updated' : `${r.added} routine(s) added`);
+  cancelScheduleEdit();
+  await loadScheduler();
+}
+
+function editSchedule(id) {
+  const x = _schRows.find(r => r.id === id); if (!x) return;
+  _schEditId = id;
+  document.getElementById('schDate').value = x.date;
+  document.getElementById('schStart').value = x.startTime;
+  document.getElementById('schEnd').value = x.endTime;
+  document.getElementById('schTitle').value = x.title;
+  document.getElementById('schRemarks').value = x.remarks;
+  document.getElementById('schTill').value = '';
+  document.getElementById('schTill').disabled = true;
+  document.getElementById('schSaveBtn').textContent = 'Save';
+  document.getElementById('schCancelWrap').style.display = '';
+  document.getElementById('schTitle').focus();
+}
+function cancelScheduleEdit() {
+  _schEditId = null;
+  document.getElementById('schStart').value = '';
+  document.getElementById('schEnd').value = '';
+  document.getElementById('schTitle').value = '';
+  document.getElementById('schRemarks').value = '';
+  document.getElementById('schTill').value = '';
+  document.getElementById('schTill').disabled = false;
+  document.getElementById('schSaveBtn').textContent = '+ Add';
+  document.getElementById('schCancelWrap').style.display = 'none';
+}
+
+async function toggleSchedule(id, done) {
+  const r = await api('/api/scheduler/' + id, 'PUT', { status: done ? 'completed' : 'pending' });
+  if (!r || r.error) { showToast((r && r.error) || 'Could not update', 'error'); return; }
+  showToast(done ? 'Marked as completed' : 'Moved back to pending');
+  await loadScheduler();
+}
+async function deleteSchedule(id) {
+  const r = await api('/api/scheduler/' + id, 'DELETE');
+  if (!r || r.error) { showToast((r && r.error) || 'Could not delete', 'error'); return; }
+  if (_schEditId === id) cancelScheduleEdit();
+  showToast('Routine deleted');
+  await loadScheduler();
+}
+
+function renderScheduler() {
+  const stats = document.getElementById('schStats');
+  const box = document.getElementById('schList');
+  if (!box) return;
+  const pend = _schRows.filter(x => x.status !== 'completed').length;
+  const done = _schRows.length - pend;
+  const pct = _schRows.length ? Math.round((done / _schRows.length) * 100) : 0;
+  if (stats) stats.innerHTML = `
+    <div class="sch-card"><div class="n" style="color:#4f46e5">${_schRows.length}</div><div class="l">Total Routine</div></div>
+    <div class="sch-card"><div class="n" style="color:#d97706">${pend}</div><div class="l">Pending</div></div>
+    <div class="sch-card"><div class="n" style="color:#16a34a">${done}</div><div class="l">Completed</div></div>
+    <div class="sch-card"><div class="n" style="color:#0f172a">${pct}%</div><div class="l">Done</div></div>`;
+
+  const want = _schTab === 'completed' ? 'completed' : 'pending';
+  const rows = _schRows.filter(x => (x.status === 'completed' ? 'completed' : 'pending') === want);
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">
+      ${want === 'pending' ? 'Is range me koi pending routine nahi.' : 'Is range me koi completed routine nahi.'}</div>`;
+    return;
+  }
+  const byDay = [];
+  rows.forEach(x => {
+    let g = byDay[byDay.length - 1];
+    if (!g || g.date !== x.date) { g = { date: x.date, rows: [] }; byDay.push(g); }
+    g.rows.push(x);
+  });
+  box.innerHTML = byDay.map(g => `
+    <div class="sch-day">
+      <div class="sch-day-head"><span>${escapeHtml(schDayLabel(g.date))}</span>
+        <span class="sch-cnt">${g.rows.length} routine${g.rows.length > 1 ? 's' : ''}</span></div>
+      ${g.rows.map(x => `
+        <div class="sch-row ${x.status === 'completed' ? 'sch-done' : ''}">
+          <div class="sch-time">${escapeHtml(schTime12(x.startTime))}${x.endTime ? `<span>to ${escapeHtml(schTime12(x.endTime))}</span>` : ''}</div>
+          <div class="sch-main">
+            <div class="sch-ttl">${escapeHtml(x.title)}
+              <span class="sch-badge ${x.status === 'completed' ? 'c' : 'p'}">${x.status === 'completed' ? 'Completed' : 'Pending'}</span></div>
+            ${x.remarks ? `<div class="sch-rem">${escapeHtml(x.remarks)}</div>` : ''}
+          </div>
+          <div class="sch-acts">
+            ${x.status === 'completed'
+              ? `<button class="btn btn-outline btn-sm" onclick="toggleSchedule(${x.id},false)">↩ Undo</button>`
+              : `<button class="btn btn-green btn-sm" onclick="toggleSchedule(${x.id},true)">✓ Done</button>
+                 <button class="btn btn-outline btn-sm" onclick="editSchedule(${x.id})">Edit</button>`}
+            <button class="action-btn delete" onclick="deleteSchedule(${x.id})">Delete</button>
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
 }
 
 // ══════════════════════════════════════════════════════

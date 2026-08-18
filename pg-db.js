@@ -151,6 +151,11 @@ const SCHEMA = {
   holidays: {
     cols: ['id','holiday_date','name','created_by','created_at'],
     autoFill: { created_at: 'NOW' }
+  },
+  // Time Scheduler — roz ka routine (sirf allowed emails)
+  time_schedules: {
+    cols: ['id','user_id','sch_date','start_time','end_time','title','remarks','status','created_at','completed_at'],
+    autoFill: { created_at: 'NOW' }
   }
 };
 
