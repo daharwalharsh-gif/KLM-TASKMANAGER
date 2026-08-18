@@ -11368,19 +11368,18 @@ function otodCols() {
     { k: 'sr',         h: 'Sr No.',        cls: 'otod-c otod-sr' },
     { k: 'buyer',      h: 'Buyer name' },
     { k: 'orderDate',  h: 'Order date',    cls: 'otod-c', date: true },
-    { k: 'delayDays',  h: 'Delay Days',    cls: 'otod-c', gap: true },
     { k: 'leadTime',   h: 'Plan Lead Time',cls: 'otod-c' },
     { k: 'merchant',   h: 'Merchant name' },
     { k: 'piNo',       h: 'PI number',     cls: 'otod-pi' },
     { k: 'orderValue', h: 'Order value',   cls: 'otod-r', money: true },
     { k: 'planned',    h: 'Planned',       cls: 'otod-c', date: true },
     { k: 'actualDate', h: 'Actual',        cls: 'otod-c', date: true },
-    { k: 'days',       h: 'Days',          cls: 'otod-c', days: true },
+    { k: 'days',       h: 'Delay Days',    cls: 'otod-c', gapdays: true },
   ];
 }
 function otodVal(x, c, sr) {
   if (c.k === 'sr') return String(sr);
-  if (c.gap) { const d = otodDays(x.orderDate, x.planned); return d === '' ? '' : String(d); }
+  if (c.gapdays) { const d = otodDays(x.orderDate, x.actualDate || x.planned); return d === '' ? '' : String(d); }
   if (c.days) { const d = otodDays(x.planned, x.actualDate); return d === '' ? '' : String(d); }
   if (c.money) return otodMoney(x[c.k]);
   if (c.num) { const n = otodNum(x[c.k]); return n === null ? '' : n.toLocaleString('en-IN'); }
