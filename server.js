@@ -2550,9 +2550,9 @@ app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { name, title, email, notification_email, password, role, phone, department, week_off, extra_off } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'All fields required' });
-    if (!isValidEmail(email)) return res.status(400).json({ error: 'Email sahi format me daalo — jaise name@company.com' });
+    if (!isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email — e.g. name@company.com' });
     if (notification_email && !isValidEmail(notification_email))
-      return res.status(400).json({ error: 'Notification email sahi format me daalo — jaise name@company.com' });
+      return res.status(400).json({ error: 'Enter a valid notification email — e.g. name@company.com' });
     const [ex] = await db.query('SELECT id FROM users WHERE email=?', [email]);
     if (ex[0]) return res.status(400).json({ error: 'Email already exists' });
     await db.query('INSERT INTO users (name,title,email,notification_email,password,role,phone,department,week_off,extra_off) VALUES (?,?,?,?,?,?,?,?,?,?)',
@@ -2564,9 +2564,9 @@ app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
 app.put('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { name, title, email, notification_email, role, password, phone, department, week_off, extra_off } = req.body;
-    if (!isValidEmail(email)) return res.status(400).json({ error: 'Email sahi format me daalo — jaise name@company.com' });
+    if (!isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email — e.g. name@company.com' });
     if (notification_email && !isValidEmail(notification_email))
-      return res.status(400).json({ error: 'Notification email sahi format me daalo — jaise name@company.com' });
+      return res.status(400).json({ error: 'Enter a valid notification email — e.g. name@company.com' });
     if (password) await db.query('UPDATE users SET name=?,title=?,email=?,notification_email=?,role=?,password=?,phone=?,department=?,week_off=?,extra_off=? WHERE id=?',
       [name,title||'',email,notification_email||'',role,password,phone||null,department||'',week_off||'',extra_off||'',req.params.id]);
     else await db.query('UPDATE users SET name=?,title=?,email=?,notification_email=?,role=?,phone=?,department=?,week_off=?,extra_off=? WHERE id=?',
@@ -2614,9 +2614,9 @@ app.put('/api/profile', requireAuth, async (req, res) => {
   try {
     const uid = req.session.userId;
     const { name, email, notification_email, phone, currentPassword, newPassword, profileImage } = req.body;
-    if (!isValidEmail(email)) return res.status(400).json({ error: 'Email sahi format me daalo — jaise name@company.com' });
+    if (!isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email — e.g. name@company.com' });
     if (notification_email && !isValidEmail(notification_email))
-      return res.status(400).json({ error: 'Notification email sahi format me daalo — jaise name@company.com' });
+      return res.status(400).json({ error: 'Enter a valid notification email — e.g. name@company.com' });
     if (currentPassword) {
       const [rows] = await db.query('SELECT password FROM users WHERE id=?', [uid]);
       const check = rows[0] ? checkPassword(currentPassword, rows[0].password) : { ok: false };

@@ -7071,7 +7071,7 @@ function renderScheduler() {
   const rows = _schRows.filter(x => (x.status === 'completed' ? 'completed' : 'pending') === want);
   if (!rows.length) {
     box.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">
-      ${want === 'pending' ? 'Is range me koi pending routine nahi.' : 'Is range me koi completed routine nahi.'}</div>`;
+      ${want === 'pending' ? 'No pending routine in this date range.' : 'No completed routine in this date range.'}</div>`;
     return;
   }
   const byDay = [];
@@ -7544,10 +7544,10 @@ async function saveUser() {
   if (!name||!email) { err.textContent='Name and email required'; err.style.display='block'; return; }
   // Email format check — "123" jaisa kuch ab save nahi hoga
   if (!isValidEmailFmt(email)) {
-    err.textContent='Email sahi format me daalo — jaise name@company.com';
+    err.textContent='Enter a valid email — e.g. name@company.com';
     err.style.display='block'; document.getElementById('uEmail').focus(); return; }
   if (notification_email && !isValidEmailFmt(notification_email)) {
-    err.textContent='Notification email sahi format me daalo — jaise name@company.com';
+    err.textContent='Enter a valid notification email — e.g. name@company.com';
     err.style.display='block'; document.getElementById('uNotifEmail').focus(); return; }
   if (!id&&!password) { err.textContent='Password required for new user'; err.style.display='block'; return; }
   const body={name,title,email,notification_email,role,phone,department,week_off,extra_off};
@@ -7825,7 +7825,7 @@ async function api(url,method='GET',body=null) {
     r = await fetch(url, opts);
   } catch(e) {
     console.error('API fetch failed:', url, e);
-    return { error: 'Network error — server se connect nahi ho saka' };
+    return { error: 'Network error — could not reach the server' };
   }
   if (r.status===401) {
     localStorage.removeItem('authToken');
@@ -7839,8 +7839,8 @@ async function api(url,method='GET',body=null) {
     return data;
   } catch(e) {
     console.error('API error:', url, r.status, e);
-    if (r.status === 503) return { error: 'Server abhi available nahi hai (503) — thodi der baad try karein' };
-    if (r.status === 502) return { error: 'Server se connection nahi mila (502) — check karein server chal raha hai' };
+    if (r.status === 503) return { error: 'Server is not available right now (503) — please try again in a moment' };
+    if (r.status === 502) return { error: 'Could not reach the server (502) — please check that the server is running' };
     return { error: `HTTP ${r.status}` };
   }
 }
@@ -8143,7 +8143,7 @@ async function generateMIS() {
       populateMISDeptDropdown(misAllData);
       renderAllMIS(misAllData, []);
       if (fmsErrors.length) {
-        showToast(`⚠️ ${fmsErrors.length} FMS sheet abhi load nahi hui — dobara Generate karein`, 'error');
+        showToast(`⚠️ ${fmsErrors.length} FMS sheet(s) did not load — click Generate again`, 'error');
       }
 
       // ── Step 2: FMS Overview ko background me append karo ──
@@ -8152,13 +8152,13 @@ async function generateMIS() {
         const placeholder = document.createElement('div');
         placeholder.id = 'fmsOverviewLoading';
         placeholder.style.cssText = 'margin-top:18px;padding:14px;text-align:center;color:#64748b;font-size:12px;background:#fff;border:1px dashed #cbd5e1;border-radius:10px';
-        placeholder.innerHTML = '⏳ Loading FMS Overview… (Google Sheets se data aa raha hai)';
+        placeholder.innerHTML = '⏳ Loading FMS Overview… (fetching from Google Sheets)';
         container.appendChild(placeholder);
 
         api(`/api/mis/fms?start=${start}&end=${end}`).then(fmsData => {
           const ph = document.getElementById('fmsOverviewLoading');
           if (fmsData && fmsData.error) {
-            if (ph) ph.innerHTML = `⚠️ FMS Overview load nahi ho saka: ${fmsData.error}`;
+            if (ph) ph.innerHTML = `⚠️ Could not load FMS Overview: ${fmsData.error}`;
             return;
           }
           misFMSData = Array.isArray(fmsData) ? fmsData : [];
@@ -8166,7 +8166,7 @@ async function generateMIS() {
           renderAllMIS(misAllData, misFMSData);
         }).catch(e => {
           const ph = document.getElementById('fmsOverviewLoading');
-          if (ph) ph.innerHTML = `⚠️ FMS Overview load nahi ho saka: ${e.message || 'unknown error'}`;
+          if (ph) ph.innerHTML = `⚠️ Could not load FMS Overview: ${e.message || 'unknown error'}`;
         });
       }
     } catch (e) {
@@ -8783,7 +8783,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
     const rows2 = Array.isArray(all) ? all : (all && all.rows) || [];
     emp = rows2.find(e => String(e.userId) === String(userId));
   }
-  if (!emp) { showToast('Is range me is doer ka koi data nahi', 'error'); return; }
+  if (!emp) { showToast('No data for this doer in the selected range', 'error'); return; }
 
   // Fetch task details for both types
   const [delDetail, chlDetail] = await Promise.all([
@@ -11698,7 +11698,7 @@ function otodOpenMonths(btn) {
         <span><b>Till ${escapeHtml(otodMonthLabel(otodTillYM()))}</b></span></label>
       ${keys.map(k => `<label><input type="checkbox" value="${k}" ${_otodMonths.has(k) ? 'checked' : ''}/>
         <span>${escapeHtml(otodMonthLabel(k))}</span></label>`).join('') ||
-        '<div style="padding:8px;color:#94a3b8;font-size:12px">Koi month nahi</div>'}
+        '<div style="padding:8px;color:#94a3b8;font-size:12px">No months</div>'}
     </div>`;
   document.body.appendChild(pop);
 
@@ -11768,7 +11768,7 @@ function otodOpenFilter(k, btn) {
     <div class="pm-pop-list" id="otodPopList">
       ${vals.map(v => `<label data-v="${escapeHtml(String(v).toLowerCase())}">
         <input type="checkbox" value="${escapeHtml(String(v))}" ${(!sel.size || sel.has(v)) ? 'checked' : ''}/>
-        <span>${escapeHtml(v === '' ? '(khali)' : String(v))}</span></label>`).join('')}
+        <span>${escapeHtml(v === '' ? '(blank)' : String(v))}</span></label>`).join('')}
     </div>
     <div class="pm-pop-foot">
       <button type="button" class="btn btn-outline btn-sm" data-act="cancel">Cancel</button>
@@ -11899,7 +11899,7 @@ function renderOtod() {
 
   if (!groups.length) {
     document.getElementById('otodContent').innerHTML =
-      '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Is filter par koi order nahi.</div>';
+      '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">No orders for this filter.</div>';
     return;
   }
 
@@ -11938,7 +11938,7 @@ function renderOtod() {
 // Excel me khulne wali CSV
 function otodExport() {
   const rows = otodFiltered();
-  if (!rows.length) return showToast('Koi row nahi hai', 'error');
+  if (!rows.length) return showToast('No rows to export', 'error');
   const groups = otodGroups(rows), cols = otodCols();
   const grand = groups.reduce((n, g) => n + g.total, 0);
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -11963,7 +11963,7 @@ function otodExport() {
 
 function otodPDF() {
   const rows = otodFiltered();
-  if (!rows.length) return showToast('Koi row nahi hai', 'error');
+  if (!rows.length) return showToast('No rows to export', 'error');
   const groups = otodGroups(rows), cols = otodCols();
   const grand = groups.reduce((n, g) => n + g.total, 0);
   const now = new Date(); const pad = n => String(n).padStart(2, '0');
@@ -11997,7 +11997,7 @@ function otodPDF() {
   </style></head><body>
   <div class="head">
     <div><h1>${escapeHtml(OTOD_TITLE[_otodSrc])} Report</h1>
-      <div class="sub">${_otodTab === 'pending' ? 'Pending — Planned bhara, Actual baaki' : 'Dispatched — Planned aur Actual dono bhare'}${range ? ' · ' + escapeHtml(range) : ''}</div></div>
+      <div class="sub">${_otodTab === 'pending' ? 'Pending — Planned date filled, Actual pending' : 'Dispatched — Planned and Actual both filled'}${range ? ' · ' + escapeHtml(range) : ''}</div></div>
     <div class="sub">${stamp}<br>${rows.length} order(s)<br>⏳ ${otodPct().pendingPct}% pending · ✅ ${otodPct().dispatchedPct}% dispatched</div>
   </div>
   <table>
@@ -12356,7 +12356,7 @@ function renderPPC() {
   document.getElementById('ppcCount').textContent = list.length + ' order(s)';
 
   if (!list.length) {
-    box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Is filter par koi order nahi.</div>';
+    box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">No orders for this filter.</div>';
     return;
   }
 
@@ -12419,7 +12419,7 @@ function ppcClearDates() {
 
 function exportPPCPDF() {
   const list = ppcVisible();
-  if (!list.length) return showToast('Koi row nahi hai', 'error');
+  if (!list.length) return showToast('No rows to export', 'error');
   const step = (_ppcData.steps || []).find(s => s.code === _ppcStep);
   const cols = PPC_COLS.concat(step ? [{ f: '__step', label: step.name + ' — Status' }] : []);
   const now = new Date();
@@ -12958,7 +12958,7 @@ function pmCell(x, f) {
 
 async function loadProduction() {
   const c = document.getElementById('pmContent');
-  c.innerHTML = '<div class="pm-wrap"><div class="pm-empty">⏳ Sheet se data aa raha hai…</div></div>';
+  c.innerHTML = '<div class="pm-wrap"><div class="pm-empty">⏳ Loading data from the sheet…</div></div>';
   const date = (document.getElementById('pmDate').value || '').trim();
   const r = await api('/api/production' + (date ? '?date=' + encodeURIComponent(date) : ''));
   if (!r || r.error) {
@@ -13180,7 +13180,7 @@ function pmOpenFilter(f, btn) {
     <div class="pm-pop-list" id="pmPopList">
       ${vals.map(v => `<label data-v="${escapeHtml(v.toLowerCase())}">
         <input type="checkbox" value="${escapeHtml(v)}" ${(!sel.size || sel.has(v)) ? 'checked' : ''}/>
-        <span>${escapeHtml(v === '' ? '(khali)' : v)}</span></label>`).join('')}
+        <span>${escapeHtml(v === '' ? '(blank)' : v)}</span></label>`).join('')}
     </div>
     <div class="pm-pop-foot">
       <button class="btn btn-outline btn-sm" onclick="document.getElementById('pmFilterPop').remove()">Cancel</button>
@@ -13214,7 +13214,7 @@ function pmApplyFilter(f) {
 // ── PDF ──
 function exportProductionPDF() {
   const list = pmVisible();
-  if (!list.length) return showToast('Koi row nahi hai', 'error');
+  if (!list.length) return showToast('No rows to export', 'error');
   const now = new Date();
   const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   const dateSel = (document.getElementById('pmDate').value || '').trim();
