@@ -2362,7 +2362,7 @@ app.get('/api/users/with-pending-tasks', requireAuth, async (req, res) => {
     let dateFilter = 'AND t.due_date <= CURDATE()';
     if (df && dt) dateFilter = `AND t.due_date BETWEEN '${df}' AND '${dt}'`;
     const [rows] = await db.query(`
-      SELECT DISTINCT u.id, u.name FROM users u
+      SELECT DISTINCT u.id, u.name, u.title FROM users u
       WHERE u.id IN (
         SELECT DISTINCT assigned_to FROM delegation_tasks t WHERE status='pending' ${dateFilter}
         UNION

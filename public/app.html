@@ -5389,7 +5389,7 @@ async function loadDashboard() {
         : users;
       filtered.forEach(u => {
         const opt = document.createElement('option');
-        opt.value = u.id; opt.textContent = u.name;
+        opt.value = u.id; opt.textContent = (u.title ? u.title + ' ' : '') + titleName(u.name);
         empFilter.appendChild(opt);
       });
     }
@@ -5462,7 +5462,7 @@ async function refreshPCEmployeeDropdown() {
   empFilter.innerHTML = '<option value="all">All Employees</option>';
   (pendingUsers || []).forEach(u => {
     const opt = document.createElement('option');
-    opt.value = u.id; opt.textContent = u.name;
+    opt.value = u.id; opt.textContent = (u.title ? u.title + ' ' : '') + titleName(u.name);
     empFilter.appendChild(opt);
   });
   // Restore selection agar still valid hai
