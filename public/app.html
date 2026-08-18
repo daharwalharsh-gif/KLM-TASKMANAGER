@@ -571,7 +571,7 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
       <span class="nav-label-text">Invincible Catalog</span>
     </div>
-    <div class="nav-item" id="nav-scheduler" style="display:none" onclick="navigate('scheduler',this)">
+    <div class="nav-item" id="nav-scheduler" onclick="navigate('scheduler',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       <span class="nav-label-text">Time Scheduler</span>
     </div>
@@ -1900,6 +1900,11 @@ tbody tr:last-child td{border-bottom:none;}
       padding:0 3px;border-radius:4px;line-height:1}
     .otod-filt:hover{background:#bfdbfe}
     .otod-filt.on{background:#1d4ed8;color:#fff}
+    .otod-monthbtn{display:flex;align-items:center;gap:8px;min-width:150px;background:#fff;
+      border:1.5px solid #e2e8f0;border-radius:8px;padding:8px 11px;font-size:13px;font-weight:600;
+      color:#0f172a;font-family:'Inter',sans-serif;cursor:pointer;justify-content:space-between}
+    .otod-monthbtn:hover{border-color:#c7d2fe}
+    .otod-monthbtn.on{border-color:#4f46e5;color:#4338ca;background:#eef2ff}
     .otod-tbl thead .otod-th-total{background:#dbeafe;color:#0f172a}
     .otod-c{text-align:center;white-space:nowrap}
     .otod-r{text-align:right;white-space:nowrap;font-weight:600}
@@ -3498,8 +3503,6 @@ async function init() {
 
     setAvatarDisplay(ME.profile_image, initials);
 
-    // Time Scheduler — SIRF Ms. Ekta (pc@) aur Mr. Harsh ko
-    if (ME.canScheduler) document.getElementById('nav-scheduler').style.display = 'flex';
     // Owner Dashboard — SIRF in emails ko dikhe (owner-only)
     const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'manik@klmahajan.com'];
     if (OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
@@ -8087,11 +8090,10 @@ async function generateMIS() {
   // O to D report: upar ki START/END DATE hi Planned From/To ban jaati hai
   if (misType === 'otod' || misType === 'otodinv') {
     if (!document.getElementById('otodContent')) document.getElementById('misResults').innerHTML = otodShell();
-    const of = document.getElementById('otodFrom'), ot = document.getElementById('otodTo'),
-          om = document.getElementById('otodMonth');
+    const of = document.getElementById('otodFrom'), ot = document.getElementById('otodTo');
     if (of) of.value = start;
     if (ot) ot.value = end;
-    if (om) om.value = '';
+    otodClearMonths();
     otodClearColFilters();
     await loadOtod(true);
     return;
@@ -11575,7 +11577,9 @@ function otodShell() {
     </div>
     <div class="otod-f"><label>Planned From</label><input type="date" id="otodFrom" onchange="renderOtod()"/></div>
     <div class="otod-f"><label>To</label><input type="date" id="otodTo" onchange="renderOtod()"/></div>
-    <div class="otod-f"><label>Month</label><select id="otodMonth" onchange="renderOtod()"></select></div>
+    <div class="otod-f"><label>Month</label>
+      <button type="button" class="otod-monthbtn" id="otodMonthBtn" onclick="otodOpenMonths(this)">
+        <span id="otodMonthTxt">All months</span> <span style="color:#94a3b8">▾</span></button></div>
     <div class="otod-f"><label>&nbsp;</label>
       <button class="btn btn-outline btn-sm" onclick="otodClear()">✕ Clear</button></div>
     <div class="otod-f"><label>&nbsp;</label>
@@ -11595,12 +11599,15 @@ function otodSwitch(tab) {
   otodClearColFilters();
   document.querySelectorAll('#misResults .otod-tabs .tab').forEach(t =>
     t.classList.toggle('active', t.textContent.toLowerCase().includes(tab)));
-  const m = document.getElementById('otodMonth'); if (m) m.value = '';
+  otodClearMonths();
+  const p = document.getElementById('otodMonthPop'); if (p) p.remove();
   renderOtod();
 }
 function otodClear() {
-  const f = document.getElementById('otodFrom'), t = document.getElementById('otodTo'), m = document.getElementById('otodMonth');
-  if (f) f.value = ''; if (t) t.value = ''; if (m) m.value = '';
+  const f = document.getElementById('otodFrom'), t = document.getElementById('otodTo');
+  if (f) f.value = ''; if (t) t.value = '';
+  otodClearMonths();
+  const p = document.getElementById('otodMonthPop'); if (p) p.remove();
   otodClearColFilters();
   renderOtod();
 }
@@ -11630,11 +11637,15 @@ async function loadOtod(force) {
 function otodDateFiltered() {
   const from = document.getElementById('otodFrom')?.value || '';
   const to = document.getElementById('otodTo')?.value || '';
-  const month = document.getElementById('otodMonth')?.value || '';
   const till = otodTillYM();
-  return (_otodCache[_otodSrc] || []).filter(x =>
-    (!from || x.planned >= from) && (!to || x.planned <= to) &&
-    (!month || (month === 'till' ? x.planned.slice(0, 7) <= till : x.planned.slice(0, 7) === month)));
+  return (_otodCache[_otodSrc] || []).filter(x => {
+    if (from && x.planned < from) return false;
+    if (to && x.planned > to) return false;
+    const ym = x.planned.slice(0, 7);
+    if (_otodTill && ym > till) return false;
+    if (_otodMonths.size && !_otodMonths.has(ym)) return false;
+    return true;
+  });
 }
 // Abhi ke tab + date filter + column filter ke hisaab se rows
 function otodFiltered() {
@@ -11643,6 +11654,83 @@ function otodFiltered() {
   if (!Object.keys(_otodColFilters).length) return base;
   return base.filter((x, i) => otodPassCols(x, i + 1));
 }
+// Month filter — ek se zyada mahine tick kar sakte hain. Tick karte hi
+// list turant badal jaati hai (koi Apply nahi).
+let _otodMonths = new Set();   // 'YYYY-MM'
+let _otodTill = false;         // "Till <abhi ka mahina>" — aage wale month chhod do
+function otodClearMonths() { _otodMonths = new Set(); _otodTill = false; }
+
+// Abhi ke tab ke saare mahine (jinke order hain)
+function otodMonthKeys() {
+  const want = _otodTab === 'dispatched';
+  return [...new Set((_otodCache[_otodSrc] || []).filter(x => !!x.dispatched === want)
+    .map(x => x.planned.slice(0, 7)))].sort();
+}
+function otodMonthBtnText() {
+  const n = _otodMonths.size;
+  if (_otodTill && !n) return 'Till ' + otodMonthLabel(otodTillYM());
+  if (!n) return 'All months';
+  if (n === 1) return otodMonthLabel([..._otodMonths][0]) + (_otodTill ? ' · Till date' : '');
+  return n + ' months' + (_otodTill ? ' · Till date' : '');
+}
+function otodSyncMonthBtn() {
+  const b = document.getElementById('otodMonthBtn'), t = document.getElementById('otodMonthTxt');
+  if (!b || !t) return;
+  t.textContent = otodMonthBtnText();
+  b.classList.toggle('on', _otodMonths.size > 0 || _otodTill);
+}
+
+function otodOpenMonths(btn) {
+  const old = document.getElementById('otodMonthPop');
+  if (old) { old.remove(); return; }
+  const keys = otodMonthKeys();
+  const pop = document.createElement('div');
+  pop.id = 'otodMonthPop';
+  pop.className = 'pm-pop';
+  pop.innerHTML = `
+    <div class="pm-pop-acts">
+      <button type="button" data-m="all">All months</button>
+      <button type="button" data-m="none">✕ Clear</button>
+    </div>
+    <div class="pm-pop-list" id="otodMonthList">
+      <label style="border-bottom:1px solid #f1f5f9;padding-bottom:6px;margin-bottom:4px">
+        <input type="checkbox" data-till="1" ${_otodTill ? 'checked' : ''}/>
+        <span><b>Till ${escapeHtml(otodMonthLabel(otodTillYM()))}</b></span></label>
+      ${keys.map(k => `<label><input type="checkbox" value="${k}" ${_otodMonths.has(k) ? 'checked' : ''}/>
+        <span>${escapeHtml(otodMonthLabel(k))}</span></label>`).join('') ||
+        '<div style="padding:8px;color:#94a3b8;font-size:12px">Koi month nahi</div>'}
+    </div>`;
+  document.body.appendChild(pop);
+
+  // Tick karte hi turant filter lag jaata hai
+  pop.querySelectorAll('#otodMonthList input').forEach(inp => {
+    inp.onchange = () => {
+      if (inp.dataset.till) _otodTill = inp.checked;
+      else if (inp.checked) _otodMonths.add(inp.value);
+      else _otodMonths.delete(inp.value);
+      otodSyncMonthBtn();
+      renderOtod();
+    };
+  });
+  pop.querySelectorAll('[data-m]').forEach(b => {
+    b.onclick = () => {
+      otodClearMonths();
+      pop.querySelectorAll('#otodMonthList input').forEach(i => { i.checked = false; });
+      otodSyncMonthBtn();
+      renderOtod();
+    };
+  });
+
+  const r = btn.getBoundingClientRect();
+  pop.style.top = (r.bottom + window.scrollY + 4) + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left + window.scrollX, window.innerWidth - 260)) + 'px';
+}
+// Bahar click par month popup band
+document.addEventListener('click', e => {
+  const pop = document.getElementById('otodMonthPop');
+  if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('#otodMonthBtn'))) pop.remove();
+});
+
 // Har column ka apna filter — { colKey: Set(chuni hui values) }
 let _otodColFilters = {};
 function otodClearColFilters() { _otodColFilters = {}; }
@@ -11799,17 +11887,7 @@ function renderOtod() {
   const cols = otodCols();
   const grand = groups.reduce((n, g) => n + g.total, 0);
 
-  // Month dropdown — abhi ke tab ke mahine
-  const sel = document.getElementById('otodMonth');
-  if (sel) {
-    const want = _otodTab === 'dispatched';
-    const keys = [...new Set((_otodCache[_otodSrc] || []).filter(x => !!x.dispatched === want).map(x => x.planned.slice(0, 7)))].sort();
-    const cur = sel.value;
-    const opts = '<option value="">All months</option>' +
-      `<option value="till">Till ${escapeHtml(otodMonthLabel(otodTillYM()))}</option>` +
-      keys.map(k => `<option value="${k}">${escapeHtml(otodMonthLabel(k))}</option>`).join('');
-    if (sel.innerHTML !== opts) { sel.innerHTML = opts; if (cur && (cur === 'till' || keys.includes(cur))) sel.value = cur; }
-  }
+  otodSyncMonthBtn();
   // Upar ka summary: kitne order, kitne paise, aur kitna % pending / dispatched
   const cnt = document.getElementById('otodCount');
   if (cnt) {
@@ -11891,8 +11969,7 @@ function otodPDF() {
   const now = new Date(); const pad = n => String(n).padStart(2, '0');
   const stamp = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
   const from = document.getElementById('otodFrom')?.value || '', to = document.getElementById('otodTo')?.value || '';
-  const mSel = document.getElementById('otodMonth');
-  const mTxt = mSel && mSel.value ? mSel.options[mSel.selectedIndex].text : '';
+  const mTxt = (_otodMonths.size || _otodTill) ? otodMonthBtnText() : '';
   const range = [from ? 'From ' + otodDate(from) : '', to ? 'To ' + otodDate(to) : '', mTxt].filter(Boolean).join(' · ');
 
   let sr = 0, body = '';

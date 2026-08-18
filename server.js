@@ -953,8 +953,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Daily PC Report form Forms dropdown me dikhe ya nahi (admin + Ekta/Sachin)
     rows[0].canPcReport = req.session.role === 'admin' ||
       PCR_EMAILS.has((rows[0].email || '').trim().toLowerCase());
-    // Time Scheduler tab dikhe ya nahi — SIRF ye do emails (admin ko bhi nahi)
-    rows[0].canScheduler = SCHEDULER_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     // Sabki leave dekh/approve kar sakta hai ya nahi (admin + HR)
     rows[0].canLeaves = req.session.role === 'admin' ||
       LEAVE_APPROVER_EMAILS.has((rows[0].email || '').trim().toLowerCase());
@@ -1464,21 +1462,9 @@ app.delete('/api/tasks/delete-by-date', requireAuth, requireAdmin, async (req, r
 });
 
 // ══════════════════════════════════════════════════════
-// TIME SCHEDULER — roz ka routine. Sirf Ms. Ekta (pc@) aur
-// Mr. Harsh (daharwal.harsh@) ke liye — admin ko bhi nahi dikhta.
-// Har banda apna hi schedule dekhta/badalta hai.
+// TIME SCHEDULER — roz ka routine. Sabke liye (admin samet) —
+// har banda apna hi schedule dekhta aur badalta hai.
 // ══════════════════════════════════════════════════════
-const SCHEDULER_EMAILS = new Set([
-  'pc@klmahajan.com',
-  'daharwal.harsh@e-marketing.io',
-]);
-async function requireScheduler(req, res, next) {
-  try {
-    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
-    if (SCHEDULER_EMAILS.has((rows[0]?.email || '').trim().toLowerCase())) return next();
-  } catch (e) {}
-  res.status(403).json({ error: 'Not allowed' });
-}
 function schIsoDate(v) {
   const t = String(v || '').trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : '';
@@ -1488,7 +1474,7 @@ function schTime(v) {
   return /^\d{2}:\d{2}$/.test(t) ? t : (/^\d{2}:\d{2}:\d{2}$/.test(t) ? t.slice(0, 5) : '');
 }
 
-app.get('/api/scheduler', requireAuth, requireScheduler, async (req, res) => {
+app.get('/api/scheduler', requireAuth, async (req, res) => {
   try {
     const from = schIsoDate(req.query.from), to = schIsoDate(req.query.to);
     const where = ['user_id=?']; const p = [req.session.userId];
@@ -1506,7 +1492,7 @@ app.get('/api/scheduler', requireAuth, requireScheduler, async (req, res) => {
 });
 
 // Add — ek din ka, ya "repeat till" wali date tak har din ka
-app.post('/api/scheduler', requireAuth, requireScheduler, async (req, res) => {
+app.post('/api/scheduler', requireAuth, async (req, res) => {
   try {
     const title = String(req.body.title || '').trim();
     const date = schIsoDate(req.body.date);
@@ -1531,7 +1517,7 @@ app.post('/api/scheduler', requireAuth, requireScheduler, async (req, res) => {
 });
 
 // Done / Undo / edit
-app.put('/api/scheduler/:id', requireAuth, requireScheduler, async (req, res) => {
+app.put('/api/scheduler/:id', requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const [own] = await db.query('SELECT id FROM time_schedules WHERE id=? AND user_id=?', [id, req.session.userId]);
@@ -1554,7 +1540,7 @@ app.put('/api/scheduler/:id', requireAuth, requireScheduler, async (req, res) =>
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/scheduler/:id', requireAuth, requireScheduler, async (req, res) => {
+app.delete('/api/scheduler/:id', requireAuth, async (req, res) => {
   try {
     const [r] = await db.query('DELETE FROM time_schedules WHERE id=? AND user_id=?',
       [parseInt(req.params.id), req.session.userId]);
