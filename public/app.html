@@ -1905,6 +1905,11 @@ tbody tr:last-child td{border-bottom:none;}
       color:#0f172a;font-family:'Inter',sans-serif;cursor:pointer;justify-content:space-between}
     .otod-monthbtn:hover{border-color:#c7d2fe}
     .otod-monthbtn.on{border-color:#4f46e5;color:#4338ca;background:#eef2ff}
+    .cday-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
+      background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:11px 13px;font-size:13.5px;
+      color:#0f172a;font-family:'Inter',sans-serif;cursor:pointer;text-align:left}
+    .cday-btn:hover{border-color:#c7d2fe}
+    .cday-btn.on{border-color:#4f46e5;color:#4338ca;background:#eef2ff;font-weight:600}
     .otod-tbl thead .otod-th-total{background:#dbeafe;color:#0f172a}
     .otod-c{text-align:center;white-space:nowrap}
     .otod-r{text-align:right;white-space:nowrap;font-weight:600}
@@ -2599,17 +2604,9 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
 
     <div class="form-group">
-      <label>Day <span style="color:#94a3b8;font-weight:400;font-size:11px">(optional — pick a weekday instead of a date)</span></label>
-      <select id="cDay">
-        <option value="">— Use Start Date —</option>
-        <option value="1">Monday</option>
-        <option value="2">Tuesday</option>
-        <option value="3">Wednesday</option>
-        <option value="4">Thursday</option>
-        <option value="5">Friday</option>
-        <option value="6">Saturday</option>
-        <option value="0">Sunday</option>
-      </select>
+      <label>Day <span style="color:#94a3b8;font-weight:400;font-size:11px">(optional — tick one or more weekdays instead of a date)</span></label>
+      <button type="button" class="cday-btn" id="cDayBtn" onclick="clOpenDays(this)">
+        <span id="cDayTxt">— Use Start Date —</span> <span style="color:#94a3b8">▾</span></button>
     </div>
 
     <div class="form-group">
@@ -6807,7 +6804,8 @@ async function openChecklist() {
   document.getElementById('cDesc').value='';
   document.getElementById('cRemarks').value='';
   document.getElementById('cFrequency').value='daily';
-  document.getElementById('cDay').value='';
+  clClearDays(); clSyncDayBtn();
+  const _dp = document.getElementById('cDayPop'); if (_dp) _dp.remove();
   document.getElementById('cPreview').style.display='none';
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('cDate').value=today;
@@ -6816,7 +6814,7 @@ async function openChecklist() {
   document.getElementById('cDoer').innerHTML='<option value="">Select Employee</option>'+
     users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
 
-  ['cFrequency','cDay','cDate','cDesc'].forEach(id=>{
+  ['cFrequency','cDate','cDesc'].forEach(id=>{
     document.getElementById(id).onchange = updateChecklistPreview;
     document.getElementById(id).oninput = updateChecklistPreview;
   });
@@ -6825,6 +6823,67 @@ async function openChecklist() {
 }
 
 const CL_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+// Ek se zyada din chun sakte hain — tick karte hi list us hisaab se banti hai
+let _clDays = new Set();
+function clClearDays() { _clDays = new Set(); }
+function clSelectedDays() { return [..._clDays].sort((a, b) => a - b); }
+function clDayBtnText() {
+  const d = clSelectedDays();
+  if (!d.length) return '— Use Start Date —';
+  if (d.length === 1) return CL_DAYS[d[0]];
+  return d.length + ' days: ' + d.map(x => CL_DAYS[x].slice(0, 3)).join(', ');
+}
+function clSyncDayBtn() {
+  const b = document.getElementById('cDayBtn'), t = document.getElementById('cDayTxt');
+  if (!b || !t) return;
+  t.textContent = clDayBtnText();
+  b.classList.toggle('on', _clDays.size > 0);
+}
+// Hafte ka order Monday se — jaise dropdown me tha
+const CL_ORDER = [1, 2, 3, 4, 5, 6, 0];
+function clOpenDays(btn) {
+  const old = document.getElementById('cDayPop');
+  if (old) { old.remove(); return; }
+  const pop = document.createElement('div');
+  pop.id = 'cDayPop';
+  pop.className = 'pm-pop';
+  pop.style.zIndex = '10001';
+  pop.innerHTML = `
+    <div class="pm-pop-acts">
+      <button type="button" data-d="all">✓ All days</button>
+      <button type="button" data-d="none">✕ Use Start Date</button>
+    </div>
+    <div class="pm-pop-list" id="cDayList">
+      ${CL_ORDER.map(w => `<label><input type="checkbox" value="${w}" ${_clDays.has(w) ? 'checked' : ''}/>
+        <span>${CL_DAYS[w]}</span></label>`).join('')}
+    </div>`;
+  document.body.appendChild(pop);
+
+  pop.querySelectorAll('#cDayList input').forEach(inp => {
+    inp.onchange = () => {
+      const w = Number(inp.value);
+      if (inp.checked) _clDays.add(w); else _clDays.delete(w);
+      clSyncDayBtn();
+      updateChecklistPreview();
+    };
+  });
+  pop.querySelectorAll('[data-d]').forEach(b => {
+    b.onclick = () => {
+      if (b.dataset.d === 'all') _clDays = new Set(CL_ORDER); else clClearDays();
+      pop.querySelectorAll('#cDayList input').forEach(i => { i.checked = _clDays.has(Number(i.value)); });
+      clSyncDayBtn();
+      updateChecklistPreview();
+    };
+  });
+
+  const r = btn.getBoundingClientRect();
+  pop.style.top = (r.bottom + window.scrollY + 4) + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left + window.scrollX, window.innerWidth - 260)) + 'px';
+}
+document.addEventListener('click', e => {
+  const pop = document.getElementById('cDayPop');
+  if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('#cDayBtn'))) pop.remove();
+});
 // YYYY-MM-DD ko us se agla (ya wahi) din jo chuna hua weekday ho
 function clSnapToDay(dateStr, wd) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -6832,11 +6891,6 @@ function clSnapToDay(dateStr, wd) {
   d.setDate(d.getDate() + diff);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
-function clSelectedDay() {
-  const v = document.getElementById('cDay') ? document.getElementById('cDay').value : '';
-  return v === '' ? null : parseInt(v, 10);
-}
-
 function updateChecklistPreview() {
   const freq = document.getElementById('cFrequency').value;
   const date = document.getElementById('cDate').value;
@@ -6845,14 +6899,14 @@ function updateChecklistPreview() {
 
   const counts = {daily:365, weekly:52, alternative_week:26, monthly:12, quarterly:4, yearly:1};
   const labels = {daily:'Daily', weekly:'Weekly', alternative_week:'Alternative Week', monthly:'Monthly', quarterly:'Quarterly', yearly:'Yearly'};
-  const count = counts[freq];
-  const wd = clSelectedDay();
-  const start = wd === null ? date : clSnapToDay(date, wd);
-  const endDate = getEndDate(start, freq, count);
+  const days = clSelectedDays();
+  const dates = generateDates(date, freq, '', '', days);
+  const count = dates.length;
+  const start = dates[0] || date, endDate = dates[dates.length - 1] || date;
 
   document.getElementById('cPreviewText').textContent =
     `"${desc}" — ${count} tasks will be created from ${start} to ${endDate} (${labels[freq]}` +
-    (wd === null ? '' : ` · every ${CL_DAYS[wd]}`) + ')';
+    (!days.length ? '' : ` · every ${days.map(w => CL_DAYS[w]).join(' & ')}`) + ')';
   document.getElementById('cPreview').style.display='block';
 }
 
@@ -6863,12 +6917,26 @@ function getEndDate(startDate, freq, count) {
   return d.toISOString().split('T')[0];
 }
 
-function generateDates(startDate, freq, weekOffStr, extraOffStr, weekday) {
+// Ek ya zyada din chune ho to har din ke liye alag se dates banao aur mila do.
+// Kuch nahi chuna to purana tarika — Start Date se hi chalta hai.
+function generateDates(startDate, freq, weekOffStr, extraOffStr, weekdays) {
+  const list = Array.isArray(weekdays) ? weekdays
+             : (weekdays === null || weekdays === undefined || weekdays === '') ? [] : [Number(weekdays)];
+  if (list.length) {
+    const all = new Set();
+    for (const w of list) genDatesOneDay(startDate, freq, weekOffStr, extraOffStr, w).forEach(x => all.add(x));
+    return [...all].sort();
+  }
+  return genDatesOneDay(startDate, freq, weekOffStr, extraOffStr, null);
+}
+
+function genDatesOneDay(startDate, freq, weekOffStr, extraOffStr, weekday) {
   const dates = [];
   // Din chuna hua ho to pehli tareekh usi din par le jao — uske baad har
-  // occurrence usi din par padegi (weekly/alternative week me 7/14 din ka jump).
+  // occurrence usi din par padegi. "Daily" + din = har hafte usi din (52).
   if (weekday !== null && weekday !== undefined && weekday !== '') {
     startDate = clSnapToDay(startDate, Number(weekday));
+    if (freq === 'daily') freq = 'weekly';
   }
   const d = new Date(startDate+'T00:00:00');
   const counts = {daily:365, weekly:52, alternative_week:26, monthly:12, quarterly:4, yearly:1};
@@ -6951,8 +7019,8 @@ async function saveChecklist() {
   const weekOff = selUser?.week_off || '';
   const extraOff = selUser?.extra_off || '';
 
-  const wd = clSelectedDay();
-  const dates = generateDates(date, freq, weekOff, extraOff, wd);
+  const days = clSelectedDays();
+  const dates = generateDates(date, freq, weekOff, extraOff, days);
 
   const result = await api('/api/tasks/bulk-checklist','POST',{
     desc, assignedTo: doer, priority: 'low', remarks, dates, frequency: freq
@@ -6963,7 +7031,7 @@ async function saveChecklist() {
   if (result.error) { err.textContent=result.error; err.style.display='block'; return; }
 
   suc.textContent = `✅ ${dates.length} tasks generated` +
-    (wd === null ? '' : ` — every ${CL_DAYS[wd]}`) +
+    (!days.length ? '' : ` — every ${days.map(w => CL_DAYS[w]).join(' & ')}`) +
     ` (${weekOff ? 'Week off days skipped' : 'No week off set'})`;
   suc.style.display='block';
 
