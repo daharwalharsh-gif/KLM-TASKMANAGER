@@ -1592,6 +1592,7 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="tab" id="misTabTAT" onclick="switchMisTab('fmstat',this)">📅 New FMS Report</div>
           <div class="tab" id="misTabOtod" onclick="switchMisTab('otod',this)">📦 Export O to D Report</div>
           <div class="tab" id="misTabOtodInv" onclick="switchMisTab('otodinv',this)">📦 Invincible O to D Offline</div>
+        <div class="tab" id="misTabCapacity" onclick="switchMisTab('capacity',this)">👥 Employee Capacity</div>
         </div>
       </div>
     </div>
@@ -1943,6 +1944,55 @@ tbody tr:last-child td{border-bottom:none;}
     .otod-salepop-row .a{font-weight:800;color:#1d4ed8;white-space:nowrap}
     .otod-salepop-row.tot{background:#eef2ff;border-bottom:none;border-top:2px solid #1e3a8a}
     .otod-salepop-row.tot .m,.otod-salepop-row.tot .a{color:#3730a3}
+
+    /* ── Employee Capacity ── */
+    .cap-bar{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;background:#fff;border:1px solid #e2e8f0;
+      border-radius:12px;padding:14px 18px;margin-bottom:14px}
+    .cap-f{display:flex;flex-direction:column;gap:5px}
+    .cap-f label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
+    .cap-f select,.cap-f input{padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;
+      font-family:'Inter',sans-serif;outline:none;background:#fff;color:#0f172a}
+    .cap-note{margin-left:auto;font-size:11.5px;color:#94a3b8;text-align:right;line-height:1.6}
+    .cap-tbl{width:100%;border-collapse:separate;border-spacing:0;background:#fff;font-size:13px;
+      border:2px solid #1e3a8a;border-top:none}
+    .cap-ttl{background:#1e3a8a;color:#fff;text-align:center;font-size:15px;font-weight:800;letter-spacing:.5px;
+      padding:11px;border:2px solid #1e3a8a;border-bottom:none}
+    .cap-scroll{overflow:auto;max-height:calc(100vh - 380px);box-shadow:0 8px 24px rgba(15,23,42,.08)}
+    .cap-tbl thead th{position:sticky;top:0;z-index:6;background:#dbeafe;color:#0f172a;font-size:11.5px;
+      font-weight:800;text-align:center;padding:9px 8px;box-shadow:inset 0 -1px 0 #94a3b8;white-space:nowrap}
+    .cap-tbl td{padding:9px 8px;border:1px solid #cbd5e1;color:#0f172a}
+    .cap-tbl tbody tr{cursor:pointer}
+    .cap-tbl tbody tr:hover td{background:#f6f9ff}
+    .cap-tbl tbody tr.sel td{background:#eef2ff}
+    .cap-nm{font-weight:700}
+    .cap-c{text-align:center;white-space:nowrap}
+    .cap-meter{position:relative;height:18px;background:#f1f5f9;border-radius:20px;overflow:hidden;min-width:110px}
+    .cap-meter i{position:absolute;left:0;top:0;bottom:0;border-radius:20px}
+    .cap-meter b{position:absolute;left:0;right:0;top:0;line-height:18px;text-align:center;font-size:10.5px;
+      font-weight:800;color:#0f172a}
+    .cap-ok i{background:#86efac} .cap-mid i{background:#fcd34d} .cap-hi i{background:#fca5a5}
+    .cap-free{font-weight:800;color:#16a34a}
+    .cap-over{font-weight:800;color:#dc2626}
+    .cap-take{font-size:11.5px;color:#334155;white-space:nowrap}
+    .cap-take b{color:#1d4ed8}
+    .cap-tbl tfoot td{background:#eef2ff;font-weight:800;color:#3730a3}
+    .cap-detail{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:0;margin-top:14px;overflow:hidden}
+    .cap-detail-head{background:linear-gradient(90deg,#eef2ff,#f8fafc);padding:13px 18px;display:flex;
+      justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+    .cap-detail-head h4{margin:0;font-size:15px;font-weight:800;color:#1e3a8a}
+    .cap-detail-head .sub{font-size:12px;color:#64748b}
+    .cap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:16px 18px}
+    .cap-card{border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}
+    .cap-card h5{margin:0;background:#f8fafc;padding:9px 12px;font-size:12px;font-weight:800;color:#334155;
+      border-bottom:1px solid #e2e8f0;text-transform:uppercase;letter-spacing:.4px}
+    .cap-card .body{padding:11px 12px;font-size:12.5px}
+    .cap-line{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dashed #f1f5f9}
+    .cap-line:last-child{border-bottom:none}
+    .cap-line span:last-child{font-weight:700}
+    .cap-plan{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:9px 11px;margin-top:9px;
+      font-size:12px;color:#166534;line-height:1.7}
+    .cap-plan b{color:#14532d}
+    @media(max-width:900px){ .cap-grid{grid-template-columns:1fr} }
 
     /* ── Department board — poster jaisi tables ── */
     .dp-wrap{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
@@ -7061,6 +7111,164 @@ async function saveChecklist() {
 }
 
 // ══════════════════════════════════════════════════════
+// EMPLOYEE CAPACITY — kis ke paas kitna kaam hai aur aur kitna diya ja sakta hai
+// ══════════════════════════════════════════════════════
+let _capData = null;
+let _capPeriod = 'day';
+let _capSort = 'load';
+let _capOpen = null;   // khuli hui row ka userId
+const CAP_PERIOD_LBL = { day: 'Today', week: 'This Week', month: 'This Month' };
+
+async function loadCapacity() {
+  const box = document.getElementById('misResults');
+  box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
+  const r = await api('/api/mis/capacity');
+  if (!r || r.error) {
+    box.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #fecaca;color:#dc2626">⚠️ ${escapeHtml((r && r.error) || 'Could not load')}</div>`;
+    return;
+  }
+  _capData = r;
+  renderCapacity();
+}
+
+function capSetPeriod(v) { _capPeriod = v; renderCapacity(); }
+function capSetSort(v) { _capSort = v; renderCapacity(); }
+function capToggle(uid) { _capOpen = (_capOpen === uid) ? null : uid; renderCapacity(); }
+
+function capRows() {
+  const q = (document.getElementById('capSearch')?.value || '').trim().toLowerCase();
+  let rows = (_capData.rows || []).filter(x =>
+    !q || String(x.name).toLowerCase().includes(q) || String(x.department).toLowerCase().includes(q));
+  const p = _capPeriod;
+  rows.sort((a, b) => {
+    if (_capSort === 'name') return String(a.name).localeCompare(String(b.name));
+    if (_capSort === 'free') return b.periods[p].freeHours - a.periods[p].freeHours;
+    if (_capSort === 'score') return b.score - a.score;
+    return b.periods[p].loadPct - a.periods[p].loadPct;
+  });
+  return rows;
+}
+function capCls(pct) { return pct >= 100 ? 'cap-hi' : pct >= 70 ? 'cap-mid' : 'cap-ok'; }
+function capName(x) { return (x.title ? x.title + ' ' : '') + titleName(x.name); }
+
+function renderCapacity() {
+  if (!_capData) return;
+  const p = _capPeriod, S = _capData.settings;
+  const rows = capRows();
+  const sum = rows.reduce((a, x) => {
+    const q = x.periods[p];
+    a.cap += q.capacityHours; a.load += q.loadHours; a.free += q.freeHours;
+    a.tasks += q.tasks.total; return a;
+  }, { cap: 0, load: 0, free: 0, tasks: 0 });
+  const avg = sum.cap > 0 ? Math.round((sum.load / sum.cap) * 1000) / 10 : 0;
+  const range = p === 'day' ? otodDate(_capData.today)
+    : p === 'week' ? otodDate(_capData.week.start) + ' – ' + otodDate(_capData.week.end)
+    : otodDate(_capData.month.start) + ' – ' + otodDate(_capData.month.end);
+
+  const body = rows.map(x => {
+    const q = x.periods[p];
+    const open = _capOpen === x.userId;
+    return `<tr class="${open ? 'sel' : ''}" onclick="capToggle(${x.userId})">
+      <td class="cap-nm">${escapeHtml(capName(x))}${x.overdue ? ` <span class="cap-over">· ${x.overdue} overdue</span>` : ''}</td>
+      <td class="cap-c">${escapeHtml(x.department || '—')}</td>
+      <td class="cap-c">${q.workingDays}</td>
+      <td class="cap-c">${q.tasks.total}
+        <span style="color:#94a3b8;font-size:11px">(D${q.tasks.delegation}/C${q.tasks.checklist}/F${q.tasks.fms})</span></td>
+      <td class="cap-c">${q.loadHours} / ${q.capacityHours} h</td>
+      <td>
+        <div class="cap-meter ${capCls(q.loadPct)}"><i style="width:${Math.min(100, q.loadPct)}%"></i>
+          <b>${q.loadPct}%</b></div>
+      </td>
+      <td class="cap-c ${q.freeHours > 0 ? 'cap-free' : 'cap-over'}">${q.freeHours} h</td>
+      <td class="cap-take">${q.freeHours > 0
+        ? `<b>${q.canTake.delegation}</b> deleg · <b>${q.canTake.checklist}</b> checklist · <b>${q.canTake.fms}</b> FMS`
+        : '<span class="cap-over">Full</span>'}</td>
+      <td class="cap-c">${x.score}%</td>
+    </tr>` + (open ? capDetailRow(x) : '');
+  }).join('');
+
+  document.getElementById('misResults').innerHTML = `
+    <div class="cap-bar">
+      <div class="cap-f"><label>Period</label>
+        <select onchange="capSetPeriod(this.value)">
+          ${['day','week','month'].map(k => `<option value="${k}" ${p === k ? 'selected' : ''}>${CAP_PERIOD_LBL[k]}</option>`).join('')}
+        </select></div>
+      <div class="cap-f"><label>Sort by</label>
+        <select onchange="capSetSort(this.value)">
+          <option value="load" ${_capSort === 'load' ? 'selected' : ''}>Most loaded</option>
+          <option value="free" ${_capSort === 'free' ? 'selected' : ''}>Most free</option>
+          <option value="score" ${_capSort === 'score' ? 'selected' : ''}>Best score</option>
+          <option value="name" ${_capSort === 'name' ? 'selected' : ''}>Name</option>
+        </select></div>
+      <div class="cap-f" style="flex:1;min-width:200px"><label>Search</label>
+        <input type="text" id="capSearch" placeholder="Name or department…" value="${escapeHtml(document.getElementById('capSearch')?.value || '')}" oninput="renderCapacity()"/></div>
+      <div class="cap-f"><label>&nbsp;</label>
+        <button class="btn btn-outline btn-sm" onclick="loadCapacity()">🔄 Refresh</button></div>
+      <div class="cap-note">
+        Work time <b>${S.dayStart} – ${S.dayEnd}</b> · ${S.breakMins} min break = <b>${S.workHours} h/day</b><br>
+        Delegation ${S.mins.delegation.urgent}/${S.mins.delegation.high}/${S.mins.delegation.medium}/${S.mins.delegation.low} min (urgent/high/med/low) ·
+        Checklist ${S.mins.checklist} min · FMS ${S.mins.fms} min
+      </div>
+    </div>
+
+    <div class="cap-ttl">Employee Capacity — ${CAP_PERIOD_LBL[p]} (${escapeHtml(range)})</div>
+    <div class="cap-scroll">
+      <table class="cap-tbl">
+        <thead><tr>
+          <th style="text-align:left">Employee</th><th>Department</th><th>Working days</th>
+          <th>Tasks</th><th>Load / Capacity</th><th style="min-width:130px">Busy %</th>
+          <th>Free</th><th>Can take more</th><th>Score</th>
+        </tr></thead>
+        <tbody>${body || `<tr><td colspan="9" style="text-align:center;padding:22px;color:#94a3b8">No employees</td></tr>`}</tbody>
+        <tfoot><tr>
+          <td colspan="3">TOTAL — ${rows.length} employee(s)</td>
+          <td class="cap-c">${sum.tasks}</td>
+          <td class="cap-c">${Math.round(sum.load * 10) / 10} / ${Math.round(sum.cap * 10) / 10} h</td>
+          <td class="cap-c">${avg}%</td>
+          <td class="cap-c">${Math.round(sum.free * 10) / 10} h</td>
+          <td colspan="2"></td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+}
+
+// Ek employee ki poori detail — click par khulti hai
+function capDetailRow(x) {
+  const S = _capData.settings;
+  const card = (k) => {
+    const q = x.periods[k];
+    return `<div class="cap-card">
+      <h5>${CAP_PERIOD_LBL[k]} · ${q.workingDays} working day(s)</h5>
+      <div class="body">
+        <div class="cap-line"><span>Delegation</span><span>${q.tasks.delegation}</span></div>
+        <div class="cap-line"><span>Checklist</span><span>${q.tasks.checklist}</span></div>
+        <div class="cap-line"><span>FMS steps</span><span>${q.tasks.fms}</span></div>
+        <div class="cap-line"><span>Load</span><span>${q.loadHours} h of ${q.capacityHours} h</span></div>
+        <div class="cap-line"><span>Busy</span><span>${q.loadPct}%</span></div>
+        <div class="cap-line"><span>Free</span><span class="${q.freeHours > 0 ? 'cap-free' : 'cap-over'}">${q.freeHours} h</span></div>
+        <div class="cap-plan">Can still take <b>${q.canTake.delegation}</b> delegation,
+          or <b>${q.canTake.checklist}</b> checklist, or <b>${q.canTake.fms}</b> FMS steps
+          ${CAP_PERIOD_LBL[k].toLowerCase()}.</div>
+      </div>
+    </div>`;
+  };
+  const d = x.periods.day, done = x.done;
+  return `<tr><td colspan="9" style="padding:0;border:none">
+    <div class="cap-detail">
+      <div class="cap-detail-head">
+        <div><h4>${escapeHtml(capName(x))}</h4>
+          <div class="sub">${escapeHtml(x.department || 'No department')} · ${escapeHtml(x.email || '')}
+            · Score ${x.score}% · ${x.overdue} overdue</div></div>
+        <div class="sub">Today's priority mix — Urgent ${d.priority.urgent} · High ${d.priority.high}
+          · Medium ${d.priority.medium} · Low ${d.priority.low}<br>
+          Completed this month — Delegation ${done.delegation} · Checklist ${done.checklist} · FMS ${done.fms}</div>
+      </div>
+      <div class="cap-grid">${['day','week','month'].map(card).join('')}</div>
+    </div>
+  </td></tr>`;
+}
+
+// ══════════════════════════════════════════════════════
 // TIME SCHEDULER — roz ka routine (Pending / Completed)
 // ══════════════════════════════════════════════════════
 let _schTab = 'pending';
@@ -8189,6 +8397,10 @@ function switchMisTab(type, el) {
     const hasOptions = document.getElementById('misDoerFilter') && document.getElementById('misDoerFilter').options.length > 1;
     doerWrap.style.display = (type !== 'fms' && type !== 'fmstat' && hasOptions) ? '' : 'none';
   }
+  if (type === 'capacity') {
+    loadCapacity();
+    return;
+  }
   if (type === 'otod' || type === 'otodinv') {
     // Dono O to D report apne hi filter/tab ke saath chalti hain. Har sheet
     // ek hi baar padhi jaati hai — dobara tab kholne par wahi data.
@@ -8220,6 +8432,8 @@ async function generateMIS() {
 
   // Init dept filter visibility
   initMISDeptFilter();
+
+  if (misType === 'capacity') { await loadCapacity(); return; }
 
   // O to D report: upar ki START/END DATE hi Planned From/To ban jaati hai
   if (misType === 'otod' || misType === 'otodinv') {

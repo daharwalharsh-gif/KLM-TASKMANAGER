@@ -2106,6 +2106,202 @@ app.get('/api/mis/detail', requireAuth, requireAdminOrHod, async (req, res) => {
 });
 
 // ── All MIS — per employee combined score ──
+// ══════════════════════════════════════════════════════
+// EMPLOYEE CAPACITY — kis employee ke paas kitna kaam hai (%) aur
+// aur kitna diya ja sakta hai. Kaam ke teen source: Delegation,
+// Checklist aur FMS. Har task ka ek maana hua time hai (neeche),
+// working day 9 to 6 = 9 ghante, 1 ghanta break => 8 ghante.
+// ══════════════════════════════════════════════════════
+const CAP = {
+  dayStart: '09:00', dayEnd: '18:00',
+  breakMins: 60,
+  workMins: 8 * 60,                                  // 9 to 6 me se break nikaal kar
+  // Ek task par maana hua time (minute)
+  mins: {
+    delegation: { urgent: 90, high: 60, medium: 45, low: 30 },
+    checklist: 20,
+    fms: 15
+  }
+};
+function capMinsFor(kind, priority) {
+  if (kind === 'delegation') return CAP.mins.delegation[String(priority || 'low').toLowerCase()] || CAP.mins.delegation.low;
+  if (kind === 'checklist') return CAP.mins.checklist;
+  return CAP.mins.fms;
+}
+// Do tareekh ke beech kitne working day — user ke week off aur company holiday chhod kar
+function capWorkingDays(from, to, weekOffStr, holidaySet) {
+  const off = String(weekOffStr || '').split(',').map(x => parseInt(x.trim())).filter(n => !isNaN(n));
+  let n = 0;
+  for (let d = from; d <= to; d = nextIsoDay(d)) {
+    const dow = new Date(d + 'T12:00:00').getDay();
+    if (off.includes(dow)) continue;
+    if (holidaySet.has(d)) continue;
+    n++;
+  }
+  return n;
+}
+
+app.get('/api/mis/capacity', requireAuth, requireAdminOrHod, async (req, res) => {
+  try {
+    const today = new Date();
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const T = iso(today);
+    const wkS = (() => { const d = new Date(today); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); })();
+    const wkE = (() => { const d = new Date(wkS + 'T12:00:00'); d.setDate(d.getDate() + 6); return iso(d); })();
+    const moS = T.slice(0, 8) + '01';
+    const moE = (() => { const d = new Date(Number(T.slice(0, 4)), Number(T.slice(5, 7)), 0); return iso(d); })();
+
+    const isHod = req.session.role === 'hod';
+    let hodDept = '';
+    if (isHod) {
+      const [me] = await db.query('SELECT department FROM users WHERE id=?', [req.session.userId]);
+      hodDept = me[0]?.department || '';
+    }
+
+    // Company holidays
+    const holidaySet = new Set();
+    try {
+      const [hs] = await db.query('SELECT holiday_date FROM holidays');
+      for (const r of hs) { const d = holIso(r.holiday_date); if (d) holidaySet.add(d); }
+    } catch (e) { /* holidays table optional */ }
+
+    // Employees
+    const [users] = await db.query(
+      "SELECT id, name, title, email, department, role, week_off FROM users WHERE role NOT IN ('admin','pc') ORDER BY name ASC");
+    const people = users.filter(u => !isHod || (u.department || '') === hodDept);
+    const byId = {};
+    for (const u of people) {
+      byId[u.id] = {
+        userId: u.id, name: u.name, title: u.title || '', email: u.email || '',
+        department: u.department || '', weekOff: u.week_off || '',
+        buckets: { day: mkB(), week: mkB(), month: mkB() },
+        done: { delegation: 0, checklist: 0, fms: 0 },
+        overdue: 0
+      };
+    }
+    function mkB() { return { delegation: 0, checklist: 0, fms: 0, mins: 0, urgent: 0, high: 0, medium: 0, low: 0 }; }
+    function addTask(uid, when, kind, priority, count) {
+      const p = byId[uid]; if (!p) return;
+      const c = count || 1;
+      const m = capMinsFor(kind, priority) * c;
+      for (const b of when) {
+        p.buckets[b][kind] += c;
+        p.buckets[b].mins += m;
+        if (kind === 'delegation') p.buckets[b][String(priority || 'low').toLowerCase()] =
+          (p.buckets[b][String(priority || 'low').toLowerCase()] || 0) + c;
+      }
+    }
+    const windowOf = d => {
+      const w = [];
+      if (d === T) w.push('day');
+      if (d >= wkS && d <= wkE) w.push('week');
+      if (d >= moS && d <= moE) w.push('month');
+      return w;
+    };
+
+    // ── Delegation (pending) ──
+    const [del] = await db.query(
+      `SELECT assigned_to AS uid, DATE_FORMAT(due_date,'%Y-%m-%d') AS d, priority, COUNT(*) AS n
+       FROM delegation_tasks WHERE status IN ('pending','revised') AND due_date BETWEEN ? AND ?
+       GROUP BY assigned_to, due_date, priority`, [moS, moE]);
+    for (const r of del) addTask(r.uid, windowOf(r.d), 'delegation', r.priority, parseInt(r.n) || 0);
+
+    // ── Checklist (pending) ──
+    const [chl] = await db.query(
+      `SELECT assigned_to AS uid, DATE_FORMAT(due_date,'%Y-%m-%d') AS d, COUNT(*) AS n
+       FROM checklist_tasks WHERE status='pending' AND due_date BETWEEN ? AND ?
+       GROUP BY assigned_to, due_date`, [moS, moE]);
+    for (const r of chl) addTask(r.uid, windowOf(r.d), 'checklist', null, parseInt(r.n) || 0);
+
+    // ── Overdue (aaj se pehle ka pending) — alag se, capacity me nahi ──
+    const [odD] = await db.query(
+      "SELECT assigned_to AS uid, COUNT(*) AS n FROM delegation_tasks WHERE status IN ('pending','revised') AND due_date < ? GROUP BY assigned_to", [T]);
+    const [odC] = await db.query(
+      "SELECT assigned_to AS uid, COUNT(*) AS n FROM checklist_tasks WHERE status='pending' AND due_date < ? GROUP BY assigned_to", [T]);
+    for (const r of [...odD, ...odC]) if (byId[r.uid]) byId[r.uid].overdue += parseInt(r.n) || 0;
+
+    // ── Done (is mahine) — score ke liye ──
+    const [dnD] = await db.query(
+      "SELECT assigned_to AS uid, COUNT(*) AS n FROM delegation_tasks WHERE status='completed' AND due_date BETWEEN ? AND ? GROUP BY assigned_to", [moS, moE]);
+    const [dnC] = await db.query(
+      "SELECT assigned_to AS uid, COUNT(*) AS n FROM checklist_tasks WHERE status='completed' AND due_date BETWEEN ? AND ? GROUP BY assigned_to", [moS, moE]);
+    for (const r of dnD) if (byId[r.uid]) byId[r.uid].done.delegation += parseInt(r.n) || 0;
+    for (const r of dnC) if (byId[r.uid]) byId[r.uid].done.checklist += parseInt(r.n) || 0;
+
+    // ── FMS ──
+    let fmsErrors = [];
+    try {
+      const st = await computeFmsStats('', false, { range: { start: moS, end: moE } });
+      for (const [uid, v] of Object.entries(st.perUser || {})) {
+        const p = byId[uid]; if (!p) continue;
+        const pend = parseInt(v.pendingInRange) || 0;
+        // FMS ka pending mahine bhar ka hai — hafte/din par barabar baant dete hain
+        const mDays = capWorkingDays(moS, moE, p.weekOff, holidaySet) || 1;
+        const perDay = pend / mDays;
+        p.buckets.month.fms += pend;  p.buckets.month.mins += pend * CAP.mins.fms;
+        const wDays = capWorkingDays(wkS < moS ? moS : wkS, wkE > moE ? moE : wkE, p.weekOff, holidaySet);
+        const wk = Math.round(perDay * wDays);
+        p.buckets.week.fms += wk;     p.buckets.week.mins += wk * CAP.mins.fms;
+        const dy = Math.round(perDay);
+        p.buckets.day.fms += dy;      p.buckets.day.mins += dy * CAP.mins.fms;
+        p.done.fms += parseInt(v.doneInRange) || 0;
+        p.overdue += parseInt(v.overdueInRange) || 0;
+      }
+      fmsErrors = st.errors || [];
+    } catch (e) { fmsErrors = ['FMS data unavailable']; }
+
+    // ── Har banda: capacity, load %, aur kitna aur diya ja sakta hai ──
+    const rows = people.map(u => {
+      const p = byId[u.id];
+      const days = {
+        day:   capWorkingDays(T, T, p.weekOff, holidaySet),
+        week:  capWorkingDays(wkS, wkE, p.weekOff, holidaySet),
+        month: capWorkingDays(moS, moE, p.weekOff, holidaySet)
+      };
+      const totalDone = p.done.delegation + p.done.checklist + p.done.fms;
+      const totalWork = totalDone + p.overdue;
+      // Score = kitna kaam samay par nipta — 0..100
+      const score = totalWork > 0 ? Math.round((totalDone / totalWork) * 1000) / 10 : 100;
+      const out = { userId: u.id, name: u.name, title: u.title || '', department: u.department || '',
+                    email: u.email || '', weekOff: p.weekOff, score, overdue: p.overdue,
+                    done: p.done, periods: {} };
+      for (const k of ['day', 'week', 'month']) {
+        const b = p.buckets[k];
+        const capMins = days[k] * CAP.workMins;
+        const loadPct = capMins > 0 ? Math.round((b.mins / capMins) * 1000) / 10 : 0;
+        const freeMins = Math.max(0, capMins - b.mins);
+        out.periods[k] = {
+          workingDays: days[k],
+          capacityHours: Math.round((capMins / 60) * 10) / 10,
+          loadHours: Math.round((b.mins / 60) * 10) / 10,
+          freeHours: Math.round((freeMins / 60) * 10) / 10,
+          loadPct,
+          tasks: { delegation: b.delegation, checklist: b.checklist, fms: b.fms,
+                   total: b.delegation + b.checklist + b.fms },
+          priority: { urgent: b.urgent || 0, high: b.high || 0, medium: b.medium || 0, low: b.low || 0 },
+          // Khaali time me aur kitne task diye ja sakte hain
+          canTake: {
+            delegation: Math.floor(freeMins / CAP.mins.delegation.medium),
+            checklist: Math.floor(freeMins / CAP.mins.checklist),
+            fms: Math.floor(freeMins / CAP.mins.fms)
+          }
+        };
+      }
+      return out;
+    });
+
+    res.json({
+      today: T, week: { start: wkS, end: wkE }, month: { start: moS, end: moE },
+      settings: { dayStart: CAP.dayStart, dayEnd: CAP.dayEnd, breakMins: CAP.breakMins,
+                  workHours: CAP.workMins / 60, mins: CAP.mins },
+      rows, fmsErrors
+    });
+  } catch (err) {
+    console.error('Employee capacity FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
   try {
     const { start, end } = req.query;
