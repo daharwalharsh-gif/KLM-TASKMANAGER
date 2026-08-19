@@ -1929,6 +1929,20 @@ tbody tr:last-child td{border-bottom:none;}
     .otod-sale-out{font-size:13.5px;font-weight:800;color:#1d4ed8;white-space:nowrap}
     .otod-sale-out b{color:#0f172a}
     .otod-sale-sub{font-size:11px;color:#94a3b8;white-space:nowrap}
+    .otod-sale-out.clickable{cursor:pointer;text-decoration:underline dotted}
+    .otod-sale-out.clickable:hover{color:#4338ca}
+    .otod-salepop{width:310px;padding:0;overflow:hidden}
+    .otod-salepop-head{background:#1e3a8a;color:#fff;font-size:12px;font-weight:800;padding:9px 12px;
+      display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .otod-salepop-head span{font-weight:600;font-size:10.5px;color:#bfdbfe}
+    .otod-salepop-list{max-height:260px;overflow-y:auto}
+    .otod-salepop-row{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid #f1f5f9;font-size:12.5px}
+    .otod-salepop-row:hover{background:#f8fafc}
+    .otod-salepop-row .m{flex:1;font-weight:700;color:#0f172a;white-space:nowrap}
+    .otod-salepop-row .c{color:#64748b;font-size:11.5px;white-space:nowrap}
+    .otod-salepop-row .a{font-weight:800;color:#1d4ed8;white-space:nowrap}
+    .otod-salepop-row.tot{background:#eef2ff;border-bottom:none;border-top:2px solid #1e3a8a}
+    .otod-salepop-row.tot .m,.otod-salepop-row.tot .a{color:#3730a3}
 
     /* ── Department board — poster jaisi tables ── */
     .dp-wrap{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
@@ -11711,7 +11725,7 @@ function otodShell() {
     <div class="otod-f otod-sale-top"><label>Sale</label>
       <div class="otod-sale-row">
         <select id="otodSaleSel" onchange="otodSaleChange()">
-          ${['today','yesterday','week','month'].map(k =>
+          ${OTOD_SALE_KINDS.map(k =>
             `<option value="${k}" ${_otodSale === k ? 'selected' : ''}>${OTOD_SALE_LABEL[k]}</option>`).join('')}
         </select>
         <span class="otod-sale-out" id="otodSaleOut"></span>
@@ -11726,6 +11740,7 @@ function otodShell() {
 // Tab badalna sirf dobara draw — sheet dobara nahi padhi jaati
 function otodSwitch(tab) {
   _otodTab = tab;
+  const _sp = document.getElementById('otodSalePop'); if (_sp) _sp.remove();
   otodClearColFilters();
   document.querySelectorAll('#misResults .otod-tabs .tab').forEach(t =>
     t.classList.toggle('active', t.textContent.toLowerCase().includes(tab)));
@@ -11944,7 +11959,9 @@ function otodMonthLabel(k) { const [y, m] = k.split('-'); return `${OTOD_MON[Num
 // ── Neeche wali "Sale" patti — Today / Yesterday / This Week / This Month ──
 // Pending tab me Planned date par, Dispatched tab me Actual date par.
 let _otodSale = 'today';
-const OTOD_SALE_LABEL = { today: 'Today', yesterday: 'Yesterday', week: 'This Week', month: 'This Month' };
+const OTOD_SALE_LABEL = { today: 'Today', yesterday: 'Yesterday', week: 'This Week',
+                          month: 'This Month', monthwise: 'Month wise' };
+const OTOD_SALE_KINDS = ['today', 'yesterday', 'week', 'month', 'monthwise'];
 
 function otodIsoDay(n) {
   const d = new Date(); d.setDate(d.getDate() + n);
@@ -11979,18 +11996,85 @@ function otodSaleCalc() {
   const amount = rows.reduce((n, x) => n + (otodNum(x[OTOD_TOTAL_FIELD[_otodSrc]]) || 0), 0);
   return { n: rows.length, amount, from, to };
 }
+// Har mahine ki sale — abhi ke tab ke hisaab se (Dispatched me Actual date par,
+// Pending me Planned date par). Naya mahina sabse upar.
+function otodSaleMonths() {
+  const want = _otodTab === 'dispatched';
+  const field = OTOD_TOTAL_FIELD[_otodSrc];
+  const map = new Map();
+  for (const x of (_otodCache[_otodSrc] || [])) {
+    if (!!x.dispatched !== want) continue;
+    const d = otodSaleDate(x);
+    if (!d) continue;
+    const ym = d.slice(0, 7);
+    const g = map.get(ym) || { ym, n: 0, amount: 0 };
+    g.n++; g.amount += (otodNum(x[field]) || 0);
+    map.set(ym, g);
+  }
+  return [...map.values()].sort((a, b) => b.ym.localeCompare(a.ym));
+}
+
+function otodOpenMonthWise() {
+  const old = document.getElementById('otodSalePop'); if (old) old.remove();
+  const rows = otodSaleMonths();
+  const total = rows.reduce((n, r) => n + r.amount, 0);
+  const cnt = rows.reduce((n, r) => n + r.n, 0);
+  const anchor = document.getElementById('otodSaleSel'); if (!anchor) return;
+
+  const pop = document.createElement('div');
+  pop.id = 'otodSalePop';
+  pop.className = 'pm-pop otod-salepop';
+  pop.innerHTML = `
+    <div class="otod-salepop-head">Month wise sale — ${_otodTab === 'dispatched' ? 'Dispatched' : 'Pending'}
+      <span>${_otodTab === 'dispatched' ? 'Actual date' : 'Planned date'}</span></div>
+    <div class="otod-salepop-list">
+      ${rows.length ? rows.map(r => `<div class="otod-salepop-row">
+        <span class="m">${escapeHtml(otodMonthLabel(r.ym))}</span>
+        <span class="c">${r.n}</span>
+        <span class="a">₹ ${escapeHtml(otodMoney(r.amount))}</span></div>`).join('')
+        : '<div style="padding:10px;color:#94a3b8;font-size:12px">No sale yet</div>'}
+    </div>
+    <div class="otod-salepop-row tot"><span class="m">TOTAL</span><span class="c">${cnt}</span>
+      <span class="a">₹ ${escapeHtml(otodMoney(total))}</span></div>`;
+  document.body.appendChild(pop);
+
+  const r = anchor.getBoundingClientRect();
+  pop.style.top = (r.bottom + window.scrollY + 6) + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left + window.scrollX, window.innerWidth - 320)) + 'px';
+}
+document.addEventListener('click', e => {
+  const pop = document.getElementById('otodSalePop');
+  if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('#otodSaleSel')) &&
+      !(e.target.closest && e.target.closest('#otodSaleOut'))) pop.remove();
+});
+
 function otodSaleChange() {
   const sel = document.getElementById('otodSaleSel');
   if (sel) _otodSale = sel.value;
+  const pop = document.getElementById('otodSalePop'); if (pop) pop.remove();
   otodSaleRender();
+  if (_otodSale === 'monthwise') otodOpenMonthWise();
 }
 function otodSaleRender() {
   const out = document.getElementById('otodSaleOut'), sub = document.getElementById('otodSaleSub');
   if (!out) return;
+  const dateLbl = _otodTab === 'dispatched' ? 'Actual date' : 'Planned date';
+
+  if (_otodSale === 'monthwise') {
+    const m = otodSaleMonths();
+    const n = m.reduce((a, r) => a + r.n, 0), amt = m.reduce((a, r) => a + r.amount, 0);
+    out.classList.add('clickable');
+    out.onclick = otodOpenMonthWise;
+    out.innerHTML = `<b>${n}</b> order(s) · ₹ ${escapeHtml(otodMoney(amt))}`;
+    if (sub) sub.textContent = `${m.length} month(s) · ${dateLbl} · click to see`;
+    return;
+  }
+  out.classList.remove('clickable');
+  out.onclick = null;
   const s = otodSaleCalc();
   out.innerHTML = `<b>${s.n}</b> order(s) · ₹ ${escapeHtml(otodMoney(s.amount))}`;
   if (sub) sub.textContent = (s.from === s.to ? otodDate(s.from) : otodDate(s.from) + ' – ' + otodDate(s.to)) +
-    ' · ' + (_otodTab === 'dispatched' ? 'Actual date' : 'Planned date');
+    ' · ' + dateLbl;
 }
 
 // Mahine ke hisaab se group + har mahine ka total
