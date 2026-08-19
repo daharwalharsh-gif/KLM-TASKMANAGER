@@ -1993,6 +1993,18 @@ tbody tr:last-child td{border-bottom:none;}
       font-size:12px;color:#166534;line-height:1.7}
     .cap-plan b{color:#14532d}
     @media(max-width:900px){ .cap-grid{grid-template-columns:1fr} }
+    .cap-sum{background:#fff;border:1px solid #e2e8f0;border-left:4px solid #4f46e5;border-radius:10px;
+      padding:13px 16px;margin-bottom:14px}
+    .cap-sum-line{font-size:13.5px;color:#0f172a;font-weight:600;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+    .cap-sum-line b{color:#4338ca}
+    .cap-sum-pill{font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:20px}
+    .cap-sum-pill.hi{background:#fee2e2;color:#991b1b}
+    .cap-sum-pill.mid{background:#fef3c7;color:#92400e}
+    .cap-sum-pill.ok{background:#dcfce7;color:#166534}
+    .cap-sum-help{margin-top:9px;font-size:12px;color:#475569;line-height:1.75}
+    .cap-sum-help b{color:#0f172a}
+    .cap-sum-toggle{background:none;border:none;color:#4f46e5;font-size:11.5px;font-weight:700;
+      cursor:pointer;padding:0;margin-left:auto;font-family:'Inter',sans-serif}
 
     /* ── Department board — poster jaisi tables ── */
     .dp-wrap{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
@@ -7117,6 +7129,8 @@ let _capData = null;
 let _capPeriod = 'day';
 let _capSort = 'load';
 let _capOpen = null;   // khuli hui row ka userId
+let _capHelp = true;   // summary ke neeche wali samjhaane wali line
+function capToggleHelp() { _capHelp = !_capHelp; renderCapacity(); }
 const CAP_PERIOD_LBL = { day: 'Today', week: 'This Week', month: 'This Month' };
 
 async function loadCapacity() {
@@ -7187,7 +7201,38 @@ function renderCapacity() {
     </tr>` + (open ? capDetailRow(x) : '');
   }).join('');
 
+  // Chhoti si summary — ek nazar me report samajh aa jaye
+  const over = rows.filter(x => x.periods[p].loadPct >= 100).length;
+  const mid  = rows.filter(x => x.periods[p].loadPct >= 70 && x.periods[p].loadPct < 100).length;
+  const low  = rows.filter(x => x.periods[p].loadPct < 50).length;
+  const freeTop = rows.slice().sort((a, b) => b.periods[p].freeHours - a.periods[p].freeHours)[0];
+  const busyTop = rows.slice().sort((a, b) => b.periods[p].loadPct - a.periods[p].loadPct)[0];
+
   document.getElementById('misResults').innerHTML = `
+    <div class="cap-sum">
+      <div class="cap-sum-line">
+        <span><b>${rows.length}</b> employee${rows.length===1?'':'s'}</span>
+        <span>Average busy <b>${avg}%</b></span>
+        <span>Total free <b>${Math.round(sum.free * 10) / 10} h</b></span>
+        <span class="cap-sum-pill hi">${over} over 100%</span>
+        <span class="cap-sum-pill mid">${mid} at 70–99%</span>
+        <span class="cap-sum-pill ok">${low} under 50%</span>
+        ${busyTop ? `<span>Most loaded: <b>${escapeHtml(capName(busyTop))}</b> (${busyTop.periods[p].loadPct}%)</span>` : ''}
+        ${freeTop ? `<span>Most free: <b>${escapeHtml(capName(freeTop))}</b> (${freeTop.periods[p].freeHours} h)</span>` : ''}
+        <button class="cap-sum-toggle" onclick="capToggleHelp()" id="capHelpBtn">${_capHelp ? 'Hide help ▲' : 'What is this report? ▼'}</button>
+      </div>
+      ${_capHelp ? `<div class="cap-sum-help">
+        Everyone's <b>pending work</b> — Delegation + Checklist + FMS — is turned into <b>hours</b> and compared with
+        their <b>working hours</b> (${S.dayStart}–${S.dayEnd} minus ${S.breakMins} min break = ${S.workHours} h a day;
+        week-offs and company holidays are removed).<br>
+        <b>Busy %</b> = how full that person's ${CAP_PERIOD_LBL[p].toLowerCase()} already is — green under 70%, yellow 70–99%, red 100%+.
+        <b>Free</b> = hours still left, and <b>Can take more</b> = how many new tasks fit in that free time.
+        <b>Score</b> = out of the work due so far, how much is actually done (the rest is overdue).<br>
+        Use it to decide <b>who can take a new task</b>: pick the people in green with free hours.
+        <b>Click any row</b> to see that person's Today / This Week / This Month break-up.
+      </div>` : ''}
+    </div>
+
     <div class="cap-bar">
       <div class="cap-f"><label>Period</label>
         <select onchange="capSetPeriod(this.value)">
