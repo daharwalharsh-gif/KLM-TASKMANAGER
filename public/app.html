@@ -12076,6 +12076,8 @@ function otodDateFiltered() {
   const from = document.getElementById('otodFrom')?.value || '';
   const to = document.getElementById('otodTo')?.value || '';
   return (_otodCache[_otodSrc] || []).filter(x => {
+    // Jinki Planned date abhi hai hi nahi — koi date/month filter lage to wo chhup jaati hain
+    if (!x.planned) return !from && !to && !_otodMonths.size;
     if (from && x.planned < from) return false;
     if (to && x.planned > to) return false;
     if (_otodMonths.size && !_otodMonths.has(x.planned.slice(0, 7))) return false;
@@ -12098,7 +12100,7 @@ function otodClearMonths() { _otodMonths = new Set(); }
 function otodMonthKeys() {
   const want = _otodTab === 'dispatched';
   return [...new Set((_otodCache[_otodSrc] || []).filter(x => !!x.dispatched === want)
-    .map(x => x.planned.slice(0, 7)))].sort();
+    .map(x => (x.planned || '').slice(0, 7)).filter(Boolean))].sort();
 }
 function otodMonthBtnText() {
   const n = _otodMonths.size;
@@ -12247,7 +12249,11 @@ function otodPct() {
            pendingPct: p(pend), dispatchedPct: p(all.length - pend) };
 }
 const OTOD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function otodMonthLabel(k) { const [y, m] = k.split('-'); return `${OTOD_MON[Number(m) - 1] || m} ${y}`; }
+function otodMonthLabel(k) {
+  if (!k) return 'No planned date';
+  const [y, m] = k.split('-');
+  return `${OTOD_MON[Number(m) - 1] || m} ${y}`;
+}
 
 // ── Neeche wali "Sale" patti — Today / Yesterday / This Week / This Month ──
 // Pending tab me Planned date par, Dispatched tab me Actual date par.
@@ -12374,7 +12380,7 @@ function otodSaleRender() {
 function otodGroups(rows) {
   const out = [];
   for (const x of rows) {
-    const key = x.planned.slice(0, 7);
+    const key = (x.planned || '').slice(0, 7);
     let g = out[out.length - 1];
     if (!g || g.month !== key) { g = { month: key, label: otodMonthLabel(key), rows: [], total: 0 }; out.push(g); }
     g.rows.push(x);

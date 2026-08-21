@@ -3519,7 +3519,9 @@ app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
         const buyer = String(row[1] || '').trim();          // B
         const planned = prodIsoDate(row[53]);               // BB — STEP 6 Planned
         const actual = String(row[54] || '').trim();        // BC — STEP 6 Actual
-        if (!buyer || !planned) continue;
+        // Jab tak Actual date nahi aati, row pending hai — chahe Planned date
+        // abhi bhari na ho. Isliye yahan sirf buyer dekhte hain.
+        if (!buyer) continue;
         const orderDate = prodIsoDate(row[6]);              // G — Enquiry Date
         rows.push({
           rowKey: buyer + '|' + (row[2] || '') + '|' + planned,
@@ -3555,7 +3557,13 @@ app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
         });
       }
     }
-    rows.sort((x, y) => x.planned < y.planned ? -1 : x.planned > y.planned ? 1 : 0);
+    // Planned ke hisaab se — jinki Planned date abhi hai hi nahi, wo sabse aakhir me
+    rows.sort((x, y) => {
+      if (!x.planned && !y.planned) return 0;
+      if (!x.planned) return 1;
+      if (!y.planned) return -1;
+      return x.planned < y.planned ? -1 : x.planned > y.planned ? 1 : 0;
+    });
     res.json({ src, label: cfg.label, rows, total: rows.length });
   } catch (err) {
     console.error('O to D report FAILED:', err.message);
