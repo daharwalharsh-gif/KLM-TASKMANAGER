@@ -2081,6 +2081,7 @@ tbody tr:last-child td{border-bottom:none;}
            href="https://docs.google.com/spreadsheets/d/1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY/edit?gid=1595875426#gid=1595875426">📄 Open Google Sheet ↗</a>
         <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe"
           onclick="exportProductionPDF()">📄 PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="pmCSV()">⬇ Export CSV</button>
         <button class="btn btn-outline btn-sm" onclick="loadProduction()">🔄 Refresh</button>
         <button class="btn btn-primary btn-sm" onclick="showPPC()">🧵 PPC</button>
       </div>
@@ -13488,12 +13489,13 @@ const PM_COLS = [
   { f: 'description',       label: 'DESCRIPTION',                   w: 160, edit: 'text' },
   { f: 'leadTime',          label: 'Lead Time',                     w: 85,  num: true },
   { f: 'piNo',              label: 'PI NO',                         w: 120 },
-  { f: 'amount',            label: 'Amount &nbsp;( USD)',           w: 110, num: true },
+  { f: 'amount',            label: 'Amount &nbsp;( USD)',           w: 110, num: true, edit: 'text' },
   { f: 'inrWorking',        label: 'INR Working USD 80, Euro 93',   w: 150, edit: 'formula', num: true },
   { f: 'plannedOtd',        label: 'Planned dates As Per Otd fms',  w: 150, dateOnly: true },
   { f: 'plannedProduction', label: 'Planned dates As Per production', w: 150, edit: 'date' },
   { f: 'days',              label: 'DAYS',                          w: 70,  calc: true },
-  { f: 'dispatchedDates',   label: 'Dispatched dates',              w: 185, edit: 'select' },
+  { f: 'dispatchDate',      label: 'Dispatch date',                 w: 150, edit: 'date' },
+  { f: 'dispatchedDates',   label: 'Dispatched status',             w: 185, edit: 'select' },
 ];
 
 function pmNum(v) {
@@ -13533,7 +13535,7 @@ function pmShown(x, f) {
 function pmCell(x, f) {
   const v = pmShown(x, f);
   if (f === 'amount' || f === 'inrWorking') { const n = pmNum(v); return n === null ? (v || '—') : n.toLocaleString('en-IN'); }
-  if (f === 'plannedOtd' || f === 'plannedProduction') return pmDate(v) || '—';
+  if (f === 'plannedOtd' || f === 'plannedProduction' || f === 'dispatchDate') return pmDate(v) || '—';
   return (v === '' || v === null || v === undefined) ? '—' : v;
 }
 
@@ -13844,6 +13846,38 @@ function exportProductionPDF() {
   if (!w) return showToast('Popup blocked — please allow popups', 'error');
   w.document.open(); w.document.write(html); w.document.close();
   setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
+}
+
+// Excel me khulne wali CSV — jo abhi screen par dikh raha hai wahi
+function pmCSV() {
+  const list = pmVisible();
+  if (!list.length) return showToast('No rows to export', 'error');
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const head = ['#'].concat(PM_COLS.map(c => c.label.replace(/&nbsp;/g, ' ').trim()));
+  if (PM_COLS.some(c => c.f === 'dispatchedDates')) head.push('Dispatch remarks');
+  const lines = [head.map(q).join(',')];
+  list.forEach((x, i) => {
+    const row = [i + 1].concat(PM_COLS.map(c => {
+      const v = pmCell(x, c.f);
+      return v === '—' ? '' : v;
+    }));
+    if (PM_COLS.some(c => c.f === 'dispatchedDates')) row.push(String(x.dispatchRemarks || ''));
+    lines.push(row.map(q).join(','));
+  });
+  const sum = f => list.reduce((n, x) => n + (pmNum(pmShown(x, f)) || 0), 0);
+  const foot = [''].concat(PM_COLS.map((c, i) =>
+    c.num ? sum(c.f) : (i === 0 ? 'TOTAL' : '')));
+  if (PM_COLS.some(c => c.f === 'dispatchedDates')) foot.push('');
+  lines.push(foot.map(q).join(','));
+
+  const dateSel = (document.getElementById('pmDate')?.value || '').trim();
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Production-Management' + (dateSel ? '-' + dateSel : '') + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+  showToast(list.length + ' row(s) exported');
 }
 
 // Bahar click par filter popup band

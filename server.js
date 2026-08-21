@@ -3908,8 +3908,11 @@ app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
       x.description = s.description || '';
       x.inrWorking = s.inr_working || '';
       x.plannedProduction = s.planned_production || '';
+      x.dispatchDate = s.dispatch_date || '';
       x.dispatchedDates = s.dispatched_dates || '';
       x.dispatchRemarks = s.dispatch_remarks || '';
+      // Amount sheet se aata hai, par app me badla ho to app wala hi dikhega
+      if (String(s.amount ?? '').trim() !== '') x.amount = String(s.amount).trim();
     }
     // Filter ke liye kaunsi dates maujood hain
     const dates = [...new Set(rows.map(x => x.orderDate).filter(Boolean))].sort().reverse();
@@ -3923,9 +3926,9 @@ app.get('/api/production', requireAuth, requireAdmin, async (req, res) => {
 
 // Ek cell save — jo column app me bharte hain
 // plannedOtd ab sheet (CT) se aata hai, isliye editable nahi
-const PROD_EDITABLE = { description: 'description', inrWorking: 'inr_working',
-  plannedProduction: 'planned_production', dispatchedDates: 'dispatched_dates',
-  dispatchRemarks: 'dispatch_remarks' };
+const PROD_EDITABLE = { description: 'description', amount: 'amount', inrWorking: 'inr_working',
+  plannedProduction: 'planned_production', dispatchDate: 'dispatch_date',
+  dispatchedDates: 'dispatched_dates', dispatchRemarks: 'dispatch_remarks' };
 
 app.put('/api/production/cell', requireAuth, requireAdmin, async (req, res) => {
   try {
@@ -3940,12 +3943,9 @@ app.put('/api/production/cell', requireAuth, requireAdmin, async (req, res) => {
         [val, req.session.userId, now, rowKey]);
     } else {
       await db.query(
-        `INSERT INTO production_rows (row_key,pi_no,description,inr_working,planned_otd,planned_production,dispatched_dates,updated_by,updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
-        [rowKey, String(piNo || '').trim(),
-         col === 'description' ? val : '', col === 'inr_working' ? val : '',
-         col === 'planned_otd' ? val : '', col === 'planned_production' ? val : '',
-         col === 'dispatched_dates' ? val : '', req.session.userId, now]);
+        'INSERT INTO production_rows (row_key,pi_no,updated_by,updated_at) VALUES (?,?,?,?)',
+        [rowKey, String(piNo || '').trim(), req.session.userId, now]);
+      await db.query(`UPDATE production_rows SET ${col}=? WHERE row_key=?`, [val, rowKey]);
     }
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -3972,12 +3972,9 @@ app.put('/api/production/fill', requireAuth, requireAdmin, async (req, res) => {
           [val, req.session.userId, now, key]);
       } else {
         await db.query(
-          `INSERT INTO production_rows (row_key,pi_no,description,inr_working,planned_otd,planned_production,dispatched_dates,updated_by,updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?)`,
-          [key, String(r.piNo || '').trim(),
-           col === 'description' ? val : '', col === 'inr_working' ? val : '',
-           col === 'planned_otd' ? val : '', col === 'planned_production' ? val : '',
-           col === 'dispatched_dates' ? val : '', req.session.userId, now]);
+          'INSERT INTO production_rows (row_key,pi_no,updated_by,updated_at) VALUES (?,?,?,?)',
+          [key, String(r.piNo || '').trim(), req.session.userId, now]);
+        await db.query(`UPDATE production_rows SET ${col}=? WHERE row_key=?`, [val, key]);
         have.add(key);
       }
       done++;

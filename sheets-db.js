@@ -113,8 +113,8 @@ const SCHEMA = {
   // Production Management — sheet se Buyer/PI/Amount aate hain, ye column
   // yahin app me bharte hain (row_key = PI number + order date).
   production_rows: {
-    cols: ['id','row_key','pi_no','description','inr_working','planned_otd',
-           'planned_production','dispatched_dates','dispatch_remarks','updated_by','updated_at'],
+    cols: ['id','row_key','pi_no','description','amount','inr_working','planned_otd',
+           'planned_production','dispatch_date','dispatched_dates','dispatch_remarks','updated_by','updated_at'],
     autoFill: { updated_at: 'NOW' }
   },
   // Daily PC Report — har FMS ka daily review: PC + doer-wise remarks, owner/PC remarks.
