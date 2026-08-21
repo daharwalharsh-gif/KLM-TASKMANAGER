@@ -3501,7 +3501,8 @@ app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
         const party = String(row[1] || '').trim();          // B
         const planned = prodIsoDate(row[30]);               // AE
         const actual = String(row[31] || '').trim();        // AF
-        if (!party || !planned) continue;
+        // Actual aane tak row pending — Planned date bhari ho ya na ho
+        if (!party) continue;
         rows.push({
           rowKey: party + '|' + (row[12] || '') + '|' + planned,
           party,
@@ -3543,7 +3544,8 @@ app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
         const piNo = String(row[6] || '').trim();
         const planned = prodIsoDate(row[97]);              // CT
         const actual = String(row[98] || '').trim();       // CU
-        if (!piNo || !planned) continue;
+        // Actual aane tak row pending — Planned date bhari ho ya na ho
+        if (!piNo) continue;
         const orderDate = prodIsoDate(row[2]);             // C
         rows.push({
           rowKey: piNo + '|' + orderDate, piNo, orderDate,
