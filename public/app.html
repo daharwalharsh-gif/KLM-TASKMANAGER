@@ -1592,7 +1592,7 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="tab" id="misTabTAT" onclick="switchMisTab('fmstat',this)">📅 New FMS Report</div>
           <div class="tab" id="misTabOtod" onclick="switchMisTab('otod',this)">📦 Export O to D Report</div>
           <div class="tab" id="misTabOtodInv" onclick="switchMisTab('otodinv',this)">📦 Invincible O to D Offline</div>
-        <div class="tab" id="misTabOtodSamp" onclick="switchMisTab('otodsamp',this)">🧵 Sampling O to D</div>
+        <div class="tab" id="misTabOtodSamp" onclick="switchMisTab('otodsamp',this)">🧵 Sampling Report</div>
         <div class="tab" id="misTabCapacity" onclick="switchMisTab('capacity',this)">👥 Capacity/Utilisation Staff</div>
         </div>
       </div>
@@ -11959,7 +11959,7 @@ const _otodCache = { merchant: null, invincible: null, sampling: null };
 const _otodFetchedAt = { merchant: 0, invincible: 0, sampling: 0 };
 const OTOD_STALE_MS = 2 * 60 * 1000;
 const OTOD_TITLE = { merchant: 'On Time Delivery', invincible: 'Invincible O to D Offline',
-                     sampling: 'Sampling O to D' };
+                     sampling: 'Sampling Report' };
 const OTOD_TOTAL_HEAD = { merchant: 'TOTAL AMOUNT MONTHLY', invincible: 'TOTAL MRP MONTHLY',
                           sampling: '' };
 // Sampling sheet me koi amount nahi — is report me paise wala column
@@ -12026,8 +12026,17 @@ function otodClear() {
 async function loadOtod(force) {
   if (_otodLoading) return;
   if (!document.getElementById('otodContent')) document.getElementById('misResults').innerHTML = otodShell();
-  const fresh = Date.now() - (_otodFetchedAt[_otodSrc] || 0) < OTOD_STALE_MS;
-  if (_otodCache[_otodSrc] && !force && fresh) { renderOtod(); return; }
+
+  // Ek baar data aa gaya to dobara "Loading…" nahi dikhate — purana data turant
+  // dikhta hai. Agar wo purana ho gaya ho to peeche-peeche chupchap naya le aate
+  // hain aur aane par table apne aap update ho jaata hai. Refresh button dabane
+  // par hi Loading dikhta hai.
+  if (_otodCache[_otodSrc] && !force) {
+    renderOtod();
+    const fresh = Date.now() - (_otodFetchedAt[_otodSrc] || 0) < OTOD_STALE_MS;
+    if (!fresh) otodRefreshQuiet(_otodSrc);
+    return;
+  }
 
   document.getElementById('otodContent').innerHTML =
     '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
@@ -12042,6 +12051,24 @@ async function loadOtod(force) {
   _otodCache[_otodSrc] = r.rows || [];
   _otodFetchedAt[_otodSrc] = Date.now();
   renderOtod();
+}
+
+// Background refresh — screen par kuch nahi badalta jab tak naya data na aa jaye
+const _otodQuiet = {};
+async function otodRefreshQuiet(src) {
+  if (_otodQuiet[src]) return;
+  _otodQuiet[src] = true;
+  try {
+    const r = await api('/api/otod?src=' + src);
+    if (r && !r.error && Array.isArray(r.rows)) {
+      const changed = JSON.stringify(r.rows) !== JSON.stringify(_otodCache[src]);
+      _otodCache[src] = r.rows;
+      _otodFetchedAt[src] = Date.now();
+      // Wahi report abhi bhi khuli ho tabhi dobara draw karo
+      if (changed && _otodSrc === src && document.getElementById('otodContent')) renderOtod();
+    }
+  } catch (e) { /* chup-chaap — purana data waise hi dikhta rahega */ }
+  _otodQuiet[src] = false;
 }
 
 // Sirf date/month filter (tab chhod kar) — percentage dono ko milakar banta hai

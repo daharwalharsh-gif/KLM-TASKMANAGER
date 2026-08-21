@@ -3477,7 +3477,7 @@ function otodSources() {
     // Sampling FMS — dispatch STEP 6 "Dispatch AWB": BB=Planned, BC=Actual,
     // BD=Status, BF=Doer. Is sheet me koi amount nahi hai.
     sampling: {
-      label: 'Sampling O to D',
+      label: 'Sampling Report',
       sheetId: '1Rqp2S6MqVqMhskj8CUcwipVoa601DwPNtzFhRrMkvvk',
       tab: 'FMS', headerRow: 6, range: 'A:BF'
     }
