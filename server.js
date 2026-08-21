@@ -3473,6 +3473,13 @@ function otodSources() {
       label: 'Invincible O to D Offline',
       sheetId: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw',
       tab: 'FMS', headerRow: 6, range: 'A:AT'
+    },
+    // Sampling FMS — dispatch STEP 6 "Dispatch AWB": BB=Planned, BC=Actual,
+    // BD=Status, BF=Doer. Is sheet me koi amount nahi hai.
+    sampling: {
+      label: 'Sampling O to D',
+      sheetId: '1Rqp2S6MqVqMhskj8CUcwipVoa601DwPNtzFhRrMkvvk',
+      tab: 'FMS', headerRow: 6, range: 'A:BF'
     }
   };
 }
@@ -3506,6 +3513,28 @@ app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
           planned,
           actualDate: prodIsoDate(row[31]),                 // AF
           dispatchStatus: String(row[45] || '').trim(),     // AT
+          dispatched: !!actual
+        });
+      } else if (src === 'sampling') {
+        const buyer = String(row[1] || '').trim();          // B
+        const planned = prodIsoDate(row[53]);               // BB — STEP 6 Planned
+        const actual = String(row[54] || '').trim();        // BC — STEP 6 Actual
+        if (!buyer || !planned) continue;
+        const orderDate = prodIsoDate(row[6]);              // G — Enquiry Date
+        rows.push({
+          rowKey: buyer + '|' + (row[2] || '') + '|' + planned,
+          buyer,
+          style: String(row[2] || '').trim(),               // C
+          size: String(row[3] || '').trim(),                // D
+          colour: String(row[4] || '').trim(),              // E
+          merchant: String(row[5] || '').trim(),            // F
+          orderDate,                                        // G — Enquiry Date
+          leadTime: String(row[7] || '').trim(),            // H
+          category: String(row[8] || '').trim(),            // I
+          planned,
+          actualDate: prodIsoDate(row[54]),                 // BC
+          dispatchStatus: String(row[55] || '').trim(),     // BD
+          doer: String(row[57] || '').trim(),               // BF
           dispatched: !!actual
         });
       } else {
