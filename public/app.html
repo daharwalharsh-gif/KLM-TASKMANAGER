@@ -7252,6 +7252,8 @@ function renderPcr() {
       <div class="pcr-f"><label>&nbsp;</label>
         <button class="btn btn-outline btn-sm" onclick="pcrCSV()">⬇ Export CSV</button></div>
       <div class="pcr-f"><label>&nbsp;</label>
+        <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="pcrPDF()">📄 PDF</button></div>
+      <div class="pcr-f"><label>&nbsp;</label>
         <button class="btn btn-outline btn-sm" onclick="loadPcr()">🔄 Refresh</button></div>
       <div class="pcr-note">Sampling FMS · a row sits at the <b>first step whose Actual is still blank</b><br>
         Planned date comes from the sheet's own formula · remarks are saved here, not in the sheet</div>
@@ -7272,6 +7274,94 @@ function renderPcr() {
           <td class="pcr-c">${late} late</td><td colspan="2"></td></tr></tfoot>
       </table>
     </div>`;
+}
+
+// Screen par jo dikh raha hai wahi PDF me
+function pcrPDF() {
+  const rows = pcrRows();
+  if (!rows.length) return showToast('No rows to export', 'error');
+  const late = rows.filter(x => x.daysLate > 0).length;
+  const step = _pcrStep === 'all' ? 'All steps'
+    : ((_pcrData.steps.find(s => String(s.no) === String(_pcrStep)) || {}).name || '');
+  const now = new Date(); const pad = n => String(n).padStart(2, '0');
+  const stamp = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const q = (document.getElementById('pcrSearch')?.value || '').trim();
+
+  const dayTxt = x => {
+    if (x.daysLate === null || x.daysLate === undefined) return '—';
+    if (x.daysLate > 0) return x.daysLate + ' days late';
+    if (x.daysLate === 0) return 'Due today';
+    return Math.abs(x.daysLate) + ' days left';
+  };
+  // Step ke hisaab se group — har step ka apna chhota heading
+  const groups = [];
+  for (const x of rows.slice().sort((a, b) => a.stepNo - b.stepNo ||
+        String(a.planned || '').localeCompare(String(b.planned || '')))) {
+    let g = groups[groups.length - 1];
+    if (!g || g.no !== x.stepNo) { g = { no: x.stepNo, label: x.stepLabel, name: x.stepName, rows: [] }; groups.push(g); }
+    g.rows.push(x);
+  }
+
+  let sr = 0, body = '';
+  groups.forEach(g => {
+    const gl = g.rows.filter(x => x.daysLate > 0).length;
+    body += `<tr class="grp"><td colspan="11">${escapeHtml(g.label)} · ${escapeHtml(g.name)}
+      — ${g.rows.length} pending${gl ? ' · ' + gl + ' late' : ''}</td></tr>`;
+    g.rows.forEach(x => { sr++;
+      body += `<tr>
+        <td class="c">${sr}</td>
+        <td>${escapeHtml(x.buyer)}</td>
+        <td>${escapeHtml(x.style || '')}</td>
+        <td class="c">${escapeHtml(x.size || '')}</td>
+        <td class="c">${escapeHtml(x.colour || '')}</td>
+        <td class="c">${escapeHtml(x.merchant || '')}</td>
+        <td class="c">${escapeHtml(otodDate(x.enquiryDate) || '')}</td>
+        <td class="c">${escapeHtml(otodDate(x.planned) || '')}</td>
+        <td class="c ${x.daysLate > 0 ? 'late' : ''}">${escapeHtml(dayTxt(x))}</td>
+        <td class="c">${escapeHtml(x.doer || x.stepWho || '')}</td>
+        <td>${escapeHtml(x.remark || '')}</td>
+      </tr>`; });
+  });
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>PC Sampling Report</title><style>
+    @page { size: A4 landscape; margin: 9mm; }
+    *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;font-size:9.5px}
+    .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1e3a8a;
+      padding-bottom:7px;margin-bottom:11px}
+    .head h1{margin:0;font-size:16px;color:#1e3a8a} .head .sub{font-size:9.5px;color:#64748b}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #94a3b8;padding:3.5px 5px;text-align:left;vertical-align:top}
+    thead th{background:#dbeafe;font-size:8.5px;font-weight:bold;text-align:center}
+    .ttl{background:#1e3a8a;color:#fff;font-size:12.5px;text-align:center;padding:6px}
+    .c{text-align:center} .late{color:#b91c1c;font-weight:bold}
+    tr.grp td{background:#eef2ff;font-weight:bold;color:#3730a3;font-size:10px}
+    tfoot td{background:#eef2ff;font-weight:bold}
+    thead{display:table-header-group} tr{page-break-inside:avoid}
+    .foot{margin-top:9px;font-size:8px;color:#94a3b8;text-align:center}
+  </style></head><body>
+  <div class="head">
+    <div><h1>PC Sampling Report</h1>
+      <div class="sub">Sampling FMS — pending step wise${q ? ' · Search: ' + escapeHtml(q) : ''}${_pcrOnlyLate ? ' · Only late' : ''}</div></div>
+    <div class="sub">${stamp}<br>${rows.length} pending${late ? ' · ' + late + ' late' : ''}</div>
+  </div>
+  <table>
+    <thead>
+      <tr><th colspan="11" class="ttl">PC Sampling Report — ${escapeHtml(step)}</th></tr>
+      <tr><th style="width:26px">#</th><th>Buyer</th><th>Style No.</th><th>Size</th><th>Colour</th>
+        <th>Merchant</th><th>Enquiry date</th><th>Planned</th><th>Status</th><th>Doer</th>
+        <th style="width:130px">Remarks</th></tr>
+    </thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr><td colspan="8">TOTAL — ${rows.length} pending</td>
+      <td class="c">${late} late</td><td colspan="2"></td></tr></tfoot>
+  </table>
+  <div class="foot">KLM Task Manager · ${stamp}</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) return showToast('Popup blocked — please allow popups', 'error');
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
 }
 
 // Screen par jo dikh raha hai wahi CSV me
