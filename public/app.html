@@ -1981,6 +1981,10 @@ tbody tr:last-child td{border-bottom:none;}
       font-size:12px;font-family:'Inter',sans-serif;outline:none}
     .pcr-rem:focus{border-color:#4f46e5}
     .pcr-rem.saved{border-color:#86efac;background:#f0fdf4}
+    .pcr-filt{display:inline-block;margin-left:5px;color:#1d4ed8;cursor:pointer;font-size:11px;
+      padding:0 3px;border-radius:4px;line-height:1}
+    .pcr-filt:hover{background:#bfdbfe}
+    .pcr-filt.on{background:#1d4ed8;color:#fff}
     .pcr-tbl tr.pcr-grp td{background:#eef2ff;font-weight:800;color:#3730a3;font-size:12px}
     .pcr-tbl tfoot td{background:#eef2ff;font-weight:800;color:#3730a3}
 
@@ -7175,6 +7179,124 @@ let _pcrOnlyLate = false;
 let _pcrGroup = 'step';     // step | process | department
 let _pcrPick = 'all';       // group chips me se chuni hui value
 let _pcrChips = [];         // abhi screen par jo chips hain (click ke liye)
+
+// Har column ka apna filter — { colKey: Set(chuni hui values) }
+let _pcrColFilters = {};
+function pcrClearColFilters() { _pcrColFilters = {}; }
+// Column heading -> us row ki dikhne wali value
+const PCR_COLS = [
+  { k: 'buyer',      h: 'Buyer' },
+  { k: 'style',      h: 'Style No.' },
+  { k: 'size',       h: 'Size' },
+  { k: 'colour',     h: 'Colour' },
+  { k: 'merchant',   h: 'Merchant' },
+  { k: 'process',    h: 'Sampling process' },
+  { k: 'department', h: 'Department' },
+  { k: 'enquiry',    h: 'Enquiry date' },
+  { k: 'step',       h: 'Pending at step' },
+  { k: 'planned',    h: 'Planned' },
+  { k: 'status',     h: 'Status' },
+  { k: 'doer',       h: 'Doer' },
+  { k: 'remark',     h: 'Remarks' }
+];
+function pcrColVal(x, k) {
+  if (k === 'enquiry') return otodDate(x.enquiryDate) || '';
+  if (k === 'planned') return otodDate(x.planned) || '';
+  if (k === 'step') return x.stepLabel + ' · ' + x.stepName;
+  if (k === 'status') {
+    if (x.daysLate === null || x.daysLate === undefined) return '';
+    if (x.daysLate > 0) return x.daysLate + ' days late';
+    if (x.daysLate === 0) return 'Due today';
+    return Math.abs(x.daysLate) + ' days left';
+  }
+  if (k === 'doer') return String(x.doer || x.stepWho || '');
+  if (k === 'remark') return String(x.remark || '');
+  return String(x[k] || '');
+}
+function pcrPassCols(x) {
+  for (const [k, set] of Object.entries(_pcrColFilters)) {
+    if (!set.has(pcrColVal(x, k))) return false;
+  }
+  return true;
+}
+// Kaun kaun se filter lage hain — PDF ke header ke liye
+function pcrFilterText() {
+  const parts = Object.keys(_pcrColFilters).map(k => {
+    const col = PCR_COLS.find(c => c.k === k);
+    const vals = [..._pcrColFilters[k]];
+    return (col ? col.h : k) + ': ' + (vals.length > 3 ? vals.length + ' chuni hui' : vals.map(v => v || '(blank)').join(', '));
+  });
+  return parts.join(' · ');
+}
+
+// Heading ke ▾ par click — us column ki saari values checkbox me
+function pcrOpenFilter(k, btn) {
+  const old = document.getElementById('pcrFilterPop'); if (old) old.remove();
+  const col = PCR_COLS.find(c => c.k === k); if (!col) return;
+  // Values un rows se jo baaki filters ke baad bachi hain (is column ka apna filter chhod kar)
+  const others = Object.assign({}, _pcrColFilters); delete others[k];
+  const base = (_pcrData.rows || []).filter(x => {
+    if (_pcrGroup === 'step') {
+      if (_pcrStep !== 'all' && String(x.stepNo) !== String(_pcrStep)) return false;
+    } else if (_pcrPick !== 'all' && pcrGroupVal(x) !== _pcrPick) return false;
+    if (_pcrOnlyLate && !(x.daysLate > 0)) return false;
+    for (const [kk, set] of Object.entries(others)) if (!set.has(pcrColVal(x, kk))) return false;
+    return true;
+  });
+  const vals = [...new Set(base.map(x => pcrColVal(x, k)))]
+    .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  const sel = _pcrColFilters[k] || new Set();
+
+  const pop = document.createElement('div');
+  pop.id = 'pcrFilterPop';
+  pop.className = 'pm-pop';
+  pop.innerHTML = `
+    <input type="text" class="pm-pop-search" placeholder="🔍 Search…" oninput="pcrFilterSearch(this.value)"/>
+    <div class="pm-pop-acts">
+      <button type="button" data-all="1">✓ All</button>
+      <button type="button" data-all="0">✕ None</button>
+    </div>
+    <div class="pm-pop-list" id="pcrPopList">
+      ${vals.map(v => `<label data-v="${escapeHtml(String(v).toLowerCase())}">
+        <input type="checkbox" value="${escapeHtml(String(v))}" ${(!sel.size || sel.has(v)) ? 'checked' : ''}/>
+        <span>${escapeHtml(v === '' ? '(blank)' : String(v))}</span></label>`).join('')}
+    </div>
+    <div class="pm-pop-foot">
+      <button type="button" class="btn btn-outline btn-sm" data-act="cancel">Cancel</button>
+      <button type="button" class="btn btn-primary btn-sm" data-act="apply">Apply</button>
+    </div>`;
+  document.body.appendChild(pop);
+  pop.querySelectorAll('[data-all]').forEach(b => b.onclick = () => pcrFilterAll(b.dataset.all === '1'));
+  pop.querySelector('[data-act=cancel]').onclick = () => pop.remove();
+  pop.querySelector('[data-act=apply]').onclick = () => pcrApplyFilter(k);
+
+  const r = btn.getBoundingClientRect();
+  pop.style.top = (r.bottom + window.scrollY + 4) + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left + window.scrollX - 110, window.innerWidth - 260)) + 'px';
+}
+function pcrFilterSearch(q) {
+  const s = String(q || '').toLowerCase();
+  document.querySelectorAll('#pcrPopList label').forEach(l => {
+    l.style.display = !s || (l.dataset.v || '').includes(s) ? '' : 'none';
+  });
+}
+function pcrFilterAll(on) {
+  document.querySelectorAll('#pcrPopList label').forEach(l => {
+    if (l.style.display !== 'none') l.querySelector('input').checked = on;
+  });
+}
+function pcrApplyFilter(k) {
+  const boxes = [...document.querySelectorAll('#pcrPopList input[type=checkbox]')];
+  const picked = boxes.filter(b => b.checked).map(b => b.value);
+  if (picked.length === boxes.length) delete _pcrColFilters[k];
+  else _pcrColFilters[k] = new Set(picked);
+  const p = document.getElementById('pcrFilterPop'); if (p) p.remove();
+  renderPcr();
+}
+document.addEventListener('click', e => {
+  const pop = document.getElementById('pcrFilterPop');
+  if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('.pcr-filt'))) pop.remove();
+});
 function pcrPickAny(v) { if (_pcrGroup === 'step') pcrSetStep(v); else pcrSetPick(v); }
 function pcrPickIdx(i) { const c = _pcrChips[i]; if (c) pcrPickAny(c.key); }
 
@@ -7210,7 +7332,7 @@ function pcrGroupList() {
   }
   return [...m.values()].sort((a, b) => b.pending - a.pending);
 }
-function pcrSetGroup(v) { _pcrGroup = v; _pcrStep = 'all'; _pcrPick = 'all'; renderPcr(); }
+function pcrSetGroup(v) { _pcrGroup = v; _pcrStep = 'all'; _pcrPick = 'all'; pcrClearColFilters(); renderPcr(); }
 function pcrSetPick(v) { _pcrPick = v; renderPcr(); }
 function pcrTitleBit() {
   if (_pcrGroup === 'step') {
@@ -7241,6 +7363,7 @@ function pcrRows() {
       if (_pcrStep !== 'all' && String(x.stepNo) !== String(_pcrStep)) return false;
     } else if (_pcrPick !== 'all' && pcrGroupVal(x) !== _pcrPick) return false;
     if (_pcrOnlyLate && !(x.daysLate > 0)) return false;
+    if (Object.keys(_pcrColFilters).length && !pcrPassCols(x)) return false;
     if (!q) return true;
     return [x.buyer, x.style, x.merchant, x.doer, x.colour, x.category, x.stepName,
             x.process, x.department, x.remark]
@@ -7319,6 +7442,9 @@ function renderPcr() {
       <div class="pcr-f"><label>&nbsp;</label>
         <button class="btn ${_pcrOnlyLate ? 'btn-primary' : 'btn-outline'} btn-sm" onclick="pcrToggleLate()">
           ${_pcrOnlyLate ? '✓ ' : ''}Only late</button></div>
+      ${Object.keys(_pcrColFilters).length ? `<div class="pcr-f"><label>&nbsp;</label>
+        <button class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#fecaca"
+          onclick="pcrClearColFilters();renderPcr()">✕ Clear filters (${Object.keys(_pcrColFilters).length})</button></div>` : ''}
       <div class="pcr-f"><label>&nbsp;</label>
         <button class="btn btn-outline btn-sm" onclick="pcrCSV()">⬇ Export CSV</button></div>
       <div class="pcr-f"><label>&nbsp;</label>
@@ -7334,10 +7460,9 @@ function renderPcr() {
     <div class="pcr-scroll">
       <table class="pcr-tbl">
         <thead><tr>
-          <th>Buyer</th><th>Style No.</th><th>Size</th><th>Colour</th><th>Merchant</th>
-          <th>Sampling process</th><th>Department</th>
-          <th>Enquiry date</th><th>Pending at step</th><th>Planned</th><th>Status</th><th>Doer</th>
-          <th style="min-width:180px">Remarks</th>
+          ${PCR_COLS.map(c => `<th${c.k === 'remark' ? ' style="min-width:180px"' : ''}>${escapeHtml(c.h)}<span
+            class="pcr-filt ${_pcrColFilters[c.k] ? 'on' : ''}" title="Filter ${escapeHtml(c.h)}"
+            onclick="pcrOpenFilter('${c.k}',this)">▾</span></th>`).join('')}
         </tr></thead>
         <tbody>${body || '<tr><td colspan="13" style="text-align:center;padding:22px;color:#94a3b8">Nothing pending here</td></tr>'}</tbody>
         <tfoot><tr><td colspan="10">TOTAL — ${rows.length} pending</td>
@@ -7405,7 +7530,7 @@ function pcrPDF() {
   </style></head><body>
   <div class="head">
     <div><h1>PC Sampling Report</h1>
-      <div class="sub">Sampling FMS — pending step wise${q ? ' · Search: ' + escapeHtml(q) : ''}${_pcrOnlyLate ? ' · Only late' : ''}</div></div>
+      <div class="sub">Sampling FMS — pending step wise${q ? ' · Search: ' + escapeHtml(q) : ''}${_pcrOnlyLate ? ' · Only late' : ''}${Object.keys(_pcrColFilters).length ? '<br>Filters — ' + escapeHtml(pcrFilterText()) : ''}</div></div>
     <div class="sub">${stamp}<br>${rows.length} pending${late ? ' · ' + late + ' late' : ''}</div>
   </div>
   <table>
