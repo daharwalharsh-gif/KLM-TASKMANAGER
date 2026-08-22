@@ -1981,6 +1981,7 @@ tbody tr:last-child td{border-bottom:none;}
       font-size:12px;font-family:'Inter',sans-serif;outline:none}
     .pcr-rem:focus{border-color:#4f46e5}
     .pcr-rem.saved{border-color:#86efac;background:#f0fdf4}
+    .pcr-tbl tr.pcr-grp td{background:#eef2ff;font-weight:800;color:#3730a3;font-size:12px}
     .pcr-tbl tfoot td{background:#eef2ff;font-weight:800;color:#3730a3}
 
     /* ── Capacity/Utilisation Staff ── */
@@ -7171,6 +7172,11 @@ async function saveChecklist() {
 let _pcrData = null;
 let _pcrStep = 'all';
 let _pcrOnlyLate = false;
+let _pcrGroup = 'step';     // step | process | department
+let _pcrPick = 'all';       // group chips me se chuni hui value
+let _pcrChips = [];         // abhi screen par jo chips hain (click ke liye)
+function pcrPickAny(v) { if (_pcrGroup === 'step') pcrSetStep(v); else pcrSetPick(v); }
+function pcrPickIdx(i) { const c = _pcrChips[i]; if (c) pcrPickAny(c.key); }
 
 async function loadPcr() {
   const box = document.getElementById('misResults');
@@ -7186,13 +7192,58 @@ async function loadPcr() {
 function pcrSetStep(v) { _pcrStep = v; renderPcr(); }
 function pcrToggleLate() { _pcrOnlyLate = !_pcrOnlyLate; renderPcr(); }
 
+// Kis cheez se group karein — Step (default), Sampling process (col K) ya Department (col L)
+const PCR_GROUPS = { step: 'Step', process: 'Sampling process', department: 'Department' };
+function pcrGroupVal(x) {
+  if (_pcrGroup === 'process') return String(x.process || '').trim() || '(blank)';
+  if (_pcrGroup === 'department') return String(x.department || '').trim() || '(blank)';
+  return x.stepLabel + ' · ' + x.stepName;
+}
+// Har unique value aur uski ginti
+function pcrGroupList() {
+  const m = new Map();
+  for (const x of (_pcrData.rows || [])) {
+    const k = pcrGroupVal(x);
+    const g = m.get(k) || { key: k, pending: 0, late: 0 };
+    g.pending++; if (x.daysLate > 0) g.late++;
+    m.set(k, g);
+  }
+  return [...m.values()].sort((a, b) => b.pending - a.pending);
+}
+function pcrSetGroup(v) { _pcrGroup = v; _pcrStep = 'all'; _pcrPick = 'all'; renderPcr(); }
+function pcrSetPick(v) { _pcrPick = v; renderPcr(); }
+function pcrTitleBit() {
+  if (_pcrGroup === 'step') {
+    return _pcrStep === 'all' ? 'All steps'
+      : ((_pcrData.steps.find(s => String(s.no) === String(_pcrStep)) || {}).name || '');
+  }
+  return PCR_GROUPS[_pcrGroup] + ' wise' + (_pcrPick === 'all' ? '' : ' · ' + _pcrPick);
+}
+// Screen aur PDF dono ke liye — group ke hisaab se rows ke tukde
+function pcrGrouped(rows) {
+  const out = [];
+  const sorted = rows.slice().sort((a, b) => _pcrGroup === 'step'
+    ? (a.stepNo - b.stepNo || String(a.planned || '').localeCompare(String(b.planned || '')))
+    : String(pcrGroupVal(a)).localeCompare(String(pcrGroupVal(b))));
+  for (const x of sorted) {
+    const k = pcrGroupVal(x);
+    let g = out[out.length - 1];
+    if (!g || g.key !== k) { g = { key: k, rows: [] }; out.push(g); }
+    g.rows.push(x);
+  }
+  return out;
+}
+
 function pcrRows() {
   const q = (document.getElementById('pcrSearch')?.value || '').trim().toLowerCase();
   return (_pcrData.rows || []).filter(x => {
-    if (_pcrStep !== 'all' && String(x.stepNo) !== String(_pcrStep)) return false;
+    if (_pcrGroup === 'step') {
+      if (_pcrStep !== 'all' && String(x.stepNo) !== String(_pcrStep)) return false;
+    } else if (_pcrPick !== 'all' && pcrGroupVal(x) !== _pcrPick) return false;
     if (_pcrOnlyLate && !(x.daysLate > 0)) return false;
     if (!q) return true;
-    return [x.buyer, x.style, x.merchant, x.doer, x.colour, x.category, x.stepName, x.remark]
+    return [x.buyer, x.style, x.merchant, x.doer, x.colour, x.category, x.stepName,
+            x.process, x.department, x.remark]
       .some(v => String(v || '').toLowerCase().includes(q));
   });
 }
@@ -7217,25 +7268,36 @@ function renderPcr() {
   if (!_pcrData) return;
   const rows = pcrRows();
   const late = rows.filter(x => x.daysLate > 0).length;
+  const allLate = (_pcrData.rows || []).filter(x => x.daysLate > 0).length;
+  const picked = _pcrGroup === 'step' ? _pcrStep : _pcrPick;
+  const chipList = _pcrGroup === 'step'
+    ? _pcrData.steps.map(s => ({ key: String(s.no), top: s.label, name: s.name, pending: s.pending, late: s.late }))
+    : pcrGroupList().map(g => ({ key: g.key, top: PCR_GROUPS[_pcrGroup].toUpperCase(),
+        name: g.key, pending: g.pending, late: g.late }));
+
   const chips = `<div class="pcr-steps">
-    <div class="pcr-chip ${_pcrStep === 'all' ? 'on' : ''}" onclick="pcrSetStep('all')">
-      <div class="s">ALL STEPS</div><div class="n">Everything pending</div>
-      <div class="c">${_pcrData.total} pending
-        ${_pcrData.steps.reduce((a, s) => a + s.late, 0) ? `<span class="l">${_pcrData.steps.reduce((a, s) => a + s.late, 0)} late</span>` : ''}</div>
+    <div class="pcr-chip ${picked === 'all' ? 'on' : ''}" onclick="pcrPickAny('all')">
+      <div class="s">ALL</div><div class="n">Everything pending</div>
+      <div class="c">${_pcrData.total} pending${allLate ? `<span class="l">${allLate} late</span>` : ''}</div>
     </div>
-    ${_pcrData.steps.map(s => `<div class="pcr-chip ${String(_pcrStep) === String(s.no) ? 'on' : ''}" onclick="pcrSetStep('${s.no}')">
-      <div class="s">${escapeHtml(s.label)}</div>
-      <div class="n">${escapeHtml(s.name)}</div>
-      <div class="c">${s.pending} pending${s.late ? `<span class="l">${s.late} late</span>` : ''}</div>
+    ${chipList.map((c, i) => `<div class="pcr-chip ${String(picked) === String(c.key) ? 'on' : ''}"
+        onclick="pcrPickIdx(${i})">
+      <div class="s">${escapeHtml(c.top)}</div>
+      <div class="n">${escapeHtml(c.name)}</div>
+      <div class="c">${c.pending} pending${c.late ? `<span class="l">${c.late} late</span>` : ''}</div>
     </div>`).join('')}
   </div>`;
+  _pcrChips = chipList;
 
-  const body = rows.map(x => `<tr>
+  const body = pcrGrouped(rows).map(g => `<tr class="pcr-grp"><td colspan="13">${escapeHtml(PCR_GROUPS[_pcrGroup])}: ${escapeHtml(g.key)} — ${g.rows.length} pending${g.rows.filter(x => x.daysLate > 0).length ? ' · ' + g.rows.filter(x => x.daysLate > 0).length + ' late' : ''}</td></tr>` +
+    g.rows.map(x => `<tr>
     <td class="pcr-c">${escapeHtml(x.buyer)}</td>
     <td>${escapeHtml(x.style || '—')}</td>
     <td class="pcr-c">${escapeHtml(x.size || '—')}</td>
     <td class="pcr-c">${escapeHtml(x.colour || '—')}</td>
     <td class="pcr-c">${escapeHtml(x.merchant || '—')}</td>
+    <td class="pcr-c">${escapeHtml(x.process || '—')}</td>
+    <td class="pcr-c">${escapeHtml(x.department || '—')}</td>
     <td class="pcr-c">${escapeHtml(otodDate(x.enquiryDate) || '—')}</td>
     <td class="pcr-step">${escapeHtml(x.stepLabel)} · ${escapeHtml(x.stepName)}</td>
     <td class="pcr-c">${escapeHtml(otodDate(x.planned) || '—')}</td>
@@ -7243,10 +7305,14 @@ function renderPcr() {
     <td class="pcr-c">${escapeHtml(x.doer || x.stepWho || '—')}</td>
     <td><input type="text" class="pcr-rem" placeholder="Remarks…" value="${escapeHtml(x.remark || '')}"
       onchange="pcrSaveRemark(this,'${escapeHtml(x.rowKey)}',${x.stepNo})"/></td>
-  </tr>`).join('');
+  </tr>`).join('')).join('');
 
   document.getElementById('misResults').innerHTML = chips + `
     <div class="pcr-bar">
+      <div class="pcr-f"><label>Group by</label>
+        <select onchange="pcrSetGroup(this.value)">
+          ${Object.keys(PCR_GROUPS).map(k => `<option value="${k}" ${_pcrGroup === k ? 'selected' : ''}>${PCR_GROUPS[k]}</option>`).join('')}
+        </select></div>
       <div class="pcr-f" style="flex:1;min-width:220px"><label>Search</label>
         <input type="text" id="pcrSearch" placeholder="Buyer, style, merchant, doer, remarks…"
           value="${escapeHtml(document.getElementById('pcrSearch')?.value || '')}" oninput="renderPcr()"/></div>
@@ -7263,18 +7329,18 @@ function renderPcr() {
         Planned date comes from the sheet's own formula · remarks are saved here, not in the sheet</div>
     </div>
 
-    <div class="pcr-ttl">PC Sampling Report — ${_pcrStep === 'all' ? 'All steps'
-      : escapeHtml((_pcrData.steps.find(s => String(s.no) === String(_pcrStep)) || {}).name || '')}
+    <div class="pcr-ttl">PC Sampling Report — ${escapeHtml(pcrTitleBit())}
       (${rows.length} pending${late ? ' · ' + late + ' late' : ''})</div>
     <div class="pcr-scroll">
       <table class="pcr-tbl">
         <thead><tr>
           <th>Buyer</th><th>Style No.</th><th>Size</th><th>Colour</th><th>Merchant</th>
+          <th>Sampling process</th><th>Department</th>
           <th>Enquiry date</th><th>Pending at step</th><th>Planned</th><th>Status</th><th>Doer</th>
           <th style="min-width:180px">Remarks</th>
         </tr></thead>
-        <tbody>${body || '<tr><td colspan="11" style="text-align:center;padding:22px;color:#94a3b8">Nothing pending here</td></tr>'}</tbody>
-        <tfoot><tr><td colspan="8">TOTAL — ${rows.length} pending</td>
+        <tbody>${body || '<tr><td colspan="13" style="text-align:center;padding:22px;color:#94a3b8">Nothing pending here</td></tr>'}</tbody>
+        <tfoot><tr><td colspan="10">TOTAL — ${rows.length} pending</td>
           <td class="pcr-c">${late} late</td><td colspan="2"></td></tr></tfoot>
       </table>
     </div>`;
@@ -7285,8 +7351,7 @@ function pcrPDF() {
   const rows = pcrRows();
   if (!rows.length) return showToast('No rows to export', 'error');
   const late = rows.filter(x => x.daysLate > 0).length;
-  const step = _pcrStep === 'all' ? 'All steps'
-    : ((_pcrData.steps.find(s => String(s.no) === String(_pcrStep)) || {}).name || '');
+  const step = pcrTitleBit();
   const now = new Date(); const pad = n => String(n).padStart(2, '0');
   const stamp = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
   const q = (document.getElementById('pcrSearch')?.value || '').trim();
@@ -7297,19 +7362,11 @@ function pcrPDF() {
     if (x.daysLate === 0) return 'Due today';
     return Math.abs(x.daysLate) + ' days left';
   };
-  // Step ke hisaab se group — har step ka apna chhota heading
-  const groups = [];
-  for (const x of rows.slice().sort((a, b) => a.stepNo - b.stepNo ||
-        String(a.planned || '').localeCompare(String(b.planned || '')))) {
-    let g = groups[groups.length - 1];
-    if (!g || g.no !== x.stepNo) { g = { no: x.stepNo, label: x.stepLabel, name: x.stepName, rows: [] }; groups.push(g); }
-    g.rows.push(x);
-  }
-
+  // Group ke hisaab se — har group ka apna chhota heading
   let sr = 0, body = '';
-  groups.forEach(g => {
+  pcrGrouped(rows).forEach(g => {
     const gl = g.rows.filter(x => x.daysLate > 0).length;
-    body += `<tr class="grp"><td colspan="11">${escapeHtml(g.label)} · ${escapeHtml(g.name)}
+    body += `<tr class="grp"><td colspan="14">${escapeHtml(PCR_GROUPS[_pcrGroup])}: ${escapeHtml(g.key)}
       — ${g.rows.length} pending${gl ? ' · ' + gl + ' late' : ''}</td></tr>`;
     g.rows.forEach(x => { sr++;
       body += `<tr>
@@ -7319,7 +7376,10 @@ function pcrPDF() {
         <td class="c">${escapeHtml(x.size || '')}</td>
         <td class="c">${escapeHtml(x.colour || '')}</td>
         <td class="c">${escapeHtml(x.merchant || '')}</td>
+        <td class="c">${escapeHtml(x.process || '')}</td>
+        <td class="c">${escapeHtml(x.department || '')}</td>
         <td class="c">${escapeHtml(otodDate(x.enquiryDate) || '')}</td>
+        <td class="c">${escapeHtml(x.stepLabel)}</td>
         <td class="c">${escapeHtml(otodDate(x.planned) || '')}</td>
         <td class="c ${x.daysLate > 0 ? 'late' : ''}">${escapeHtml(dayTxt(x))}</td>
         <td class="c">${escapeHtml(x.doer || x.stepWho || '')}</td>
@@ -7350,13 +7410,14 @@ function pcrPDF() {
   </div>
   <table>
     <thead>
-      <tr><th colspan="11" class="ttl">PC Sampling Report — ${escapeHtml(step)}</th></tr>
-      <tr><th style="width:26px">#</th><th>Buyer</th><th>Style No.</th><th>Size</th><th>Colour</th>
-        <th>Merchant</th><th>Enquiry date</th><th>Planned</th><th>Status</th><th>Doer</th>
-        <th style="width:130px">Remarks</th></tr>
+      <tr><th colspan="14" class="ttl">PC Sampling Report — ${escapeHtml(step)}</th></tr>
+      <tr><th style="width:24px">#</th><th>Buyer</th><th>Style No.</th><th>Size</th><th>Colour</th>
+        <th>Merchant</th><th>Sampling process</th><th>Department</th><th>Enquiry date</th>
+        <th>Step</th><th>Planned</th><th>Status</th><th>Doer</th>
+        <th style="width:110px">Remarks</th></tr>
     </thead>
     <tbody>${body}</tbody>
-    <tfoot><tr><td colspan="8">TOTAL — ${rows.length} pending</td>
+    <tfoot><tr><td colspan="11">TOTAL — ${rows.length} pending</td>
       <td class="c">${late} late</td><td colspan="2"></td></tr></tfoot>
   </table>
   <div class="foot">KLM Task Manager · ${stamp}</div>
@@ -7373,10 +7434,11 @@ function pcrCSV() {
   const rows = pcrRows();
   if (!rows.length) return showToast('No rows to export', 'error');
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const head = ['Buyer','Style No.','Size','Colour','Merchant','Enquiry date','Step','Pending at step',
-    'Planned','Days late','Doer','Remarks'];
+  const head = ['Buyer','Style No.','Size','Colour','Merchant','Sampling process','Department',
+    'Enquiry date','Step','Pending at step','Planned','Days late','Doer','Remarks'];
   const lines = [head.map(q).join(',')];
-  rows.forEach(x => lines.push([x.buyer, x.style, x.size, x.colour, x.merchant, otodDate(x.enquiryDate),
+  rows.forEach(x => lines.push([x.buyer, x.style, x.size, x.colour, x.merchant,
+    x.process, x.department, otodDate(x.enquiryDate),
     x.stepLabel, x.stepName, otodDate(x.planned),
     (x.daysLate === null || x.daysLate === undefined) ? '' : x.daysLate,
     x.doer || x.stepWho, x.remark || ''].map(q).join(',')));

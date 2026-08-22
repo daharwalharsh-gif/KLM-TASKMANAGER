@@ -2210,6 +2210,8 @@ app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, requirePcSampling, 
         merchant: String(row[5] || '').trim(),
         enquiryDate: enquiry,
         category: String(row[8] || '').trim(),
+        process: String(row[10] || '').trim(),      // K — Sampling process
+        department: String(row[11] || '').trim(),   // L — Department
         stepNo: cur.no, stepLabel: cur.label, stepName: cur.name, stepWho: cur.who,
         tat: cur.tatCol >= 0 ? String(row[cur.tatCol] || '').trim() : '',
         planned,
