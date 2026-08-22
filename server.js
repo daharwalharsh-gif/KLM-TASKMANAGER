@@ -2115,7 +2115,45 @@ app.get('/api/mis/detail', requireAuth, requireAdminOrHod, async (req, res) => {
 // isliye sheet me step badle to yahan apne aap badal jayega.
 // Pending step = pehla step jiska Actual abhi khaali hai.
 // ══════════════════════════════════════════════════════
-const PCR_SHEET = { id: '1Rqp2S6MqVqMhskj8CUcwipVoa601DwPNtzFhRrMkvvk', tab: 'FMS', headerRow: 6, range: 'A:BT' };
+// Kaun kaun si FMS sheet is report me aayegi — dropdown me yahi list dikhti hai.
+// cols = us sheet ke apne info column (c = 0-based column number),
+// group = kin columns par grouping ki ja sakti hai.
+const PCR_SOURCES = {
+  sampling: {
+    label: 'Sampling FMS',
+    id: '1Rqp2S6MqVqMhskj8CUcwipVoa601DwPNtzFhRrMkvvk', tab: 'FMS', headerRow: 6, range: 'A:BT',
+    keyCol: 1, idCol: 16,
+    cols: [
+      { k: 'buyer',      h: 'Buyer',            c: 1 },
+      { k: 'style',      h: 'Style No.',        c: 2 },
+      { k: 'size',       h: 'Size',             c: 3 },
+      { k: 'colour',     h: 'Colour',           c: 4 },
+      { k: 'merchant',   h: 'Merchant',         c: 5 },
+      { k: 'process',    h: 'Sampling process', c: 10 },
+      { k: 'department', h: 'Department',       c: 11 },
+      { k: 'enquiry',    h: 'Enquiry date',     c: 6, date: true }
+    ],
+    group: ['process', 'department', 'merchant']
+  },
+  salesnbd: {
+    label: 'Sales NBD — Incoming (domestic offline)',
+    id: '1dTOORmrhgQxZlOxFDADkrGO6RT3I-Ml7fG7z4pf81co', tab: 'FMS', headerRow: 6, range: 'A:AC',
+    keyCol: 1, idCol: -1,
+    cols: [
+      { k: 'enquirer',   h: 'Enquirer',        c: 1 },
+      { k: 'company',    h: 'Company',         c: 2 },
+      { k: 'phone',      h: 'Phone',           c: 3 },
+      { k: 'inquiry',    h: 'Inquiry',         c: 5 },
+      { k: 'client',     h: 'Client',          c: 6 },
+      { k: 'platform',   h: 'Platform',        c: 8 },
+      { k: 'city',       h: 'City',            c: 9 },
+      { k: 'orderValue', h: 'Order value',     c: 11 },
+      { k: 'enquiry',    h: 'Date of inquiry', c: 7, date: true }
+    ],
+    group: ['client', 'platform', 'city', 'inquiry']
+  }
+};
+function pcrSrc(q) { return PCR_SOURCES[String(q || '').trim()] ? String(q).trim() : 'sampling'; }
 // Ye report in emails ko nahi dikhti
 const PCR_HIDE_EMAILS = new Set(['manik@klmahajan.com']);
 async function requirePcSampling(req, res, next) {
@@ -2161,20 +2199,22 @@ function pcrSteps(rows) {
 
 app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, requirePcSampling, async (req, res) => {
   try {
+    const src = pcrSrc(req.query.src);
+    const CFG = PCR_SOURCES[src];
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
     const r = await sheetsApi.spreadsheets.values.get({
-      spreadsheetId: PCR_SHEET.id, range: `${PCR_SHEET.tab}!${PCR_SHEET.range}`
+      spreadsheetId: CFG.id, range: `${CFG.tab}!${CFG.range}`
     });
     const all = r.data.values || [];
     const steps = pcrSteps(all);
-    const data = all.slice(PCR_SHEET.headerRow);
+    const data = all.slice(CFG.headerRow);
     const today = new Date();
     const T = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     const rows = [];
     for (const row of data) {
-      const buyer = String(row[1] || '').trim();
-      if (!buyer) continue;
+      const keyVal = String(row[CFG.keyCol] || '').trim();
+      if (!keyVal) continue;
       // Pending step = pehla step jiski Planned date sheet ke formula se ban chuki
       // hai par Actual abhi khaali hai. Jis step ki Planned date hi nahi bani, wo
       // abhi due hi nahi hua — usse aage badh jaate hain.
@@ -2200,18 +2240,17 @@ app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, requirePcSampling, 
       if (!cur) continue;                       // sab step ho gaye
       const planned = prodIsoDate(row[cur.plannedCol]);
       const daysLate = planned ? Math.round((Date.parse(T) - Date.parse(planned)) / 86400000) : null;
-      const style = String(row[2] || '').trim();
-      const enquiry = prodIsoDate(row[6]);
+      // Is sheet ke apne info columns
+      const vals = {};
+      let keyBits = [keyVal];
+      for (const c of CFG.cols) {
+        vals[c.k] = c.date ? prodIsoDate(row[c.c]) : String(row[c.c] || '').trim();
+        if (c.k !== CFG.cols[0].k) keyBits.push(vals[c.k]);
+      }
+      const uid = CFG.idCol >= 0 ? String(row[CFG.idCol] || '').trim() : '';
       rows.push({
-        rowKey: String(row[16] || '').trim() || (buyer + '|' + style + '|' + enquiry),
-        buyer, style,
-        size: String(row[3] || '').trim(),
-        colour: String(row[4] || '').trim(),
-        merchant: String(row[5] || '').trim(),
-        enquiryDate: enquiry,
-        category: String(row[8] || '').trim(),
-        process: String(row[10] || '').trim(),      // K — Sampling process
-        department: String(row[11] || '').trim(),   // L — Department
+        rowKey: uid || keyBits.slice(0, 3).join('|'),
+        vals,
         stepNo: cur.no, stepLabel: cur.label, stepName: cur.name, stepWho: cur.who,
         tat: cur.tatCol >= 0 ? String(row[cur.tatCol] || '').trim() : '',
         planned,
@@ -2222,13 +2261,13 @@ app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, requirePcSampling, 
       });
     }
 
-    // App me likhe gaye remarks jod do
+    // App me likhe gaye remarks jod do (har sheet ke apne — row_key me src bhi hai)
     const notes = {};
     try {
       const [ns] = await db.query('SELECT row_key, step_no, remark FROM pc_report_notes');
       for (const n of ns) notes[String(n.row_key) + '|' + String(n.step_no)] = n.remark || '';
     } catch (e) { /* table abhi nahi bani */ }
-    for (const x of rows) x.remark = notes[x.rowKey + '|' + x.stepNo] || '';
+    for (const x of rows) x.remark = notes[src + '|' + x.rowKey + '|' + x.stepNo] || '';
 
     const perStep = steps.map(s => ({
       no: s.no, label: s.label, name: s.name, who: s.who,
@@ -2236,7 +2275,13 @@ app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, requirePcSampling, 
       late: rows.filter(x => x.stepNo === s.no && x.daysLate > 0).length,
       waiting: rows.filter(x => x.stepNo === s.no && x.waiting).length
     }));
-    res.json({ today: T, steps: perStep, rows, total: rows.length });
+    res.json({
+      src, label: CFG.label, today: T,
+      sources: Object.keys(PCR_SOURCES).map(k => ({ key: k, label: PCR_SOURCES[k].label })),
+      cols: CFG.cols.map(c => ({ k: c.k, h: c.h, date: !!c.date })),
+      group: CFG.group,
+      steps: perStep, rows, total: rows.length
+    });
   } catch (err) {
     console.error('PC Reporting FAILED:', err.message);
     res.status(500).json({ error: err.message });
@@ -2245,10 +2290,12 @@ app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, requirePcSampling, 
 
 app.put('/api/pc-reporting/remark', requireAuth, requireAdminOrHod, requirePcSampling, async (req, res) => {
   try {
-    const rowKey = String(req.body.rowKey || '').trim();
+    const src = pcrSrc(req.body.src);
+    const rowKey = src + '|' + String(req.body.rowKey || '').trim();
     const stepNo = parseInt(req.body.stepNo, 10);
     const remark = String(req.body.remark ?? '').trim();
-    if (!rowKey || !stepNo) return res.status(400).json({ error: 'rowKey and stepNo are required' });
+    if (!String(req.body.rowKey || '').trim() || !stepNo)
+      return res.status(400).json({ error: 'rowKey and stepNo are required' });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const [ex] = await db.query('SELECT id FROM pc_report_notes WHERE row_key=? AND step_no=?', [rowKey, stepNo]);
     if (ex[0]) {

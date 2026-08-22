@@ -7176,31 +7176,26 @@ async function saveChecklist() {
 let _pcrData = null;
 let _pcrStep = 'all';
 let _pcrOnlyLate = false;
-let _pcrGroup = 'step';     // step | process | department
+let _pcrGroup = 'step';     // step, ya sheet ke apne group column
 let _pcrPick = 'all';       // group chips me se chuni hui value
 let _pcrChips = [];         // abhi screen par jo chips hain (click ke liye)
+let _pcrSrc = 'sampling';   // kaunsi FMS sheet
 
 // Har column ka apna filter — { colKey: Set(chuni hui values) }
 let _pcrColFilters = {};
 function pcrClearColFilters() { _pcrColFilters = {}; }
-// Column heading -> us row ki dikhne wali value
-const PCR_COLS = [
-  { k: 'buyer',      h: 'Buyer' },
-  { k: 'style',      h: 'Style No.' },
-  { k: 'size',       h: 'Size' },
-  { k: 'colour',     h: 'Colour' },
-  { k: 'merchant',   h: 'Merchant' },
-  { k: 'process',    h: 'Sampling process' },
-  { k: 'department', h: 'Department' },
-  { k: 'enquiry',    h: 'Enquiry date' },
-  { k: 'step',       h: 'Pending at step' },
-  { k: 'planned',    h: 'Planned' },
-  { k: 'status',     h: 'Status' },
-  { k: 'doer',       h: 'Doer' },
-  { k: 'remark',     h: 'Remarks' }
-];
+// Table ke columns — sheet ke apne info column + step wale fix column
+function pcrCols() {
+  const info = (_pcrData && _pcrData.cols) ? _pcrData.cols : [];
+  return info.concat([
+    { k: 'step',    h: 'Pending at step' },
+    { k: 'planned', h: 'Planned' },
+    { k: 'status',  h: 'Status' },
+    { k: 'doer',    h: 'Doer' },
+    { k: 'remark',  h: 'Remarks' }
+  ]);
+}
 function pcrColVal(x, k) {
-  if (k === 'enquiry') return otodDate(x.enquiryDate) || '';
   if (k === 'planned') return otodDate(x.planned) || '';
   if (k === 'step') return x.stepLabel + ' · ' + x.stepName;
   if (k === 'status') {
@@ -7211,7 +7206,10 @@ function pcrColVal(x, k) {
   }
   if (k === 'doer') return String(x.doer || x.stepWho || '');
   if (k === 'remark') return String(x.remark || '');
-  return String(x[k] || '');
+  const col = ((_pcrData && _pcrData.cols) || []).find(c => c.k === k);
+  const v = (x.vals || {})[k];
+  if (col && col.date) return otodDate(v) || '';
+  return String(v || '');
 }
 function pcrPassCols(x) {
   for (const [k, set] of Object.entries(_pcrColFilters)) {
@@ -7222,7 +7220,7 @@ function pcrPassCols(x) {
 // Kaun kaun se filter lage hain — PDF ke header ke liye
 function pcrFilterText() {
   const parts = Object.keys(_pcrColFilters).map(k => {
-    const col = PCR_COLS.find(c => c.k === k);
+    const col = pcrCols().find(c => c.k === k);
     const vals = [..._pcrColFilters[k]];
     return (col ? col.h : k) + ': ' + (vals.length > 3 ? vals.length + ' chuni hui' : vals.map(v => v || '(blank)').join(', '));
   });
@@ -7232,7 +7230,7 @@ function pcrFilterText() {
 // Heading ke ▾ par click — us column ki saari values checkbox me
 function pcrOpenFilter(k, btn) {
   const old = document.getElementById('pcrFilterPop'); if (old) old.remove();
-  const col = PCR_COLS.find(c => c.k === k); if (!col) return;
+  const col = pcrCols().find(c => c.k === k); if (!col) return;
   // Values un rows se jo baaki filters ke baad bachi hain (is column ka apna filter chhod kar)
   const others = Object.assign({}, _pcrColFilters); delete others[k];
   const base = (_pcrData.rows || []).filter(x => {
@@ -7303,7 +7301,7 @@ function pcrPickIdx(i) { const c = _pcrChips[i]; if (c) pcrPickAny(c.key); }
 async function loadPcr() {
   const box = document.getElementById('misResults');
   if (!_pcrData) box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
-  const r = await api('/api/pc-reporting');
+  const r = await api('/api/pc-reporting?src=' + _pcrSrc);
   if (!r || r.error) {
     box.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #fecaca;color:#dc2626">⚠️ ${escapeHtml((r && r.error) || 'Could not load')}</div>`;
     return;
@@ -7315,11 +7313,18 @@ function pcrSetStep(v) { _pcrStep = v; renderPcr(); }
 function pcrToggleLate() { _pcrOnlyLate = !_pcrOnlyLate; renderPcr(); }
 
 // Kis cheez se group karein — Step (default), Sampling process (col K) ya Department (col L)
-const PCR_GROUPS = { step: 'Step', process: 'Sampling process', department: 'Department' };
+function pcrGroupOpts() {
+  const o = { step: 'Step' };
+  const info = (_pcrData && _pcrData.cols) ? _pcrData.cols : [];
+  for (const k of ((_pcrData && _pcrData.group) || [])) {
+    const c = info.find(x => x.k === k);
+    if (c) o[k] = c.h;
+  }
+  return o;
+}
 function pcrGroupVal(x) {
-  if (_pcrGroup === 'process') return String(x.process || '').trim() || '(blank)';
-  if (_pcrGroup === 'department') return String(x.department || '').trim() || '(blank)';
-  return x.stepLabel + ' · ' + x.stepName;
+  if (_pcrGroup === 'step') return x.stepLabel + ' · ' + x.stepName;
+  return String(pcrColVal(x, _pcrGroup) || '').trim() || '(blank)';
 }
 // Har unique value aur uski ginti
 function pcrGroupList() {
@@ -7333,13 +7338,18 @@ function pcrGroupList() {
   return [...m.values()].sort((a, b) => b.pending - a.pending);
 }
 function pcrSetGroup(v) { _pcrGroup = v; _pcrStep = 'all'; _pcrPick = 'all'; pcrClearColFilters(); renderPcr(); }
+function pcrSetSrc(v) {
+  _pcrSrc = v; _pcrGroup = 'step'; _pcrStep = 'all'; _pcrPick = 'all';
+  pcrClearColFilters(); _pcrOnlyLate = false; _pcrData = null;
+  loadPcr();
+}
 function pcrSetPick(v) { _pcrPick = v; renderPcr(); }
 function pcrTitleBit() {
   if (_pcrGroup === 'step') {
     return _pcrStep === 'all' ? 'All steps'
       : ((_pcrData.steps.find(s => String(s.no) === String(_pcrStep)) || {}).name || '');
   }
-  return PCR_GROUPS[_pcrGroup] + ' wise' + (_pcrPick === 'all' ? '' : ' · ' + _pcrPick);
+  return (pcrGroupOpts()[_pcrGroup] || _pcrGroup) + ' wise' + (_pcrPick === 'all' ? '' : ' · ' + _pcrPick);
 }
 // Screen aur PDF dono ke liye — group ke hisaab se rows ke tukde
 function pcrGrouped(rows) {
@@ -7372,7 +7382,7 @@ function pcrRows() {
 }
 
 async function pcrSaveRemark(el, rowKey, stepNo) {
-  const r = await api('/api/pc-reporting/remark', 'PUT', { rowKey, stepNo, remark: el.value });
+  const r = await api('/api/pc-reporting/remark', 'PUT', { src: _pcrSrc, rowKey, stepNo, remark: el.value });
   if (!r || r.error) { showToast((r && r.error) || 'Remark save nahi hua', 'error'); return; }
   el.classList.add('saved');
   setTimeout(() => el.classList.remove('saved'), 1400);
@@ -7395,7 +7405,7 @@ function renderPcr() {
   const picked = _pcrGroup === 'step' ? _pcrStep : _pcrPick;
   const chipList = _pcrGroup === 'step'
     ? _pcrData.steps.map(s => ({ key: String(s.no), top: s.label, name: s.name, pending: s.pending, late: s.late }))
-    : pcrGroupList().map(g => ({ key: g.key, top: PCR_GROUPS[_pcrGroup].toUpperCase(),
+    : pcrGroupList().map(g => ({ key: g.key, top: (pcrGroupOpts()[_pcrGroup] || _pcrGroup).toUpperCase(),
         name: g.key, pending: g.pending, late: g.late }));
 
   const chips = `<div class="pcr-steps">
@@ -7412,29 +7422,26 @@ function renderPcr() {
   </div>`;
   _pcrChips = chipList;
 
-  const body = pcrGrouped(rows).map(g => `<tr class="pcr-grp"><td colspan="13">${escapeHtml(PCR_GROUPS[_pcrGroup])}: ${escapeHtml(g.key)} — ${g.rows.length} pending${g.rows.filter(x => x.daysLate > 0).length ? ' · ' + g.rows.filter(x => x.daysLate > 0).length + ' late' : ''}</td></tr>` +
-    g.rows.map(x => `<tr>
-    <td class="pcr-c">${escapeHtml(x.buyer)}</td>
-    <td>${escapeHtml(x.style || '—')}</td>
-    <td class="pcr-c">${escapeHtml(x.size || '—')}</td>
-    <td class="pcr-c">${escapeHtml(x.colour || '—')}</td>
-    <td class="pcr-c">${escapeHtml(x.merchant || '—')}</td>
-    <td class="pcr-c">${escapeHtml(x.process || '—')}</td>
-    <td class="pcr-c">${escapeHtml(x.department || '—')}</td>
-    <td class="pcr-c">${escapeHtml(otodDate(x.enquiryDate) || '—')}</td>
-    <td class="pcr-step">${escapeHtml(x.stepLabel)} · ${escapeHtml(x.stepName)}</td>
-    <td class="pcr-c">${escapeHtml(otodDate(x.planned) || '—')}</td>
-    <td class="pcr-c">${pcrDays(x)}</td>
-    <td class="pcr-c">${escapeHtml(x.doer || x.stepWho || '—')}</td>
-    <td><input type="text" class="pcr-rem" placeholder="Remarks…" value="${escapeHtml(x.remark || '')}"
-      onchange="pcrSaveRemark(this,'${escapeHtml(x.rowKey)}',${x.stepNo})"/></td>
-  </tr>`).join('')).join('');
+  const cols = pcrCols();
+  const cell = (x, c) => {
+    if (c.k === 'remark') return `<td><input type="text" class="pcr-rem" placeholder="Remarks…" value="${escapeHtml(x.remark || '')}"
+      onchange="pcrSaveRemark(this,'${escapeHtml(x.rowKey)}',${x.stepNo})"/></td>`;
+    if (c.k === 'status') return `<td class="pcr-c">${pcrDays(x)}</td>`;
+    if (c.k === 'step') return `<td class="pcr-step">${escapeHtml(x.stepLabel)} · ${escapeHtml(x.stepName)}</td>`;
+    return `<td class="pcr-c">${escapeHtml(pcrColVal(x, c.k) || '—')}</td>`;
+  };
+  const body = pcrGrouped(rows).map(g => `<tr class="pcr-grp"><td colspan="${cols.length}">${escapeHtml((pcrGroupOpts()[_pcrGroup] || _pcrGroup))}: ${escapeHtml(g.key)} — ${g.rows.length} pending${g.rows.filter(x => x.daysLate > 0).length ? ' · ' + g.rows.filter(x => x.daysLate > 0).length + ' late' : ''}</td></tr>` +
+    g.rows.map(x => `<tr>${cols.map(c => cell(x, c)).join('')}</tr>`).join('')).join('');
 
   document.getElementById('misResults').innerHTML = chips + `
     <div class="pcr-bar">
+      <div class="pcr-f"><label>Sheet</label>
+        <select onchange="pcrSetSrc(this.value)">
+          ${((_pcrData && _pcrData.sources) || []).map(sc => `<option value="${sc.key}" ${_pcrSrc === sc.key ? 'selected' : ''}>${escapeHtml(sc.label)}</option>`).join('')}
+        </select></div>
       <div class="pcr-f"><label>Group by</label>
         <select onchange="pcrSetGroup(this.value)">
-          ${Object.keys(PCR_GROUPS).map(k => `<option value="${k}" ${_pcrGroup === k ? 'selected' : ''}>${PCR_GROUPS[k]}</option>`).join('')}
+          ${Object.entries(pcrGroupOpts()).map(([k, v]) => `<option value="${k}" ${_pcrGroup === k ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('')}
         </select></div>
       <div class="pcr-f" style="flex:1;min-width:220px"><label>Search</label>
         <input type="text" id="pcrSearch" placeholder="Buyer, style, merchant, doer, remarks…"
@@ -7451,21 +7458,21 @@ function renderPcr() {
         <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="pcrPDF()">📄 PDF</button></div>
       <div class="pcr-f"><label>&nbsp;</label>
         <button class="btn btn-outline btn-sm" onclick="loadPcr()">🔄 Refresh</button></div>
-      <div class="pcr-note">Sampling FMS · a row sits at the <b>first step whose Actual is still blank</b><br>
+      <div class="pcr-note">${escapeHtml((_pcrData && _pcrData.label) || '')} · a row sits at the <b>first step whose Planned date is filled but Actual is blank</b><br>
         Planned date comes from the sheet's own formula · remarks are saved here, not in the sheet</div>
     </div>
 
-    <div class="pcr-ttl">PC Sampling Report — ${escapeHtml(pcrTitleBit())}
+    <div class="pcr-ttl">${escapeHtml((_pcrData && _pcrData.label) || 'PC Sampling Report')} — ${escapeHtml(pcrTitleBit())}
       (${rows.length} pending${late ? ' · ' + late + ' late' : ''})</div>
     <div class="pcr-scroll">
       <table class="pcr-tbl">
         <thead><tr>
-          ${PCR_COLS.map(c => `<th${c.k === 'remark' ? ' style="min-width:180px"' : ''}>${escapeHtml(c.h)}<span
+          ${pcrCols().map(c => `<th${c.k === 'remark' ? ' style="min-width:180px"' : ''}>${escapeHtml(c.h)}<span
             class="pcr-filt ${_pcrColFilters[c.k] ? 'on' : ''}" title="Filter ${escapeHtml(c.h)}"
             onclick="pcrOpenFilter('${c.k}',this)">▾</span></th>`).join('')}
         </tr></thead>
-        <tbody>${body || '<tr><td colspan="13" style="text-align:center;padding:22px;color:#94a3b8">Nothing pending here</td></tr>'}</tbody>
-        <tfoot><tr><td colspan="10">TOTAL — ${rows.length} pending</td>
+        <tbody>${body || `<tr><td colspan="${cols.length}" style="text-align:center;padding:22px;color:#94a3b8">Nothing pending here</td></tr>`}</tbody>
+        <tfoot><tr><td colspan="${cols.length - 3}">TOTAL — ${rows.length} pending</td>
           <td class="pcr-c">${late} late</td><td colspan="2"></td></tr></tfoot>
       </table>
     </div>`;
@@ -7488,31 +7495,23 @@ function pcrPDF() {
     return Math.abs(x.daysLate) + ' days left';
   };
   // Group ke hisaab se — har group ka apna chhota heading
+  const pcols = pcrCols();
+  const RLBL = (_pcrData && _pcrData.label) || 'PC Sampling Report';
   let sr = 0, body = '';
   pcrGrouped(rows).forEach(g => {
     const gl = g.rows.filter(x => x.daysLate > 0).length;
-    body += `<tr class="grp"><td colspan="14">${escapeHtml(PCR_GROUPS[_pcrGroup])}: ${escapeHtml(g.key)}
+    body += `<tr class="grp"><td colspan="${pcols.length + 1}">${escapeHtml((pcrGroupOpts()[_pcrGroup] || _pcrGroup))}: ${escapeHtml(g.key)}
       — ${g.rows.length} pending${gl ? ' · ' + gl + ' late' : ''}</td></tr>`;
     g.rows.forEach(x => { sr++;
-      body += `<tr>
-        <td class="c">${sr}</td>
-        <td>${escapeHtml(x.buyer)}</td>
-        <td>${escapeHtml(x.style || '')}</td>
-        <td class="c">${escapeHtml(x.size || '')}</td>
-        <td class="c">${escapeHtml(x.colour || '')}</td>
-        <td class="c">${escapeHtml(x.merchant || '')}</td>
-        <td class="c">${escapeHtml(x.process || '')}</td>
-        <td class="c">${escapeHtml(x.department || '')}</td>
-        <td class="c">${escapeHtml(otodDate(x.enquiryDate) || '')}</td>
-        <td class="c">${escapeHtml(x.stepLabel)}</td>
-        <td class="c">${escapeHtml(otodDate(x.planned) || '')}</td>
-        <td class="c ${x.daysLate > 0 ? 'late' : ''}">${escapeHtml(dayTxt(x))}</td>
-        <td class="c">${escapeHtml(x.doer || x.stepWho || '')}</td>
-        <td>${escapeHtml(x.remark || '')}</td>
-      </tr>`; });
+      body += `<tr><td class="c">${sr}</td>` + pcols.map(c => {
+        if (c.k === 'status') return `<td class="c ${x.daysLate > 0 ? 'late' : ''}">${escapeHtml(dayTxt(x))}</td>`;
+        if (c.k === 'step') return `<td class="c">${escapeHtml(x.stepLabel)}</td>`;
+        if (c.k === 'remark') return `<td>${escapeHtml(x.remark || '')}</td>`;
+        return `<td class="c">${escapeHtml(pcrColVal(x, c.k))}</td>`;
+      }).join('') + `</tr>`; });
   });
 
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>PC Sampling Report</title><style>
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(RLBL)}</title><style>
     @page { size: A4 landscape; margin: 9mm; }
     *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;font-size:9.5px}
     .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1e3a8a;
@@ -7530,19 +7529,16 @@ function pcrPDF() {
   </style></head><body>
   <div class="head">
     <div><h1>PC Sampling Report</h1>
-      <div class="sub">Sampling FMS — pending step wise${q ? ' · Search: ' + escapeHtml(q) : ''}${_pcrOnlyLate ? ' · Only late' : ''}${Object.keys(_pcrColFilters).length ? '<br>Filters — ' + escapeHtml(pcrFilterText()) : ''}</div></div>
+      <div class="sub">${escapeHtml(RLBL)} — pending step wise${q ? ' · Search: ' + escapeHtml(q) : ''}${_pcrOnlyLate ? ' · Only late' : ''}${Object.keys(_pcrColFilters).length ? '<br>Filters — ' + escapeHtml(pcrFilterText()) : ''}</div></div>
     <div class="sub">${stamp}<br>${rows.length} pending${late ? ' · ' + late + ' late' : ''}</div>
   </div>
   <table>
     <thead>
-      <tr><th colspan="14" class="ttl">PC Sampling Report — ${escapeHtml(step)}</th></tr>
-      <tr><th style="width:24px">#</th><th>Buyer</th><th>Style No.</th><th>Size</th><th>Colour</th>
-        <th>Merchant</th><th>Sampling process</th><th>Department</th><th>Enquiry date</th>
-        <th>Step</th><th>Planned</th><th>Status</th><th>Doer</th>
-        <th style="width:110px">Remarks</th></tr>
+      <tr><th colspan="${pcols.length + 1}" class="ttl">${escapeHtml(RLBL)} — ${escapeHtml(step)}</th></tr>
+      <tr><th style="width:24px">#</th>${pcols.map(c => `<th${c.k === 'remark' ? ' style="width:110px"' : ''}>${escapeHtml(c.k === 'step' ? 'Step' : c.h)}</th>`).join('')}</tr>
     </thead>
     <tbody>${body}</tbody>
-    <tfoot><tr><td colspan="11">TOTAL — ${rows.length} pending</td>
+    <tfoot><tr><td colspan="${pcols.length - 2}">TOTAL — ${rows.length} pending</td>
       <td class="c">${late} late</td><td colspan="2"></td></tr></tfoot>
   </table>
   <div class="foot">KLM Task Manager · ${stamp}</div>
@@ -7559,18 +7555,16 @@ function pcrCSV() {
   const rows = pcrRows();
   if (!rows.length) return showToast('No rows to export', 'error');
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const head = ['Buyer','Style No.','Size','Colour','Merchant','Sampling process','Department',
-    'Enquiry date','Step','Pending at step','Planned','Days late','Doer','Remarks'];
+  const ccols = pcrCols();
+  const head = ccols.map(c => c.k === 'status' ? 'Days late' : c.h);
   const lines = [head.map(q).join(',')];
-  rows.forEach(x => lines.push([x.buyer, x.style, x.size, x.colour, x.merchant,
-    x.process, x.department, otodDate(x.enquiryDate),
-    x.stepLabel, x.stepName, otodDate(x.planned),
-    (x.daysLate === null || x.daysLate === undefined) ? '' : x.daysLate,
-    x.doer || x.stepWho, x.remark || ''].map(q).join(',')));
+  rows.forEach(x => lines.push(ccols.map(c =>
+    c.k === 'status' ? ((x.daysLate === null || x.daysLate === undefined) ? '' : x.daysLate)
+                     : pcrColVal(x, c.k)).map(q).join(',')));
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'PC-Sampling-Report.csv';
+  a.download = ((_pcrData && _pcrData.label) || 'PC-Sampling-Report').replace(/[^A-Za-z0-9]+/g, '-') + '.csv';
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   showToast(rows.length + ' row(s) exported');
