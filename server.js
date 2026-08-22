@@ -953,6 +953,8 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Daily PC Report form Forms dropdown me dikhe ya nahi (admin + Ekta/Sachin)
     rows[0].canPcReport = req.session.role === 'admin' ||
       PCR_EMAILS.has((rows[0].email || '').trim().toLowerCase());
+    // PC Sampling Report ka tab dikhe ya nahi
+    rows[0].canPcSampling = !PCR_HIDE_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     // Sabki leave dekh/approve kar sakta hai ya nahi (admin + HR)
     rows[0].canLeaves = req.session.role === 'admin' ||
       LEAVE_APPROVER_EMAILS.has((rows[0].email || '').trim().toLowerCase());
@@ -2114,6 +2116,16 @@ app.get('/api/mis/detail', requireAuth, requireAdminOrHod, async (req, res) => {
 // Pending step = pehla step jiska Actual abhi khaali hai.
 // ══════════════════════════════════════════════════════
 const PCR_SHEET = { id: '1Rqp2S6MqVqMhskj8CUcwipVoa601DwPNtzFhRrMkvvk', tab: 'FMS', headerRow: 6, range: 'A:BT' };
+// Ye report in emails ko nahi dikhti
+const PCR_HIDE_EMAILS = new Set(['manik@klmahajan.com']);
+async function requirePcSampling(req, res, next) {
+  try {
+    const [u] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    if (PCR_HIDE_EMAILS.has(String(u[0]?.email || '').trim().toLowerCase()))
+      return res.status(403).json({ error: 'Not allowed' });
+  } catch (e) {}
+  next();
+}
 
 function pcrSteps(rows) {
   const nameRow = rows[1] || [], whoRow = rows[2] || [], head = rows[5] || [];
@@ -2147,7 +2159,7 @@ function pcrSteps(rows) {
   return steps;
 }
 
-app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, async (req, res) => {
+app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, requirePcSampling, async (req, res) => {
   try {
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
     const r = await sheetsApi.spreadsheets.values.get({
@@ -2229,7 +2241,7 @@ app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, async (req, res) =>
   }
 });
 
-app.put('/api/pc-reporting/remark', requireAuth, requireAdminOrHod, async (req, res) => {
+app.put('/api/pc-reporting/remark', requireAuth, requireAdminOrHod, requirePcSampling, async (req, res) => {
   try {
     const rowKey = String(req.body.rowKey || '').trim();
     const stepNo = parseInt(req.body.stepNo, 10);

@@ -1593,7 +1593,7 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="tab" id="misTabOtod" onclick="switchMisTab('otod',this)">📦 Export O to D Report</div>
           <div class="tab" id="misTabOtodInv" onclick="switchMisTab('otodinv',this)">📦 Invincible O to D Offline</div>
         <div class="tab" id="misTabOtodSamp" onclick="switchMisTab('otodsamp',this)">🧵 Sampling Report</div>
-        <div class="tab" id="misTabPcr" onclick="switchMisTab('pcr',this)">🧾 PC Sampling Report</div>
+        <div class="tab" id="misTabPcr" style="display:none" onclick="switchMisTab('pcr',this)">🧾 PC Sampling Report</div>
         <div class="tab" id="misTabCapacity" onclick="switchMisTab('capacity',this)">👥 Capacity/Utilisation Staff</div>
         </div>
       </div>
@@ -3637,6 +3637,10 @@ async function init() {
 
     setAvatarDisplay(ME.profile_image, initials);
 
+    // PC Sampling Report ka tab — manik@ ko nahi dikhta
+    if (ME.canPcSampling !== false) {
+      const pcrT = document.getElementById('misTabPcr'); if (pcrT) pcrT.style.display = '';
+    }
     // Owner Dashboard — SIRF in emails ko dikhe (owner-only)
     const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'manik@klmahajan.com'];
     if (OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
