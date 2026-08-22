@@ -2107,6 +2107,148 @@ app.get('/api/mis/detail', requireAuth, requireAdminOrHod, async (req, res) => {
 
 // ── All MIS — per employee combined score ──
 // ══════════════════════════════════════════════════════
+// PC REPORTING — Sampling FMS me kaunsi row abhi kis step par ruki hai.
+// Sheet ke step blocks (row 1 = "STEP n", row 2 = kaam ka naam, row 6 =
+// TAT / Planned / Actual / Status / Time Delay / Doer) khud padh lete hain,
+// isliye sheet me step badle to yahan apne aap badal jayega.
+// Pending step = pehla step jiska Actual abhi khaali hai.
+// ══════════════════════════════════════════════════════
+const PCR_SHEET = { id: '1Rqp2S6MqVqMhskj8CUcwipVoa601DwPNtzFhRrMkvvk', tab: 'FMS', headerRow: 6, range: 'A:BT' };
+
+function pcrSteps(rows) {
+  const nameRow = rows[1] || [], whoRow = rows[2] || [], head = rows[5] || [];
+  const H = c => String(head[c] || '').trim().toLowerCase();
+  const steps = [];
+  for (let c = 0; c < head.length; c++) {
+    if (H(c) !== 'actual') continue;
+    // Is block ka naam aur "STEP n" — dono peeche ki taraf dekh kar
+    let name = '', tatCol = -1;
+    for (let k = c; k >= 0 && k > c - 8; k--) {
+      if (!name && String(nameRow[k] || '').trim()) name = String(nameRow[k]).trim();
+      if (tatCol < 0 && H(k) === 'tat') tatCol = k;
+    }
+    // Sheet me "STEP n" ke label aage-peeche pade hain, isliye kram se hi number dete hain
+    const label = 'STEP ' + (steps.length + 1);
+    let who = '';
+    for (let k = c; k >= 0 && k > c - 8; k--) { if (String(whoRow[k] || '').trim()) { who = String(whoRow[k]).trim(); break; } }
+    steps.push({
+      no: steps.length + 1,
+      label,
+      name: name || ('Step ' + (steps.length + 1)),
+      who,
+      tatCol,
+      plannedCol: H(c - 1) === 'planned' ? c - 1 : -1,
+      actualCol: c,
+      statusCol: H(c + 1) === 'status' ? c + 1 : -1,
+      delayCol: H(c + 2) === 'time delay' ? c + 2 : -1,
+      doerCol: H(c + 3) === 'doer' ? c + 3 : -1
+    });
+  }
+  return steps;
+}
+
+app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, async (req, res) => {
+  try {
+    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    const r = await sheetsApi.spreadsheets.values.get({
+      spreadsheetId: PCR_SHEET.id, range: `${PCR_SHEET.tab}!${PCR_SHEET.range}`
+    });
+    const all = r.data.values || [];
+    const steps = pcrSteps(all);
+    const data = all.slice(PCR_SHEET.headerRow);
+    const today = new Date();
+    const T = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    const rows = [];
+    for (const row of data) {
+      const buyer = String(row[1] || '').trim();
+      if (!buyer) continue;
+      // Pending step = pehla step jiski Planned date sheet ke formula se ban chuki
+      // hai par Actual abhi khaali hai. Jis step ki Planned date hi nahi bani, wo
+      // abhi due hi nahi hua — usse aage badh jaate hain.
+      let cur = null, waiting = false;
+      for (const st of steps) {
+        const pl = st.plannedCol >= 0 ? String(row[st.plannedCol] || '').trim() : '';
+        const ac = String(row[st.actualCol] || '').trim();
+        if (pl && !ac) { cur = st; break; }
+      }
+      if (!cur) {
+        // Kisi step ki Planned date nahi bani. Agar aakhri step abhi baaki hai to
+        // row atki hui hai — jahan tak kaam ho chuka hai, uske AGLE step par
+        // dikhate hain (step 1 par nahi, warna sab wahin dikhne lagte hain).
+        const last = steps[steps.length - 1];
+        if (last && !String(row[last.actualCol] || '').trim()) {
+          let lastDone = -1;
+          steps.forEach((st, i) => { if (String(row[st.actualCol] || '').trim()) lastDone = i; });
+          cur = steps.slice(lastDone + 1).find(st => !String(row[st.actualCol] || '').trim())
+             || steps.find(st => !String(row[st.actualCol] || '').trim()) || null;
+          waiting = true;
+        }
+      }
+      if (!cur) continue;                       // sab step ho gaye
+      const planned = prodIsoDate(row[cur.plannedCol]);
+      const daysLate = planned ? Math.round((Date.parse(T) - Date.parse(planned)) / 86400000) : null;
+      const style = String(row[2] || '').trim();
+      const enquiry = prodIsoDate(row[6]);
+      rows.push({
+        rowKey: String(row[16] || '').trim() || (buyer + '|' + style + '|' + enquiry),
+        buyer, style,
+        size: String(row[3] || '').trim(),
+        colour: String(row[4] || '').trim(),
+        merchant: String(row[5] || '').trim(),
+        enquiryDate: enquiry,
+        category: String(row[8] || '').trim(),
+        stepNo: cur.no, stepLabel: cur.label, stepName: cur.name, stepWho: cur.who,
+        tat: cur.tatCol >= 0 ? String(row[cur.tatCol] || '').trim() : '',
+        planned,
+        status: cur.statusCol >= 0 ? String(row[cur.statusCol] || '').trim() : '',
+        timeDelay: cur.delayCol >= 0 ? String(row[cur.delayCol] || '').trim() : '',
+        doer: cur.doerCol >= 0 ? String(row[cur.doerCol] || '').trim() : (cur.who || ''),
+        daysLate, waiting
+      });
+    }
+
+    // App me likhe gaye remarks jod do
+    const notes = {};
+    try {
+      const [ns] = await db.query('SELECT row_key, step_no, remark FROM pc_report_notes');
+      for (const n of ns) notes[String(n.row_key) + '|' + String(n.step_no)] = n.remark || '';
+    } catch (e) { /* table abhi nahi bani */ }
+    for (const x of rows) x.remark = notes[x.rowKey + '|' + x.stepNo] || '';
+
+    const perStep = steps.map(s => ({
+      no: s.no, label: s.label, name: s.name, who: s.who,
+      pending: rows.filter(x => x.stepNo === s.no).length,
+      late: rows.filter(x => x.stepNo === s.no && x.daysLate > 0).length,
+      waiting: rows.filter(x => x.stepNo === s.no && x.waiting).length
+    }));
+    res.json({ today: T, steps: perStep, rows, total: rows.length });
+  } catch (err) {
+    console.error('PC Reporting FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/pc-reporting/remark', requireAuth, requireAdminOrHod, async (req, res) => {
+  try {
+    const rowKey = String(req.body.rowKey || '').trim();
+    const stepNo = parseInt(req.body.stepNo, 10);
+    const remark = String(req.body.remark ?? '').trim();
+    if (!rowKey || !stepNo) return res.status(400).json({ error: 'rowKey and stepNo are required' });
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const [ex] = await db.query('SELECT id FROM pc_report_notes WHERE row_key=? AND step_no=?', [rowKey, stepNo]);
+    if (ex[0]) {
+      await db.query('UPDATE pc_report_notes SET remark=?, updated_by=?, updated_at=? WHERE row_key=? AND step_no=?',
+        [remark, req.session.userId, now, rowKey, stepNo]);
+    } else {
+      await db.query('INSERT INTO pc_report_notes (row_key, step_no, remark, updated_by, updated_at) VALUES (?,?,?,?,?)',
+        [rowKey, stepNo, remark, req.session.userId, now]);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
 // EMPLOYEE CAPACITY — kis employee ke paas kitna kaam hai (%) aur
 // aur kitna diya ja sakta hai. Kaam ke teen source: Delegation,
 // Checklist aur FMS. Har task ka ek maana hua time hai (neeche),

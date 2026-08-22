@@ -153,6 +153,11 @@ const SCHEMA = {
     cols: ['id','holiday_date','name','created_by','created_at'],
     autoFill: { created_at: 'NOW' }
   },
+  // PC Reporting — Sampling FMS ke pending steps par likhe gaye remarks
+  pc_report_notes: {
+    cols: ['id','row_key','step_no','remark','updated_by','updated_at'],
+    autoFill: { updated_at: 'NOW' }
+  },
   // Time Scheduler — roz ka routine (sirf allowed emails)
   time_schedules: {
     cols: ['id','user_id','sch_date','start_time','end_time','title','remarks','status','created_at','completed_at'],
