@@ -1458,7 +1458,8 @@ app.delete('/api/tasks/delete-by-date', requireAuth, requireAdmin, async (req, r
   try {
     const { date } = req.body;
     if (!date) return res.status(400).json({ error: 'Date required' });
-    const [result] = await db.query('DELETE FROM checklist_tasks WHERE due_date=?', [date]);
+    // Completed task kabhi nahi hatate — wo history hai (MIS unhi par bani hai)
+    const [result] = await db.query("DELETE FROM checklist_tasks WHERE due_date=? AND status<>'completed'", [date]);
     res.json({ success: true, deleted: result.affectedRows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1599,15 +1600,15 @@ app.post('/api/holidays', requireAuth, requireAdmin, async (req, res) => {
     const have = new Set(ex.map(r => holIso(r.holiday_date)));
     const fresh = dates.filter(d => !have.has(d));
 
-    let deleted = 0;
+    // Holiday add karne par ab KOI task delete nahi hota.
+    // Pehle us date ke non-completed checklist tasks hata diye jaate the — isi se
+    // 19-27 Aug 2026 ki poori checklist ud gayi thi (range add hui, 9 din saaf).
+    // Task data kabhi delete nahi karna; holiday sirf list/poster/popup ke liye hai.
     for (const d of fresh) {
       await db.query('INSERT INTO holidays (holiday_date, name, created_by) VALUES (?,?,?)',
         [d, name, req.session.userId]);
-      // Completed task kabhi nahi hatate — wo history hai (MIS unhi par bani hai)
-      const [r] = await db.query("DELETE FROM checklist_tasks WHERE due_date=? AND status<>'completed'", [d]);
-      deleted += (r.affectedRows || 0);
     }
-    res.json({ success: true, added: fresh.length, skipped: dates.length - fresh.length, deleted });
+    res.json({ success: true, added: fresh.length, skipped: dates.length - fresh.length, deleted: 0 });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -2188,8 +2189,8 @@ const PCR_SOURCES = {
   }
 };
 function pcrSrc(q) { return PCR_SOURCES[String(q || '').trim()] ? String(q).trim() : 'sampling'; }
-// Ye report in emails ko nahi dikhti
-const PCR_HIDE_EMAILS = new Set(['manik@klmahajan.com']);
+// Ye report ab sabko dikhti hai — kisi email par rok nahi
+const PCR_HIDE_EMAILS = new Set();
 async function requirePcSampling(req, res, next) {
   try {
     const [u] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
