@@ -2169,6 +2169,22 @@ const PCR_SOURCES = {
       { k: 'orderDate', h: 'Order date',    c: 2, date: true }
     ],
     group: ['merchant', 'shipment', 'process', 'buyer']
+  },
+  invincible: {
+    label: 'Invincible Order To Dispatch FMS Offline Domestic',
+    id: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw', tab: 'FMS', headerRow: 6, range: 'A:AT',
+    keyCol: 1, idCol: 12,
+    cols: [
+      { k: 'party',      h: 'Party name',      c: 1 },
+      { k: 'qty',        h: 'Total quantity',  c: 2 },
+      { k: 'creditDays', h: 'Credit days',     c: 3 },
+      { k: 'terms',      h: 'Payment terms',   c: 4 },
+      { k: 'mrp',        h: 'MRP',             c: 5 },
+      { k: 'mobile',     h: 'Mobile number',   c: 10 },
+      { k: 'dispatch',   h: 'Dispatch Status', c: 11 },
+      { k: 'orderDate',  h: 'Date of order',   c: 9, date: true }
+    ],
+    group: ['terms', 'dispatch', 'party']
   }
 };
 function pcrSrc(q) { return PCR_SOURCES[String(q || '').trim()] ? String(q).trim() : 'sampling'; }
