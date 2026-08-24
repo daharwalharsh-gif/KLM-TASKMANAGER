@@ -7180,6 +7180,7 @@ let _pcrGroup = 'step';     // step, ya sheet ke apne group column
 let _pcrPick = 'all';       // group chips me se chuni hui value
 let _pcrChips = [];         // abhi screen par jo chips hain (click ke liye)
 let _pcrSrc = 'sampling';   // kaunsi FMS sheet
+const _pcrCache = {};       // har sheet ka data ek baar — dobara API nahi
 
 // Har column ka apna filter — { colKey: Set(chuni hui values) }
 let _pcrColFilters = {};
@@ -7298,15 +7299,18 @@ document.addEventListener('click', e => {
 function pcrPickAny(v) { if (_pcrGroup === 'step') pcrSetStep(v); else pcrSetPick(v); }
 function pcrPickIdx(i) { const c = _pcrChips[i]; if (c) pcrPickAny(c.key); }
 
-async function loadPcr() {
+async function loadPcr(force) {
   const box = document.getElementById('misResults');
-  if (!_pcrData) box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
+  // Ek baar data aa gaya to dobara API nahi — Refresh dabane par hi naya aata hai
+  if (!force && _pcrCache[_pcrSrc]) { _pcrData = _pcrCache[_pcrSrc]; renderPcr(); return; }
+  box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
   const r = await api('/api/pc-reporting?src=' + _pcrSrc);
   if (!r || r.error) {
     box.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #fecaca;color:#dc2626">⚠️ ${escapeHtml((r && r.error) || 'Could not load')}</div>`;
     return;
   }
   _pcrData = r;
+  _pcrCache[_pcrSrc] = r;
   renderPcr();
 }
 function pcrSetStep(v) { _pcrStep = v; renderPcr(); }
@@ -7340,7 +7344,8 @@ function pcrGroupList() {
 function pcrSetGroup(v) { _pcrGroup = v; _pcrStep = 'all'; _pcrPick = 'all'; pcrClearColFilters(); renderPcr(); }
 function pcrSetSrc(v) {
   _pcrSrc = v; _pcrGroup = 'step'; _pcrStep = 'all'; _pcrPick = 'all';
-  pcrClearColFilters(); _pcrOnlyLate = false; _pcrData = null;
+  pcrClearColFilters(); _pcrOnlyLate = false;
+  _pcrData = _pcrCache[v] || null;
   loadPcr();
 }
 function pcrSetPick(v) { _pcrPick = v; renderPcr(); }
@@ -7457,7 +7462,7 @@ function renderPcr() {
       <div class="pcr-f"><label>&nbsp;</label>
         <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="pcrPDF()">📄 PDF</button></div>
       <div class="pcr-f"><label>&nbsp;</label>
-        <button class="btn btn-outline btn-sm" onclick="loadPcr()">🔄 Refresh</button></div>
+        <button class="btn btn-outline btn-sm" onclick="loadPcr(true)">🔄 Refresh</button></div>
       <div class="pcr-note">${escapeHtml((_pcrData && _pcrData.label) || '')} · a row sits at the <b>first step whose Planned date is filled but Actual is blank</b><br>
         Planned date comes from the sheet's own formula · remarks are saved here, not in the sheet</div>
     </div>

@@ -2151,6 +2151,24 @@ const PCR_SOURCES = {
       { k: 'enquiry',    h: 'Date of inquiry', c: 7, date: true }
     ],
     group: ['client', 'platform', 'city', 'inquiry']
+  },
+  otod: {
+    label: 'O to D — Merchant FMS',
+    id: '1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY', tab: 'FMS3', headerRow: 6, range: 'A:CU',
+    keyCol: 6, idCol: -1,
+    cols: [
+      { k: 'piNo',      h: 'PI number',     c: 6 },
+      { k: 'buyer',     h: 'Buyer name',    c: 1 },
+      { k: 'merchant',  h: 'Merchant name', c: 4 },
+      { k: 'poNo',      h: 'PO no.',        c: 11 },
+      { k: 'qty',       h: 'Quantity',      c: 13 },
+      { k: 'amount',    h: 'Order amount',  c: 14 },
+      { k: 'shipment',  h: 'Shipment',      c: 15 },
+      { k: 'process',   h: 'Process',       c: 16 },
+      { k: 'leadTime',  h: 'Lead time',     c: 3 },
+      { k: 'orderDate', h: 'Order date',    c: 2, date: true }
+    ],
+    group: ['merchant', 'shipment', 'process', 'buyer']
   }
 };
 function pcrSrc(q) { return PCR_SOURCES[String(q || '').trim()] ? String(q).trim() : 'sampling'; }
