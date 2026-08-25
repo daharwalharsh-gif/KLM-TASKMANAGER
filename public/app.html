@@ -1593,7 +1593,7 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="tab" id="misTabOtod" onclick="switchMisTab('otod',this)">📦 Export O to D Report</div>
           <div class="tab" id="misTabOtodInv" onclick="switchMisTab('otodinv',this)">📦 Invincible O to D Offline</div>
         <div class="tab" id="misTabOtodSamp" onclick="switchMisTab('otodsamp',this)">🧵 Sampling Report</div>
-        <div class="tab" id="misTabPcr" onclick="switchMisTab('pcr',this)">🧾 PC Sampling Report</div>
+        <div class="tab" id="misTabPcr" onclick="switchMisTab('pcr',this)">🧾 All PC Report</div>
         <div class="tab" id="misTabCapacity" onclick="switchMisTab('capacity',this)">👥 Capacity/Utilisation Staff</div>
         </div>
       </div>
@@ -7470,7 +7470,7 @@ function renderPcr() {
         Planned date comes from the sheet's own formula · remarks are saved here, not in the sheet</div>
     </div>
 
-    <div class="pcr-ttl">${escapeHtml((_pcrData && _pcrData.label) || 'PC Sampling Report')} — ${escapeHtml(pcrTitleBit())}
+    <div class="pcr-ttl">${escapeHtml((_pcrData && _pcrData.label) || 'All PC Report')} — ${escapeHtml(pcrTitleBit())}
       (${rows.length} pending${late ? ' · ' + late + ' late' : ''})</div>
     <div class="pcr-scroll">
       <table class="pcr-tbl">
@@ -7504,7 +7504,7 @@ function pcrPDF() {
   };
   // Group ke hisaab se — har group ka apna chhota heading
   const pcols = pcrCols();
-  const RLBL = (_pcrData && _pcrData.label) || 'PC Sampling Report';
+  const RLBL = (_pcrData && _pcrData.label) || 'All PC Report';
   let sr = 0, body = '';
   pcrGrouped(rows).forEach(g => {
     const gl = g.rows.filter(x => x.daysLate > 0).length;
@@ -7536,7 +7536,7 @@ function pcrPDF() {
     .foot{margin-top:9px;font-size:8px;color:#94a3b8;text-align:center}
   </style></head><body>
   <div class="head">
-    <div><h1>PC Sampling Report</h1>
+    <div><h1>All PC Report</h1>
       <div class="sub">${escapeHtml(RLBL)} — pending step wise${q ? ' · Search: ' + escapeHtml(q) : ''}${_pcrOnlyLate ? ' · Only late' : ''}${Object.keys(_pcrColFilters).length ? '<br>Filters — ' + escapeHtml(pcrFilterText()) : ''}</div></div>
     <div class="sub">${stamp}<br>${rows.length} pending${late ? ' · ' + late + ' late' : ''}</div>
   </div>
@@ -7572,7 +7572,7 @@ function pcrCSV() {
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = ((_pcrData && _pcrData.label) || 'PC-Sampling-Report').replace(/[^A-Za-z0-9]+/g, '-') + '.csv';
+  a.download = ((_pcrData && _pcrData.label) || 'All-PC-Report').replace(/[^A-Za-z0-9]+/g, '-') + '.csv';
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   showToast(rows.length + ' row(s) exported');

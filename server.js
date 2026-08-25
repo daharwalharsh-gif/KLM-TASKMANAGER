@@ -2329,7 +2329,11 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
     // App me likhe gaye remarks jod do (har sheet ke apne — row_key me src bhi hai)
     const notes = {};
     try {
-      const [ns] = await db.query('SELECT row_key, step_no, remark FROM pc_report_notes');
+      // Purane duplicate rows ho sakti hain (save wala bug) — hamesha SABSE NAYI
+      // row ka remark lo, warna khaali/purani row jeet jaati thi.
+      const [ns] = await db.query('SELECT id, row_key, step_no, remark, updated_at FROM pc_report_notes');
+      ns.sort((a, b) => String(a.updated_at || '').localeCompare(String(b.updated_at || ''))
+        || (parseInt(a.id, 10) || 0) - (parseInt(b.id, 10) || 0));
       for (const n of ns) notes[String(n.row_key) + '|' + String(n.step_no)] = n.remark || '';
     } catch (e) { /* table abhi nahi bani */ }
     for (const x of rows) x.remark = notes[src + '|' + x.rowKey + '|' + x.stepNo] || '';
@@ -2362,13 +2366,19 @@ app.put('/api/pc-reporting/remark', requireAuth, requireMisView, requirePcSampli
     if (!String(req.body.rowKey || '').trim() || !stepNo)
       return res.status(400).json({ error: 'rowKey and stepNo are required' });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const [ex] = await db.query('SELECT id FROM pc_report_notes WHERE row_key=? AND step_no=?', [rowKey, stepNo]);
+    // step_no DB me TEXT hai — pehle yahan number bheja jaata tha, isliye "pehle se
+    // hai kya" wala check kabhi match nahi karta tha aur har save par nayi row ban
+    // jaati thi. Duplicate rows ki wajah se padhte waqt purani/khaali row uth jaati
+    // thi aur likha hua remark gayab lagta tha. Ab step_no string me compare hota hai.
+    const stepStr = String(stepNo);
+    const [ex] = await db.query('SELECT id FROM pc_report_notes WHERE row_key=? AND step_no=?', [rowKey, stepStr]);
     if (ex[0]) {
+      // Purani duplicate rows bhi saath me sudhar jaati hain (sab ek hi value par)
       await db.query('UPDATE pc_report_notes SET remark=?, updated_by=?, updated_at=? WHERE row_key=? AND step_no=?',
-        [remark, req.session.userId, now, rowKey, stepNo]);
+        [remark, req.session.userId, now, rowKey, stepStr]);
     } else {
       await db.query('INSERT INTO pc_report_notes (row_key, step_no, remark, updated_by, updated_at) VALUES (?,?,?,?,?)',
-        [rowKey, stepNo, remark, req.session.userId, now]);
+        [rowKey, stepStr, remark, req.session.userId, now]);
     }
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
