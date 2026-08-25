@@ -7195,6 +7195,7 @@ function pcrCols() {
     { k: 'step',    h: 'Pending at step' },
     { k: 'planned', h: 'Planned' },
     { k: 'status',  h: 'Status' },
+    { k: 'delay',   h: 'Delay Days' },
     { k: 'doer',    h: 'Doer' },
     { k: 'remark',  h: 'Remarks' }
   ]);
@@ -7207,6 +7208,11 @@ function pcrColVal(x, k) {
     if (x.daysLate > 0) return x.daysLate + ' days late';
     if (x.daysLate === 0) return 'Due today';
     return Math.abs(x.daysLate) + ' days left';
+  }
+  if (k === 'delay') {
+    // Planned date nikal jaane ke baad aaj tak kitne din late — warna 0
+    if (x.daysLate === null || x.daysLate === undefined) return '';
+    return String(x.daysLate > 0 ? x.daysLate : 0);
   }
   if (k === 'doer') return String(x.doer || x.stepWho || '');
   if (k === 'remark') return String(x.remark || '');
@@ -12859,7 +12865,7 @@ function otodCols() {
       { k: 'orderDate',      h: 'Date of order',  cls: 'otod-c', date: true },
       { k: 'planned',        h: 'Planned',        cls: 'otod-c', date: true },
       { k: 'actualDate',     h: 'Actual',         cls: 'otod-c', date: true },
-      { k: 'days',           h: 'Days',           cls: 'otod-c', days: true },
+      { k: 'days',           h: 'Delay Days',     cls: 'otod-c', gapdays: true },
       { k: 'dispatchStatus', h: 'Dispatch Status',cls: 'otod-c' },
     ];
   }
