@@ -9050,11 +9050,14 @@ async function generateMIS() {
   }
 }
 
-// Score 0-100 hai (100 sabse achha) — sirf overdue se ghatta hai.
-function misScoreColor(s) { return (s === null || s === undefined || isNaN(s)) ? '#94a3b8' : s >= 80 ? '#16a34a' : s >= 50 ? '#a16207' : '#dc2626'; }
-function misScoreBar(s)   { return (s === null || s === undefined || isNaN(s)) ? '#94a3b8' : s >= 80 ? '#10b981' : s >= 50 ? '#f59e0b' : '#ef4444'; }
-function misScoreClass(s) { return (s === null || s === undefined || isNaN(s)) ? 'score-zero' : s >= 80 ? 'score-positive' : s >= 50 ? 'score-zero' : 'score-negative'; }
-function misScoreLabel(s) { return (s === null || s === undefined || isNaN(s)) ? '—' : s >= 80 ? '✅ Good' : s >= 50 ? '⚠️ Needs Improvement' : '❌ Poor'; }
+// Score -100 se +100 (+100 sabse achha) — sirf delay/overdue se ghatta hai,
+// delay zyada ho to minus me chala jaata hai.
+const _misBad = s => (s === null || s === undefined || isNaN(s));
+function misScoreColor(s) { return _misBad(s) ? '#94a3b8' : s >= 80 ? '#16a34a' : s >= 40 ? '#a16207' : '#dc2626'; }
+function misScoreBar(s)   { return _misBad(s) ? '#94a3b8' : s >= 80 ? '#10b981' : s >= 40 ? '#f59e0b' : '#ef4444'; }
+function misScoreClass(s) { return _misBad(s) ? 'score-zero' : s >= 80 ? 'score-positive' : s >= 40 ? 'score-zero' : 'score-negative'; }
+function misScoreLabel(s) { return _misBad(s) ? '—' : s >= 80 ? '✅ Good' : s >= 40 ? '⚠️ Needs Improvement' : '❌ Poor'; }
+function misScoreWidth(s) { return _misBad(s) ? 0 : Math.min(100, Math.abs(s)); }
 function renderMIS(data) {
   const container = document.getElementById('misResults');
   const key = misType === 'delegation' ? 'delegation' : 'checklist';
@@ -9077,7 +9080,7 @@ function renderMIS(data) {
   const tableRows = rows.map((r,i) => {
     const score = parseFloat(r.score);
     const scoreClass = misScoreClass(score);
-    const barWidth = Math.max(0, Math.min(100, score || 0));
+    const barWidth = misScoreWidth(score);
     const barColor = misScoreBar(score);
     const scoreLabel = misScoreLabel(score);
 
@@ -9111,7 +9114,8 @@ function renderMIS(data) {
       </table>
     </div>
     <div style="font-size:12px;color:#94a3b8;margin-top:10px;padding:0 4px">
-      * Score: starts at 100% — only overdue tasks reduce it (a revised task counts as a quarter).
+      * Score: +100% = everything on time · 0% = half the tasks delayed · −100% = all delayed.
+      Only overdue tasks pull it down (a revised task counts as a quarter of one).
       Tasks due today or later are not counted against the score.
     </div>`;
 }
@@ -9491,7 +9495,7 @@ function renderAllMIS(data, fmsData) {
     const scoreClass = misScoreClass(score);
     const scoreDisplay = score === null ? '—' : `${score.toFixed(1)}%`;
     const barColor = misScoreBar(score);
-    const barWidth = score === null ? 0 : Math.max(0, Math.min(100, score));
+    const barWidth = misScoreWidth(score);
     const scoreLabel = misScoreLabel(score);
 
     const delScore = emp.delegation.score;

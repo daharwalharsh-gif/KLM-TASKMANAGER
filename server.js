@@ -486,17 +486,21 @@ function getTable(type) {
 // ── MIS ka Score % ──
 // Pehle score PENDING par banta tha: 0 - (pending/total)*100 - ... — isliye jis
 // bande ka aaj ka task abhi pending tha uska score seedha -100 chala jaata tha,
-// jabki wo late hai hi nahi. Ab score SIRF OVERDUE par banta hai:
-//   100 se shuru, har overdue task poora ghatata hai, revised chauthai.
-// Aaj ya aage ki date wala pending task score bilkul nahi girata; jo task time
-// par ho gaye wo score 100 par bane rehte hain. Range: 0 se 100.
+// jabki wo late hai hi nahi.
+// Ab score SIRF DELAY (overdue) par banta hai aur delay hone par MINUS me bhi
+// jaata hai — range -100 se +100:
+//   sab time par  = +100
+//   aadhe delay   =    0
+//   sab delay     = -100
+// Har overdue task dugna ghatata hai, revised uska chauthai. Aaj ya aage ki
+// date wala pending task score bilkul nahi girata.
 function misScore(total, overdue, revised) {
   total = parseInt(total) || 0;
   overdue = parseInt(overdue) || 0;
   revised = parseInt(revised) || 0;
   if (!total) return null;
-  const s = 100 - (overdue / total) * 100 - (revised / total) * 25;
-  return Math.round(Math.max(0, Math.min(100, s)) * 10) / 10;
+  const s = ((total - overdue * 2 - revised * 0.5) / total) * 100;
+  return Math.round(Math.max(-100, Math.min(100, s)) * 10) / 10;
 }
 
 // ══════════════════════════════════════════════════════
