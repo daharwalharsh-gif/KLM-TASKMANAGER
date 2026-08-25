@@ -2280,29 +2280,18 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
     for (const row of data) {
       const keyVal = String(row[CFG.keyCol] || '').trim();
       if (!keyVal) continue;
-      // Pending step = pehla step jiski Planned date sheet ke formula se ban chuki
-      // hai par Actual abhi khaali hai. Jis step ki Planned date hi nahi bani, wo
-      // abhi due hi nahi hua — usse aage badh jaate hain.
-      let cur = null, waiting = false;
-      for (const st of steps) {
+      // Ek row HAR us step par pending hai jiski Planned date sheet ke formula se
+      // ban chuki hai par Actual abhi khaali hai — sheet ke us column jaisa hi.
+      // Pehle sirf PEHLE adhoore step par dikhati thi, isliye aage wale steps ki
+      // ginti kam aati thi (jaise Pre Production meeting: sheet 7, report 1).
+      const hits = steps.filter(st => {
         const pl = st.plannedCol >= 0 ? String(row[st.plannedCol] || '').trim() : '';
         const ac = String(row[st.actualCol] || '').trim();
-        if (pl && !ac) { cur = st; break; }
-      }
-      if (!cur) {
-        // Kisi step ki Planned date nahi bani. Agar aakhri step abhi baaki hai to
-        // row atki hui hai — jahan tak kaam ho chuka hai, uske AGLE step par
-        // dikhate hain (step 1 par nahi, warna sab wahin dikhne lagte hain).
-        const last = steps[steps.length - 1];
-        if (last && !String(row[last.actualCol] || '').trim()) {
-          let lastDone = -1;
-          steps.forEach((st, i) => { if (String(row[st.actualCol] || '').trim()) lastDone = i; });
-          cur = steps.slice(lastDone + 1).find(st => !String(row[st.actualCol] || '').trim())
-             || steps.find(st => !String(row[st.actualCol] || '').trim()) || null;
-          waiting = true;
-        }
-      }
-      if (!cur) continue;                       // sab step ho gaye
+        return pl && !ac;
+      });
+      if (!hits.length) continue;   // kisi bhi step ki planned date nahi bani / sab ho gaye
+      for (const cur of hits) {
+      const waiting = false;
       const planned = prodIsoDate(row[cur.plannedCol]);
       const daysLate = planned ? Math.round((Date.parse(T) - Date.parse(planned)) / 86400000) : null;
       // Is sheet ke apne info columns
@@ -2324,6 +2313,7 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
         doer: cur.doerCol >= 0 ? String(row[cur.doerCol] || '').trim() : (cur.who || ''),
         daysLate, waiting
       });
+      }
     }
 
     // App me likhe gaye remarks jod do (har sheet ke apne — row_key me src bhi hai)
