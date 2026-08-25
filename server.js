@@ -449,6 +449,36 @@ function requireAdminOrPC(req, res, next) {
   if (req.session.role === 'admin' || req.session.role === 'pc') return next();
   res.status(403).json({ error: 'Admin or PC only' });
 }
+// ── MIS reports ka extra access ──
+// In emails ko SIRF MIS ki saari reports dikhti hain (role user hi rehta hai).
+// Baaki admin cheezein — transfers, week plan, employee records, users, bulk delete —
+// inke liye pehle jaisi hi band hain.
+const MIS_VIEW_EMAILS = new Set([
+  'kiran@klmahajan.com',      // Ms. Kiran
+  'merchant@klmahajan.com',   // Ms. Aarti
+  'amit@invincible.in',       // Mr. Amit
+  'ttyagi@klmahajan.com',     // Mr. Tribhuvan Tyagi
+  'operations@klmahajan.com'  // Mr. Shubham
+]);
+async function misEmailAllowed(uid) {
+  try {
+    const [u] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [uid]);
+    return MIS_VIEW_EMAILS.has(String(u[0]?.email || '').trim().toLowerCase());
+  } catch (e) { return false; }
+}
+async function requireMisView(req, res, next) {
+  const r = req.session.role;
+  if (r === 'admin' || r === 'hod' || r === 'pc') return next();
+  if (await misEmailAllowed(req.session.userId)) return next();
+  res.status(403).json({ error: 'Admin or HOD only' });
+}
+// O to D reports pehle sirf admin ke liye the — wahi rehta hai, bas upar wali
+// MIS-email list ko bhi allow kar diya.
+async function requireOtodView(req, res, next) {
+  if (req.session.role === 'admin') return next();
+  if (await misEmailAllowed(req.session.userId)) return next();
+  res.status(403).json({ error: 'Admin only' });
+}
 function getTable(type) {
   return type === 'delegation' ? 'delegation_tasks' : 'checklist_tasks';
 }
@@ -1701,7 +1731,7 @@ app.put('/api/approvals/:id', requireAuth, async (req, res) => {
 // ══════════════════════════════════════════════════════
 // MIS
 // ══════════════════════════════════════════════════════
-app.get('/api/mis', requireAuth, requireAdminOrHod, async (req, res) => {
+app.get('/api/mis', requireAuth, requireMisView, async (req, res) => {
   try {
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Dates required' });
@@ -2098,7 +2128,7 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/mis/detail', requireAuth, requireAdminOrHod, async (req, res) => {
+app.get('/api/mis/detail', requireAuth, requireMisView, async (req, res) => {
   try {
     const { userId, type, start, end } = req.query;
     if (!userId || !start || !end) return res.status(400).json({ error: 'Missing params' });
@@ -2232,7 +2262,7 @@ function pcrSteps(rows) {
   return steps;
 }
 
-app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, requirePcSampling, async (req, res) => {
+app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, async (req, res) => {
   try {
     const src = pcrSrc(req.query.src);
     const CFG = PCR_SOURCES[src];
@@ -2323,7 +2353,7 @@ app.get('/api/pc-reporting', requireAuth, requireAdminOrHod, requirePcSampling, 
   }
 });
 
-app.put('/api/pc-reporting/remark', requireAuth, requireAdminOrHod, requirePcSampling, async (req, res) => {
+app.put('/api/pc-reporting/remark', requireAuth, requireMisView, requirePcSampling, async (req, res) => {
   try {
     const src = pcrSrc(req.body.src);
     const rowKey = src + '|' + String(req.body.rowKey || '').trim();
@@ -2379,7 +2409,7 @@ function capWorkingDays(from, to, weekOffStr, holidaySet) {
   return n;
 }
 
-app.get('/api/mis/capacity', requireAuth, requireAdminOrHod, async (req, res) => {
+app.get('/api/mis/capacity', requireAuth, requireMisView, async (req, res) => {
   try {
     const today = new Date();
     const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -2540,7 +2570,7 @@ app.get('/api/mis/capacity', requireAuth, requireAdminOrHod, async (req, res) =>
   }
 });
 
-app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
+app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
   try {
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Dates required' });
@@ -2713,7 +2743,7 @@ app.get('/api/mis/all', requireAuth, requireAdminOrHod, async (req, res) => {
 });
 
 // ── FMS MIS ──
-app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
+app.get('/api/mis/fms', requireAuth, requireMisView, async (req, res) => {
   try {
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Dates required' });
@@ -2735,7 +2765,7 @@ app.get('/api/mis/fms', requireAuth, requireAdminOrHod, async (req, res) => {
 });
 
 // ── New FMS Report (TAT): step-wise TAT + Planned vs Actual gap (delay) ──
-app.get('/api/mis/fms-tat', requireAuth, requireAdminOrHod, async (req, res) => {
+app.get('/api/mis/fms-tat', requireAuth, requireMisView, async (req, res) => {
   try {
     const data = await computeFmsTAT();
     res.json(data);
@@ -2747,7 +2777,7 @@ app.get('/api/mis/fms-tat', requireAuth, requireAdminOrHod, async (req, res) => 
 // page already renders) and sends them here. The tab name is FIXED
 // server-side ('MIS Report') so this endpoint can NEVER overwrite a DB
 // tab (users, tasks, fms_*, etc.). Admin/HOD/PC only.
-app.post('/api/mis/export-sheet', requireAuth, requireAdminOrHod, async (req, res) => {
+app.post('/api/mis/export-sheet', requireAuth, requireMisView, async (req, res) => {
   try {
     const { rows } = req.body || {};
     if (!Array.isArray(rows) || !rows.length) {
@@ -3722,7 +3752,7 @@ function otodSources() {
   };
 }
 
-app.get('/api/otod', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
   try {
     const SRC = otodSources();
     const src = SRC[String(req.query.src || 'merchant')] ? String(req.query.src || 'merchant') : 'merchant';

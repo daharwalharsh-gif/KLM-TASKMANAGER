@@ -3647,6 +3647,13 @@ async function init() {
     if (OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
       document.getElementById('nav-owner').style.display = 'flex';
     }
+    // In logon ko MIS ki saari reports dikhti hain (role user hi rehta hai —
+    // baaki admin cheezein inke liye pehle jaisi hi band hain)
+    const MIS_VIEW_EMAILS = ['kiran@klmahajan.com', 'merchant@klmahajan.com',
+      'amit@invincible.in', 'ttyagi@klmahajan.com', 'operations@klmahajan.com'];
+    if (MIS_VIEW_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
+      document.getElementById('nav-mis').style.display = 'flex';
+    }
     if (ME.role === 'admin') {
       document.getElementById('nav-users').style.display = 'flex';
       document.getElementById('nav-mis').style.display = 'flex';
