@@ -483,6 +483,22 @@ function getTable(type) {
   return type === 'delegation' ? 'delegation_tasks' : 'checklist_tasks';
 }
 
+// ── MIS ka Score % ──
+// Pehle score PENDING par banta tha: 0 - (pending/total)*100 - ... — isliye jis
+// bande ka aaj ka task abhi pending tha uska score seedha -100 chala jaata tha,
+// jabki wo late hai hi nahi. Ab score SIRF OVERDUE par banta hai:
+//   100 se shuru, har overdue task poora ghatata hai, revised chauthai.
+// Aaj ya aage ki date wala pending task score bilkul nahi girata; jo task time
+// par ho gaye wo score 100 par bane rehte hain. Range: 0 se 100.
+function misScore(total, overdue, revised) {
+  total = parseInt(total) || 0;
+  overdue = parseInt(overdue) || 0;
+  revised = parseInt(revised) || 0;
+  if (!total) return null;
+  const s = 100 - (overdue / total) * 100 - (revised / total) * 25;
+  return Math.round(Math.max(0, Math.min(100, s)) * 10) / 10;
+}
+
 // ══════════════════════════════════════════════════════
 // GOOGLE SHEETS HELPERS
 // ══════════════════════════════════════════════════════
@@ -1747,9 +1763,9 @@ app.get('/api/mis', requireAuth, requireMisView, async (req, res) => {
     }
 
     const calc = rows => rows.map(r => {
-      const total=parseInt(r.total)||0, pending=parseInt(r.pending)||0, overdue=parseInt(r.overdue)||0, revised=parseInt(r.revised)||0;
-      let score = total > 0 ? Math.max(-100, Math.round((0-(pending/total)*100-(overdue/total)*50-(revised/total)*25)*10)/10) : 0;
-      return { ...r, delayed: overdue, score };
+      const total=parseInt(r.total)||0, overdue=parseInt(r.overdue)||0, revised=parseInt(r.revised)||0;
+      const score = misScore(total, overdue, revised);
+      return { ...r, delayed: overdue, score: score === null ? 0 : score };
     });
     const [delRows] = await db.query(`SELECT u.id AS userId,u.name,COUNT(*) AS total,SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,SUM(CASE WHEN t.status='revised' THEN 1 ELSE 0 END) AS revised,SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue FROM delegation_tasks t JOIN users u ON t.assigned_to=u.id WHERE t.due_date BETWEEN ? AND ? ${deptFilter} GROUP BY u.id,u.name ORDER BY u.name`, deptParams);
     const [chlRows] = await db.query(`SELECT u.id AS userId,u.name,COUNT(*) AS total,SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,0 AS revised,SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue FROM checklist_tasks t JOIN users u ON t.assigned_to=u.id WHERE t.due_date BETWEEN ? AND ? ${deptFilter} GROUP BY u.id,u.name ORDER BY u.name`, deptParams);
@@ -2595,8 +2611,8 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
     const calc = (total, pending, overdue, revised) => {
       total = parseInt(total)||0; pending = parseInt(pending)||0;
       overdue = parseInt(overdue)||0; revised = parseInt(revised)||0;
-      const score = total > 0 ? Math.max(-100, Math.round((0-(pending/total)*100-(overdue/total)*50-(revised/total)*25)*10)/10) : 0;
-      return { total, pending, overdue, revised, score };
+      const score = misScore(total, overdue, revised);
+      return { total, pending, overdue, revised, score: score === null ? 0 : score };
     };
 
     // Fetch delegation + checklist stats per user (same style as /api/mis)
@@ -2717,9 +2733,7 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
       const overdueAll = d.overdue + c.overdue + fmsOver;
       const revisedAll = d.revised;
       const completedAll = (d.completed||0) + (c.completed||0) + fmsDoneR;
-      const overallScore = totalAll > 0
-        ? Math.max(-100, Math.round((0-(pendingAll/totalAll)*100-(overdueAll/totalAll)*50-(revisedAll/totalAll)*25)*10)/10)
-        : null;
+      const overallScore = misScore(totalAll, overdueAll, revisedAll);
       const plan = planMap[u.userId] || null;
       const isFmsDoer = (fms.total || 0) > 0 || fmsDoneR > 0;
       // FMS score ab TARGET-based: 20/week kiye to 100%
@@ -2819,13 +2833,7 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
     }
 
     // Score formula — bilkul wahi jo MIS me use hota hai (consistency)
-    const calcScore = (total, pending, overdue, revised) => {
-      total = parseInt(total)||0; pending = parseInt(pending)||0;
-      overdue = parseInt(overdue)||0; revised = parseInt(revised)||0;
-      return total > 0
-        ? Math.max(-100, Math.round((0-(pending/total)*100-(overdue/total)*50-(revised/total)*25)*10)/10)
-        : null;
-    };
+    const calcScore = (total, pending, overdue, revised) => misScore(total, overdue, revised);
 
     // Dept filter sirf visibility ke liye (numbers par nahi)
     let deptFilter = '';
