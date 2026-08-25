@@ -12894,7 +12894,16 @@ function otodCols() {
 }
 function otodVal(x, c, sr) {
   if (c.k === 'sr') return String(sr);
-  if (c.gapdays) { const d = otodDays(x.orderDate, x.actualDate || x.planned); return d === '' ? '' : String(d); }
+  if (c.gapdays) {
+    // Dispatch ho chuka — order date se actual tak kitne din lage (pehle jaisa hi)
+    if (x.actualDate) { const d = otodDays(x.orderDate, x.actualDate); return d === '' ? '' : String(d); }
+    // Pending — Planned date nikal jaane ke baad aaj tak kitne din late (1, 2, 3...).
+    // Planned date abhi aayi hi nahi to delay 0.
+    const n = new Date();
+    const today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+    const d = otodDays(x.planned, today);
+    return d === '' ? '' : String(d > 0 ? d : 0);
+  }
   if (c.days) { const d = otodDays(x.planned, x.actualDate); return d === '' ? '' : String(d); }
   if (c.money) return otodMoney(x[c.k]);
   if (c.num) { const n = otodNum(x[c.k]); return n === null ? '' : n.toLocaleString('en-IN'); }
