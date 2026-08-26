@@ -1169,6 +1169,9 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
     const isHod = role === 'hod';
     const { type, mine } = req.query;
     const isMine = (mine === '1' || mine === 'true');
+    // Admin/PC ke alawa MIS-view wali email list ko bhi SABKI tasks dikhti hain
+    // (dekhne ke liye — dusre ka task Done/edit ab bhi nahi kar sakte).
+    const seesAll = isAdmin || role === 'pc' || await misEmailAllowed(uid);
     const table = getTable(type || 'delegation');
     const isDeleg = (type || 'delegation') === 'delegation';
     let where = 'WHERE 1=1';
@@ -1179,8 +1182,8 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
       // Role-based scoping skip — koi bhi role apne assign kiye tasks dekh sakta hai.
       where += ' AND t.assigned_by = ?';
       params.push(uid);
-    } else if (isAdmin || role === 'pc') {
-      // Admin/PC — sab dikhta hai
+    } else if (seesAll) {
+      // Admin/PC (aur MIS-view wali email list) — sabki tasks dikhti hain
     } else if (isHod) {
       // HOD — apne department ke users ki tasks
       const [me] = await db.query('SELECT department FROM users WHERE id=?', [uid]);
@@ -1281,7 +1284,7 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
     if (isMine) {
       return res.json({ tasks });
     }
-    if (isAdmin || isHod || role === 'pc') {
+    if (seesAll || isHod) {
       const grouped = {};
       tasks.forEach(t => {
         if (!grouped[t.assigned_to]) grouped[t.assigned_to] = { userId: t.assigned_to, name: t.assignedToName, tasks: [] };

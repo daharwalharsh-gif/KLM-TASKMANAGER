@@ -6083,15 +6083,12 @@ async function loadAllTasks() {
   // response chhod do (warna stale data render hoga = blink).
   if (seq !== _allTasksSeq) return;
 
-  // Flatten all tasks — admin, HOD and PC get grouped response
-  let allTasks = [];
-  if (isAdmin || isHod || ME.role==='pc') {
-    (data.grouped||[]).forEach(g => {
-      g.tasks.forEach(t => allTasks.push(t));
-    });
-  } else {
-    allTasks = data.tasks || [];
-  }
+  // Flatten all tasks — server jinhe sabki tasks deta hai unhe 'grouped' milta hai
+  // (admin, HOD, PC aur MIS-view wali email list), baaki ko flat 'tasks'.
+  // Role se nahi, jo payload aaya usi se decide karo — warna list khaali dikhti hai.
+  let allTasks = data.grouped
+    ? data.grouped.reduce((a, g) => a.concat(g.tasks || []), [])
+    : (data.tasks || []);
   allTasksData = allTasks;
   allTasksPage = 1;
 
