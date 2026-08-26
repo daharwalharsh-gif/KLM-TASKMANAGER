@@ -11695,10 +11695,10 @@ function openFMSDoneModal(rowIdx) {
   const extraFieldsEl = document.getElementById('fmsDoneExtraFields');
   if (extraRows.length > 0) {
     const inputStyle = 'width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:\'Inter\',sans-serif;outline:none;box-sizing:border-box';
-    const filesOptional = fmsFilesOptionalNow();
     extraFieldsEl.innerHTML = extraRows.map((r, i) => {
       const label = r.label || r.row_label || r.col_letter || `Field ${i+1}`;
-      const isOptional = filesOptional && (r.field_type || 'text') === 'file';
+      // File/image upload kabhi mandatory nahi — bina file diye bhi Done ho jaata hai
+      const isOptional = (r.field_type || 'text') === 'file';
       let inputHtml;
       switch(r.field_type || 'text') {
         case 'number':
@@ -11805,11 +11805,11 @@ async function saveFMSDone() {
   // Collect extra input values — mandatory check
   const activeStep = window._fmsActiveStepData;
   const extraRows = (activeStep && activeStep.extraRows) ? activeStep.extraRows.filter(r => r.col_letter) : [];
-  const filesOptionalNow = fmsFilesOptionalNow();
   for (let i = 0; i < extraRows.length; i++) {
     const r = extraRows[i];
-    // Aakhri step wale FMS me PDF/image chhod sakte hain — baaki field zaroori hi hain
-    if (filesOptionalNow && (r.field_type || 'text') === 'file') continue;
+    // File/image upload kisi bhi FMS/step me zaroori nahi — chhod kar bhi Save chalega.
+    // Baaki field (Status, Invoice no. etc.) pehle jaise hi mandatory rehte hain.
+    if ((r.field_type || 'text') === 'file') continue;
     const el = document.getElementById(`fmsExtra_${i}`);
     const val = el ? el.value.trim() : '';
     if (!val) {
