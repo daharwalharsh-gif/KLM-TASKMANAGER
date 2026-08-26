@@ -1674,6 +1674,41 @@ app.delete('/api/holidays/:id', requireAuth, requireAdmin, async (req, res) => {
 
 // Count checklist tasks for a user (all time or by year, optionally filtered by frequency).
 // v16: completed tasks are EXCLUDED — bulk delete sirf pending/revised pe lagti hai.
+// ── Saare checklist tasks ki master list (PDF / CSV ke liye) ──
+// Ek doer ka ek task ek hi baar aata hai — chahe wo roz/hafte repeat hota ho.
+// Har row: doer ka naam, email, task ka description, frequency, aur assign date
+// (us task ki sabse pehli entry ka date). Poora data — koi date filter nahi.
+app.get('/api/tasks/checklist-master', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      'SELECT assigned_to, description, frequency, created_at FROM checklist_tasks');
+    const [users] = await db.query('SELECT id, name, email, department FROM users');
+    const uMap = {};
+    for (const u of users) uMap[String(u.id)] = u;
+    const out = {};
+    for (const t of rows) {
+      const desc = String(t.description || '').trim();
+      if (!desc) continue;
+      const key = [String(t.assigned_to), desc.toLowerCase(), String(t.frequency || '')].join('');
+      const on = String(t.created_at || '').slice(0, 10);
+      if (!out[key]) {
+        const u = uMap[String(t.assigned_to)] || {};
+        out[key] = {
+          name: u.name || '', email: u.email || '', department: u.department || '',
+          description: desc, frequency: String(t.frequency || ''), assignedOn: on, count: 1
+        };
+      } else {
+        out[key].count++;
+        if (on && (!out[key].assignedOn || on < out[key].assignedOn)) out[key].assignedOn = on;
+      }
+    }
+    const list = Object.values(out).sort((a, b) =>
+      String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase()) ||
+      String(a.description).toLowerCase().localeCompare(String(b.description).toLowerCase()));
+    res.json({ total: list.length, rows: list });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/tasks/checklist-year-count', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { userId, year, frequency } = req.query;

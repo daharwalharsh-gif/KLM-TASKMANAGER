@@ -869,7 +869,11 @@ tbody tr:last-child td{border-bottom:none;}
         <button class="btn btn-outline" id="tasksPdfBtn" onclick="exportTasksPDF()"
           style="color:#b45309;border-color:#fcd34d;display:none">📄 Checklist PDF</button>
         <button class="btn btn-outline" id="checklistListBtn" onclick="exportChecklistDetailsPDF()"
-          style="color:#6d28d9;border-color:#ddd6fe;display:none">📋 Checklist Details</button>
+          style="color:#6d28d9;border-color:#ddd6fe;display:none"
+          title="All checklist tasks — Name, Email, Description, Frequency, Date of assign">📋 Checklist List PDF</button>
+        <button class="btn btn-outline" id="checklistCsvBtn" onclick="exportChecklistDetailsCSV()"
+          style="color:#047857;border-color:#a7f3d0;display:none"
+          title="All checklist tasks — Name, Email, Description, Frequency, Date of assign">⬇ Checklist List CSV</button>
       </div>
     </div>
     <!-- Status filter tabs -->
@@ -3663,6 +3667,7 @@ async function init() {
       document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
       const pdb = document.getElementById('tasksPdfBtn'); if (pdb) { pdb.style.display = 'inline-flex'; syncPdfBtnLabel(); }
       const clb = document.getElementById('checklistListBtn'); if (clb) clb.style.display = 'inline-flex';
+      const ccb = document.getElementById('checklistCsvBtn'); if (ccb) ccb.style.display = 'inline-flex';
     }
     if (ME.role === 'hod') {
       // HOD ko MIS dikhta hai (apne department ka)
@@ -6228,44 +6233,65 @@ function exportTasksPDF() {
 }
 
 
-// Checklist ka simple list PDF — sirf Doer, Task, Date aur Frequency.
-// Na pending/completed ka batwara, na koi summary. Sirf details.
-async function exportChecklistDetailsPDF() {
-  if (!(ME && ME.role === 'admin')) return showToast('Sirf admin', 'error');
-  const btn = document.getElementById('checklistListBtn');
+// Saare checklist tasks ki master list — ek doer ka ek task ek hi baar
+// (roz/hafte repeat hone wale task ki alag-alag date wali entries nahi).
+// Columns: Name, Email, Task description, Frequency, Date of assign.
+// PDF aur CSV dono isi list se bante hain — All Tasks tab ke buttons se.
+const _chkDate = v => { const s = String(v || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+  const [y, m, dd] = s.split('-'); return `${dd}-${m}-${y}`; };
+const _chkFreq = v => { const f = String(v || '').trim().replace(/_/g, ' ');
+  return f ? f.charAt(0).toUpperCase() + f.slice(1) : '—'; };
+async function checklistMasterList(btnId) {
+  const btn = document.getElementById(btnId);
   const oldTxt = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Loading…'; }
-  let list = [];
   try {
-    // Checklist tab khula ho ya na ho — hamesha checklist ka data laao
-    const data = await api('/api/tasks?type=checklist');
+    const data = await api('/api/tasks/checklist-master');
     if (data && data.error) throw new Error(data.error);
-    list = (data.grouped || []).flatMap(g => g.tasks || []).concat(data.tasks || []);
+    return data.rows || [];
   } catch (e) {
+    showToast(e.message || 'Checklist load nahi hui', 'error');
+    return null;
+  } finally {
     if (btn) { btn.disabled = false; btn.textContent = oldTxt; }
-    return showToast(e.message || 'Checklist load nahi hui', 'error');
   }
-  if (btn) { btn.disabled = false; btn.textContent = oldTxt; }
-  if (!list.length) return showToast('Koi checklist task nahi hai', 'error');
+}
 
-  const d = v => { const s = String(v || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
-    const [y, m, dd] = s.split('-'); return `${dd}-${m}-${y}`; };
-  const freq = v => { const f = String(v || '').trim().replace(/_/g, ' ');
-    return f ? f.charAt(0).toUpperCase() + f.slice(1) : '—'; };
-  list.sort((a, b) =>
-    String(a.assignedToName || '').toLowerCase().localeCompare(String(b.assignedToName || '').toLowerCase()) ||
-    String(a.due_date || '').localeCompare(String(b.due_date || '')));
+// CSV — Name, Email, Task description, Frequency, Date of assign
+async function exportChecklistDetailsCSV() {
+  if (!(ME && ME.role === 'admin')) return showToast('Sirf admin', 'error');
+  const list = await checklistMasterList('checklistCsvBtn');
+  if (!list) return;
+  if (!list.length) return showToast('Koi checklist task nahi hai', 'error');
+  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const lines = [['Sr No.', 'Name', 'Email', 'Task Description', 'Frequency', 'Date of Assign'].map(q).join(',')];
+  list.forEach((r, i) => lines.push([i + 1, r.name || '', r.email || '',
+    r.description || '', _chkFreq(r.frequency), _chkDate(r.assignedOn)].map(q).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Checklist-Task-List.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast(`⬇ ${list.length} checklist task(s) CSV me`);
+}
+
+async function exportChecklistDetailsPDF() {
+  if (!(ME && ME.role === 'admin')) return showToast('Sirf admin', 'error');
+  const list = await checklistMasterList('checklistListBtn');
+  if (!list) return;
+  if (!list.length) return showToast('Koi checklist task nahi hai', 'error');
+  const d = _chkDate, freq = _chkFreq;
 
   const now = new Date();
   const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 
   const html = `<!doctype html><html><head><meta charset="utf-8">
-<title>KLM Task Manager — Checklist Details</title>
+<title>KLM Task Manager — Checklist Task List</title>
 <style>
-  @page { size: A4 portrait; margin: 14mm; }
+  @page { size: A4 landscape; margin: 11mm; }
   *{box-sizing:border-box}
-  body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:0;font-size:12px}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:0;font-size:11px}
   .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #6d28d9;padding-bottom:8px;margin-bottom:14px}
   .head h1{margin:0;font-size:18px;color:#6d28d9}
   .head .sub{font-size:11px;color:#64748b}
@@ -6273,26 +6299,28 @@ async function exportChecklistDetailsPDF() {
   th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left;vertical-align:top;word-wrap:break-word}
   th{background:#f5f3ff;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:#4c1d95}
   tbody tr:nth-child(even){background:#faf9ff}
-  .n{width:34px;text-align:center}
-  .c{width:92px;text-align:center;white-space:nowrap}
-  th:nth-child(2),td:nth-child(2){width:150px}
+  .n{width:32px;text-align:center}
+  .c{width:88px;text-align:center;white-space:nowrap}
+  th:nth-child(2),td:nth-child(2){width:130px}
+  th:nth-child(3),td:nth-child(3){width:185px}
   thead{display:table-header-group}
   tr{page-break-inside:avoid}
   .foot{margin-top:14px;border-top:1px solid #e2e8f0;padding-top:6px;font-size:10px;color:#94a3b8;text-align:center}
 </style></head><body>
   <div class="head">
-    <div><h1>Checklist Details</h1><div class="sub">KLM Task Manager</div></div>
+    <div><h1>Checklist Task List</h1><div class="sub">KLM Task Manager</div></div>
     <div class="sub">${stamp}<br>Total: ${list.length}</div>
   </div>
   <table>
-    <thead><tr><th class="n">#</th><th>Doer Name</th><th>Task Description</th>
-      <th class="c">Date</th><th class="c">Frequency</th></tr></thead>
+    <thead><tr><th class="n">#</th><th>Name</th><th>Email</th><th>Task Description</th>
+      <th class="c">Frequency</th><th class="c">Date of Assign</th></tr></thead>
     <tbody>${list.map((t, i) => `<tr>
       <td class="n">${i + 1}</td>
-      <td>${escapeHtml(t.assignedToName || '—')}</td>
+      <td>${escapeHtml(t.name || '—')}</td>
+      <td>${escapeHtml(t.email || '—')}</td>
       <td>${escapeHtml(t.description || '—')}</td>
-      <td class="c">${d(t.due_date)}</td>
       <td class="c">${freq(t.frequency)}</td>
+      <td class="c">${d(t.assignedOn)}</td>
     </tr>`).join('')}</tbody>
   </table>
   <div class="foot">KLM Task Manager · ${stamp}</div>
