@@ -2110,6 +2110,11 @@ tbody tr:last-child td{border-bottom:none;}
     .pd-sec table{width:100%;border-collapse:collapse}
     .pd-sec th{background:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#64748b;
       text-align:left;padding:9px 14px;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+    /* Number wale column me heading bhi usi taraf — warna heading aage aur number peeche dikhta hai */
+    .pd-sec th.pd-n{text-align:right}
+    .pd-sec th.pd-c,.pd-sec td.pd-c{text-align:center}
+    .pd-sec th:first-child,.pd-sec td:first-child{width:34%}
+    .pd-sec th.pd-n,.pd-sec td.pd-n{width:11%}
     .pd-sec td{padding:9px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#1e293b}
     .pd-sec tbody tr{cursor:pointer}
     .pd-sec tbody tr:hover{background:#f8faff}
@@ -2120,6 +2125,16 @@ tbody tr:last-child td{border-bottom:none;}
     .pd-none{background:#f1f5f9;color:#64748b}
     .pd-foot td{background:#f8fafc;font-weight:800;border-top:2px solid #e2e8f0}
     .pd-tip{font-size:11px;color:#94a3b8;margin:-6px 0 14px 2px}
+    .pd-charts{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;margin-bottom:16px}
+    @media (max-width:980px){ .pd-charts{grid-template-columns:1fr} }
+    .pd-cwrap{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:13px 15px}
+    .pd-cwrap h4{margin:0 0 2px;font-size:13px;font-weight:800;color:#1e293b}
+    .pd-cwrap .s{font-size:11px;color:#94a3b8;margin-bottom:9px}
+    .pd-cbox{position:relative;height:265px}
+    .pd-per{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
+    .pd-per button{padding:5px 13px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;
+      font-size:12px;font-weight:600;color:#475569;font-family:'Inter',sans-serif}
+    .pd-per button.on{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
     /* ── FMS bulk done (Garments / Boxing PMS) ── */
     .fms-bulk-bar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:10px;
       background:#0f172a;color:#fff;border-radius:11px;padding:10px 14px;margin-bottom:10px;
@@ -13493,16 +13508,16 @@ function renderPPCDash() {
       <h4>TOTAL — DEPARTMENT WISE (all time)</h4>
       <table><thead><tr>
         <th>Department</th><th class="pd-n">Total Plan</th><th class="pd-n">Total Actual</th>
-        <th class="pd-n">Total Balance</th><th>Status</th></tr></thead>
+        <th class="pd-n">Total Balance</th><th class="pd-c">Status</th></tr></thead>
       <tbody>${(r.blocks.total || []).map(x => `<tr onclick="ppcOpenDept('total','${escapeHtml(x.code)}')">
         <td>${escapeHtml(x.dept)}</td>
         <td class="pd-n">${_pdNum(x.plan)}</td>
         <td class="pd-n">${_pdNum(x.actual)}</td>
         <td class="pd-n">${_pdNum(x.balance)}</td>
-        <td>${_pdPill(x.status)}</td></tr>`).join('')}
+        <td class="pd-c">${_pdPill(x.status)}</td></tr>`).join('')}
         <tr class="pd-foot"><td>TOTAL</td>
           <td class="pd-n">${_pdNum(s.plan)}</td><td class="pd-n">${_pdNum(s.actual)}</td>
-          <td class="pd-n">${_pdNum(s.balance)}</td><td>${s.achievement}%</td></tr>
+          <td class="pd-n">${_pdNum(s.balance)}</td><td class="pd-c">${s.achievement}%</td></tr>
       </tbody></table>
     </div>`;
   const sec = (title, key) => {
@@ -13512,14 +13527,14 @@ function renderPPCDash() {
       <h4>${title}</h4>
       <table><thead><tr>
         <th>Department</th><th class="pd-n">Plan</th><th class="pd-n">Actual</th><th class="pd-n">Balance</th>
-        <th class="pd-n">Achievement %</th><th>Status</th><th>Remarks</th></tr></thead>
+        <th class="pd-n">Achievement %</th><th class="pd-c">Status</th><th>Remarks</th></tr></thead>
       <tbody>${rows.map(x => `<tr onclick="ppcOpenDept('${key}','${escapeHtml(x.code)}')">
         <td>${escapeHtml(x.dept)}</td>
         <td class="pd-n">${_pdNum(x.plan)}</td>
         <td class="pd-n">${_pdNum(x.actual)}</td>
         <td class="pd-n">${_pdNum(x.balance)}</td>
         <td class="pd-n">${x.achievement.toFixed(2)}%</td>
-        <td>${_pdPill(x.status)}</td>
+        <td class="pd-c">${_pdPill(x.status)}</td>
         <td style="color:${x.status === 'RED' ? '#b91c1c' : '#64748b'}">${escapeHtml(x.remarks)}</td></tr>`).join('')}
         <tr class="pd-foot"><td>TOTAL</td>
           <td class="pd-n">${_pdNum(p)}</td><td class="pd-n">${_pdNum(a2)}</td>
@@ -13529,6 +13544,23 @@ function renderPPCDash() {
       </tbody></table>
     </div>`;
   };
+  const per = ['total', 'daily', 'weekly', 'monthly'];
+  const perLbl = { total: 'Total', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+  const charts = `
+    <div class="pd-per">${per.map(k =>
+      `<button class="${_ppcChartPer === k ? 'on' : ''}" onclick="ppcChartPeriod('${k}')">${perLbl[k]}</button>`).join('')}</div>
+    <div class="pd-charts">
+      <div class="pd-cwrap">
+        <h4>Plan vs Actual — department wise</h4>
+        <div class="s" id="ppcChart1Sub"></div>
+        <div class="pd-cbox"><canvas id="ppcChartPA"></canvas></div>
+      </div>
+      <div class="pd-cwrap">
+        <h4>Achievement % — department wise</h4>
+        <div class="s">Dotted line = 100% target</div>
+        <div class="pd-cbox"><canvas id="ppcChartAch"></canvas></div>
+      </div>
+    </div>`;
   document.getElementById('ppcDashContent').innerHTML = `
     <div class="pd-head">
       <h3>PPC VS ACTUAL — DEPARTMENT WISE · ${escapeHtml(r.label)}</h3>
@@ -13545,11 +13577,75 @@ function renderPPCDash() {
       <div class="pd-card"><div class="l">Total Achievement</div><div class="v">${s.achievement}%</div></div>
       <div class="pd-card"><div class="l">Red Dept.</div><div class="v" style="color:#b91c1c">${s.redDepts}</div></div>
     </div>
-    <div class="pd-tip">Kisi bhi department ki row par click karo — uske andar ke saare orders popup me khulenge.</div>
+    ${charts}
+    <div class="pd-tip">Click any department row — all its orders open in a popup.</div>
     ${secTotal}
     ${sec('DAILY — PLAN VS ACTUAL (' + _pdDate(r.asOf) + ')', 'daily')}
     ${sec('WEEKLY — PLAN VS ACTUAL (' + _pdDate(r.weekFrom) + ' → ' + _pdDate(r.weekTo) + ')', 'weekly')}
     ${sec('MONTHLY — PLAN VS ACTUAL (' + escapeHtml(r.month) + ')', 'monthly')}`;
+  ppcDrawCharts();
+}
+
+// ── Graphs ── Plan vs Actual (grouped bars) aur Achievement % (100% target line ke saath).
+// Dono usi period ke hain jo upar button se chuna hai, aur data badalte hi dobara bante hain.
+let _ppcChartPer = 'total';
+let _ppcCharts = {};
+function ppcChartPeriod(p) { _ppcChartPer = p; renderPPCDash(); }
+function ppcDrawCharts() {
+  const r = _ppcDash; if (!r || typeof Chart === 'undefined') return;
+  Object.values(_ppcCharts).forEach(c => { try { c.destroy(); } catch (e) {} });
+  _ppcCharts = {};
+  const rows = r.blocks[_ppcChartPer] || [];
+  const labels = rows.map(x => x.dept.length > 22 ? x.dept.slice(0, 21) + '…' : x.dept);
+  const sub = _ppcChartPer === 'total' ? 'All time'
+    : _ppcChartPer === 'daily' ? _pdDate(r.asOf)
+    : _ppcChartPer === 'weekly' ? `${_pdDate(r.weekFrom)} → ${_pdDate(r.weekTo)}` : r.month;
+  const s1 = document.getElementById('ppcChart1Sub'); if (s1) s1.textContent = sub + ' · quantity';
+  const grid = { color: '#eef2f7', drawTicks: false };
+  const ink = '#64748b';
+  const c1 = document.getElementById('ppcChartPA');
+  if (c1) _ppcCharts.pa = new Chart(c1, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Plan',   data: rows.map(x => x.plan),   backgroundColor: '#2a78d6', borderRadius: 4, borderSkipped: 'bottom' },
+      { label: 'Actual', data: rows.map(x => x.actual), backgroundColor: '#eb6834', borderRadius: 4, borderSkipped: 'bottom' }
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      categoryPercentage: 0.72, barPercentage: 0.9,
+      plugins: {
+        legend: { position: 'top', align: 'end', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'rectRounded', color: ink, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => `${c.dataset.label}: ${(c.parsed.y || 0).toLocaleString('en-IN')}` } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: ink, font: { size: 10.5 }, maxRotation: 40, minRotation: 0 } },
+        y: { beginAtZero: true, grid, border: { display: false },
+             ticks: { color: ink, font: { size: 10.5 }, callback: v => v >= 1000 ? (v / 1000) + 'k' : v } }
+      }
+    }
+  });
+  const c2 = document.getElementById('ppcChartAch');
+  if (c2) _ppcCharts.ach = new Chart(c2, {
+    data: { labels, datasets: [
+      { type: 'bar', label: 'Achievement %', data: rows.map(x => x.achievement),
+        backgroundColor: '#2a78d6', borderRadius: 4, borderSkipped: 'bottom' },
+      { type: 'line', label: 'Target 100%', data: rows.map(() => 100),
+        borderColor: '#94a3b8', borderDash: [5, 4], borderWidth: 2, pointRadius: 0, fill: false }
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      categoryPercentage: 0.7, barPercentage: 0.85,
+      plugins: {
+        legend: { position: 'top', align: 'end', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'rectRounded', color: ink, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => `${c.dataset.label}: ${(c.parsed.y || 0).toFixed(2)}%` } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: ink, font: { size: 10.5 }, maxRotation: 40 } },
+        y: { beginAtZero: true, grid, border: { display: false },
+             ticks: { color: ink, font: { size: 10.5 }, callback: v => v + '%' } }
+      }
+    }
+  });
 }
 
 // Department row par click — us period ke orders
