@@ -2095,6 +2095,31 @@ tbody tr:last-child td{border-bottom:none;}
     .ppc-pend{background:#fef3c7;color:#b45309}
     .ppc-high{background:#fee2e2!important} .ppc-high .pm-sel{color:#b91c1c;font-weight:700}
     .ppc-low{background:#dcfce7!important}  .ppc-low .pm-sel{color:#15803d;font-weight:700}
+    /* ── PPC vs Actual — department wise dashboard ── */
+    .pd-head{background:#1e3a8a;color:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px}
+    .pd-head h3{margin:0;font-size:16px;letter-spacing:.4px}
+    .pd-meta{display:flex;gap:22px;flex-wrap:wrap;font-size:12px;color:#c7d2fe;margin-top:6px}
+    .pd-meta b{color:#fff}
+    .pd-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:11px;margin-bottom:16px}
+    .pd-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px}
+    .pd-card .l{font-size:10.5px;font-weight:700;color:#94a3b8;letter-spacing:.6px;text-transform:uppercase}
+    .pd-card .v{font-size:22px;font-weight:800;margin-top:3px;color:#1e293b}
+    .pd-sec{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:15px}
+    .pd-sec > h4{margin:0;padding:10px 15px;font-size:13px;font-weight:800;color:#3730a3;
+      background:#eef2ff;border-bottom:1px solid #e0e7ff;letter-spacing:.4px}
+    .pd-sec table{width:100%;border-collapse:collapse}
+    .pd-sec th{background:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#64748b;
+      text-align:left;padding:9px 14px;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+    .pd-sec td{padding:9px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#1e293b}
+    .pd-sec tbody tr{cursor:pointer}
+    .pd-sec tbody tr:hover{background:#f8faff}
+    .pd-sec tbody tr:last-child td{border-bottom:none}
+    .pd-n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .pd-pill{display:inline-block;font-size:10.5px;font-weight:800;padding:3px 10px;border-radius:20px;white-space:nowrap}
+    .pd-red{background:#fee2e2;color:#b91c1c} .pd-green{background:#dcfce7;color:#15803d}
+    .pd-none{background:#f1f5f9;color:#64748b}
+    .pd-foot td{background:#f8fafc;font-weight:800;border-top:2px solid #e2e8f0}
+    .pd-tip{font-size:11px;color:#94a3b8;margin:-6px 0 14px 2px}
     /* ── FMS bulk done (Garments / Boxing PMS) ── */
     .fms-bulk-bar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:10px;
       background:#0f172a;color:#fff;border-radius:11px;padding:10px 14px;margin-bottom:10px;
@@ -2166,32 +2191,44 @@ tbody tr:last-child td{border-bottom:none;}
         </div>
       </div>
 
+      <div class="ppc-tabs" id="ppcViewTabs">
+        <div class="ppc-tab active" id="ppcViewDash" onclick="ppcView('dash')">📊 PPC vs Actual</div>
+        <div class="ppc-tab" id="ppcViewOrders" onclick="ppcView('orders')">📋 Orders</div>
+      </div>
+
       <div class="pm-bar">
         <div>
           <label>Sheet</label>
-          <select id="ppcSheet" onchange="_ppcStep='';loadPPC()" style="min-width:170px"></select>
+          <select id="ppcSheet" onchange="_ppcStep='';ppcReload()" style="min-width:170px"></select>
         </div>
-        <div>
+        <div id="ppcDashBar">
+          <label>As-of Date</label>
+          <input type="date" id="ppcAsOf" onchange="loadPPCDash()"/>
+        </div>
+        <div id="ppcOrdBar1" style="display:none">
           <label>PI Approval From</label>
           <input type="date" id="ppcFrom" onchange="loadPPC()"/>
         </div>
-        <div>
+        <div id="ppcOrdBar2" style="display:none">
           <label>To</label>
           <input type="date" id="ppcTo" onchange="loadPPC()"/>
         </div>
-        <div>
+        <div id="ppcOrdBar3" style="display:none">
           <label>&nbsp;</label>
           <button class="btn btn-outline btn-sm" onclick="ppcClearDates()">✕ Clear</button>
         </div>
-        <div style="flex:1;min-width:190px">
+        <div id="ppcOrdBar4" style="flex:1;min-width:190px;display:none">
           <label>Search</label>
           <input type="text" id="ppcSearch" placeholder="Buyer / PI / Code / Colour…" oninput="renderPPC()" style="width:100%"/>
         </div>
         <span class="pm-count" id="ppcCount"></span>
       </div>
 
-      <div class="ppc-tabs" id="ppcTabs"></div>
-      <div id="ppcContent"></div>
+      <div id="ppcDashContent"></div>
+      <div id="ppcOrdersWrap" style="display:none">
+        <div class="ppc-tabs" id="ppcTabs"></div>
+        <div id="ppcContent"></div>
+      </div>
     </div>
   </div>
 
@@ -2554,6 +2591,23 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 
   <!-- CHALLENGE DETAILS POPUP — card par click karne se khulta hai -->
+  <!-- PPC vs Actual — department row par click, uske andar ke orders -->
+  <div class="modal-overlay" id="ppcDeptModal">
+    <div style="background:#fff;border-radius:16px;max-width:1050px;width:96%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(30,58,138,.35);overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 20px;border-bottom:1px solid #dbeafe;background:linear-gradient(135deg,#f5f9ff,#eff6ff)">
+        <div>
+          <h3 id="ppcDeptTitle" style="margin:0;font-size:17px;color:#1e3a8a">Department</h3>
+          <div id="ppcDeptSub" style="font-size:12px;color:#64748b;margin-top:2px"></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn btn-outline btn-sm" onclick="ppcDeptCSV()">⬇ CSV</button>
+          <button class="btn btn-outline btn-sm" onclick="closeModal('ppcDeptModal')">✕ Close</button>
+        </div>
+      </div>
+      <div id="ppcDeptBody" style="overflow:auto;padding:14px 18px"></div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="chalDetailModal">
     <div class="modal" style="max-width:680px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;background:#fff;padding-bottom:10px;margin-bottom:12px;z-index:20;border-bottom:1px solid #f1f5f9">
@@ -13364,12 +13418,281 @@ function showPPC() {
   document.getElementById('pmMain').style.display = 'none';
   document.getElementById('ppcWrap').style.display = '';
   document.getElementById('topbarTitle').textContent = 'PPC';
-  loadPPC();
+  ppcView(_ppcMode || 'dash');
 }
 function hidePPC() {
   document.getElementById('ppcWrap').style.display = 'none';
   document.getElementById('pmMain').style.display = '';
   document.getElementById('topbarTitle').textContent = 'Production Management';
+}
+
+// ══════════════════════════════════════════════════════
+// PPC VS ACTUAL — DEPARTMENT WISE (Total / Daily / Weekly / Monthly)
+// Har step ek department hai. Plan = us step ki Planned date jis period me hai
+// un orders ki quantity ka jod; Actual = usi tarah Actual date se. Kisi bhi
+// department ki row par click karo to uske andar ke orders popup me khulte hain.
+// ══════════════════════════════════════════════════════
+let _ppcMode = 'dash';        // 'dash' = PPC vs Actual, 'orders' = purani order list
+let _ppcDash = null;
+let _ppcDashLoading = false;
+let _ppcDeptRows = [];        // popup me jo dikh raha hai
+let _ppcDeptName = '';
+
+function ppcView(mode) {
+  _ppcMode = mode;
+  document.getElementById('ppcViewDash').classList.toggle('active', mode === 'dash');
+  document.getElementById('ppcViewOrders').classList.toggle('active', mode === 'orders');
+  document.getElementById('ppcDashContent').style.display = mode === 'dash' ? '' : 'none';
+  document.getElementById('ppcOrdersWrap').style.display = mode === 'dash' ? 'none' : '';
+  document.getElementById('ppcDashBar').style.display = mode === 'dash' ? '' : 'none';
+  ['ppcOrdBar1', 'ppcOrdBar2', 'ppcOrdBar3'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.style.display = mode === 'dash' ? 'none' : '';
+  });
+  const s4 = document.getElementById('ppcOrdBar4');
+  if (s4) s4.style.display = mode === 'dash' ? 'none' : '';
+  ppcReload();
+}
+function ppcReload() { if (_ppcMode === 'dash') loadPPCDash(); else loadPPC(); }
+
+async function loadPPCDash() {
+  if (_ppcDashLoading) return;
+  _ppcDashLoading = true;
+  const box = document.getElementById('ppcDashContent');
+  box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
+  const sheet = document.getElementById('ppcSheet').value || 'garments';
+  const date = document.getElementById('ppcAsOf').value || '';
+  const r = await api(`/api/ppc/dashboard?sheet=${encodeURIComponent(sheet)}&date=${encodeURIComponent(date)}`);
+  _ppcDashLoading = false;
+  if (!r || r.error) {
+    box.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">⚠️ ${escapeHtml((r && r.error) || 'Load failed')}</div>`;
+    return;
+  }
+  _ppcDash = r;
+  const sel = document.getElementById('ppcSheet');
+  if (sel.options.length !== (r.sheets || []).length) {
+    sel.innerHTML = (r.sheets || []).map(s => `<option value="${s.key}">${escapeHtml(s.label)}</option>`).join('');
+    sel.value = r.sheet;
+  }
+  const dt = document.getElementById('ppcAsOf');
+  if (dt && !dt.value) dt.value = r.asOf;
+  const link = document.getElementById('ppcSheetLink');
+  if (link) link.href = 'https://docs.google.com/spreadsheets/d/' + r.sheetId + '/edit';
+  document.getElementById('ppcCount').textContent = `${(r.summary || {}).orders || 0} order(s)`;
+  renderPPCDash();
+}
+
+const _pdNum = n => (parseInt(n, 10) || 0).toLocaleString('en-IN');
+const _pdDate = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : (s || '—'); };
+const _pdPill = st => `<span class="pd-pill ${st === 'RED' ? 'pd-red' : st === 'GREEN' ? 'pd-green' : 'pd-none'}">${st}</span>`;
+
+function renderPPCDash() {
+  const r = _ppcDash; if (!r) return;
+  const s = r.summary || {};
+  const secTotal = `
+    <div class="pd-sec">
+      <h4>TOTAL — DEPARTMENT WISE (all time)</h4>
+      <table><thead><tr>
+        <th>Department</th><th class="pd-n">Total Plan</th><th class="pd-n">Total Actual</th>
+        <th class="pd-n">Total Balance</th><th>Status</th></tr></thead>
+      <tbody>${(r.blocks.total || []).map(x => `<tr onclick="ppcOpenDept('total','${escapeHtml(x.code)}')">
+        <td>${escapeHtml(x.dept)}</td>
+        <td class="pd-n">${_pdNum(x.plan)}</td>
+        <td class="pd-n">${_pdNum(x.actual)}</td>
+        <td class="pd-n">${_pdNum(x.balance)}</td>
+        <td>${_pdPill(x.status)}</td></tr>`).join('')}
+        <tr class="pd-foot"><td>TOTAL</td>
+          <td class="pd-n">${_pdNum(s.plan)}</td><td class="pd-n">${_pdNum(s.actual)}</td>
+          <td class="pd-n">${_pdNum(s.balance)}</td><td>${s.achievement}%</td></tr>
+      </tbody></table>
+    </div>`;
+  const sec = (title, key) => {
+    const rows = r.blocks[key] || [];
+    const p = rows.reduce((a, x) => a + x.plan, 0), a2 = rows.reduce((a, x) => a + x.actual, 0);
+    return `<div class="pd-sec">
+      <h4>${title}</h4>
+      <table><thead><tr>
+        <th>Department</th><th class="pd-n">Plan</th><th class="pd-n">Actual</th><th class="pd-n">Balance</th>
+        <th class="pd-n">Achievement %</th><th>Status</th><th>Remarks</th></tr></thead>
+      <tbody>${rows.map(x => `<tr onclick="ppcOpenDept('${key}','${escapeHtml(x.code)}')">
+        <td>${escapeHtml(x.dept)}</td>
+        <td class="pd-n">${_pdNum(x.plan)}</td>
+        <td class="pd-n">${_pdNum(x.actual)}</td>
+        <td class="pd-n">${_pdNum(x.balance)}</td>
+        <td class="pd-n">${x.achievement.toFixed(2)}%</td>
+        <td>${_pdPill(x.status)}</td>
+        <td style="color:${x.status === 'RED' ? '#b91c1c' : '#64748b'}">${escapeHtml(x.remarks)}</td></tr>`).join('')}
+        <tr class="pd-foot"><td>TOTAL</td>
+          <td class="pd-n">${_pdNum(p)}</td><td class="pd-n">${_pdNum(a2)}</td>
+          <td class="pd-n">${_pdNum(p - a2)}</td>
+          <td class="pd-n">${p > 0 ? (a2 / p * 100).toFixed(2) : '0.00'}%</td>
+          <td colspan="2"></td></tr>
+      </tbody></table>
+    </div>`;
+  };
+  document.getElementById('ppcDashContent').innerHTML = `
+    <div class="pd-head">
+      <h3>PPC VS ACTUAL — DEPARTMENT WISE · ${escapeHtml(r.label)}</h3>
+      <div class="pd-meta">
+        <span>As-of Date: <b>${_pdDate(r.asOf)}</b></span>
+        <span>Week: <b>${escapeHtml(r.week)}</b> (${_pdDate(r.weekFrom)} → ${_pdDate(r.weekTo)})</span>
+        <span>Month: <b>${escapeHtml(r.month)}</b></span>
+      </div>
+    </div>
+    <div class="pd-cards">
+      <div class="pd-card"><div class="l">Total Plan</div><div class="v">${_pdNum(s.plan)}</div></div>
+      <div class="pd-card"><div class="l">Total Actual</div><div class="v" style="color:#15803d">${_pdNum(s.actual)}</div></div>
+      <div class="pd-card"><div class="l">Total Balance</div><div class="v" style="color:#b45309">${_pdNum(s.balance)}</div></div>
+      <div class="pd-card"><div class="l">Total Achievement</div><div class="v">${s.achievement}%</div></div>
+      <div class="pd-card"><div class="l">Red Dept.</div><div class="v" style="color:#b91c1c">${s.redDepts}</div></div>
+    </div>
+    <div class="pd-tip">Kisi bhi department ki row par click karo — uske andar ke saare orders popup me khulenge.</div>
+    ${secTotal}
+    ${sec('DAILY — PLAN VS ACTUAL (' + _pdDate(r.asOf) + ')', 'daily')}
+    ${sec('WEEKLY — PLAN VS ACTUAL (' + _pdDate(r.weekFrom) + ' → ' + _pdDate(r.weekTo) + ')', 'weekly')}
+    ${sec('MONTHLY — PLAN VS ACTUAL (' + escapeHtml(r.month) + ')', 'monthly')}`;
+}
+
+// Department row par click — us period ke orders
+function ppcOpenDept(period, code) {
+  const r = _ppcDash; if (!r) return;
+  const i = (r.steps || []).findIndex(s => s.code === code);
+  if (i < 0) return;
+  const step = r.steps[i];
+  const range = period === 'daily' ? [r.asOf, r.asOf]
+    : period === 'weekly' ? [r.weekFrom, r.weekTo]
+    : period === 'monthly' ? [r.monthFrom, r.monthTo] : [null, null];
+  const label = period === 'total' ? 'All time'
+    : period === 'daily' ? _pdDate(r.asOf)
+    : period === 'weekly' ? `${_pdDate(r.weekFrom)} → ${_pdDate(r.weekTo)}`
+    : r.month;
+  const inR = d => !!d && (!range[0] || d >= range[0]) && (!range[1] || d <= range[1]);
+  const list = [];
+  for (const o of r.orders || []) {
+    const [p, a] = o.s[i] || ['', ''];
+    const isPlan = range[0] === null ? !!p : inR(p);
+    const isAct = range[0] === null ? !!a : inR(a);
+    if (!isPlan && !isAct) continue;
+    list.push({ ...o, planned: p, actual: a, isPlan, isAct });
+  }
+  list.sort((x, y) => String(x.planned).localeCompare(String(y.planned)) || String(x.buyer).localeCompare(String(y.buyer)));
+  _ppcDeptRows = list;
+  _ppcDeptName = `${step.name} — ${label}`;
+  const plan = list.filter(x => x.isPlan).reduce((a, x) => a + x.qty, 0);
+  const act = list.filter(x => x.isAct).reduce((a, x) => a + x.qty, 0);
+  document.getElementById('ppcDeptTitle').textContent = step.name;
+  document.getElementById('ppcDeptSub').innerHTML =
+    `${escapeHtml(r.label)} · ${escapeHtml(label)} · Plan <b>${_pdNum(plan)}</b> · Actual <b>${_pdNum(act)}</b> · Balance <b>${_pdNum(plan - act)}</b> · ${list.length} order(s)`;
+  document.getElementById('ppcDeptBody').innerHTML = list.length ? `
+    <table class="pd-sec" style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:10px">
+      <thead><tr>
+        <th style="padding:8px 10px;background:#f8fafc;font-size:11px;text-align:left">#</th>
+        <th style="padding:8px 10px;background:#f8fafc;font-size:11px;text-align:left">Buyer</th>
+        <th style="padding:8px 10px;background:#f8fafc;font-size:11px;text-align:left">PI Number</th>
+        <th style="padding:8px 10px;background:#f8fafc;font-size:11px;text-align:left">Code</th>
+        <th style="padding:8px 10px;background:#f8fafc;font-size:11px;text-align:left">Colour</th>
+        <th style="padding:8px 10px;background:#f8fafc;font-size:11px;text-align:left">Size</th>
+        <th style="padding:8px 10px;background:#f8fafc;font-size:11px;text-align:right">Qty</th>
+        <th style="padding:8px 10px;background:#f8fafc;font-size:11px;text-align:center">Planned</th>
+        <th style="padding:8px 10px;background:#f8fafc;font-size:11px;text-align:center">Actual</th>
+        <th style="padding:8px 10px;background:#f8fafc;font-size:11px;text-align:center">Status</th>
+      </tr></thead>
+      <tbody>${list.map((x, n) => `<tr style="border-top:1px solid #f1f5f9">
+        <td style="padding:7px 10px;font-size:12.5px;color:#94a3b8">${n + 1}</td>
+        <td style="padding:7px 10px;font-size:12.5px">${escapeHtml(x.buyer || '—')}</td>
+        <td style="padding:7px 10px;font-size:12.5px;color:#1a56db;font-weight:600">${escapeHtml(x.piNo || '—')}</td>
+        <td style="padding:7px 10px;font-size:12.5px">${escapeHtml(x.code || '—')}</td>
+        <td style="padding:7px 10px;font-size:12.5px">${escapeHtml(x.colour || '—')}</td>
+        <td style="padding:7px 10px;font-size:12.5px">${escapeHtml(x.size || '—')}</td>
+        <td style="padding:7px 10px;font-size:12.5px;text-align:right;font-weight:700">${_pdNum(x.qty)}</td>
+        <td style="padding:7px 10px;font-size:12.5px;text-align:center">${_pdDate(x.planned)}</td>
+        <td style="padding:7px 10px;font-size:12.5px;text-align:center">${x.actual ? _pdDate(x.actual) : '—'}</td>
+        <td style="padding:7px 10px;text-align:center">${x.actual
+          ? '<span class="ppc-pill ppc-done">Done</span>'
+          : '<span class="ppc-pill ppc-pend">Pending</span>'}</td>
+      </tr>`).join('')}</tbody>
+    </table>` : '<div class="empty">Is period me is department ka koi order nahi</div>';
+  openModal('ppcDeptModal');
+}
+
+function ppcDeptCSV() {
+  if (!_ppcDeptRows.length) return showToast('Kuch nahi hai', 'error');
+  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const lines = [['Sr No.', 'Buyer', 'PI Number', 'Code', 'Colour', 'Size', 'Qty', 'Planned', 'Actual', 'Status'].map(q).join(',')];
+  _ppcDeptRows.forEach((x, i) => lines.push([i + 1, x.buyer, x.piNo, x.code, x.colour, x.size, x.qty,
+    _pdDate(x.planned), x.actual ? _pdDate(x.actual) : '', x.actual ? 'Done' : 'Pending'].map(q).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (_ppcDeptName || 'PPC').replace(/[^A-Za-z0-9]+/g, '-') + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// Dashboard ka PDF — wahi chaar block jo screen par hain
+function exportPPCDashPDF() {
+  const r = _ppcDash;
+  if (!r) return showToast('Pehle report load hone do', 'error');
+  const s = r.summary || {};
+  const now = new Date();
+  const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const tbl = (title, rows, withAch) => `
+    <div class="ttl">${escapeHtml(title)}</div>
+    <table><thead><tr><th>Department</th><th class="r">Plan</th><th class="r">Actual</th><th class="r">Balance</th>
+      ${withAch ? '<th class="r">Achievement %</th>' : ''}<th class="c">Status</th>${withAch ? '<th>Remarks</th>' : ''}</tr></thead>
+    <tbody>${rows.map(x => `<tr>
+      <td>${escapeHtml(x.dept)}</td>
+      <td class="r">${_pdNum(x.plan)}</td><td class="r">${_pdNum(x.actual)}</td><td class="r">${_pdNum(x.balance)}</td>
+      ${withAch ? `<td class="r">${x.achievement.toFixed(2)}%</td>` : ''}
+      <td class="c ${x.status === 'RED' ? 'red' : x.status === 'GREEN' ? 'grn' : ''}">${x.status}</td>
+      ${withAch ? `<td>${escapeHtml(x.remarks)}</td>` : ''}</tr>`).join('')}
+      <tr class="tot"><td>TOTAL</td>
+        <td class="r">${_pdNum(rows.reduce((a, x) => a + x.plan, 0))}</td>
+        <td class="r">${_pdNum(rows.reduce((a, x) => a + x.actual, 0))}</td>
+        <td class="r">${_pdNum(rows.reduce((a, x) => a + x.balance, 0))}</td>
+        ${withAch ? '<td></td>' : ''}<td></td>${withAch ? '<td></td>' : ''}</tr>
+    </tbody></table>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+<title>PPC vs Actual — ${escapeHtml(r.label)}</title><style>
+  @page { size: A4 portrait; margin: 12mm; }
+  *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;font-size:11px}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1e3a8a;padding-bottom:7px;margin-bottom:11px}
+  .head h1{margin:0;font-size:16px;color:#1e3a8a}
+  .sub{font-size:10px;color:#64748b}
+  .cards{display:flex;gap:8px;margin-bottom:13px}
+  .card{flex:1;border:1px solid #cbd5e1;border-radius:7px;padding:7px 9px}
+  .card .l{font-size:8.5px;color:#64748b;text-transform:uppercase;letter-spacing:.4px;font-weight:bold}
+  .card .v{font-size:15px;font-weight:bold;margin-top:2px}
+  .ttl{background:#1e3a8a;color:#fff;font-size:11.5px;font-weight:bold;padding:5px 9px;margin-top:9px}
+  table{width:100%;border-collapse:collapse;margin-bottom:5px}
+  th,td{border:1px solid #cbd5e1;padding:4px 7px;text-align:left}
+  th{background:#eef2ff;font-size:9px;text-transform:uppercase;color:#3730a3}
+  .r{text-align:right} .c{text-align:center}
+  .red{color:#b91c1c;font-weight:bold} .grn{color:#15803d;font-weight:bold}
+  .tot td{background:#f1f5f9;font-weight:bold}
+  thead{display:table-header-group} tr{page-break-inside:avoid}
+  .foot{margin-top:10px;font-size:9px;color:#94a3b8;text-align:center}
+</style></head><body>
+  <div class="head">
+    <div><h1>PPC vs Actual — Department Wise</h1>
+      <div class="sub">${escapeHtml(r.label)} · As-of ${_pdDate(r.asOf)} · Week ${escapeHtml(r.week)} (${_pdDate(r.weekFrom)} → ${_pdDate(r.weekTo)}) · Month ${escapeHtml(r.month)}</div></div>
+    <div class="sub">${stamp}<br>${(s.orders || 0)} orders</div>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="l">Total Plan</div><div class="v">${_pdNum(s.plan)}</div></div>
+    <div class="card"><div class="l">Total Actual</div><div class="v">${_pdNum(s.actual)}</div></div>
+    <div class="card"><div class="l">Total Balance</div><div class="v">${_pdNum(s.balance)}</div></div>
+    <div class="card"><div class="l">Achievement</div><div class="v">${s.achievement}%</div></div>
+    <div class="card"><div class="l">Red Dept.</div><div class="v">${s.redDepts}</div></div>
+  </div>
+  ${tbl('TOTAL — DEPARTMENT WISE (all time)', r.blocks.total || [], false)}
+  ${tbl('DAILY — ' + _pdDate(r.asOf), r.blocks.daily || [], true)}
+  ${tbl('WEEKLY — ' + _pdDate(r.weekFrom) + ' to ' + _pdDate(r.weekTo), r.blocks.weekly || [], true)}
+  ${tbl('MONTHLY — ' + r.month, r.blocks.monthly || [], true)}
+  <div class="foot">KLM Task Manager · ${stamp}</div>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return showToast('Popup blocked — please allow popups', 'error');
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
 }
 
 async function loadPPC() {
@@ -13506,6 +13829,7 @@ function ppcClearDates() {
 }
 
 function exportPPCPDF() {
+  if (_ppcMode === 'dash') return exportPPCDashPDF();
   const list = ppcVisible();
   if (!list.length) return showToast('No rows to export', 'error');
   const step = (_ppcData.steps || []).find(s => s.code === _ppcStep);

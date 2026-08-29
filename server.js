@@ -3916,6 +3916,129 @@ function ppcIsoDate(v) {
   return m2 ? m2[0] : '';
 }
 
+// ══════════════════════════════════════════════════════
+// PPC VS ACTUAL — DEPARTMENT WISE (Total / Daily / Weekly / Monthly)
+// Har step hi ek department hai. Steps Directory ki "Planned/Actual Range"
+// se pata chalta hai ki us step ka Planned aur Actual date kis column me hai
+// (jaise garments cutting = PMS!AG7:AH → AG Planned, AH Actual). Har order
+// row ki quantity column F me hoti hai.
+//    Plan   = un orders ki qty ka jod jinki us step ki PLANNED date period me hai
+//    Actual = un orders ki qty ka jod jinki us step ki ACTUAL date period me hai
+// TOTAL = poora time · DAILY = As-of date · WEEKLY = us hafte ka Mon-Sun
+// MONTHLY = us mahine ka. Status: plan 0 → NO PLAN, 100%+ → GREEN, warna RED.
+// ══════════════════════════════════════════════════════
+function ppcColIdx(c) {
+  c = String(c || '').trim().toUpperCase();
+  if (!/^[A-Z]+$/.test(c)) return -1;
+  let n = 0; for (const ch of c) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+}
+function ppcWeekRange(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  const dow = (d.getDay() + 6) % 7;              // Monday = 0
+  const mon = new Date(d); mon.setDate(d.getDate() - dow);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const f = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+  // ISO week number
+  const t = new Date(d); t.setDate(d.getDate() + 3 - dow);
+  const jan4 = new Date(t.getFullYear(), 0, 4);
+  const wk = 1 + Math.round(((t - jan4) / 86400000 - 3 + ((jan4.getDay() + 6) % 7)) / 7);
+  return { from: f(mon), to: f(sun), label: 'W' + wk };
+}
+const PPC_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const key = String(req.query.sheet || 'garments').trim().toLowerCase();
+    const cfg = PPC_SHEETS[key];
+    if (!cfg) return res.status(400).json({ error: 'Unknown sheet' });
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const asOf = ppcIsoDate(req.query.date) || (/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : today);
+
+    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    const grab = async (range) => {
+      try { const r = await sheetsApi.spreadsheets.values.get({ spreadsheetId: cfg.id, range }); return r.data.values || []; }
+      catch (e) { return []; }
+    };
+    const [pms, stepRows] = await Promise.all([
+      grab(`${PPC_TAB}!A${PPC_HEADER_ROW}:CZ`),
+      grab('Steps Directory!A2:D40')
+    ]);
+
+    // Steps = departments, sheet ke apne kram me
+    const steps = [];
+    for (const r of stepRows) {
+      const name = String(r[0] || '').trim();
+      const code = String(r[2] || '').trim();
+      const m = String(r[3] || '').match(/!\$?([A-Z]+)\$?\d*:\$?([A-Z]+)/);
+      if (!name || !code || !m) continue;
+      steps.push({ code, name, planIdx: ppcColIdx(m[1]), actIdx: ppcColIdx(m[2]),
+                   planCol: m[1], actCol: m[2] });
+    }
+    steps.sort((a, b) => {
+      const n = s => parseInt(String(s).replace(/\D+/g, ''), 10) || 0;
+      return n(a.code) - n(b.code);
+    });
+
+    const wk = ppcWeekRange(asOf);
+    const moFrom = asOf.slice(0, 8) + '01';
+    const moTo = (() => { const d = new Date(Number(asOf.slice(0, 4)), Number(asOf.slice(5, 7)), 0);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+
+    const orders = [];
+    for (const row of pms.slice(1)) {
+      const uid = String(row[16] || '').trim();     // Q
+      const buyer = String(row[1] || '').trim();    // B
+      const piNo = String(row[9] || '').trim();     // J
+      if (!uid && !buyer && !piNo) continue;
+      const qty = parseInt(String(row[5] || '').replace(/[^\d-]/g, ''), 10) || 0;   // F
+      const st = steps.map(s => [
+        s.planIdx >= 0 ? ppcIsoDate(row[s.planIdx]) : '',
+        s.actIdx >= 0 ? ppcIsoDate(row[s.actIdx]) : ''
+      ]);
+      orders.push({ uid, buyer, piNo, code: String(row[2] || '').trim(),
+        size: String(row[3] || '').trim(), colour: String(row[4] || '').trim(),
+        qty, piApprovalDate: ppcIsoDate(row[10]), s: st });
+    }
+
+    const inRange = (d, a, b) => !!d && (!a || d >= a) && (!b || d <= b);
+    const block = (from, to) => steps.map((s, i) => {
+      let plan = 0, actual = 0;
+      for (const o of orders) {
+        const [p, a] = o.s[i];
+        if (from === null ? !!p : inRange(p, from, to)) plan += o.qty;
+        if (from === null ? !!a : inRange(a, from, to)) actual += o.qty;
+      }
+      const balance = plan - actual;
+      const ach = plan > 0 ? Math.round((actual / plan) * 1000) / 10 : 0;
+      const status = plan <= 0 ? 'NO PLAN' : (ach >= 100 ? 'GREEN' : 'RED');
+      return { code: s.code, dept: s.name, plan, actual, balance, achievement: ach,
+        status, remarks: status === 'RED' ? 'Immediate action' : 'On Track' };
+    });
+
+    const total = block(null, null);
+    const tPlan = total.reduce((a, x) => a + x.plan, 0);
+    const tActual = total.reduce((a, x) => a + x.actual, 0);
+
+    res.json({
+      sheet: cfg.key, label: cfg.label, sheetId: cfg.id,
+      sheets: Object.values(PPC_SHEETS).map(s => ({ key: s.key, label: s.label })),
+      asOf, week: wk.label, weekFrom: wk.from, weekTo: wk.to,
+      month: PPC_MON[Number(asOf.slice(5, 7)) - 1] + '-' + asOf.slice(0, 4),
+      monthFrom: moFrom, monthTo: moTo,
+      steps: steps.map(s => ({ code: s.code, name: s.name, planCol: s.planCol, actCol: s.actCol })),
+      summary: { plan: tPlan, actual: tActual, balance: tPlan - tActual,
+        achievement: tPlan > 0 ? Math.round((tActual / tPlan) * 1000) / 10 : 0,
+        redDepts: total.filter(x => x.status === 'RED').length, orders: orders.length },
+      blocks: { total, daily: block(asOf, asOf), weekly: block(wk.from, wk.to), monthly: block(moFrom, moTo) },
+      orders
+    });
+  } catch (err) {
+    console.error('PPC dashboard FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/ppc', requireAuth, requireAdmin, async (req, res) => {
   try {
     const key = String(req.query.sheet || 'garments').trim().toLowerCase();
