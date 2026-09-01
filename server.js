@@ -2335,9 +2335,17 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
     const T = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     const rows = [];
+    let rowNo = CFG.headerRow;                  // sheet ka row number (header ke baad se)
     for (const row of data) {
+      rowNo++;
       const keyVal = String(row[CFG.keyCol] || '').trim();
-      if (!keyVal) continue;
+      // Pehle yahan `if (!keyVal) continue` tha — yaani jis order ka PI number
+      // (ya key column) abhi bhara nahi, wo poori row report se gayab ho jaati thi.
+      // Isi se O to D ke STEP 1 par sheet me 4 pending hone ke bawajood 1 dikhta tha.
+      // Ab row tabhi chhodte hain jab uske SAARE info column khaali hon (yaani
+      // sach me koi order hai hi nahi) — warna sheet jaisa hi ginte hain.
+      const hasInfo = keyVal || (CFG.cols || []).some(c => String(row[c.c] || '').trim());
+      if (!hasInfo) continue;
       // Ek row HAR us step par pending hai jiski Planned date sheet ke formula se
       // ban chuki hai par Actual abhi khaali hai — sheet ke us column jaisa hi.
       // Pehle sirf PEHLE adhoore step par dikhati thi, isliye aage wale steps ki
@@ -2360,8 +2368,11 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
         if (c.k !== CFG.cols[0].k) keyBits.push(vals[c.k]);
       }
       const uid = CFG.idCol >= 0 ? String(row[CFG.idCol] || '').trim() : '';
+      // Remarks isi key par save hote hain. Jis row ka na unique id hai na key
+      // (PI number abhi bhara nahi), uske liye sheet ka row number use karte hain —
+      // taaki do aisi rows ka remark aapas me na mile.
       rows.push({
-        rowKey: uid || keyBits.slice(0, 3).join('|'),
+        rowKey: uid || (keyVal ? keyBits.slice(0, 3).join('|') : 'row:' + rowNo),
         vals,
         stepNo: cur.no, stepLabel: cur.label, stepName: cur.name, stepWho: cur.who,
         tat: cur.tatCol >= 0 ? String(row[cur.tatCol] || '').trim() : '',
