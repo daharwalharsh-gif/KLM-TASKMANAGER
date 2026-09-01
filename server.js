@@ -4129,9 +4129,13 @@ app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => 
         const done = s.actIdx >= 0 && String(row[s.actIdx] || '').trim() !== '';
         const raw = s.qtyIdx >= 0 ? String(row[s.qtyIdx] || '').trim() : '';
         const actual = s.qtyIdx >= 0 ? (raw === '' ? 0 : num(raw)) : (done ? orderQty : 0);
+        // Sheet ke formula jaisa hi:
+        //   Balance     = Plan Qty - Actual Qty
+        //   Efficiency  = IF(Plan=0, "", Actual/Plan)   → yahan % me, poori precision
+        // (round nahi karte — dikhate waqt 2 decimal par aata hai, jaise 33.33%)
         return { date: act, plan: orderQty, actual,
           balance: orderQty - actual,
-          eff: orderQty > 0 ? Math.round((actual / orderQty) * 1000) / 10 : null };
+          eff: orderQty > 0 ? (actual / orderQty) * 100 : null };
       });
       rows.push({ uid, buyer, orderNo,
         style: String(row[6] || '').trim(),        // G — Product Name
