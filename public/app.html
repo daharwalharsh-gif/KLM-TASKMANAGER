@@ -13960,8 +13960,9 @@ function exportPPCCSV() {
   const list = ppcVisible();
   if (!list.length) return showToast('No rows to export', 'error');
   const steps = _ppcData.steps || [];
-  const info = [['Buyer', 'buyer'], ['Order No', 'orderNo'], ['Style', 'style'], ['Code', 'code'],
-    ['Color', 'color'], ['Size', 'size'], ['Order Qty', 'orderQty'], ['Line / Master', 'line']];
+  const info = [['Buyer', 'buyer'], ['Order No', 'orderNo'], ['Order Date', 'piApprovalDate'],
+    ['Style', 'style'], ['Code', 'code'], ['Color', 'color'], ['Size', 'size'],
+    ['Order Qty', 'orderQty'], ['Line / Master', 'line']];
   const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
   const h1 = ['Sr No.', ...info.map(c => c[0])].map(q)
     .concat(steps.flatMap(s => [s.name.toUpperCase(), '', '', '', ''].map(q))).join(',');
@@ -13969,7 +13970,9 @@ function exportPPCCSV() {
     .concat(steps.flatMap(() => ['Date', 'Plan Qty', 'Actual Qty', 'Balance', 'Efficiency %'].map(q))).join(',');
   const lines = [h1, h2];
   list.forEach((x, i) => {
-    const row = [i + 1, ...info.map(c => c[1] === 'orderQty' ? x.orderQty : (x[c[1]] ?? ''))].map(q);
+    const row = [i + 1, ...info.map(c => c[1] === 'orderQty' ? x.orderQty
+      : c[1] === 'piApprovalDate' ? (x.piApprovalDate ? ppcFmtDate(x.piApprovalDate) : '')
+      : (x[c[1]] ?? ''))].map(q);
     (x.d || []).forEach(v => row.push(q(v.date ? ppcFmtDate(v.date) : ''), q(v.plan), q(v.actual), q(v.balance),
       q(v.eff === null ? '' : v.eff.toFixed(2) + '%')));
     lines.push(row.join(','));
@@ -14031,6 +14034,11 @@ function ppcFmtDate(v) {
 // Balance = Plan - Actual · Efficiency % = Actual / Plan
 function _omN(v) { return (v === null || v === undefined || v === '') ? '' : Number(v).toLocaleString('en-IN'); }
 function _omEff(v) { return (v === null || v === undefined) ? '' : Number(v).toFixed(2) + '%'; }
+function _omInfo(x, f) {
+  if (f === 'orderQty') return _omN(x.orderQty);
+  if (f === 'piApprovalDate') return x.piApprovalDate ? ppcFmtDate(x.piApprovalDate) : '—';
+  return String(x[f] ?? '').trim() || '—';
+}
 function renderPPC() {
   const list = ppcVisible();
   const box = document.getElementById('ppcContent');
@@ -14044,9 +14052,11 @@ function renderPPC() {
     return;
   }
 
+  // Order Date = PI approval date (PMS column K) — PMS me alag se order date nahi hai,
+  // aur is page ke saare filter isi date par lagte hain.
   const info = [
-    ['Buyer', 'buyer', 170], ['Order No', 'orderNo', 118], ['Style', 'style', 165],
-    ['Code', 'code', 115], ['Color', 'color', 110], ['Size', 'size', 62],
+    ['Buyer', 'buyer', 170], ['Order No', 'orderNo', 118], ['Order Date', 'piApprovalDate', 105],
+    ['Style', 'style', 165], ['Code', 'code', 115], ['Color', 'color', 110], ['Size', 'size', 62],
     ['Order Qty', 'orderQty', 78], ['Line / Master', 'line', 105]
   ];
   const head1 = `<tr><th class="om-fx" rowspan="2" style="width:34px">#</th>` +
@@ -14062,8 +14072,7 @@ function renderPPC() {
 
   const body = list.map((x, i) => `<tr>
     <td class="pm-n om-fx">${i + 1}</td>` +
-    info.map(c => `<td class="om-fx ${c[1] === 'orderQty' ? 'pm-numcol' : ''}">${escapeHtml(
-      c[1] === 'orderQty' ? _omN(x.orderQty) : (String(x[c[1]] ?? '').trim() || '—'))}</td>`).join('') +
+    info.map(c => `<td class="om-fx ${c[1] === 'orderQty' ? 'pm-numcol' : ''}">${escapeHtml(_omInfo(x, c[1]))}</td>`).join('') +
     (x.d || []).map((v, j) => {
       const full = v.eff !== null && v.eff >= 100;
       return `<td class="om-d${j % 2}">${v.date ? ppcFmtDate(v.date) : '—'}</td>` +
@@ -14160,8 +14169,9 @@ function exportPPCPDF() {
   const list = ppcVisible();
   if (!list.length) return showToast('No rows to export', 'error');
   const steps = _ppcData.steps || [];
-  const info = [['Buyer', 'buyer'], ['Order No', 'orderNo'], ['Style', 'style'], ['Code', 'code'],
-    ['Color', 'color'], ['Size', 'size'], ['Order Qty', 'orderQty'], ['Line / Master', 'line']];
+  const info = [['Buyer', 'buyer'], ['Order No', 'orderNo'], ['Order Date', 'piApprovalDate'],
+    ['Style', 'style'], ['Code', 'code'], ['Color', 'color'], ['Size', 'size'],
+    ['Order Qty', 'orderQty'], ['Line / Master', 'line']];
   const now = new Date();
   const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   const from = document.getElementById('ppcFrom').value, to = document.getElementById('ppcTo').value;
@@ -14191,7 +14201,7 @@ function exportPPCPDF() {
       <tr>${steps.map(() => `<th>Date</th><th>Plan</th><th>Actual</th><th>Bal.</th><th>Eff %</th>`).join('')}</tr>
     </thead>
     <tbody>${list.map((x, i) => `<tr><td>${i + 1}</td>` +
-      info.map(c => `<td>${escapeHtml(c[1] === 'orderQty' ? _omN(x.orderQty) : (String(x[c[1]] ?? '').trim() || '—'))}</td>`).join('') +
+      info.map(c => `<td>${escapeHtml(_omInfo(x, c[1]))}</td>`).join('') +
       (x.d || []).map(v => `<td>${v.date ? ppcFmtDate(v.date) : '—'}</td><td>${_omN(v.plan)}</td>` +
         `<td>${_omN(v.actual)}</td><td>${_omN(v.balance)}</td><td>${_omEff(v.eff)}</td>`).join('') +
       `</tr>`).join('')}</tbody>
