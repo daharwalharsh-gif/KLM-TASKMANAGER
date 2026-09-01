@@ -2124,6 +2124,10 @@ tbody tr:last-child td{border-bottom:none;}
     .pd-red{background:#fee2e2;color:#b91c1c} .pd-green{background:#dcfce7;color:#15803d}
     .pd-none{background:#f1f5f9;color:#64748b}
     .pd-foot td{background:#f8fafc;font-weight:800;border-top:2px solid #e2e8f0}
+    /* Daily Report ki tables — pehla column sirf serial number ka */
+    .pd-daily th:first-child,.pd-daily td:first-child{width:44px;text-align:center}
+    .pd-daily tbody tr{cursor:default}
+    .pd-daily th,.pd-daily td{white-space:nowrap}
     .pd-tip{font-size:11px;color:#94a3b8;margin:-6px 0 14px 2px}
     .pd-charts{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;margin-bottom:16px}
     @media (max-width:980px){ .pd-charts{grid-template-columns:1fr} }
@@ -12568,6 +12572,8 @@ function otodShell() {
     <div class="tab-group otod-tabs">
       <div class="tab ${_otodTab === 'pending' ? 'active' : ''}" onclick="otodSwitch('pending')">⏳ Pending</div>
       <div class="tab ${_otodTab === 'dispatched' ? 'active' : ''}" onclick="otodSwitch('dispatched')">✅ Dispatched</div>
+      ${_otodSrc === 'sampling'
+        ? `<div class="tab ${_otodTab === 'daily' ? 'active' : ''}" onclick="otodSwitch('daily')">📋 Daily Report</div>` : ''}
     </div>
     <div class="otod-f"><label>Planned From</label><input type="date" id="otodFrom" onchange="renderOtod()"/></div>
     <div class="otod-f"><label>To</label><input type="date" id="otodTo" onchange="renderOtod()"/></div>
@@ -13054,7 +13060,82 @@ function otodTotalOf(x) {
 }
 function otodTotalFmt(n) { return otodMoney(n); }
 
+// ── Daily Report — Sampling FMS ka STEP 3 "pattern making" ──
+// Chuni hui date (ya From-To range) me kitne sample us step par planned the,
+// kitne ho gaye aur kitne baaki — sheet ke AF (Planned) aur AG (Actual) se.
+function otodDailyRange() {
+  const f = (document.getElementById('otodFrom') || {}).value || '';
+  const t = (document.getElementById('otodTo') || {}).value || '';
+  if (f || t) return [f || t, t || f];
+  const n = new Date();
+  const d = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  return [d, d];
+}
+function renderOtodDaily() {
+  const [from, to] = otodDailyRange();
+  const all = (_otodData.rows || []);
+  const inR = d => d && d >= from && d <= to;
+  const planned = all.filter(x => inR(x.pmPlanned));         // is date ka kaam
+  const doneInR = all.filter(x => inR(x.pmActual));          // is date me jo hua
+  const done = planned.filter(x => !!x.pmActual);
+  const pend = planned.filter(x => !x.pmActual);
+  const today = otodDailyRange()[1];
+  const late = pend.filter(x => x.pmPlanned < today).length;
+  const pct = planned.length ? Math.round((done.length / planned.length) * 1000) / 10 : 0;
+
+  const cnt = document.getElementById('otodCount');
+  if (cnt) cnt.innerHTML = `${planned.length} sample(s) planned` +
+    (planned.length ? `<span class="otod-pct otod-pct-d">✅ ${pct}% done</span>` : '');
+
+  const card = (lbl, val, col) => `<div class="pd-card"><div class="l">${lbl}</div>
+    <div class="v" style="color:${col}">${val}</div></div>`;
+  const dLbl = from === to ? otodDate(from) : `${otodDate(from)} → ${otodDate(to)}`;
+
+  const cols = [
+    ['Buyer name', x => x.buyer], ['Style No.', x => x.style], ['Size', x => x.size],
+    ['Colour', x => x.colour], ['Merchant', x => x.merchant],
+    ['Enquiry date', x => otodDate(x.orderDate)], ['Planned', x => otodDate(x.pmPlanned)],
+    ['Actual', x => x.pmActual ? otodDate(x.pmActual) : '—'],
+    ['Doer', x => x.pmDoer || '—'], ['Time Delay', x => x.pmDelay || '—']
+  ];
+  const tbl = (title, list, badge) => `
+    <div class="pd-sec pd-daily">
+      <h4>${title} — ${list.length} sample(s)</h4>
+      ${list.length ? `<div style="overflow-x:auto"><table>
+        <thead><tr><th style="width:36px">#</th>${cols.map(c => `<th>${c[0]}</th>`).join('')}<th class="pd-c">Status</th></tr></thead>
+        <tbody>${list.map((x, i) => `<tr><td>${i + 1}</td>` +
+          cols.map(c => `<td>${escapeHtml(String(c[1](x) || '—'))}</td>`).join('') +
+          `<td class="pd-c">${badge(x)}</td></tr>`).join('')}</tbody>
+      </table></div>` : '<div style="padding:14px;color:#94a3b8;font-size:13px">Nothing here.</div>'}
+    </div>`;
+  const doneBadge = () => `<span class="pd-pill pd-green">DONE</span>`;
+  const pendBadge = x => x.pmPlanned < today
+    ? `<span class="pd-pill pd-red">LATE</span>` : `<span class="pd-pill pd-none">PENDING</span>`;
+
+  document.getElementById('otodContent').innerHTML = `
+    <div class="pd-head">
+      <h3>PATTERN MAKING — DAILY REPORT</h3>
+      <div class="pd-meta"><span>Date: <b>${dLbl}</b></span><span>Sampling FMS — STEP 3</span>
+        <span>Change the date from <b>Planned From / To</b> above</span></div>
+    </div>
+    <div class="pd-cards">
+      ${card('PLANNED', planned.length, '#1e3a8a')}
+      ${card('DONE', done.length, '#16a34a')}
+      ${card('PENDING', pend.length, '#b45309')}
+      ${card('LATE', late, '#dc2626')}
+      ${card('DONE %', pct + '%', pct >= 100 ? '#16a34a' : '#b45309')}
+      ${card('DONE ON THIS DATE', doneInR.length, '#0f766e')}
+    </div>
+    ${tbl('PENDING — abhi baaki', pend, pendBadge)}
+    ${tbl('DONE — ho gaye', done, doneBadge)}
+    ${tbl('DONE ON THIS DATE — isi date me complete hue', doneInR, doneBadge)}`;
+  otodSaleRender();
+}
+
 function renderOtod() {
+  // Daily Report sirf Sampling me hai — sheet badle to wapas Pending par
+  if (_otodTab === 'daily' && _otodSrc !== 'sampling') _otodTab = 'pending';
+  if (_otodTab === 'daily') return renderOtodDaily();
   const rows = otodFiltered();
   const groups = otodGroups(rows);
   const cols = otodCols();
@@ -13112,7 +13193,23 @@ function renderOtod() {
 }
 
 // Excel me khulne wali CSV
+// Daily Report ke liye alag list — Pending pehle, phir Done
+function otodDailyList() {
+  const [from, to] = otodDailyRange();
+  const inR = d => d && d >= from && d <= to;
+  const planned = (_otodData.rows || []).filter(x => inR(x.pmPlanned));
+  return { from, to,
+    pend: planned.filter(x => !x.pmActual), done: planned.filter(x => !!x.pmActual) };
+}
+const OTOD_DAILY_COLS = [
+  ['Buyer name', x => x.buyer], ['Style No.', x => x.style], ['Size', x => x.size],
+  ['Colour', x => x.colour], ['Merchant', x => x.merchant],
+  ['Enquiry date', x => otodDate(x.orderDate)], ['Planned', x => otodDate(x.pmPlanned)],
+  ['Actual', x => x.pmActual ? otodDate(x.pmActual) : ''],
+  ['Doer', x => x.pmDoer || ''], ['Time Delay', x => x.pmDelay || '']
+];
 function otodExport() {
+  if (_otodTab === 'daily') return otodDailyExport();
   const rows = otodFiltered();
   if (!rows.length) return showToast('No rows to export', 'error');
   const groups = otodGroups(rows), cols = otodCols();
@@ -13143,7 +13240,61 @@ function otodExport() {
   showToast(`⬇ ${rows.length} order(s) export ho gaye`, 'success');
 }
 
+function otodDailyExport() {
+  const { from, to, pend, done } = otodDailyList();
+  if (!pend.length && !done.length) return showToast('No rows to export', 'error');
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const dLbl = from === to ? otodDate(from) : `${otodDate(from)} to ${otodDate(to)}`;
+  const lines = [[`Pattern making — Daily Report`, dLbl].map(q).join(',')];
+  const block = (title, list) => {
+    lines.push('');
+    lines.push([`${title} (${list.length})`].map(q).join(','));
+    lines.push(['Sr No.', ...OTOD_DAILY_COLS.map(c => c[0]), 'Status'].map(q).join(','));
+    list.forEach((x, i) => lines.push([i + 1, ...OTOD_DAILY_COLS.map(c => c[1](x)),
+      x.pmActual ? 'Done' : (x.pmPlanned < to ? 'Late' : 'Pending')].map(q).join(',')));
+  };
+  block('PENDING', pend); block('DONE', done);
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Pattern-Making-Daily-${from}${from === to ? '' : '_to_' + to}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast(`⬇ ${pend.length + done.length} sample(s) CSV me`);
+}
+function otodDailyPDF() {
+  const { from, to, pend, done } = otodDailyList();
+  if (!pend.length && !done.length) return showToast('No rows to export', 'error');
+  const now = new Date(); const pad = n => String(n).padStart(2, '0');
+  const stamp = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const dLbl = from === to ? otodDate(from) : `${otodDate(from)} → ${otodDate(to)}`;
+  const tbl = (title, list) => `
+    <div class="ttl">${title} — ${list.length} sample(s)</div>
+    <table><thead><tr><th style="width:26px">#</th>${OTOD_DAILY_COLS.map(c => `<th>${escapeHtml(c[0])}</th>`).join('')}<th>Status</th></tr></thead>
+    <tbody>${list.map((x, i) => `<tr><td>${i + 1}</td>` +
+      OTOD_DAILY_COLS.map(c => `<td>${escapeHtml(String(c[1](x) || '—'))}</td>`).join('') +
+      `<td>${x.pmActual ? 'Done' : (x.pmPlanned < to ? 'Late' : 'Pending')}</td></tr>`).join('') ||
+      `<tr><td colspan="${OTOD_DAILY_COLS.length + 2}">Nothing here</td></tr>`}</tbody></table>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Pattern making — Daily Report</title><style>
+    @page { size: A4 landscape; margin: 10mm; }
+    *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;font-size:10px}
+    .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1e3a8a;padding-bottom:7px;margin-bottom:11px}
+    .head h1{margin:0;font-size:16px;color:#1e3a8a} .sub{font-size:9.5px;color:#64748b}
+    .ttl{background:#1e3a8a;color:#fff;font-size:11.5px;font-weight:bold;padding:5px 8px;margin-top:10px}
+    table{width:100%;border-collapse:collapse} th,td{border:1px solid #94a3b8;padding:4px 6px;text-align:left}
+    thead th{background:#dbeafe;font-size:9px} thead{display:table-header-group} tr{page-break-inside:avoid}
+  </style></head><body>
+    <div class="head"><div><h1>Pattern making — Daily Report</h1>
+      <div class="sub">Sampling FMS — STEP 3 · Date: ${escapeHtml(dLbl)}</div></div>
+      <div class="sub">${stamp}<br>Planned ${pend.length + done.length} · Done ${done.length} · Pending ${pend.length}</div></div>
+    ${tbl('PENDING', pend)}${tbl('DONE', done)}
+  </body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return showToast('Popup blocked — please allow popups', 'error');
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
+}
 function otodPDF() {
+  if (_otodTab === 'daily') return otodDailyPDF();
   const rows = otodFiltered();
   if (!rows.length) return showToast('No rows to export', 'error');
   const groups = otodGroups(rows), cols = otodCols();

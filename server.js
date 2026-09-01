@@ -3867,7 +3867,14 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
           actualDate: prodIsoDate(row[54]),                 // BC
           dispatchStatus: String(row[55] || '').trim(),     // BD
           doer: String(row[57] || '').trim(),               // BF
-          dispatched: !!actual
+          dispatched: !!actual,
+          // STEP 3 "pattern making" — Daily Report ke liye
+          // AE=TAT, AF=Planned, AG=Actual, AH=Status, AI=Time Delay, AJ=Doer
+          pmPlanned: prodIsoDate(row[31]),                  // AF
+          pmActual: prodIsoDate(row[32]),                   // AG
+          pmStatus: String(row[33] || '').trim(),           // AH
+          pmDelay: String(row[34] || '').trim(),            // AI
+          pmDoer: String(row[35] || '').trim()              // AJ
         });
       } else {
         const piNo = String(row[6] || '').trim();
