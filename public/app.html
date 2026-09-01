@@ -13073,7 +13073,7 @@ function otodDailyRange() {
 }
 function renderOtodDaily() {
   const [from, to] = otodDailyRange();
-  const all = (_otodData.rows || []);
+  const all = (_otodCache[_otodSrc] || []);
   const inR = d => d && d >= from && d <= to;
   const planned = all.filter(x => inR(x.pmPlanned));         // is date ka kaam
   const doneInR = all.filter(x => inR(x.pmActual));          // is date me jo hua
@@ -13197,7 +13197,7 @@ function renderOtod() {
 function otodDailyList() {
   const [from, to] = otodDailyRange();
   const inR = d => d && d >= from && d <= to;
-  const planned = (_otodData.rows || []).filter(x => inR(x.pmPlanned));
+  const planned = (_otodCache[_otodSrc] || []).filter(x => inR(x.pmPlanned));
   return { from, to,
     pend: planned.filter(x => !x.pmActual), done: planned.filter(x => !!x.pmActual) };
 }
