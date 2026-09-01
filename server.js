@@ -4066,6 +4066,14 @@ app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
 // Quantity column apne aap dhoonda jaata hai: step ke Actual column ke aage,
 // agle step ke column se pehle, jiska header me "quantity/qty" ho.
 // ══════════════════════════════════════════════════════
+// Actual Qty ke liye tay kiye gaye columns (yahi ginte hain, aur koi nahi)
+//   garments: AK cutting+bundling · BE issue for stitching · BM Q.C
+//   boxing:   AZ issue for stitching · BI padding · BP final stitching ·
+//             BW Q.C alteration · CF tags+barcode+packing
+const PPC_QTY_COLS = {
+  garments: ['AK', 'BE', 'BM'],
+  boxing:   ['AZ', 'BI', 'BP', 'BW', 'CF']
+};
 app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => {
   try {
     const key = String(req.query.sheet || 'garments').trim().toLowerCase();
@@ -4094,12 +4102,16 @@ app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => 
       const n = s => parseInt(String(s).replace(/\D+/g, ''), 10) || 0;
       return n(a.code) - n(b.code);
     });
-    // Har step ka quantity column — uske Actual ke aage, agle step ke column se pehle
+    // Har step ka quantity column — uske Actual ke aage, agle step ke column se pehle.
+    // SIRF wahi columns jo tay kiye gaye hain (PPC_QTY_COLS) — sheet me aur bhi
+    // "Quantity" wale column hain (garments CA, boxing AL) par unhe nahi ginte.
+    const allow = new Set(PPC_QTY_COLS[key] || []);
     const stepCols = new Set();
     for (const s of steps) { stepCols.add(s.planIdx); stepCols.add(s.actIdx); }
     for (const s of steps) {
       for (let c = s.actIdx + 1; c <= s.actIdx + 8 && c < head.length; c++) {
         if (stepCols.has(c)) break;                       // agla step shuru — ruk jao
+        if (!allow.has(idxToCol(c))) continue;
         if (/qty|quantity/i.test(String(head[c] || ''))) { s.qtyIdx = c; break; }
       }
     }
