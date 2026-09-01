@@ -2144,6 +2144,10 @@ tbody tr:last-child td{border-bottom:none;}
     .om-tbl tbody tr:hover .om-d0{background:#eef5ff}
     .om-tbl tbody tr:hover .om-d1{background:#fbf5ec}
     .om-tbl th.om-fx{background:#f1f5f9}
+    .ppc-quick{display:flex;gap:5px}
+    .ppc-quick button{padding:6px 11px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;
+      font-size:12px;font-weight:600;color:#475569;font-family:'Inter',sans-serif;white-space:nowrap}
+    .ppc-quick button.on{background:#4f46e5;border-color:#4f46e5;color:#fff}
     /* ── FMS bulk done (Garments / Boxing PMS) ── */
     .fms-bulk-bar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:10px;
       background:#0f172a;color:#fff;border-radius:11px;padding:10px 14px;margin-bottom:10px;
@@ -2210,7 +2214,8 @@ tbody tr:last-child td{border-bottom:none;}
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <a id="ppcSheetLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="#">📄 Open Google Sheet ↗</a>
           <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="exportPPCPDF()">📄 PDF</button>
-          <button class="btn btn-outline btn-sm" onclick="loadPPC()">🔄 Refresh</button>
+          <button class="btn btn-outline btn-sm" style="color:#047857;border-color:#a7f3d0" onclick="exportPPCCSV()">⬇ Export CSV</button>
+          <button class="btn btn-outline btn-sm" onclick="ppcReload()">🔄 Refresh</button>
           <button class="btn btn-outline btn-sm" onclick="hidePPC()">← Production</button>
         </div>
       </div>
@@ -2236,6 +2241,19 @@ tbody tr:last-child td{border-bottom:none;}
         <div id="ppcOrdBar2" style="display:none">
           <label>To</label>
           <input type="date" id="ppcTo" onchange="loadPPC()"/>
+        </div>
+        <div id="ppcOrdBarQ" style="display:none">
+          <label>Quick</label>
+          <div class="ppc-quick" id="ppcQuickBtns">
+            <button type="button" class="on" onclick="ppcQuick('')">All</button>
+            <button type="button" onclick="ppcQuick('today')">Today</button>
+            <button type="button" onclick="ppcQuick('week')">This Week</button>
+            <button type="button" onclick="ppcQuick('month')">This Month</button>
+          </div>
+        </div>
+        <div id="ppcOrdBarM" style="display:none">
+          <label>Month</label>
+          <button type="button" class="btn btn-outline btn-sm" id="ppcMonthBtn" onclick="ppcOpenMonths(this)">All months ▾</button>
         </div>
         <div id="ppcOrdBar3" style="display:none">
           <label>&nbsp;</label>
@@ -13469,7 +13487,7 @@ function ppcView(mode) {
   document.getElementById('ppcDashContent').style.display = mode === 'dash' ? '' : 'none';
   document.getElementById('ppcOrdersWrap').style.display = mode === 'dash' ? 'none' : '';
   document.getElementById('ppcDashBar').style.display = mode === 'dash' ? '' : 'none';
-  ['ppcOrdBar1', 'ppcOrdBar2', 'ppcOrdBar3'].forEach(id => {
+  ['ppcOrdBar1', 'ppcOrdBar2', 'ppcOrdBar3', 'ppcOrdBarQ', 'ppcOrdBarM'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = mode === 'dash' ? 'none' : '';
   });
   const s4 = document.getElementById('ppcOrdBar4');
@@ -13822,6 +13840,10 @@ async function loadPPC() {
   }
   const link = document.getElementById('ppcSheetLink');
   if (link) link.href = 'https://docs.google.com/spreadsheets/d/' + r.sheetId + '/edit';
+  // Sheet badalne par jo month is sheet me hain hi nahi, unka tick hata do
+  const have = new Set(ppcMonthKeys());
+  [..._ppcMonths].forEach(k => { if (!have.has(k)) _ppcMonths.delete(k); });
+  ppcSyncMonthBtn();
   renderPPC();
 }
 
@@ -13835,19 +13857,153 @@ function renderPPCTabs() {
 }
 function ppcStep(code) { _ppcStep = code; renderPPCTabs(); renderPPC(); }
 
-// Order Master — search + PI approval date ka filter (dono client par)
+// ── Order Master ke filter — sab PI approval date par ──
+// Quick: Today / This Week (Mon-Sun) / This Month · Month: jitne chaho month tick karo
+// (month chunte hi quick hat jaata hai, aur ulta bhi) · saath me From-To aur search.
+let _ppcRange = '';                 // '' | today | week | month
+let _ppcMonths = new Set();         // 'YYYY-MM'
+function _ppcToday() { const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; }
+function ppcRangeDates() {
+  const T = _ppcToday();
+  if (_ppcRange === 'today') return [T, T];
+  if (_ppcRange === 'week') {
+    const d = new Date(T + 'T12:00:00'); const dow = (d.getDay() + 6) % 7;
+    const mon = new Date(d); mon.setDate(d.getDate() - dow);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const f = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+    return [f(mon), f(sun)];
+  }
+  if (_ppcRange === 'month') {
+    const last = new Date(Number(T.slice(0, 4)), Number(T.slice(5, 7)), 0);
+    return [T.slice(0, 8) + '01', `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`];
+  }
+  return ['', ''];
+}
+function ppcQuick(r) {
+  _ppcRange = (_ppcRange === r) ? '' : r;
+  _ppcMonths.clear(); ppcSyncMonthBtn();
+  [...document.querySelectorAll('#ppcQuickBtns button')].forEach(b =>
+    b.classList.toggle('on', (b.getAttribute('onclick') || '').includes(`'${_ppcRange}'`)));
+  renderPPC();
+}
+const PPC_MONS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function ppcMonthKeys() {
+  const s = new Set();
+  (_ppcData.rows || []).forEach(x => { const d = String(x.piApprovalDate || ''); if (d.length >= 7) s.add(d.slice(0, 7)); });
+  return [...s].sort().reverse();
+}
+function ppcMonthLabel(k) { return PPC_MONS[Number(k.slice(5, 7)) - 1] + ' ' + k.slice(0, 4); }
+function ppcSyncMonthBtn() {
+  const b = document.getElementById('ppcMonthBtn'); if (!b) return;
+  b.textContent = (_ppcMonths.size ? `${_ppcMonths.size} month(s)` : 'All months') + ' ▾';
+}
+function ppcOpenMonths(btn) {
+  const old = document.getElementById('ppcMonthPop');
+  if (old) { old.remove(); return; }
+  const keys = ppcMonthKeys();
+  const pop = document.createElement('div');
+  pop.id = 'ppcMonthPop'; pop.className = 'pm-pop';
+  pop.innerHTML = `<div class="pm-pop-acts"><button type="button" data-m="none">✕ All months</button></div>
+    <div class="pm-pop-list" id="ppcMonthList">
+      ${keys.map(k => `<label><input type="checkbox" value="${k}" ${_ppcMonths.has(k) ? 'checked' : ''}/>
+        <span>${escapeHtml(ppcMonthLabel(k))}</span></label>`).join('') ||
+        '<div style="padding:8px;color:#94a3b8;font-size:12px">No months</div>'}
+    </div>`;
+  document.body.appendChild(pop);
+  pop.querySelectorAll('#ppcMonthList input').forEach(inp => {
+    inp.onchange = () => {
+      if (inp.checked) _ppcMonths.add(inp.value); else _ppcMonths.delete(inp.value);
+      if (_ppcMonths.size) ppcQuickOff();
+      ppcSyncMonthBtn(); renderPPC();
+    };
+  });
+  pop.querySelector('[data-m]').onclick = () => {
+    _ppcMonths.clear();
+    pop.querySelectorAll('#ppcMonthList input').forEach(i => { i.checked = false; });
+    ppcSyncMonthBtn(); renderPPC();
+  };
+  const r = btn.getBoundingClientRect();
+  pop.style.top = (r.bottom + window.scrollY + 4) + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left + window.scrollX, window.innerWidth - 260)) + 'px';
+}
+function ppcQuickOff() {
+  _ppcRange = '';
+  [...document.querySelectorAll('#ppcQuickBtns button')].forEach(b =>
+    b.classList.toggle('on', (b.getAttribute('onclick') || '').includes("''")));
+}
+document.addEventListener('click', e => {
+  const pop = document.getElementById('ppcMonthPop');
+  if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('#ppcMonthBtn'))) pop.remove();
+});
+
 function ppcVisible() {
   const q = (document.getElementById('ppcSearch').value || '').trim().toLowerCase();
   const from = (document.getElementById('ppcFrom') || {}).value || '';
   const to = (document.getElementById('ppcTo') || {}).value || '';
+  const [rf, rt] = ppcRangeDates();
   return (_ppcData.rows || []).filter(x => {
     const d = String(x.piApprovalDate || '');
     if (from && (!d || d < from)) return false;
     if (to && (!d || d > to)) return false;
+    if (rf && (!d || d < rf || d > rt)) return false;
+    if (_ppcMonths.size && !(d && _ppcMonths.has(d.slice(0, 7)))) return false;
     if (!q) return true;
     return [x.buyer, x.orderNo, x.style, x.code, x.color, x.size, x.line, x.merchant]
       .join(' ').toLowerCase().includes(q);
   });
+}
+
+// CSV — jo screen par dikh raha hai wahi (saare department ke column ke saath)
+function exportPPCCSV() {
+  if (_ppcMode === 'dash') return exportPPCDashCSV();
+  const list = ppcVisible();
+  if (!list.length) return showToast('No rows to export', 'error');
+  const steps = _ppcData.steps || [];
+  const info = [['Buyer', 'buyer'], ['Order No', 'orderNo'], ['Style', 'style'], ['Code', 'code'],
+    ['Color', 'color'], ['Size', 'size'], ['Order Qty', 'orderQty'], ['Line / Master', 'line']];
+  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const h1 = ['Sr No.', ...info.map(c => c[0])].map(q)
+    .concat(steps.flatMap(s => [s.name.toUpperCase(), '', '', '', ''].map(q))).join(',');
+  const h2 = ['', ...info.map(() => '')].map(q)
+    .concat(steps.flatMap(() => ['Date', 'Plan Qty', 'Actual Qty', 'Balance', 'Efficiency %'].map(q))).join(',');
+  const lines = [h1, h2];
+  list.forEach((x, i) => {
+    const row = [i + 1, ...info.map(c => c[1] === 'orderQty' ? x.orderQty : (x[c[1]] ?? ''))].map(q);
+    (x.d || []).forEach(v => row.push(q(v.date ? ppcFmtDate(v.date) : ''), q(v.plan), q(v.actual), q(v.balance),
+      q(v.eff === null ? '' : v.eff.toFixed(2) + '%')));
+    lines.push(row.join(','));
+  });
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `PPC-Order-Master-${(_ppcData.label || '').replace(/[^A-Za-z0-9]+/g, '-')}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast(`⬇ ${list.length} order(s) CSV me`);
+}
+
+// PPC vs Actual ka CSV — chaaro block
+function exportPPCDashCSV() {
+  const r = _ppcDash;
+  if (!r || !r.blocks) return showToast('No data to export', 'error');
+  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const lines = [[`PPC vs Actual — ${r.label}`].map(q).join(',')];
+  lines.push([`As-of Date`, _pdDate(r.asOf), 'Week', r.week, 'Month', r.month].map(q).join(','));
+  const blocks = [['TOTAL (all time)', 'total'], [`DAILY (${_pdDate(r.asOf)})`, 'daily'],
+    [`WEEKLY (${_pdDate(r.weekFrom)} - ${_pdDate(r.weekTo)})`, 'weekly'], [`MONTHLY (${r.month})`, 'monthly']];
+  for (const [title, key] of blocks) {
+    lines.push('');
+    lines.push([title].map(q).join(','));
+    lines.push(['Department', 'Plan', 'Actual', 'Balance', 'Achievement %', 'Status', 'Remarks'].map(q).join(','));
+    (r.blocks[key] || []).forEach(x => lines.push(
+      [x.dept, x.plan, x.actual, x.balance, x.achievement.toFixed(2) + '%', x.status, x.remarks].map(q).join(',')));
+  }
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `PPC-vs-Actual-${(r.label || '').replace(/[^A-Za-z0-9]+/g, '-')}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast('⬇ PPC vs Actual CSV me');
 }
 
 const PPC_COLS = [
@@ -13993,7 +14149,10 @@ async function ppcSave(rowKey, uniqueId, field, value) {
 function ppcClearDates() {
   document.getElementById('ppcFrom').value = '';
   document.getElementById('ppcTo').value = '';
-  loadPPC();
+  const s = document.getElementById('ppcSearch'); if (s) s.value = '';
+  _ppcMonths.clear(); ppcSyncMonthBtn();
+  ppcQuickOff();
+  renderPPC();
 }
 
 function exportPPCPDF() {
