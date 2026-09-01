@@ -4050,6 +4050,98 @@ app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════════════════
+// PPC — ORDER MASTER (department wise Plan / Actual / Balance / Efficiency)
+// Har order ki ek row, aur har department (step) ka apna block:
+//     Date | Plan Qty | Actual Qty | Balance | Efficiency %
+//   Plan Qty     = order ki quantity (PMS column F)
+//   Actual Qty   = us step ka apna quantity column, agar sheet me hai
+//                  (garments: cutting+bundling AK, Issue for stitching BE,
+//                   Q.C BM · boxing: AZ BI BP BW CF). Jis step ka quantity
+//                  column nahi hai, uska Actual = poori order qty jab wo step
+//                  Done ho, warna 0.
+//   Balance      = Plan - Actual
+//   Efficiency % = Actual / Plan (Plan 0 ho to khaali)
+//   Date         = us step ki Actual date (jis din hua)
+// Quantity column apne aap dhoonda jaata hai: step ke Actual column ke aage,
+// agle step ke column se pehle, jiska header me "quantity/qty" ho.
+// ══════════════════════════════════════════════════════
+app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const key = String(req.query.sheet || 'garments').trim().toLowerCase();
+    const cfg = PPC_SHEETS[key];
+    if (!cfg) return res.status(400).json({ error: 'Unknown sheet' });
+    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    const grab = async (range) => {
+      try { const r = await sheetsApi.spreadsheets.values.get({ spreadsheetId: cfg.id, range }); return r.data.values || []; }
+      catch (e) { return []; }
+    };
+    const [pms, stepRows] = await Promise.all([
+      grab(`${PPC_TAB}!A${PPC_HEADER_ROW}:CZ`),
+      grab('Steps Directory!A2:D40')
+    ]);
+    const head = pms[0] || [];
+
+    const steps = [];
+    for (const r of stepRows) {
+      const name = String(r[0] || '').trim();
+      const code = String(r[2] || '').trim();
+      const m = String(r[3] || '').match(/!\$?([A-Z]+)\$?\d*:\$?([A-Z]+)/);
+      if (!name || !code || !m) continue;
+      steps.push({ code, name, planIdx: ppcColIdx(m[1]), actIdx: ppcColIdx(m[2]), qtyIdx: -1 });
+    }
+    steps.sort((a, b) => {
+      const n = s => parseInt(String(s).replace(/\D+/g, ''), 10) || 0;
+      return n(a.code) - n(b.code);
+    });
+    // Har step ka quantity column — uske Actual ke aage, agle step ke column se pehle
+    const stepCols = new Set();
+    for (const s of steps) { stepCols.add(s.planIdx); stepCols.add(s.actIdx); }
+    for (const s of steps) {
+      for (let c = s.actIdx + 1; c <= s.actIdx + 8 && c < head.length; c++) {
+        if (stepCols.has(c)) break;                       // agla step shuru — ruk jao
+        if (/qty|quantity/i.test(String(head[c] || ''))) { s.qtyIdx = c; break; }
+      }
+    }
+
+    const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(/[^\d.-]/g, '')); return Number.isFinite(n) ? n : 0; };
+    const rows = [];
+    for (const row of pms.slice(1)) {
+      const uid = String(row[16] || '').trim();     // Q
+      const buyer = String(row[1] || '').trim();    // B
+      const orderNo = String(row[9] || '').trim();  // J — PI number
+      if (!uid && !buyer && !orderNo) continue;
+      const orderQty = num(row[5]);                 // F — Plan Qty
+      const d = steps.map(s => {
+        const act = s.actIdx >= 0 ? ppcIsoDate(row[s.actIdx]) : '';
+        const done = s.actIdx >= 0 && String(row[s.actIdx] || '').trim() !== '';
+        const raw = s.qtyIdx >= 0 ? String(row[s.qtyIdx] || '').trim() : '';
+        const actual = s.qtyIdx >= 0 ? (raw === '' ? 0 : num(raw)) : (done ? orderQty : 0);
+        return { date: act, plan: orderQty, actual,
+          balance: orderQty - actual,
+          eff: orderQty > 0 ? Math.round((actual / orderQty) * 1000) / 10 : null };
+      });
+      rows.push({ uid, buyer, orderNo,
+        style: String(row[6] || '').trim(),        // G — Product Name
+        code: String(row[2] || '').trim(),         // C
+        color: String(row[4] || '').trim(),        // E
+        size: String(row[3] || '').trim(),         // D
+        line: String(row[14] || '').trim(),        // O — Line
+        merchant: String(row[7] || '').trim(),     // H
+        piApprovalDate: ppcIsoDate(row[10]),       // K
+        orderQty, d });
+    }
+    res.json({ sheet: cfg.key, label: cfg.label, sheetId: cfg.id,
+      sheets: Object.values(PPC_SHEETS).map(s => ({ key: s.key, label: s.label })),
+      steps: steps.map(s => ({ code: s.code, name: s.name,
+        qtyCol: s.qtyIdx >= 0 ? idxToCol(s.qtyIdx) : '', hasQty: s.qtyIdx >= 0 })),
+      rows, total: rows.length });
+  } catch (err) {
+    console.error('PPC order-master FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/ppc', requireAuth, requireAdmin, async (req, res) => {
   try {
     const key = String(req.query.sheet || 'garments').trim().toLowerCase();
