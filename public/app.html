@@ -13038,8 +13038,9 @@ function otodCols() {
 function otodVal(x, c, sr) {
   if (c.k === 'sr') return String(sr);
   if (c.gapdays) {
-    // Dispatch ho chuka — order date se actual tak kitne din lage (pehle jaisa hi)
-    if (x.actualDate) { const d = otodDays(x.orderDate, x.actualDate); return d === '' ? '' : String(d); }
+    // Dispatch ho chuka — PLANNED se ACTUAL tak kitne din late
+    // (planned 04-08 aur actual 27-08 ho to 23 din, order date se nahi)
+    if (x.actualDate) { const d = otodDays(x.planned, x.actualDate); return d === '' ? '' : String(d); }
     // Pending — Planned date nikal jaane ke baad aaj tak kitne din late (1, 2, 3...).
     // Planned date abhi aayi hi nahi to delay 0.
     const n = new Date();
