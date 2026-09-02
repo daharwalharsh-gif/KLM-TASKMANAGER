@@ -2335,10 +2335,13 @@ function pcrSteps(rows) {
   const steps = [];
   for (let c = 0; c < head.length; c++) {
     if (H(c) !== 'actual') continue;
-    // Is block ka naam aur "STEP n" — dono peeche ki taraf dekh kar
+    // Is block ka naam aur "STEP n" — dono peeche ki taraf dekh kar.
+    // Kuch sheet me step ke naam wali row me link pada hota hai (PMS Garments),
+    // use naam nahi maante — aage peeche dekh kar asli naam uthate hain.
     let name = '', tatCol = -1;
     for (let k = c; k >= 0 && k > c - 8; k--) {
-      if (!name && String(nameRow[k] || '').trim()) name = String(nameRow[k]).trim();
+      const nm = String(nameRow[k] || '').trim();
+      if (!name && nm && !/^https?:\/\//i.test(nm)) name = nm;
       if (tatCol < 0 && H(k) === 'tat') tatCol = k;
     }
     // Sheet me "STEP n" ke label aage-peeche pade hain, isliye kram se hi number dete hain
@@ -2351,7 +2354,10 @@ function pcrSteps(rows) {
       name: name || ('Step ' + (steps.length + 1)),
       who,
       tatCol,
-      plannedCol: H(c - 1) === 'planned' ? c - 1 : -1,
+      // Planned column kabhi-kabhi "Planned TAT" / "Planned T&A" / "Planned Garments"
+      // likha hota hai — sirf exact "Planned" dhoondhne se wo step chhoot jaata tha
+      // (Garments ka "Issue for stitching" aur Boxing ka "Padding" 0 dikha rahe the).
+      plannedCol: /^planned/.test(H(c - 1)) ? c - 1 : -1,
       actualCol: c,
       statusCol: H(c + 1) === 'status' ? c + 1 : -1,
       delayCol: H(c + 2) === 'time delay' ? c + 2 : -1,
