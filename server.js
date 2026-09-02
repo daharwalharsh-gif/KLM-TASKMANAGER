@@ -1169,9 +1169,11 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
     const isHod = role === 'hod';
     const { type, mine } = req.query;
     const isMine = (mine === '1' || mine === 'true');
-    // Admin/PC ke alawa MIS-view wali email list ko bhi SABKI tasks dikhti hain
-    // (dekhne ke liye — dusre ka task Done/edit ab bhi nahi kar sakte).
-    const seesAll = isAdmin || role === 'pc' || await misEmailAllowed(uid);
+    // Sabki tasks SIRF admin aur PC ko dikhti hain. MIS-view wali email list ko
+    // ek baar yahan bhi jod diya gaya tha — us se aam user ko sabke task dikhne
+    // lag gaye the, isliye hata diya. Unhe MIS reports ab bhi poori dikhti hain,
+    // par All Tasks me apna hi kaam.
+    const seesAll = isAdmin || role === 'pc';
     const table = getTable(type || 'delegation');
     const isDeleg = (type || 'delegation') === 'delegation';
     let where = 'WHERE 1=1';
