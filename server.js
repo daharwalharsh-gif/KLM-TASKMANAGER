@@ -2393,16 +2393,17 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
       // sach me koi order hai hi nahi) — warna sheet jaisa hi ginte hain.
       const hasInfo = keyVal || (CFG.cols || []).some(c => String(row[c.c] || '').trim());
       if (!hasInfo) continue;
-      // Ek row HAR us step par pending hai jiski Planned date sheet ke formula se
-      // ban chuki hai par Actual abhi khaali hai — sheet ke us column jaisa hi.
-      // Pehle sirf PEHLE adhoore step par dikhati thi, isliye aage wale steps ki
-      // ginti kam aati thi (jaise Pre Production meeting: sheet 7, report 1).
-      const hits = steps.filter(st => {
+      // Ek order sirf apne PEHLE atke step par dikhta hai — yaani wo step jiski
+      // Planned date ban chuki hai par Actual abhi khaali hai. Aage wale step par
+      // uska delay nahi ginte, kyunki pehla step hue bina wo ho hi nahi sakta
+      // (Shark Boxing step 4 par atka hai to step 5/6/7 par late nahi dikhega).
+      const firstStuck = steps.find(st => {
         const pl = st.plannedCol >= 0 ? String(row[st.plannedCol] || '').trim() : '';
         const ac = String(row[st.actualCol] || '').trim();
         return pl && !ac;
       });
-      if (!hits.length) continue;   // kisi bhi step ki planned date nahi bani / sab ho gaye
+      if (!firstStuck) continue;    // kisi bhi step ki planned date nahi bani / sab ho gaye
+      const hits = [firstStuck];
       for (const cur of hits) {
       const waiting = false;
       const planned = prodIsoDate(row[cur.plannedCol]);
