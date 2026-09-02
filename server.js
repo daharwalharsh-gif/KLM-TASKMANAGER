@@ -458,7 +458,8 @@ const MIS_VIEW_EMAILS = new Set([
   'merchant@klmahajan.com',   // Ms. Aarti
   'amit@invincible.in',       // Mr. Amit
   'ttyagi@klmahajan.com',     // Mr. Tribhuvan Tyagi
-  'operations@klmahajan.com'  // Mr. Shubham
+  'operations@klmahajan.com', // Mr. Shubham
+  'gm@klmahajan.com'          // Mr. Edwin — Production GM
 ]);
 async function misEmailAllowed(uid) {
   try {
@@ -474,6 +475,39 @@ async function requireMisView(req, res, next) {
 }
 // O to D reports pehle sirf admin ke liye the — wahi rehta hai, bas upar wali
 // MIS-email list ko bhi allow kar diya.
+// ── Kis user ko kis-kis ke task dikhein ──
+// Mr. Edwin (Production GM): Checklist me Tyagi ji aur Dharmender ji,
+// Delegation me Rohit aur Deepak Pal. Apne task hamesha dikhte hain.
+const TASK_VIEW_USERS = {
+  'gm@klmahajan.com': {
+    checklist:  ['ttyagi@klmahajan.com', 'dk4184625@gmail.com'],
+    delegation: ['rohit@klmahajan.com', 'qc@klmahajan.com']
+  }
+};
+async function taskViewIds(uid, type) {
+  try {
+    const [me] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [uid]);
+    const cfg = TASK_VIEW_USERS[String(me[0]?.email || '').trim().toLowerCase()];
+    if (!cfg) return null;
+    const want = (cfg[type === 'delegation' ? 'delegation' : 'checklist'] || [])
+      .map(e => String(e).trim().toLowerCase());
+    if (!want.length) return null;
+    const [all] = await db.query('SELECT id, email FROM users');
+    const ids = all.filter(u => want.includes(String(u.email || '').trim().toLowerCase()))
+                   .map(u => String(u.id));
+    ids.push(String(uid));                     // apne task bhi
+    return [...new Set(ids)];
+  } catch (e) { return null; }
+}
+// MIS in emails ko poori dikhti hai — HOD hone par bhi department se nahi bandhte
+const MIS_FULL_EMAILS = new Set(['gm@klmahajan.com']);
+async function misHodScoped(req) {
+  if (req.session.role !== 'hod') return false;
+  try {
+    const [u] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    return !MIS_FULL_EMAILS.has(String(u[0]?.email || '').trim().toLowerCase());
+  } catch (e) { return true; }
+}
 async function requireOtodView(req, res, next) {
   if (req.session.role === 'admin') return next();
   if (await misEmailAllowed(req.session.userId)) return next();
@@ -1186,6 +1220,11 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
       params.push(uid);
     } else if (seesAll) {
       // Admin/PC (aur MIS-view wali email list) — sabki tasks dikhti hain
+    } else if (await taskViewIds(uid, type || 'delegation')) {
+      // Jinke liye naam-wise list tay hai (jaise Edwin) — sirf unhi ke task
+      const ids = await taskViewIds(uid, type || 'delegation');
+      where += ` AND t.assigned_to IN (${ids.map(() => '?').join(',')})`;
+      params.push(...ids);
     } else if (isHod) {
       // HOD — apne department ke users ki tasks
       const [me] = await db.query('SELECT department FROM users WHERE id=?', [uid]);
@@ -1795,7 +1834,7 @@ app.get('/api/mis', requireAuth, requireMisView, async (req, res) => {
   try {
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Dates required' });
-    const isHod = req.session.role === 'hod';
+    const isHod = await misHodScoped(req);
     // HOD ke liye apne department ka filter
     let deptFilter = '';
     let deptParams = [start, end];
@@ -2545,7 +2584,7 @@ app.get('/api/mis/capacity', requireAuth, requireMisView, async (req, res) => {
     const moS = T.slice(0, 8) + '01';
     const moE = (() => { const d = new Date(Number(T.slice(0, 4)), Number(T.slice(5, 7)), 0); return iso(d); })();
 
-    const isHod = req.session.role === 'hod';
+    const isHod = await misHodScoped(req);
     let hodDept = '';
     if (isHod) {
       const [me] = await db.query('SELECT department FROM users WHERE id=?', [req.session.userId]);
@@ -2700,7 +2739,7 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
   try {
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Dates required' });
-    const isHod = req.session.role === 'hod';
+    const isHod = await misHodScoped(req);
     const uid = req.session.userId;
 
     // HOD ka department ek hi baar nikaal lo (FMS aur task filter dono me use hoga)
@@ -2871,7 +2910,7 @@ app.get('/api/mis/fms', requireAuth, requireMisView, async (req, res) => {
   try {
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Dates required' });
-    const isHod = req.session.role === 'hod';
+    const isHod = await misHodScoped(req);
     const uid = req.session.userId;
 
     // HOD ka department (FMS dept-filter ke liye)
@@ -3461,10 +3500,17 @@ const FULL_VIEW_PMS = {
   ids: [2, 1, 11],   // Garments PMS, Boxing PMS, Sampling FMS
   names: ['garments pms', 'boxing pms', 'sampling fms']
 };
+// Mr. Edwin (Production GM) — ye chhah FMS poori dikhni chahiye
+const FULL_VIEW_GM = {
+  ids: [4, 2, 1, 16, 15, 11],
+  names: ['merchant o2d fms', 'garments pms', 'boxing pms',
+          'inhouse quality fms boxing', 'inhouse quality fms garments', 'sampling fms']
+};
 const FMS_FULL_VIEW = {
   'amit@invincible.in': FULL_VIEW_FMS,
   'marketing@klmahajan.com': FULL_VIEW_FMS,
   'kiran@klmahajan.com': FULL_VIEW_PMS,
+  'gm@klmahajan.com': FULL_VIEW_GM,
 };
 // Ye user full-view rakhta hai? -> config object ya null
 async function fmsFullViewCfg(userId) {
