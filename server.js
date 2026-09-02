@@ -857,7 +857,10 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
           if (!mapped.length) return creditDoerIds; // unmapped naam — sabko
           mappedUids = [...new Set(mapped.flatMap(n => nameToUids[n]))];
         }
-        return creditDoerIds.filter(id => mappedUids.includes(id));
+        const here = creditDoerIds.filter(id => mappedUids.includes(id));
+        // Mapping me likhe log is step ke doer hain hi nahi (purani mapping) —
+        // aise me row kisi ko credit na ho ye galat hai; tab sab doers ko dete hain.
+        return here.length ? here : creditDoerIds;
       }
 
       let stepPending = 0, stepDone = 0, stepOverdue = 0, stepDoneInRange = 0, stepPendingInRange = 0, stepOverdueInRange = 0;
@@ -3617,6 +3620,18 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
       if (arr.length) nameToUids[String(nm).trim().toLowerCase()] = arr.map(String);
     }
     const myUid = String(req.session.userId);
+    // Is step ke apne doers. Row filter ka matlab tabhi hai jab row is step ke
+    // KISI DUSRE doer ko mapped ho. Agar mapping me likhe log is step ke doer hain
+    // hi nahi (mapping purani reh gayi), to row kisi ko na dikhna galat hai —
+    // aise me filter nahi lagta. (Create PI ka doer Isha tha par mapping me
+    // Aaradhna/Riya likhe the, isliye pending rows hote hue bhi "All done" dikhta tha.)
+    let stepDoerIds = new Set();
+    try {
+      const [dr] = await db.query('SELECT user_id FROM fms_step_doers WHERE step_id=?', [step.id]);
+      stepDoerIds = new Set((dr || []).map(r => String(r.user_id)));
+    } catch (e) { stepDoerIds = new Set(); }
+    // Mapping me se sirf wahi log jo is step ke doer hain
+    const mappedHere = list => (list || []).filter(u => stepDoerIds.has(String(u)));
 
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
     const spreadsheetId = extractSpreadsheetId(sheet.sheet_id);
@@ -3644,14 +3659,16 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
           // 1) POORE cell value ka exact match — admin ne is poore naam pe jo ticks kiye wahi authoritative
           //    (e.g. "Arti+Riya" ko admin ne alag map kiya ho to wahi chale, split se nahi)
           if (nameToUids[rawCell] !== undefined) {
-            if (!nameToUids[rawCell].includes(myUid)) return;
+            const here = mappedHere(nameToUids[rawCell]);
+            if (here.length && !here.includes(myUid)) return;
           } else {
             // 2) Fallback: cell me multiple naam ho (e.g. "Kiran, Isha") aur poora value map na ho —
             //    tab delimiters (comma/slash/&/+) se tod ke har naam alag match karo
             const cellNames = rawCell.split(/[,/&+]/).map(x => x.trim()).filter(Boolean);
-            const mappedNames = cellNames.filter(n => nameToUids[n] !== undefined);
-            const isMine = mappedNames.some(n => nameToUids[n].includes(myUid));
-            if (mappedNames.length && !isMine) return; // kisi aur doer(s) ko mapped — mujhe nahi dikhna
+            //    Yahan bhi sirf wahi naam maayne rakhte hain jinke log is step ke doer hain
+            const mappedNames = cellNames.filter(n => nameToUids[n] !== undefined && mappedHere(nameToUids[n]).length);
+            const isMine = mappedNames.some(n => mappedHere(nameToUids[n]).includes(myUid));
+            if (mappedNames.length && !isMine) return; // is step ke kisi aur doer ko mapped — mujhe nahi dikhna
           }
         }
       }
