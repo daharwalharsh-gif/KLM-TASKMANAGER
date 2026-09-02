@@ -3747,7 +3747,8 @@ async function init() {
     setAvatarDisplay(ME.profile_image, initials);
 
     // Owner Dashboard — SIRF in emails ko dikhe (owner-only)
-    const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'manik@klmahajan.com'];
+    const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'manik@klmahajan.com',
+      'ea@klmahajan.com'];   // Ms. Priyanka (EA)
     if (OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
       document.getElementById('nav-owner').style.display = 'flex';
     }

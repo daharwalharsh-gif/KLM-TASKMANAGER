@@ -1865,7 +1865,8 @@ app.get('/api/mis', requireAuth, requireMisView, async (req, res) => {
 // Filters: start, end (due_date range), department.
 // SIRF in emails ko access (owner-only):
 // ══════════════════════════════════════════════════════
-const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'manik@klmahajan.com'];
+const OWNER_EMAILS = ['daharwal.harsh@e-marketing.io', 'manik@klmahajan.com',
+  'ea@klmahajan.com'];   // Ms. Priyanka (EA) — admin hain, inhe bhi poora dikhe
 async function isOwnerUser(req) {
   try {
     const [u] = await db.query('SELECT email FROM users WHERE id=?', [req.session.userId]);
