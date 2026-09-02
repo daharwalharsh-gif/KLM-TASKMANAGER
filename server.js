@@ -2382,6 +2382,7 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
     const T = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     const rows = [];
+    const usedKeys = new Set();                 // do rows ka ek hi rowKey na ho
     let rowNo = CFG.headerRow;                  // sheet ka row number (header ke baad se)
     for (const row of data) {
       rowNo++;
@@ -2419,8 +2420,14 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
       // Remarks isi key par save hote hain. Jis row ka na unique id hai na key
       // (PI number abhi bhara nahi), uske liye sheet ka row number use karte hain —
       // taaki do aisi rows ka remark aapas me na mile.
+      let rowKey = uid || (keyVal ? keyBits.slice(0, 3).join('|') : 'row:' + rowNo);
+      // Do alag rows ki key ek jaisi ban gayi (jaise PMS Garments me jin rows ki
+      // unique id khaali hai) — to doosri wali me sheet ka row number jod dete hain.
+      // Pehli row ki key waisi hi rehti hai, isliye purane remarks nahi tootte.
+      if (usedKeys.has(rowKey)) rowKey = rowKey + '#' + rowNo;
+      usedKeys.add(rowKey);
       rows.push({
-        rowKey: uid || (keyVal ? keyBits.slice(0, 3).join('|') : 'row:' + rowNo),
+        rowKey,
         vals,
         stepNo: cur.no, stepLabel: cur.label, stepName: cur.name, stepWho: cur.who,
         tat: cur.tatCol >= 0 ? String(row[cur.tatCol] || '').trim() : '',
