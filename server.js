@@ -2259,6 +2259,47 @@ const PCR_SOURCES = {
     ],
     group: ['merchant', 'shipment', 'process', 'buyer']
   },
+  // PMS Garments / PMS Boxing — inka data PMS tab me hai (header row 6):
+  // B Buyer name · C Code · D Size · E Colour · F Quantity · G Product Name
+  // H Merchant · J PI number · K PI approval date · O Line · P Process · Q unique id
+  pmsgarments: {
+    label: 'PMS Garments',
+    id: '1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg', tab: 'PMS', headerRow: 6, range: 'A:CZ',
+    keyCol: 1, idCol: 16,
+    cols: [
+      { k: 'buyer',    h: 'Buyer',        c: 1 },
+      { k: 'product',  h: 'Product',      c: 6 },
+      { k: 'code',     h: 'Code',         c: 2 },
+      { k: 'size',     h: 'Size',         c: 3 },
+      { k: 'colour',   h: 'Colour',       c: 4 },
+      { k: 'qty',      h: 'Quantity',     c: 5 },
+      { k: 'merchant', h: 'Merchant',     c: 7 },
+      { k: 'piNo',     h: 'PI number',    c: 9 },
+      { k: 'line',     h: 'Line',         c: 14 },
+      { k: 'process',  h: 'Process',      c: 15 },
+      { k: 'piDate',   h: 'PI approval date', c: 10, date: true }
+    ],
+    group: ['merchant', 'line', 'process', 'buyer']
+  },
+  pmsboxing: {
+    label: 'PMS Boxing',
+    id: '1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM', tab: 'PMS', headerRow: 6, range: 'A:CZ',
+    keyCol: 1, idCol: 16,
+    cols: [
+      { k: 'buyer',    h: 'Buyer',        c: 1 },
+      { k: 'product',  h: 'Product',      c: 6 },
+      { k: 'code',     h: 'Code',         c: 2 },
+      { k: 'size',     h: 'Size',         c: 3 },
+      { k: 'colour',   h: 'Colour',       c: 4 },
+      { k: 'qty',      h: 'Quantity',     c: 5 },
+      { k: 'merchant', h: 'Merchant',     c: 7 },
+      { k: 'piNo',     h: 'PI number',    c: 9 },
+      { k: 'line',     h: 'Line',         c: 14 },
+      { k: 'process',  h: 'Process',      c: 15 },
+      { k: 'piDate',   h: 'PI approval date', c: 10, date: true }
+    ],
+    group: ['merchant', 'line', 'process', 'buyer']
+  },
   invincible: {
     label: 'Invincible Order To Dispatch FMS Offline Domestic',
     id: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw', tab: 'FMS', headerRow: 6, range: 'A:AT',
