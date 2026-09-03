@@ -2375,7 +2375,7 @@ const PCR_SOURCES = {
       { k: 'delivery', h: 'Planned delivery', c: 6, date: true },
       { k: 'poDate',   h: 'PO date',          c: 5, date: true }
     ],
-    group: ['vendor']   // Buyer name sheet me abhi khaali hai, isliye group me nahi
+    group: ['vendor', 'buyer']
   }
 };
 function pcrSrc(q) { return PCR_SOURCES[String(q || '').trim()] ? String(q).trim() : 'sampling'; }
