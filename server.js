@@ -3571,8 +3571,40 @@ app.get('/api/fms-tasks/:id', requireAuth, async (req, res) => {
       try { step.show_cols_parsed = JSON.parse(step.show_cols||'[]'); } catch(e) { step.show_cols_parsed = []; }
       const [extraRows] = await db.query('SELECT * FROM fms_extra_rows WHERE step_id=? ORDER BY id ASC', [step.id]);
       step.extraRows = extraRows;
+      step.driveLink = await stepDriveLink(step.id);
     }
     res.json({ sheet: sheets[0], steps });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Step ka Google Drive reference link ──
+// Ek step ka ek hi link. Sabhi dekh sakte hain, badal sirf admin sakta hai.
+async function stepDriveLink(stepId) {
+  try {
+    const [r] = await db.query('SELECT link FROM step_drive_links WHERE step_id=? LIMIT 1', [String(stepId)]);
+    return String(r[0]?.link || '');
+  } catch (e) { return ''; }
+}
+
+app.post('/api/fms-tasks/:fmsId/steps/:stepId/drive-link', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const link = String(req.body?.link || '').trim();
+    if (link && !/^https?:\/\//i.test(link)) {
+      return res.status(400).json({ error: 'Please paste a full link starting with https://' });
+    }
+    if (link.length > 1000) return res.status(400).json({ error: 'Link is too long' });
+    const [steps] = await db.query('SELECT id FROM fms_steps WHERE id=? AND fms_id=?', [req.params.stepId, req.params.fmsId]);
+    if (!steps[0]) return res.status(404).json({ error: 'Step not found' });
+    const stepStr = String(req.params.stepId);
+    const [ex] = await db.query('SELECT id FROM step_drive_links WHERE step_id=? LIMIT 1', [stepStr]);
+    if (ex[0]) {
+      await db.query('UPDATE step_drive_links SET link=?, updated_by=?, updated_at=? WHERE id=?',
+        [link, String(req.session.userId), new Date().toISOString(), ex[0].id]);
+    } else {
+      await db.query('INSERT INTO step_drive_links (fms_id, step_id, link, updated_by) VALUES (?,?,?,?)',
+        [String(req.params.fmsId), stepStr, link, String(req.session.userId)]);
+    }
+    res.json({ success: true, link });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

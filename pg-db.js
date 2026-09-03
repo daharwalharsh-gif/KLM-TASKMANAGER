@@ -157,6 +157,11 @@ const SCHEMA = {
     cols: ['id','row_key','step_no','remark','updated_by','updated_at'],
     autoFill: { updated_at: 'NOW' }
   },
+  // FMS step ka Google Drive reference link — ek step ka ek link, sabko dikhta hai
+  step_drive_links: {
+    cols: ['id','fms_id','step_id','link','updated_by','updated_at'],
+    autoFill: { updated_at: 'NOW' }
+  },
   // Time Scheduler — roz ka routine (sirf allowed emails)
   time_schedules: {
     cols: ['id','user_id','sch_date','start_time','end_time','title','remarks','status','created_at','completed_at'],

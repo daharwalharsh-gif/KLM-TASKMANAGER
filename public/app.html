@@ -1017,7 +1017,16 @@ tbody tr:last-child td{border-bottom:none;}
   <div id="page-fms-tasks" class="page">
     <div class="page-header">
       <h2>FMS Tasks</h2>
-      <div id="fmsTasksRefreshBtn" style="display:none;gap:8px;align-items:center">
+      <div id="fmsTasksRefreshBtn" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+        <!-- Chune hue step ka Google Drive link — save hote hi chip ban jaata hai -->
+        <span id="fmsStepLinkBox" style="display:none;align-items:center;gap:6px">
+          <span style="font-size:12px;font-weight:600;color:#475569;white-space:nowrap">🔗 Drive link</span>
+          <input id="fmsStepLinkInput" type="url" placeholder="Paste Google Drive link here"
+            style="width:260px;padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px">
+          <button class="btn btn-sm btn-green" id="fmsStepLinkSave" onclick="saveFmsStepLink()">Save</button>
+          <button class="btn btn-sm btn-outline" id="fmsStepLinkClear" onclick="clearFmsStepLink()" style="display:none">Remove</button>
+          <span id="fmsStepLinkMsg" style="font-size:12px;color:#64748b"></span>
+        </span>
         <button class="btn btn-outline btn-sm" onclick="downloadAllStepsCSV()" id="fmsTaskCSVBtn" title="Download CSV of all steps' pending tasks">📥 CSV (All Steps)</button>
         <button class="btn btn-outline btn-sm" onclick="loadFMSTasks()">🔄 Refresh</button>
       </div>
@@ -1063,6 +1072,13 @@ tbody tr:last-child td{border-bottom:none;}
           <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Selected Step</div>
           <div id="fmsTaskStepName" style="font-size:16px;font-weight:700;color:#1e293b;margin-top:2px">—</div>
           <div id="fmsTaskStepDoers" style="font-size:12px;color:#64748b;margin-top:2px"></div>
+        </div>
+        <!-- Link save hone ke baad yahi dikhta hai — input wala box chhup jaata hai -->
+        <div id="fmsStepLinkChip" style="display:none;align-items:center;gap:10px;background:#f0f7ff;border:1px solid #cfe3ff;border-radius:10px;padding:7px 12px">
+          <span style="font-size:12px;font-weight:700;color:#1e293b;white-space:nowrap">📋 Checklist</span>
+          <a id="fmsStepLinkChipA" href="#" target="_blank" rel="noopener"
+            style="font-size:13px;font-weight:700;color:#2563eb;text-decoration:underline;white-space:nowrap">click</a>
+          <button class="btn btn-sm btn-outline" id="fmsStepLinkEdit" onclick="editFmsStepLink()" style="padding:3px 10px">✏️ Edit</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <span id="fmsTaskRowCount" style="font-size:13px;color:#ef4444;font-weight:600"></span>
@@ -11286,6 +11302,9 @@ async function onFMSTasksSelect() {
   if (!fmsId) {
     trainContainer.style.display = 'none';
     stepPanel.style.display = 'none';
+    fmsTasksActiveStepId = null;
+    _fmsLinkEdit = false;
+    renderFmsStepLink();
     updateFmsSheetLink('');
     return;
   }
@@ -11293,6 +11312,8 @@ async function onFMSTasksSelect() {
 
   fmsTasksActiveFmsId = parseInt(fmsId);
   fmsTasksActiveStepId = null;
+  _fmsLinkEdit = false;
+  renderFmsStepLink();
   stepPanel.style.display = 'none';
   trainContainer.style.display = 'block';
 
@@ -11367,8 +11388,80 @@ function selectFMSStep(stepId, stepName, doerNames) {
     <div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
       Click "Load Tasks" to fetch pending rows for this step
     </div>`;
+  _fmsLinkEdit = false;
+  renderFmsStepLink();
   document.getElementById('fmsTaskStepPanel').style.display = 'block';
   document.getElementById('fmsTaskStepPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Step ka Google Drive reference link ──
+// Ek step ka ek link. Sabko dikhta hai; paste/badalna sirf admin kar sakta hai.
+let _fmsLinkEdit = false;   // true = paste wala box khula hai
+
+function renderFmsStepLink() {
+  const box = document.getElementById('fmsStepLinkBox');
+  if (!box) return;
+  const step = window._fmsActiveStepData || {};
+  const link = String(step.driveLink || '');
+  const isAdmin = (ME && ME.role) === 'admin';
+  const input = document.getElementById('fmsStepLinkInput');
+  const save = document.getElementById('fmsStepLinkSave');
+  const clear = document.getElementById('fmsStepLinkClear');
+  const msg = document.getElementById('fmsStepLinkMsg');
+  const chip = document.getElementById('fmsStepLinkChip');
+  const chipA = document.getElementById('fmsStepLinkChipA');
+  const edit = document.getElementById('fmsStepLinkEdit');
+
+  // Link laga hua ho aur edit na kar rahe ho -> sirf "Checklist · click" chip.
+  // Warna (link nahi hai ya Edit dabaya) -> paste wala box.
+  const stepChosen = !!fmsTasksActiveStepId;
+  const showBox = stepChosen && isAdmin && (!link || _fmsLinkEdit);
+  msg.textContent = '';
+  input.value = link;
+  input.style.display = '';
+  save.style.display = '';
+  clear.style.display = link ? '' : 'none';
+  box.style.display = showBox ? 'flex' : 'none';
+
+  chipA.href = link || '#';
+  chip.style.display = (stepChosen && link && !showBox) ? 'flex' : 'none';
+  edit.style.display = isAdmin ? '' : 'none';
+}
+
+// Edit — paste wala box wapas kholo
+function editFmsStepLink() {
+  _fmsLinkEdit = true;
+  renderFmsStepLink();
+  const el = document.getElementById('fmsStepLinkInput');
+  if (el) { el.focus(); el.select(); }
+}
+
+async function saveFmsStepLink(force) {
+  const input = document.getElementById('fmsStepLinkInput');
+  const msg = document.getElementById('fmsStepLinkMsg');
+  const btn = document.getElementById('fmsStepLinkSave');
+  const link = force === '' ? '' : input.value.trim();
+  if (link && !/^https?:\/\//i.test(link)) {
+    msg.style.color = '#ef4444';
+    msg.textContent = 'Please paste a full link starting with https://';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Saving...';
+  const r = await api(`/api/fms-tasks/${fmsTasksActiveFmsId}/steps/${fmsTasksActiveStepId}/drive-link`, 'POST', { link });
+  btn.disabled = false; btn.textContent = 'Save';
+  if (r && r.error) { msg.style.color = '#ef4444'; msg.textContent = r.error; return; }
+  // Yaad rakho taaki step dobara kholne par wahi link dikhe
+  if (window._fmsActiveStepData) window._fmsActiveStepData.driveLink = link;
+  const inList = (window._fmsAllSteps || []).find(s => s.id === fmsTasksActiveStepId);
+  if (inList) inList.driveLink = link;
+  _fmsLinkEdit = false;     // save hote hi paste wala box hat jaata hai
+  renderFmsStepLink();
+  showToast(link ? '✅ Checklist link saved' : '✅ Checklist link removed', 'success');
+}
+
+function clearFmsStepLink() {
+  document.getElementById('fmsStepLinkInput').value = '';
+  saveFmsStepLink('');
 }
 
 async function loadFMSTaskRows() {
