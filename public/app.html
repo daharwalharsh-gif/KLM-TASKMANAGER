@@ -7333,7 +7333,9 @@ function pcrClearColFilters() { _pcrColFilters = {}; }
 // Table ke columns — sheet ke apne info column + step wale fix column
 function pcrCols() {
   const info = (_pcrData && _pcrData.cols) ? _pcrData.cols : [];
-  return info.concat([
+  // Sheet Row sabse pehle — sheet me ye kaunsi row hai (ek jaisi dikhne wali
+  // rows, jinka Style/Size khaali hai, isse turant alag pehchani jaati hain)
+  return [{ k: 'sheetRow', h: 'Sheet Row' }].concat(info).concat([
     { k: 'step',    h: 'Pending at step' },
     { k: 'planned', h: 'Planned' },
     { k: 'status',  h: 'Status' },
@@ -7343,6 +7345,7 @@ function pcrCols() {
   ]);
 }
 function pcrColVal(x, k) {
+  if (k === 'sheetRow') return String(x.sheetRow || '');
   if (k === 'planned') return otodDate(x.planned) || '';
   if (k === 'step') return x.stepLabel + ' · ' + x.stepName;
   if (k === 'status') {

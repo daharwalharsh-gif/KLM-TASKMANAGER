@@ -2474,6 +2474,8 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
       rows.push({
         rowKey,
         vals,
+        // Google Sheet ki asli row number — ek jaisi dikhne wali rows alag pehchanne ke liye
+        sheetRow: rowNo,
         stepNo: cur.no, stepLabel: cur.label, stepName: cur.name, stepWho: cur.who,
         tat: cur.tatCol >= 0 ? String(row[cur.tatCol] || '').trim() : '',
         planned,
