@@ -2360,6 +2360,22 @@ const PCR_SOURCES = {
       { k: 'orderDate',  h: 'Date of order',   c: 9, date: true }
     ],
     group: ['terms', 'dispatch', 'party']
+  },
+  purchase: {
+    label: 'Purchase FMS',
+    id: '1NrXS-WHgR6ME3SDn6tau3Ty0O-4VR_KWNKm7maDaLnM', tab: 'FMS', headerRow: 6, range: 'A:AV',
+    keyCol: 1, idCol: 11,
+    cols: [
+      { k: 'poNo',     h: 'PO number',        c: 1 },
+      { k: 'vendor',   h: 'Vendor name',      c: 2 },
+      { k: 'qty',      h: 'Total quantity',   c: 3 },
+      { k: 'sku',      h: 'Total SKU',        c: 4 },
+      { k: 'buyer',    h: 'Buyer name',       c: 7 },
+      { k: 'leadTime', h: 'Lead time',        c: 10 },
+      { k: 'delivery', h: 'Planned delivery', c: 6, date: true },
+      { k: 'poDate',   h: 'PO date',          c: 5, date: true }
+    ],
+    group: ['vendor']   // Buyer name sheet me abhi khaali hai, isliye group me nahi
   }
 };
 function pcrSrc(q) { return PCR_SOURCES[String(q || '').trim()] ? String(q).trim() : 'sampling'; }
