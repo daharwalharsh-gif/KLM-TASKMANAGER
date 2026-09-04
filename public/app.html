@@ -127,6 +127,22 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#1e293b;min-height:
 
 .dash-bottom{display:grid;grid-template-columns:1fr 320px;gap:18px;}
 .task-table-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;}
+/* ── Performance & Activity (dashboard) ── */
+.perf-tabs{display:inline-flex;background:#f1f5f9;border-radius:8px;padding:2px;gap:2px}
+.perf-tab{font-size:11px;font-weight:700;color:#64748b;padding:5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.perf-tab.active{background:#fff;color:#1d4ed8;box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.perf-date{padding:5px 9px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;color:#1e293b;background:#fff}
+.perf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;padding:14px 16px}
+.perf-card{border:1px solid #e2e8f0;border-radius:12px;padding:14px}
+.perf-card-title{font-size:13px;font-weight:800;color:#1e293b;margin-bottom:12px}
+.perf-row{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.perf-av{width:26px;height:26px;border-radius:50%;background:#eef2ff;color:#4338ca;font-size:10px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.perf-nm{font-size:12px;font-weight:600;color:#334155;width:104px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.perf-track{flex:1;background:#f1f5f9;border-radius:5px;height:17px;position:relative;overflow:hidden}
+.perf-fill{height:100%;border-radius:5px;transition:width .3s}
+.perf-val{font-size:11px;font-weight:800;color:#475569;width:46px;text-align:right;flex-shrink:0}
+.perf-empty{font-size:12px;color:#94a3b8;padding:14px 2px}
 .card-head{padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;}
 .card-head-title{font-size:14px;font-weight:700;}
 .tab-group{display:flex;gap:4px;background:#f1f5f9;padding:3px;border-radius:8px;}
@@ -749,6 +765,32 @@ tbody tr:last-child td{border-bottom:none;}
             <tbody id="dashFMSTbody"></tbody>
           </table>
         </div>
+      </div>
+    </div>
+
+    <!-- ── Performance & Activity (Checklist + Delegation) ── -->
+    <div id="dashPerfWrap" class="task-table-card" style="display:none;margin-top:16px">
+      <div class="card-head" style="flex-wrap:wrap;gap:10px">
+        <div class="card-head-title">📈 Performance &amp; Activity</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto">
+          <div class="perf-tabs">
+            <span class="perf-tab active" id="perfTabBoth" onclick="perfSetType('both',this)">Checklist + Delegation</span>
+            <span class="perf-tab" id="perfTabChk" onclick="perfSetType('checklist',this)">Checklist</span>
+            <span class="perf-tab" id="perfTabDel" onclick="perfSetType('delegation',this)">Delegation</span>
+          </div>
+          <label style="font-size:12px;color:#64748b;font-weight:600">From</label>
+          <input type="date" id="perfFrom" onchange="loadDashPerf()" class="perf-date">
+          <label style="font-size:12px;color:#64748b;font-weight:600">To</label>
+          <input type="date" id="perfTo" onchange="loadDashPerf()" class="perf-date">
+        </div>
+      </div>
+      <div class="perf-grid">
+        <div class="perf-card"><div class="perf-card-title">🏆 Top 5 Performers</div><div id="perfTop"></div></div>
+        <div class="perf-card"><div class="perf-card-title">🌱 Bottom 5 Performers</div><div id="perfBottom"></div></div>
+        <div class="perf-card"><div class="perf-card-title">🔥 Top 5 Most Active</div><div id="perfActive"></div></div>
+      </div>
+      <div style="font-size:11px;color:#94a3b8;padding:0 16px 12px">
+        Score = ((total − overdue×2 − revised×0.5) ÷ total) × 100, capped at −100…+100 · Most Active = tasks completed in this range
       </div>
     </div>
 
@@ -5829,6 +5871,7 @@ async function loadDashboard() {
 
   // Load FMS section — respects same employee filter
   loadDashFMS();
+  loadDashPerf();   // Performance & Activity (Checklist + Delegation)
 }
 
 // PC: date range change → refresh dropdown then dashboard
@@ -5885,6 +5928,117 @@ function dashTab(type, el) {
 
 // FMS Dashboard loader
 let dashFMSChartInst = null;
+// ══════════════════════════════════════════════════════
+// Performance & Activity — Checklist + Delegation
+// Data wahi jo MIS Report use karta hai (/api/mis/all), isliye numbers
+// MIS se hamesha milte hain. Sirf unhe dikhta hai jinke paas MIS access hai.
+// ══════════════════════════════════════════════════════
+let _perfType = 'both';
+let _perfSeq = 0;
+
+function perfCanSee() {
+  // Jise MIS Report dikhta hai, usi ko ye bhi — alag list rakhne ki zaroorat nahi
+  const nav = document.getElementById('nav-mis');
+  return !!nav && getComputedStyle(nav).display !== 'none';
+}
+
+function perfSetType(t, el) {
+  _perfType = t;
+  document.querySelectorAll('#dashPerfWrap .perf-tab').forEach(x => x.classList.remove('active'));
+  if (el) el.classList.add('active');
+  loadDashPerf();
+}
+
+function perfInitials(n) {
+  return String(n || '').trim().split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+}
+
+// Score wahi formula jo MIS me hai — dono jagah ek jaisa dikhe
+function perfScore(total, overdue, revised) {
+  total = parseInt(total) || 0; overdue = parseInt(overdue) || 0; revised = parseInt(revised) || 0;
+  if (!total) return null;
+  const s = ((total - overdue * 2 - revised * 0.5) / total) * 100;
+  return Math.round(Math.max(-100, Math.min(100, s)) * 10) / 10;
+}
+
+function perfBars(elId, list, color, opts) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!list.length) { el.innerHTML = `<div class="perf-empty">Is range me koi data nahi</div>`; return; }
+  const max = Math.max(1, ...list.map(x => Math.abs(x.v)));
+  el.innerHTML = list.map(x => {
+    const w = Math.max(3, Math.round((Math.abs(x.v) / max) * 100));
+    const txt = opts && opts.suffix ? x.v + opts.suffix : String(x.v);
+    return `<div class="perf-row" title="${escapeHtml(x.name)} — ${escapeHtml(x.hint || '')}">
+      <span class="perf-av">${escapeHtml(perfInitials(x.name))}</span>
+      <span class="perf-nm">${escapeHtml(x.name)}</span>
+      <span class="perf-track"><span class="perf-fill" style="width:${w}%;background:${color}"></span></span>
+      <span class="perf-val">${escapeHtml(txt)}</span>
+    </div>`;
+  }).join('');
+}
+
+async function loadDashPerf() {
+  const wrap = document.getElementById('dashPerfWrap');
+  if (!wrap) return;
+  if (!perfCanSee()) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const f = document.getElementById('perfFrom'), t = document.getElementById('perfTo');
+  if (!f.value || !t.value) {
+    const now = new Date(); const pad = x => String(x).padStart(2, '0');
+    const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const from = new Date(now); from.setDate(from.getDate() - 29);
+    f.value = iso(from); t.value = iso(now);
+  }
+  const seq = ++_perfSeq;
+  ['perfTop', 'perfBottom', 'perfActive'].forEach(id => {
+    const e = document.getElementById(id); if (e) e.innerHTML = `<div class="perf-empty">Loading…</div>`;
+  });
+  const data = await api(`/api/mis/all?start=${f.value}&end=${t.value}`);
+  if (seq !== _perfSeq) return;
+  // Endpoint kabhi seedha array deta hai, kabhi {rows,fmsErrors} — dono chalte hain
+  const list = Array.isArray(data) ? data : ((data && Array.isArray(data.rows)) ? data.rows : null);
+  if (!list) {
+    ['perfTop', 'perfBottom', 'perfActive'].forEach(id => {
+      const e = document.getElementById(id);
+      if (e) e.innerHTML = `<div class="perf-empty">${escapeHtml((data && data.error) || 'Data nahi mila')}</div>`;
+    });
+    return;
+  }
+  const pick = u => {
+    const c = u.checklist || {}, d = u.delegation || {};
+    if (_perfType === 'checklist') return c;
+    if (_perfType === 'delegation') return d;
+    return {
+      total: (c.total || 0) + (d.total || 0),
+      overdue: (c.overdue || 0) + (d.overdue || 0),
+      revised: (c.revised || 0) + (d.revised || 0),
+      completed: (c.completed || 0) + (d.completed || 0)
+    };
+  };
+  const rows = list.map(u => {
+    const x = pick(u);
+    return {
+      name: titleName(u.name || ''),
+      total: x.total || 0,
+      done: x.completed || 0,
+      score: perfScore(x.total, x.overdue, x.revised)
+    };
+  }).filter(r => r.total > 0);
+
+  const scored = rows.filter(r => r.score !== null);
+  const top = [...scored].sort((a, b) => b.score - a.score || b.done - a.done).slice(0, 5)
+    .map(r => ({ name: r.name, v: r.score, hint: `${r.done}/${r.total} done` }));
+  const bottom = [...scored].sort((a, b) => a.score - b.score || a.done - b.done).slice(0, 5)
+    .map(r => ({ name: r.name, v: r.score, hint: `${r.done}/${r.total} done` }));
+  const active = [...rows].filter(r => r.done > 0).sort((a, b) => b.done - a.done).slice(0, 5)
+    .map(r => ({ name: r.name, v: r.done, hint: `${r.done} completed` }));
+
+  perfBars('perfTop', top, '#16a34a');
+  perfBars('perfBottom', bottom, '#ef4444');
+  perfBars('perfActive', active, '#4f46e5');
+}
+
 async function loadDashFMS() {
   const section = document.getElementById('dashFMSSection');
   if (!section) return;
