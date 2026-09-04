@@ -224,6 +224,56 @@ let _initialized = false;
 let _initPromise = null;
 
 const _dirtyTables = new Set();
+// ── Kaunsi ROWS badli hain ──────────────────────────────────────────
+// Pehle flush poori table DELETE karke memory se dobara likhta tha. Serverless
+// par kai instance chalte hain: jis instance ki memory purani hai uska flush
+// doosre instance ke naye writes MITA deta tha — isliye "Done kiya hua task
+// thodi der baad wapas pending" ho jaata tha. Ab flush sirf UNHI rows ko
+// chhoota hai jo is instance ne badli hain (upsert) ya hataayi hain (delete).
+// Jahan rows ka pata na chale (bina WHERE ka update, ajeeb SQL) wahan purana
+// poora-rewrite hi hota hai — taaki kabhi kuch chhoote na.
+const _dirtyIds = new Map();      // table -> Set(id) — upsert karni hain
+const _deletedIds = new Map();    // table -> Set(id) — hatani hain
+const _fullRewrite = new Set();   // table -> poora rewrite (fallback)
+
+function _idSet(map, table) {
+  let s = map.get(table);
+  if (!s) { s = new Set(); map.set(table, s); }
+  return s;
+}
+function noteRows(table, ids) {
+  if (!table || !ids || !ids.length) return;
+  const dirty = _idSet(_dirtyIds, table), gone = _idSet(_deletedIds, table);
+  for (const id of ids) { const k = String(id); dirty.add(k); gone.delete(k); }
+}
+function noteDeleted(table, ids) {
+  if (!table || !ids || !ids.length) return;
+  const dirty = _idSet(_dirtyIds, table), gone = _idSet(_deletedIds, table);
+  for (const id of ids) { const k = String(id); gone.add(k); dirty.delete(k); }
+}
+function noteFull(table) { if (table) _fullRewrite.add(table); }
+function clearRowMarks(table) {
+  _dirtyIds.delete(table); _deletedIds.delete(table); _fullRewrite.delete(table);
+}
+
+// UPDATE/DELETE kis-kis id par lagega — wahi WHERE alasql par chala kar.
+// null lauta to matlab "pata nahi" → poora rewrite (safe side).
+function idsForWhere(sql, params, table) {
+  try {
+    if (!table || !alasql.tables[table]) { if (process.env.PGDB_DEBUG) console.error('idsForWhere: table nahi', table); return null; }
+    if (/\bSELECT\b/i.test(sql)) return null;          // subquery — risk nahi lena
+    const wm = /\bWHERE\b/i.exec(sql);
+    if (!wm) { if (process.env.PGDB_DEBUG) console.error('idsForWhere: WHERE nahi |', sql); return null; }
+    const before = sql.slice(0, wm.index);
+    const where = sql.slice(wm.index + wm[0].length);
+    if (/\bWHERE\b/i.test(where)) return null;         // ek se zyada WHERE
+    const qBefore = (before.match(/\?/g) || []).length;
+    const wParams = (params || []).slice(qBefore);
+    const rows = alasql(`SELECT id FROM ${table} WHERE ${where}`, wParams);
+    return (rows || []).map(r => String(r.id));
+  } catch (e) { if (process.env.PGDB_DEBUG) console.error('idsForWhere fail:', e.message, '|', sql); return null; }
+}
+
 let _flushTimer = null;
 let _flushInProgress = false;
 let _pendingFlushResolvers = [];
@@ -631,6 +681,11 @@ function executeMutation(sqlIn, params, table) {
       params = injectedId.params;
     }
   }
+  // UPDATE/DELETE chalne se PEHLE dekh lo kis-kis id par lagega
+  const isUpd = /^\s*UPDATE/i.test(sql);
+  const isDel = /^\s*DELETE/i.test(sql);
+  const hitIds = (isUpd || isDel) ? idsForWhere(sql, params, table) : null;
+
   let affected;
   try {
     affected = alasql(sql, params);
@@ -654,7 +709,20 @@ function executeMutation(sqlIn, params, table) {
       }
     }
   }
-  if (table) markDirty(table);
+  if (table) {
+    markDirty(table);
+    if (/^\s*INSERT/i.test(sql)) {
+      if (injectedId) {
+        const ids = [];
+        for (let i = 0; i < injectedId.insertedCount; i++) ids.push(injectedId.insertId + i);
+        noteRows(table, ids);
+      } else noteFull(table);       // id ka pata nahi — poora rewrite
+    } else if (isUpd) {
+      if (hitIds) noteRows(table, hitIds); else noteFull(table);
+    } else if (isDel) {
+      if (hitIds) noteDeleted(table, hitIds); else noteFull(table);
+    } else noteFull(table);
+  }
   const result = {
     affectedRows: typeof affected === 'number' ? affected : 0,
     insertId: injectedId ? injectedId.insertId : null
@@ -756,6 +824,7 @@ function executeUpsert({ table, cols, valTokens, updateClause, params }) {
   }
   alasql(`UPDATE ${table} SET ${setSql.join(', ')} WHERE id = ?`, [...setParams, id]);
   markDirty(table);
+  noteRows(table, [id]);
   return [{ affectedRows: 2, insertId: id }, []];
 }
 
@@ -811,10 +880,29 @@ async function flushNow() {
   try {
     while (_dirtyTables.size > 0) {
       const snapshot = Array.from(_dirtyTables);
+      // Kya-kya likhna hai, wo ABHI (bina await ke) tay kar lo — warna IO ke
+      // beech aayi nayi writes galti se "likh di gayi" maan li jaatin.
+      const plan = snapshot.map(t => ({
+        table: t,
+        full: _fullRewrite.has(t),
+        upsert: Array.from(_dirtyIds.get(t) || []),
+        remove: Array.from(_deletedIds.get(t) || [])
+      }));
+      snapshot.forEach(t => clearRowMarks(t));
       // Write first; only clear dirty on SUCCESS. If a write fails
       // (network/auth) tables stay dirty so the next flush retries and no
       // data is lost.
-      await writeTablesToPg(snapshot);
+      try {
+        await writeTablesToPg(plan);
+      } catch (err) {
+        // Naakaam — nishaan wapas lagao taaki agli baar dobara koshish ho
+        for (const p of plan) {
+          if (p.full) noteFull(p.table);
+          noteRows(p.table, p.upsert);
+          noteDeleted(p.table, p.remove);
+        }
+        throw err;
+      }
       snapshot.forEach(t => _dirtyTables.delete(t));
     }
   } finally {
@@ -824,17 +912,52 @@ async function flushNow() {
   }
 }
 
-// Full snapshot per dirty table: DELETE all + bulk INSERT current rows,
-// inside a transaction so a crash never leaves a half-written table.
-async function writeTablesToPg(tables) {
-  if (!tables.length) return;
+// Har dirty table ke liye: aam taur par sirf BADLI HUI rows ka upsert +
+// hataayi hui rows ka delete. Sirf jab rows ka pata na chale (full=true) tab
+// purana tareeka — poori table DELETE + dobara INSERT. Sab ek transaction me,
+// taaki beech me kuch toote to table adhoora na rahe.
+async function writeTablesToPg(plan) {
+  if (!plan.length) return;
   const pool = getPool();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    for (const table of tables) {
+    for (const item of plan) {
+      const table = item.table;
       const cols = SCHEMA[table].cols;
-      const rows = alasql.tables[table] ? alasql.tables[table].data : [];
+      const data = alasql.tables[table] ? alasql.tables[table].data : [];
+      if (!item.full) {
+        // ── sirf badli hui rows ──
+        if (item.remove.length) {
+          await client.query(`DELETE FROM ${qIdent(table)} WHERE id = ANY($1::int[])`,
+            [item.remove.map(x => parseInt(x, 10)).filter(n => Number.isFinite(n))]);
+        }
+        if (item.upsert.length) {
+          const byId = new Map(data.map(r => [String(r.id), r]));
+          const rows = item.upsert.map(id => byId.get(String(id))).filter(Boolean);
+          const colSql = cols.map(qIdent).join(', ');
+          const setSql = cols.filter(c => c !== 'id')
+            .map(c => `${qIdent(c)} = EXCLUDED.${qIdent(c)}`).join(', ');
+          const maxParams = 60000;
+          const rowsPerChunk = Math.max(1, Math.floor(maxParams / cols.length));
+          for (let start = 0; start < rows.length; start += rowsPerChunk) {
+            const chunk = rows.slice(start, start + rowsPerChunk);
+            const valuesSql = []; const flat = []; let p = 1;
+            for (const r of chunk) {
+              valuesSql.push(`(${cols.map(() => `$${p++}`).join(', ')})`);
+              for (const c of cols) flat.push(serializeForDb(r[c]));
+            }
+            await client.query(
+              `INSERT INTO ${qIdent(table)} (${colSql}) VALUES ${valuesSql.join(', ')}` +
+              (setSql ? ` ON CONFLICT (id) DO UPDATE SET ${setSql}` : ''),
+              flat
+            );
+          }
+        }
+        continue;
+      }
+      // ── fallback: poora rewrite ──
+      const rows = data;
       await client.query(`DELETE FROM ${qIdent(table)}`);
       if (rows.length) {
         const colSql = cols.map(qIdent).join(', ');
@@ -947,6 +1070,13 @@ module.exports = {
   _alasql: alasql,
   _schema: SCHEMA,
   _testInit,
+  // Kaunsi rows badli hui hain — jaanchne ke liye
+  _marks: () => ({
+    tables: [..._dirtyTables],
+    full: [..._fullRewrite],
+    dirty: Object.fromEntries([..._dirtyIds].map(([k, v]) => [k, [...v]])),
+    deleted: Object.fromEntries([..._deletedIds].map(([k, v]) => [k, [...v]]))
+  }),
   _getPool: getPool,
   _loadAllTables: loadAllTables
 };
