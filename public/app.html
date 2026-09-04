@@ -139,8 +139,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#1e293b;min-height:
 .perf-av{width:26px;height:26px;border-radius:50%;background:#eef2ff;color:#4338ca;font-size:10px;font-weight:800;
   display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .perf-nm{font-size:12px;font-weight:600;color:#334155;width:104px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.perf-track{flex:1;background:#f1f5f9;border-radius:5px;height:17px;position:relative;overflow:hidden}
-.perf-fill{height:100%;border-radius:5px;transition:width .3s}
+/* span inline hota hai — isliye display:flex/block zaroori, warna bar ki
+   width/height lagti hi nahi aur patti khaali dikhti hai */
+.perf-track{flex:1;background:#f1f5f9;border-radius:5px;height:18px;overflow:hidden;display:flex;align-items:stretch}
+.perf-track.rtl{justify-content:flex-end}
+.perf-fill{display:block;height:100%;border-radius:5px;min-width:4px;transition:width .35s ease}
 .perf-val{font-size:11px;font-weight:800;color:#475569;width:46px;text-align:right;flex-shrink:0}
 .perf-empty{font-size:12px;color:#94a3b8;padding:14px 2px}
 .card-head{padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;}
@@ -5946,7 +5949,7 @@ function perfSetType(t, el) {
   _perfType = t;
   document.querySelectorAll('#dashPerfWrap .perf-tab').forEach(x => x.classList.remove('active'));
   if (el) el.classList.add('active');
-  loadDashPerf();
+  renderDashPerf();          // sirf dobara banao — API call ki zaroorat nahi
 }
 
 function perfInitials(n) {
@@ -5965,20 +5968,27 @@ function perfBars(elId, list, color, opts) {
   const el = document.getElementById(elId);
   if (!el) return;
   if (!list.length) { el.innerHTML = `<div class="perf-empty">Is range me koi data nahi</div>`; return; }
+  const rtl = !!(opts && opts.rtl);          // minus wale bar dayen se bayen bhare
   const max = Math.max(1, ...list.map(x => Math.abs(x.v)));
   el.innerHTML = list.map(x => {
-    const w = Math.max(3, Math.round((Math.abs(x.v) / max) * 100));
-    const txt = opts && opts.suffix ? x.v + opts.suffix : String(x.v);
+    const w = Math.max(6, Math.round((Math.abs(x.v) / max) * 100));
     return `<div class="perf-row" title="${escapeHtml(x.name)} — ${escapeHtml(x.hint || '')}">
       <span class="perf-av">${escapeHtml(perfInitials(x.name))}</span>
       <span class="perf-nm">${escapeHtml(x.name)}</span>
-      <span class="perf-track"><span class="perf-fill" style="width:${w}%;background:${color}"></span></span>
-      <span class="perf-val">${escapeHtml(txt)}</span>
+      <span class="perf-track${rtl ? ' rtl' : ''}"><span class="perf-fill"
+        style="width:${w}%;background:${color}"></span></span>
+      <span class="perf-val" style="color:${(opts && opts.valColor) || '#475569'}">${escapeHtml(String(x.v))}</span>
     </div>`;
   }).join('');
 }
 
-async function loadDashPerf() {
+// Ye API bhaari hai (FMS ka hisaab bhi karti hai). Dashboard kai baar load
+// hota hai — har baar call karne se "Loading…" hi dikhta rehta tha. Ab ek hi
+// range ka data ek hi baar aata hai; tab badalne par sirf dobara banta hai.
+let _perfCache = { key: '', list: null };
+let _perfBusy = false;
+
+async function loadDashPerf(force) {
   const wrap = document.getElementById('dashPerfWrap');
   if (!wrap) return;
   if (!perfCanSee()) { wrap.style.display = 'none'; return; }
@@ -5990,11 +6000,21 @@ async function loadDashPerf() {
     const from = new Date(now); from.setDate(from.getDate() - 29);
     f.value = iso(from); t.value = iso(now);
   }
+  const key = f.value + '|' + t.value;
+  // Wahi range pehle aa chuki hai -> dobara API nahi
+  if (!force && _perfCache.key === key && _perfCache.list) { renderDashPerf(); return; }
+  if (_perfBusy) return;
+  _perfBusy = true;
   const seq = ++_perfSeq;
-  ['perfTop', 'perfBottom', 'perfActive'].forEach(id => {
-    const e = document.getElementById(id); if (e) e.innerHTML = `<div class="perf-empty">Loading…</div>`;
-  });
-  const data = await api(`/api/mis/all?start=${f.value}&end=${t.value}`);
+  // Pehli baar hi "Loading…" — baad me purane bar dikhte rehte hain (blink nahi)
+  if (!_perfCache.list) {
+    ['perfTop', 'perfBottom', 'perfActive'].forEach(id => {
+      const e = document.getElementById(id); if (e) e.innerHTML = `<div class="perf-empty">Loading…</div>`;
+    });
+  }
+  let data;
+  try { data = await api(`/api/mis/all?start=${f.value}&end=${t.value}`); }
+  finally { _perfBusy = false; }
   if (seq !== _perfSeq) return;
   // Endpoint kabhi seedha array deta hai, kabhi {rows,fmsErrors} — dono chalte hain
   const list = Array.isArray(data) ? data : ((data && Array.isArray(data.rows)) ? data.rows : null);
@@ -6005,6 +6025,13 @@ async function loadDashPerf() {
     });
     return;
   }
+  _perfCache = { key, list };
+  renderDashPerf();
+}
+
+function renderDashPerf() {
+  const list = _perfCache.list;
+  if (!list) return;
   const pick = u => {
     const c = u.checklist || {}, d = u.delegation || {};
     if (_perfType === 'checklist') return c;
@@ -6034,9 +6061,9 @@ async function loadDashPerf() {
   const active = [...rows].filter(r => r.done > 0).sort((a, b) => b.done - a.done).slice(0, 5)
     .map(r => ({ name: r.name, v: r.done, hint: `${r.done} completed` }));
 
-  perfBars('perfTop', top, '#16a34a');
-  perfBars('perfBottom', bottom, '#ef4444');
-  perfBars('perfActive', active, '#4f46e5');
+  perfBars('perfTop', top, 'linear-gradient(90deg,#4ade80,#16a34a)', { valColor: '#15803d' });
+  perfBars('perfBottom', bottom, 'linear-gradient(270deg,#f87171,#dc2626)', { rtl: true, valColor: '#b91c1c' });
+  perfBars('perfActive', active, 'linear-gradient(90deg,#818cf8,#4f46e5)', { valColor: '#4338ca' });
 }
 
 async function loadDashFMS() {
