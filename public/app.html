@@ -842,16 +842,17 @@ tbody tr:last-child td{border-bottom:none;}
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <!-- PC-only: user filter + date range (desktop only) -->
+        <!-- Date range sabke liye (default: is mahine ka). User dropdown sirf unhe
+             jinhe kai logon ke task dikhte hain (admin / HOD / PC). -->
         <div id="tasksUserDateFilters" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;">
           <select id="tasksUserFilter" onchange="filterTasks()"
             style="padding:7px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff">
             <option value="all">All Employees</option>
           </select>
-          <input type="date" id="tasksDateFrom" onchange="filterTasks()"
+          <input type="date" id="tasksDateFrom" onchange="tasksDateChanged()"
             style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff">
           <span style="font-size:12px;color:#94a3b8">to</span>
-          <input type="date" id="tasksDateTo" onchange="filterTasks()"
+          <input type="date" id="tasksDateTo" onchange="tasksDateChanged()"
             style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff">
           <button onclick="clearTasksDateFilter()" style="padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;background:#fff;cursor:pointer;color:#64748b">✕ Clear</button>
         </div>
@@ -6186,15 +6187,17 @@ async function loadAllTasks() {
   const dbmBtn = document.getElementById('delegateByMeBtn');
   if (dbmBtn) dbmBtn.style.display = (isAdmin || isHod || isUser) ? '' : 'none';
 
-  // PC desktop: show user filter + date range
+  // Date range ab sabko dikhta hai — warna All Tasks me mahino purana data bhara
+  // rehta tha (July ke completed, August ke pending) aur roz ki list me mil jaata
+  // tha. Default = is mahine ki 1 tarikh se. Purana dekhna ho to date badal do.
   const filtersDiv = document.getElementById('tasksUserDateFilters');
+  const showUserSel = (isAdmin || isHod || isPC) && isDesktop;
   if (filtersDiv) {
-    if (isPC && isDesktop) {
-      filtersDiv.style.display = 'flex';
-    } else {
-      filtersDiv.style.display = 'none';
-    }
+    filtersDiv.style.display = 'flex';   // mobile par bhi — warna default date badla hi nahi ja sakta
+    const us = document.getElementById('tasksUserFilter');
+    if (us) us.style.display = showUserSel ? '' : 'none';
   }
+  tasksDateDefault();
 
   syncNATab(); // N/A tab ki visibility (sirf checklist)
   const _gb = document.getElementById('groupByDoerBtn');
@@ -6214,8 +6217,8 @@ async function loadAllTasks() {
   allTasksData = allTasks;
   allTasksPage = 1;
 
-  // PC desktop: populate user dropdown
-  if (isPC && isDesktop) {
+  // User dropdown — jinhe kai logon ke task dikhte hain
+  if ((isAdmin || isHod || isPC) && isDesktop) {
     const userSel = document.getElementById('tasksUserFilter');
     if (userSel) {
       const prevVal = userSel.value;
@@ -6449,7 +6452,23 @@ async function exportChecklistDetailsPDF() {
   setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
 }
 
+// Pehli baar khulne par date range = is mahine ki 1 tarikh se aaj tak.
+// User khud badal de (ya Clear kar de) to hum dobara nahi chhedte.
+let _tasksDateTouched = false;
+function tasksDateDefault() {
+  if (_tasksDateTouched) return;
+  const f = document.getElementById('tasksDateFrom');
+  const t = document.getElementById('tasksDateTo');
+  if (!f || !t) return;
+  if (f.value || t.value) return;
+  const n = new Date();
+  const pad = x => String(x).padStart(2, '0');
+  f.value = `${n.getFullYear()}-${pad(n.getMonth() + 1)}-01`;
+  t.value = '';
+}
+
 function clearTasksDateFilter() {
+  _tasksDateTouched = true;   // "sab dikhao" — dobara default mat lagana
   const f = document.getElementById('tasksDateFrom');
   const t = document.getElementById('tasksDateTo');
   if (f) f.value = '';
@@ -6458,6 +6477,7 @@ function clearTasksDateFilter() {
 }
 
 function filterTasks() { allTasksPage = 1; renderTasksTable(); }
+function tasksDateChanged() { _tasksDateTouched = true; filterTasks(); }
 
 // DELEGATION me "Done" hamesha TASK DENE WALA hi karta hai — chahe doer ne diya ho
 // ya admin ne. Jise task mila use sirf dikhta hai (admin ke paas override rehta hai).
