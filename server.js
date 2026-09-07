@@ -2381,23 +2381,48 @@ const PCR_SOURCES = {
 function pcrSrc(q) { return PCR_SOURCES[String(q || '').trim()] ? String(q).trim() : 'sampling'; }
 
 // ══════════════════════════════════════════════════════
-// SALES REPORT — Order To Dispatch FMS Offline Domestic (FMS tab)
-// Sirf 2026 ka data. Columns: B Party name, D credit days,
-// E payment terms, F MRP (amount). Serial number app khud lagata hai.
+// SALES BOOKING REPORT — do sheet, dono ka apna dhancha. Sirf 2026 ka data.
+//  • Invincible Offline O2D : B Party name, D credit days, E payment terms, F MRP
+//  • O to D Merchant FMS    : B Buyer name, C Order date, G PI number, Q Process, O order amount
+// Amount wale column ka total neeche dikhta hai.
 // ══════════════════════════════════════════════════════
-const SALES_SHEET = {
-  label: 'Sales Report — Order To Dispatch FMS Offline Domestic',
-  id: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw',
-  tab: 'FMS', headerRow: 6, range: 'A:M', year: '2026'
+const SALES_SOURCES = {
+  invincible: {
+    label: 'Invincible Offline O2D FMS',
+    id: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw',
+    tab: 'FMS', headerRow: 6, range: 'A:M', year: '2026',
+    dateCol: 0,                       // Timestamp — is sheet me har row me bhara hai
+    cols: [
+      { k: 'party',      h: 'Party name',    c: 1 },
+      { k: 'creditDays', h: 'Credit days',   c: 3 },
+      { k: 'terms',      h: 'Payment terms', c: 4 }
+    ],
+    amount: { k: 'amount', h: 'MRP (Amount)', c: 5 },
+    group: { k: 'terms', h: 'Payment terms' }
+  },
+  merchant: {
+    label: 'O to D — Merchant FMS',
+    id: '1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY',
+    tab: 'FMS3', headerRow: 6, range: 'A:U', year: '2026',
+    dateCol: 2,                       // Order date — yahi screen par bhi dikhta hai
+    cols: [
+      { k: 'buyer',     h: 'Buyer name', c: 1 },
+      { k: 'orderDate', h: 'Order date', c: 2, date: true },
+      { k: 'piNo',      h: 'PI number',  c: 6 },
+      { k: 'process',   h: 'Process',    c: 16 }
+    ],
+    amount: { k: 'amount', h: 'Order amount', c: 14 },
+    group: { k: 'process', h: 'Process' }
+  }
 };
-const _salesCache = { rows: null, ts: 0 };
+const _salesCache = {};                 // src -> { rows, ts }
 const SALES_CACHE_MS = 60 * 1000;
 
 // 'DD/MM/YYYY hh:mm:ss' ya 'YYYY-MM-DD' -> { iso, year, month }
 function salesDateBits(v) {
   const t = String(v || '').trim();
   let m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  if (m) return { iso: `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`, year: m[3], month: String(m[2]).padStart(2, '0') };
+  if (m) return { iso: m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0'), year: m[3], month: String(m[2]).padStart(2, '0') };
   m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) return { iso: m[0], year: m[1], month: m[2] };
   return { iso: '', year: '', month: '' };
@@ -2409,45 +2434,47 @@ function salesNum(v) {
 
 app.get('/api/sales-report', requireAuth, requireMisView, async (req, res) => {
   try {
-    const CFG = SALES_SHEET;
-    let data = null;
-    if (_salesCache.rows && (Date.now() - _salesCache.ts) < SALES_CACHE_MS) data = _salesCache.rows;
+    const key = SALES_SOURCES[String(req.query.src || '').trim()] ? String(req.query.src).trim() : 'invincible';
+    const CFG = SALES_SOURCES[key];
+    const hit = _salesCache[key];
+    let data;
+    if (hit && (Date.now() - hit.ts) < SALES_CACHE_MS) data = hit.rows;
     else {
       const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
-      const r = await sheetsApi.spreadsheets.values.get({ spreadsheetId: CFG.id, range: `${CFG.tab}!${CFG.range}` });
+      const r = await sheetsApi.spreadsheets.values.get({ spreadsheetId: CFG.id, range: CFG.tab + '!' + CFG.range });
       data = (r.data.values || []).slice(CFG.headerRow);
-      _salesCache.rows = data; _salesCache.ts = Date.now();
+      _salesCache[key] = { rows: data, ts: Date.now() };
     }
     const rows = [];
     let rowNo = CFG.headerRow;
     for (const row of data) {
       rowNo++;
-      const party = String((row || [])[1] || '').trim();
-      if (!party) continue;
-      const d = salesDateBits((row || [])[0]);
+      const first = String((row || [])[CFG.cols[0].c] || '').trim();
+      if (!first) continue;                       // khaali row chhodo
+      const d = salesDateBits((row || [])[CFG.dateCol]);
       if (d.year !== CFG.year) continue;          // sirf 2026
-      const od = salesDateBits((row || [])[9]);
-      rows.push({
-        sheetRow: rowNo,
-        date: d.iso, month: d.month,
-        orderDate: od.iso,
-        party,
-        qty: salesNum((row || [])[2]),
-        creditDays: String((row || [])[3] || '').trim(),
-        terms: String((row || [])[4] || '').trim(),
-        mrp: salesNum((row || [])[5]),
-        dispatch: String((row || [])[11] || '').trim()
-      });
+      const o = { sheetRow: rowNo, date: d.iso, month: d.month };
+      for (const c of CFG.cols) {
+        const raw = (row || [])[c.c];
+        o[c.k] = c.date ? (salesDateBits(raw).iso || String(raw || '').trim()) : String(raw || '').trim();
+      }
+      o[CFG.amount.k] = salesNum((row || [])[CFG.amount.c]);
+      rows.push(o);
     }
     res.json({
-      label: CFG.label, year: CFG.year,
-      sheetUrl: `https://docs.google.com/spreadsheets/d/${CFG.id}/edit`,
+      src: key, label: CFG.label, year: CFG.year,
+      sheetUrl: 'https://docs.google.com/spreadsheets/d/' + CFG.id + '/edit',
+      cols: CFG.cols.map(c => ({ k: c.k, h: c.h, date: !!c.date })),
+      amount: { k: CFG.amount.k, h: CFG.amount.h },
+      group: CFG.group,
+      sources: Object.keys(SALES_SOURCES).map(k => ({ key: k, label: SALES_SOURCES[k].label })),
       count: rows.length,
-      total: rows.reduce((a, r) => a + r.mrp, 0),
+      total: rows.reduce((a, r) => a + (r[CFG.amount.k] || 0), 0),
       rows
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 // Ye report ab sabko dikhti hai — kisi email par rok nahi
 const PCR_HIDE_EMAILS = new Set();
 async function requirePcSampling(req, res, next) {
