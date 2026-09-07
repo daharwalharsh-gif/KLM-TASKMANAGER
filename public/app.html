@@ -2070,13 +2070,14 @@ tbody tr:last-child td{border-bottom:none;}
        .pcr-tbl width:100% hai, isliye naam wala column saari bachi jagah kha
        jaata tha aur sab door-door dikhte the. Yahan table content ke hisaab se
        failta hai; naam lamba ho to wahi column badhta hai, baaki tight rehte hain. */
-    /* Heading + table dono ek hi chaudai ke — warna table chhoti hone par
-       dayen taraf bada khaali hissa dikhta tha. */
-    .sales-wrap{width:fit-content;max-width:100%}
-    .pcr-tbl.sales-tbl{width:auto;min-width:100%}
+    /* Table poori chaudai leti hai (dayen koi khaali page nahi), aur har column
+       ko uska naapa hua hissa milta hai — isliye naam wala column saari jagah
+       kha kar baaki ko door-door nahi karta. */
+    .sales-wrap{width:100%}
+    .pcr-tbl.sales-tbl{width:100%;table-layout:fixed}
     .pcr-tbl.sales-tbl th,.pcr-tbl.sales-tbl td{padding:6px 12px}
-    .pcr-tbl.sales-tbl .sn{width:52px;text-align:center}
-    .pcr-tbl.sales-tbl td.nm{max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pcr-tbl.sales-tbl .sn{width:62px;text-align:center}
+    .pcr-tbl.sales-tbl td.nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .pcr-tbl.sales-tbl th{white-space:nowrap}
 
     /* ── Sales Report ke summary cards ── */
@@ -7702,8 +7703,8 @@ function renderSales() {
       <table class="pcr-tbl sales-tbl">
         <thead><tr>
           <th class="sn">S.No</th>
-          ${d.cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}
-          <th>${escapeHtml(d.amount.h)}</th>
+          ${d.cols.map((c, ci) => `<th style="width:${ci === 0 ? 34 : (66 / d.cols.length).toFixed(2)}%">${escapeHtml(c.h)}</th>`).join('')}
+          <th style="width:${(66 / d.cols.length).toFixed(2)}%">${escapeHtml(d.amount.h)}</th>
         </tr></thead>
         <tbody>${body}</tbody>
         <tfoot><tr>
