@@ -36,7 +36,16 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#1e293b;min-height:
 .logo-full{height:30px;width:auto;opacity:0;transition:opacity .2s .1s;flex-shrink:0;}
 .sidebar:hover .logo-full{opacity:1;}
 
-.nav{padding:10px 8px;flex:1;overflow:hidden;}
+/* overflow:hidden tha, isliye jab menu items screen se lambe ho jaate the to
+   neeche wale (Profile) kat jaate the aur scroll bhi nahi hota tha. Ab ye hissa
+   khud scroll hota hai; min-height:0 zaroori hai warna flex child sikudta nahi. */
+.nav{padding:10px 8px;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:thin;scrollbar-color:rgba(148,163,184,.35) transparent;
+  overscroll-behavior:contain;}
+.nav::-webkit-scrollbar{width:6px;}
+.nav::-webkit-scrollbar-track{background:transparent;}
+.nav::-webkit-scrollbar-thumb{background:rgba(148,163,184,.32);border-radius:3px;}
+.nav::-webkit-scrollbar-thumb:hover{background:rgba(148,163,184,.6);}
 .nav-item{
   display:flex;align-items:center;gap:10px;
   padding:10px 11px;border-radius:8px;cursor:pointer;
