@@ -2066,6 +2066,16 @@ tbody tr:last-child td{border-bottom:none;}
     .pcr-tbl tr.pcr-grp td{background:#eef2ff;font-weight:800;color:#3730a3;font-size:12px}
     .pcr-tbl tfoot td{background:#eef2ff;font-weight:800;color:#3730a3}
 
+    /* ── Sales table — column apne content jitne, beech me khaali gap nahi ──
+       .pcr-tbl width:100% hai, isliye naam wala column saari bachi jagah kha
+       jaata tha aur sab door-door dikhte the. Yahan table content ke hisaab se
+       failta hai; naam lamba ho to wahi column badhta hai, baaki tight rehte hain. */
+    .pcr-tbl.sales-tbl{width:auto;min-width:min(100%,700px)}
+    .pcr-tbl.sales-tbl th,.pcr-tbl.sales-tbl td{padding:6px 12px}
+    .pcr-tbl.sales-tbl .sn{width:52px;text-align:center}
+    .pcr-tbl.sales-tbl td.nm{max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pcr-tbl.sales-tbl th{white-space:nowrap}
+
     /* ── Sales Report ke summary cards ── */
     .sales-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
     .sales-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px}
@@ -7644,9 +7654,9 @@ function renderSales() {
   const monthsPresent = [...new Set(all.map(r => r.ym).filter(Boolean))].sort();
 
   const body = rows.length ? rows.map((r, i) => `<tr>
-      <td class="pcr-c">${i + 1}</td>
+      <td class="pcr-c sn">${i + 1}</td>
       ${d.cols.map((c, ci) => ci === 0
-        ? `<td>${escapeHtml(salesCell(r, c))}</td>`
+        ? `<td class="nm">${escapeHtml(salesCell(r, c))}</td>`
         : `<td class="pcr-c">${escapeHtml(salesCell(r, c))}</td>`).join('')}
       <td class="pcr-c" style="text-align:right;font-weight:700">${salesMoney(r[AK])}</td>
     </tr>`).join('')
@@ -7685,11 +7695,11 @@ function renderSales() {
 
     <div class="pcr-ttl">${escapeHtml(d.label)} — ${escapeHtml(d.periodLabel)} — ${rows.length} orders · ${salesMoney(sum)}</div>
     <div class="pcr-scroll">
-      <table class="pcr-tbl">
+      <table class="pcr-tbl sales-tbl">
         <thead><tr>
-          <th style="width:56px">S.No</th>
+          <th class="sn">S.No</th>
           ${d.cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}
-          <th style="width:150px">${escapeHtml(d.amount.h)}</th>
+          <th>${escapeHtml(d.amount.h)}</th>
         </tr></thead>
         <tbody>${body}</tbody>
         <tfoot><tr>
