@@ -7552,6 +7552,11 @@ function salesMoney(n) {
   return '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
 }
 function salesData() { return _salesCache[_salesSrc] || null; }
+// '2026-04' -> 'April 2026'
+function salesMonthName(ym) {
+  const p = String(ym || '').split('-');
+  return (SALES_MONTH_NAMES[p[1]] || p[1] || '') + ' ' + (p[0] || '');
+}
 
 async function loadSales(force) {
   const box = document.getElementById('misResults');
@@ -7591,7 +7596,7 @@ function salesRows() {
   const q = (document.getElementById('salesSearch')?.value || '').trim().toLowerCase();
   return d.rows.filter(r => {
     if (_salesGroup !== 'all' && salesGroupKey(r) !== _salesGroup) return false;
-    if (_salesMonth !== 'all' && r.month !== _salesMonth) return false;
+    if (_salesMonth !== 'all' && r.ym !== _salesMonth) return false;
     if (!q) return true;
     return d.cols.some(c => String(r[c.k] || '').toLowerCase().includes(q))
       || String(r[d.amount.k] || '').includes(q);
@@ -7636,7 +7641,7 @@ function renderSales() {
   const firstKey = d.cols[0].k;
   const parties = new Set(rows.map(r => String(r[firstKey] || '').trim().toLowerCase())).size;
   const avg = rows.length ? sum / rows.length : 0;
-  const monthsPresent = SALES_MONTHS.filter(m => all.some(r => r.month === m));
+  const monthsPresent = [...new Set(all.map(r => r.ym).filter(Boolean))].sort();
 
   const body = rows.length ? rows.map((r, i) => `<tr>
       <td class="pcr-c">${i + 1}</td>
@@ -7661,10 +7666,10 @@ function renderSales() {
     </div>
 
     <div class="pcr-bar">
-      <div class="pcr-f"><label>Month (${escapeHtml(d.year)})</label>
+      <div class="pcr-f"><label>Month</label>
         <select onchange="salesSetMonth(this.value)">
           <option value="all" ${_salesMonth === 'all' ? 'selected' : ''}>All months</option>
-          ${monthsPresent.map(m => `<option value="${m}" ${_salesMonth === m ? 'selected' : ''}>${SALES_MONTH_NAMES[m]}</option>`).join('')}
+          ${monthsPresent.map(m => `<option value="${m}" ${_salesMonth === m ? 'selected' : ''}>${salesMonthName(m)}</option>`).join('')}
         </select></div>
       <div class="pcr-f" style="flex:1;min-width:220px"><label>Search</label>
         <input type="text" id="salesSearch" placeholder="${escapeHtml(d.cols.map(c => c.h).join(', '))}…"
@@ -7675,10 +7680,10 @@ function renderSales() {
         <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="salesPDF()">📄 PDF</button></div>
       <div class="pcr-f"><label>&nbsp;</label>
         <button class="btn btn-outline btn-sm" onclick="loadSales(true)">🔄 Refresh</button></div>
-      <div class="pcr-note">${escapeHtml(d.label)}<br>Only ${escapeHtml(d.year)} data · ${d.count} orders in this sheet</div>
+      <div class="pcr-note">${escapeHtml(d.label)}<br>${escapeHtml(d.periodLabel)} · ${d.count} orders in this sheet</div>
     </div>
 
-    <div class="pcr-ttl">${escapeHtml(d.label)} — ${escapeHtml(d.year)} — ${rows.length} orders · ${salesMoney(sum)}</div>
+    <div class="pcr-ttl">${escapeHtml(d.label)} — ${escapeHtml(d.periodLabel)} — ${rows.length} orders · ${salesMoney(sum)}</div>
     <div class="pcr-scroll">
       <table class="pcr-tbl">
         <thead><tr>
@@ -7708,7 +7713,7 @@ function salesCSV() {
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'Sales-Booking-Report-' + String(d.label).replace(/[^A-Za-z0-9]+/g, '-') + '-' + d.year + '.csv';
+  a.download = 'Sales-Booking-Report-' + String(d.label).replace(/[^A-Za-z0-9]+/g, '-') + '-from-' + d.from + '.csv';
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
   showToast(rows.length + ' row(s) exported');
@@ -7721,7 +7726,7 @@ function salesPDF() {
   const sum = rows.reduce((a, r) => a + (r[d.amount.k] || 0), 0);
   const bits = [];
   if (_salesGroup !== 'all') bits.push(d.group.h + ': ' + _salesGroup);
-  if (_salesMonth !== 'all') bits.push('Month: ' + SALES_MONTH_NAMES[_salesMonth]);
+  if (_salesMonth !== 'all') bits.push('Month: ' + salesMonthName(_salesMonth));
   const q = (document.getElementById('salesSearch')?.value || '').trim();
   if (q) bits.push('Search: ' + q);
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Sales Booking Report</title><style>
@@ -7739,7 +7744,7 @@ function salesPDF() {
     .foot{margin-top:9px;font-size:9px;color:#94a3b8;text-align:center}
   </style></head><body>
   <div class="head">
-    <div><h1>Sales Booking Report ${escapeHtml(d.year)}</h1>
+    <div><h1>Sales Booking Report — ${escapeHtml(d.periodLabel)}</h1>
       <div style="font-size:11px;color:#334155;font-weight:bold">${escapeHtml(d.label)}</div></div>
     <div class="sub">${new Date().toLocaleString('en-GB')}<br>${rows.length} orders · ${salesMoney(sum)}
       ${bits.length ? '<br>' + escapeHtml(bits.join(' · ')) : ''}</div>

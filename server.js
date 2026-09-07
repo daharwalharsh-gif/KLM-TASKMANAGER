@@ -2381,7 +2381,8 @@ const PCR_SOURCES = {
 function pcrSrc(q) { return PCR_SOURCES[String(q || '').trim()] ? String(q).trim() : 'sampling'; }
 
 // ══════════════════════════════════════════════════════
-// SALES BOOKING REPORT — do sheet, dono ka apna dhancha. Sirf 2026 ka data.
+// SALES BOOKING REPORT — do sheet, dono ka apna dhancha.
+// Data 1 April 2026 se aage ka hi (financial year); usse pehle ka nahi aata.
 //  • Invincible Offline O2D : B Party name, D credit days, E payment terms, F MRP
 //  • O to D Merchant FMS    : B Buyer name, C Order date, G PI number, Q Process, O order amount
 // Amount wale column ka total neeche dikhta hai.
@@ -2390,7 +2391,7 @@ const SALES_SOURCES = {
   invincible: {
     label: 'Invincible Domestic Offline',
     id: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw',
-    tab: 'FMS', headerRow: 6, range: 'A:M', year: '2026',
+    tab: 'FMS', headerRow: 6, range: 'A:M',
     dateCol: 0,                       // Timestamp — is sheet me har row me bhara hai
     cols: [
       { k: 'party',      h: 'Party name',    c: 1 },
@@ -2403,8 +2404,8 @@ const SALES_SOURCES = {
   merchant: {
     label: 'Export KLM',
     id: '1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY',
-    tab: 'FMS3', headerRow: 6, range: 'A:U', year: '2026',
-    dateCol: 2,                       // Order date — yahi screen par bhi dikhta hai
+    tab: 'FMS3', headerRow: 6, range: 'A:U',
+    dateCol: 0,                       // Timestamp (column A) — isi se saal/tareekh tay hoti hai
     cols: [
       { k: 'buyer',     h: 'Buyer name', c: 1 },
       { k: 'orderDate', h: 'Order date', c: 2, date: true },
@@ -2415,6 +2416,9 @@ const SALES_SOURCES = {
     group: { k: 'process', h: 'Process' }
   }
 };
+// Report ki shuruaat — isse pehle ki koi row report me nahi aati
+const SALES_FROM = '2026-04-01';
+const SALES_FROM_LABEL = 'From 01 Apr 2026';
 const _salesCache = {};                 // src -> { rows, ts }
 const SALES_CACHE_MS = 60 * 1000;
 
@@ -2452,8 +2456,8 @@ app.get('/api/sales-report', requireAuth, requireMisView, async (req, res) => {
       const first = String((row || [])[CFG.cols[0].c] || '').trim();
       if (!first) continue;                       // khaali row chhodo
       const d = salesDateBits((row || [])[CFG.dateCol]);
-      if (d.year !== CFG.year) continue;          // sirf 2026
-      const o = { sheetRow: rowNo, date: d.iso, month: d.month };
+      if (!d.iso || d.iso < SALES_FROM) continue;   // 1 April 2026 se pehle ka nahi
+      const o = { sheetRow: rowNo, date: d.iso, month: d.month, ym: d.iso.slice(0, 7) };
       for (const c of CFG.cols) {
         const raw = (row || [])[c.c];
         o[c.k] = c.date ? (salesDateBits(raw).iso || String(raw || '').trim()) : String(raw || '').trim();
@@ -2462,7 +2466,7 @@ app.get('/api/sales-report', requireAuth, requireMisView, async (req, res) => {
       rows.push(o);
     }
     res.json({
-      src: key, label: CFG.label, year: CFG.year,
+      src: key, label: CFG.label, from: SALES_FROM, periodLabel: SALES_FROM_LABEL,
       sheetUrl: 'https://docs.google.com/spreadsheets/d/' + CFG.id + '/edit',
       cols: CFG.cols.map(c => ({ k: c.k, h: c.h, date: !!c.date })),
       amount: { k: CFG.amount.k, h: CFG.amount.h },
