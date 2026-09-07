@@ -2070,7 +2070,10 @@ tbody tr:last-child td{border-bottom:none;}
        .pcr-tbl width:100% hai, isliye naam wala column saari bachi jagah kha
        jaata tha aur sab door-door dikhte the. Yahan table content ke hisaab se
        failta hai; naam lamba ho to wahi column badhta hai, baaki tight rehte hain. */
-    .pcr-tbl.sales-tbl{width:auto;min-width:min(100%,700px)}
+    /* Heading + table dono ek hi chaudai ke — warna table chhoti hone par
+       dayen taraf bada khaali hissa dikhta tha. */
+    .sales-wrap{width:fit-content;max-width:100%}
+    .pcr-tbl.sales-tbl{width:auto;min-width:100%}
     .pcr-tbl.sales-tbl th,.pcr-tbl.sales-tbl td{padding:6px 12px}
     .pcr-tbl.sales-tbl .sn{width:52px;text-align:center}
     .pcr-tbl.sales-tbl td.nm{max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -7693,6 +7696,7 @@ function renderSales() {
       <div class="pcr-note">${escapeHtml(d.label)}<br>${escapeHtml(d.periodLabel)} · ${d.count} orders in this sheet</div>
     </div>
 
+    <div class="sales-wrap">
     <div class="pcr-ttl">${escapeHtml(d.label)} — ${escapeHtml(d.periodLabel)} — ${rows.length} orders · ${salesMoney(sum)}</div>
     <div class="pcr-scroll">
       <table class="pcr-tbl sales-tbl">
@@ -7707,6 +7711,7 @@ function renderSales() {
           <td class="pcr-c" style="text-align:right;color:#16a34a">${salesMoney(sum)}</td>
         </tr></tfoot>
       </table>
+    </div>
     </div>`;
 }
 
