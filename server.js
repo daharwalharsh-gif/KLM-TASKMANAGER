@@ -4242,6 +4242,8 @@ app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
     if (!cfg) return res.status(400).json({ error: 'Unknown sheet' });
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    // basis=manual -> plan date Orders tab ki Manual Date se (sheet ki planned nahi)
+    const basis = String(req.query.basis || '').trim().toLowerCase() === 'manual' ? 'manual' : 'sheet';
     const asOf = ppcIsoDate(req.query.date) || (/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : today);
 
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
@@ -4274,15 +4276,29 @@ app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
     const moTo = (() => { const d = new Date(Number(asOf.slice(0, 4)), Number(asOf.slice(5, 7)), 0);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
 
+    // Haath se daali gayi date — { "rowKey|stepIndex": "YYYY-MM-DD" }
+    const manual = {};
+    if (basis === 'manual') {
+      try {
+        const [md] = await db.query('SELECT row_key, step_no, manual_date FROM ppc_manual_dates WHERE sheet=?', [cfg.key]);
+        for (const m of (md || [])) {
+          if (String(m.manual_date || '').trim()) manual[m.row_key + '|' + m.step_no] = String(m.manual_date).trim();
+        }
+      } catch (e) {}
+    }
     const orders = [];
+    let rowNo = PPC_HEADER_ROW;
     for (const row of pms.slice(1)) {
+      rowNo++;
       const uid = String(row[16] || '').trim();     // Q
       const buyer = String(row[1] || '').trim();    // B
       const piNo = String(row[9] || '').trim();     // J
       if (!uid && !buyer && !piNo) continue;
       const qty = parseInt(String(row[5] || '').replace(/[^\d-]/g, ''), 10) || 0;   // F
-      const st = steps.map(s => [
-        s.planIdx >= 0 ? ppcIsoDate(row[s.planIdx]) : '',
+      const rowKey = uid || ('r' + rowNo);
+      const st = steps.map((s, i) => [
+        basis === 'manual' ? (manual[rowKey + '|' + i] || '')
+                           : (s.planIdx >= 0 ? ppcIsoDate(row[s.planIdx]) : ''),
         s.actIdx >= 0 ? ppcIsoDate(row[s.actIdx]) : ''
       ]);
       orders.push({ uid, buyer, piNo, code: String(row[2] || '').trim(),
@@ -4310,7 +4326,7 @@ app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
     const tActual = total.reduce((a, x) => a + x.actual, 0);
 
     res.json({
-      sheet: cfg.key, label: cfg.label, sheetId: cfg.id,
+      sheet: cfg.key, label: cfg.label, sheetId: cfg.id, basis,
       sheets: Object.values(PPC_SHEETS).map(s => ({ key: s.key, label: s.label })),
       asOf, week: wk.label, weekFrom: wk.from, weekTo: wk.to,
       month: PPC_MON[Number(asOf.slice(5, 7)) - 1] + '-' + asOf.slice(0, 4),

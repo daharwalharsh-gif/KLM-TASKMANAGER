@@ -2324,6 +2324,8 @@ tbody tr:last-child td{border-bottom:none;}
 
       <div class="ppc-tabs" id="ppcViewTabs">
         <div class="ppc-tab active" id="ppcViewDash" onclick="ppcView('dash')">📊 PPC vs Actual</div>
+        <div class="ppc-tab" id="ppcViewDashM" onclick="ppcView('dashm')"
+          title="Wahi report, par plan date Orders tab ki Manual Date se">🗓️ PPC vs Actual (Manual Date)</div>
         <div class="ppc-tab" id="ppcViewOrders" onclick="ppcView('orders')">📋 Orders</div>
       </div>
 
@@ -14189,19 +14191,21 @@ let _ppcDeptName = '';
 
 function ppcView(mode) {
   _ppcMode = mode;
+  const isDash = (mode === 'dash' || mode === 'dashm');   // dono roop dashboard hi hain
   document.getElementById('ppcViewDash').classList.toggle('active', mode === 'dash');
+  document.getElementById('ppcViewDashM').classList.toggle('active', mode === 'dashm');
   document.getElementById('ppcViewOrders').classList.toggle('active', mode === 'orders');
-  document.getElementById('ppcDashContent').style.display = mode === 'dash' ? '' : 'none';
-  document.getElementById('ppcOrdersWrap').style.display = mode === 'dash' ? 'none' : '';
-  document.getElementById('ppcDashBar').style.display = mode === 'dash' ? '' : 'none';
+  document.getElementById('ppcDashContent').style.display = isDash ? '' : 'none';
+  document.getElementById('ppcOrdersWrap').style.display = isDash ? 'none' : '';
+  document.getElementById('ppcDashBar').style.display = isDash ? '' : 'none';
   ['ppcOrdBar1', 'ppcOrdBar2', 'ppcOrdBar3', 'ppcOrdBarQ', 'ppcOrdBarM'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.style.display = mode === 'dash' ? 'none' : '';
+    const el = document.getElementById(id); if (el) el.style.display = isDash ? 'none' : '';
   });
   const s4 = document.getElementById('ppcOrdBar4');
-  if (s4) s4.style.display = mode === 'dash' ? 'none' : '';
+  if (s4) s4.style.display = isDash ? 'none' : '';
   ppcReload();
 }
-function ppcReload() { if (_ppcMode === 'dash') loadPPCDash(); else loadPPC(); }
+function ppcReload() { if (_ppcMode === 'dash' || _ppcMode === 'dashm') loadPPCDash(); else loadPPC(); }
 
 async function loadPPCDash() {
   if (_ppcDashLoading) return;
@@ -14210,7 +14214,8 @@ async function loadPPCDash() {
   box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
   const sheet = document.getElementById('ppcSheet').value || 'garments';
   const date = document.getElementById('ppcAsOf').value || '';
-  const r = await api(`/api/ppc/dashboard?sheet=${encodeURIComponent(sheet)}&date=${encodeURIComponent(date)}`);
+  const basis = _ppcMode === 'dashm' ? '&basis=manual' : '';
+  const r = await api(`/api/ppc/dashboard?sheet=${encodeURIComponent(sheet)}&date=${encodeURIComponent(date)}${basis}`);
   _ppcDashLoading = false;
   if (!r || r.error) {
     box.innerHTML = `<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">⚠️ ${escapeHtml((r && r.error) || 'Load failed')}</div>`;
@@ -14663,7 +14668,7 @@ function ppcVisible() {
 
 // CSV — jo screen par dikh raha hai wahi (saare department ke column ke saath)
 function exportPPCCSV() {
-  if (_ppcMode === 'dash') return exportPPCDashCSV();
+  if (_ppcMode === 'dash' || _ppcMode === 'dashm') return exportPPCDashCSV();
   const list = ppcVisible();
   if (!list.length) return showToast('No rows to export', 'error');
   const steps = _ppcData.steps || [];
@@ -14903,7 +14908,7 @@ function ppcClearDates() {
 }
 
 function exportPPCPDF() {
-  if (_ppcMode === 'dash') return exportPPCDashPDF();
+  if (_ppcMode === 'dash' || _ppcMode === 'dashm') return exportPPCDashPDF();
   const list = ppcVisible();
   if (!list.length) return showToast('No rows to export', 'error');
   const steps = _ppcData.steps || [];
