@@ -2388,7 +2388,7 @@ function pcrSrc(q) { return PCR_SOURCES[String(q || '').trim()] ? String(q).trim
 // ══════════════════════════════════════════════════════
 const SALES_SOURCES = {
   invincible: {
-    label: 'Invincible Offline O2D FMS',
+    label: 'Invincible Domestic Offline',
     id: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw',
     tab: 'FMS', headerRow: 6, range: 'A:M', year: '2026',
     dateCol: 0,                       // Timestamp — is sheet me har row me bhara hai
@@ -2401,7 +2401,7 @@ const SALES_SOURCES = {
     group: { k: 'terms', h: 'Payment terms' }
   },
   merchant: {
-    label: 'O to D — Merchant FMS',
+    label: 'Export KLM',
     id: '1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY',
     tab: 'FMS3', headerRow: 6, range: 'A:U', year: '2026',
     dateCol: 2,                       // Order date — yahi screen par bhi dikhta hai
