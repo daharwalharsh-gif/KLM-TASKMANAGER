@@ -2379,6 +2379,75 @@ const PCR_SOURCES = {
   }
 };
 function pcrSrc(q) { return PCR_SOURCES[String(q || '').trim()] ? String(q).trim() : 'sampling'; }
+
+// ══════════════════════════════════════════════════════
+// SALES REPORT — Order To Dispatch FMS Offline Domestic (FMS tab)
+// Sirf 2026 ka data. Columns: B Party name, D credit days,
+// E payment terms, F MRP (amount). Serial number app khud lagata hai.
+// ══════════════════════════════════════════════════════
+const SALES_SHEET = {
+  label: 'Sales Report — Order To Dispatch FMS Offline Domestic',
+  id: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw',
+  tab: 'FMS', headerRow: 6, range: 'A:M', year: '2026'
+};
+const _salesCache = { rows: null, ts: 0 };
+const SALES_CACHE_MS = 60 * 1000;
+
+// 'DD/MM/YYYY hh:mm:ss' ya 'YYYY-MM-DD' -> { iso, year, month }
+function salesDateBits(v) {
+  const t = String(v || '').trim();
+  let m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return { iso: `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`, year: m[3], month: String(m[2]).padStart(2, '0') };
+  m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return { iso: m[0], year: m[1], month: m[2] };
+  return { iso: '', year: '', month: '' };
+}
+function salesNum(v) {
+  const n = parseFloat(String(v == null ? '' : v).replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+app.get('/api/sales-report', requireAuth, requireMisView, async (req, res) => {
+  try {
+    const CFG = SALES_SHEET;
+    let data = null;
+    if (_salesCache.rows && (Date.now() - _salesCache.ts) < SALES_CACHE_MS) data = _salesCache.rows;
+    else {
+      const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+      const r = await sheetsApi.spreadsheets.values.get({ spreadsheetId: CFG.id, range: `${CFG.tab}!${CFG.range}` });
+      data = (r.data.values || []).slice(CFG.headerRow);
+      _salesCache.rows = data; _salesCache.ts = Date.now();
+    }
+    const rows = [];
+    let rowNo = CFG.headerRow;
+    for (const row of data) {
+      rowNo++;
+      const party = String((row || [])[1] || '').trim();
+      if (!party) continue;
+      const d = salesDateBits((row || [])[0]);
+      if (d.year !== CFG.year) continue;          // sirf 2026
+      const od = salesDateBits((row || [])[9]);
+      rows.push({
+        sheetRow: rowNo,
+        date: d.iso, month: d.month,
+        orderDate: od.iso,
+        party,
+        qty: salesNum((row || [])[2]),
+        creditDays: String((row || [])[3] || '').trim(),
+        terms: String((row || [])[4] || '').trim(),
+        mrp: salesNum((row || [])[5]),
+        dispatch: String((row || [])[11] || '').trim()
+      });
+    }
+    res.json({
+      label: CFG.label, year: CFG.year,
+      sheetUrl: `https://docs.google.com/spreadsheets/d/${CFG.id}/edit`,
+      count: rows.length,
+      total: rows.reduce((a, r) => a + r.mrp, 0),
+      rows
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 // Ye report ab sabko dikhti hai — kisi email par rok nahi
 const PCR_HIDE_EMAILS = new Set();
 async function requirePcSampling(req, res, next) {

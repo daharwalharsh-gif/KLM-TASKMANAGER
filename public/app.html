@@ -1671,6 +1671,7 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="tab" id="misTabOtodInv" onclick="switchMisTab('otodinv',this)">📦 Invincible O to D Offline</div>
         <div class="tab" id="misTabOtodSamp" onclick="switchMisTab('otodsamp',this)">🧵 Sampling Report</div>
         <div class="tab" id="misTabPcr" onclick="switchMisTab('pcr',this)">🧾 All PC Report</div>
+        <div class="tab" id="misTabSales" onclick="switchMisTab('sales',this)">💰 Sales Report</div>
         <div class="tab" id="misTabCapacity" onclick="switchMisTab('capacity',this)">👥 Capacity/Utilisation Staff</div>
         </div>
       </div>
@@ -2064,6 +2065,12 @@ tbody tr:last-child td{border-bottom:none;}
     .pcr-filt.on{background:#1d4ed8;color:#fff}
     .pcr-tbl tr.pcr-grp td{background:#eef2ff;font-weight:800;color:#3730a3;font-size:12px}
     .pcr-tbl tfoot td{background:#eef2ff;font-weight:800;color:#3730a3}
+
+    /* ── Sales Report ke summary cards ── */
+    .sales-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+    .sales-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px}
+    .sales-card .l{font-size:10.5px;font-weight:800;color:#64748b;letter-spacing:.5px}
+    .sales-card .v{font-size:20px;font-weight:800;color:#0f172a;margin-top:4px}
 
     /* ── Capacity/Utilisation Staff ── */
     .cap-bar{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;background:#fff;border:1px solid #e2e8f0;
@@ -7524,6 +7531,205 @@ const _pcrCache = {};       // har sheet ka data ek baar — dobara API nahi
 let _pcrColFilters = {};
 function pcrClearColFilters() { _pcrColFilters = {}; }
 // Table ke columns — sheet ke apne info column + step wale fix column
+// ══════════════════════════════════════════════════════
+// SALES REPORT — Order To Dispatch FMS Offline Domestic (sirf 2026)
+// Columns: S.No + Party name (B) + Credit days (D) + Payment terms (E) + MRP (F)
+// Neeche MRP ka total. Sheet ek hi baar padhi jaati hai; filter local hain.
+// ══════════════════════════════════════════════════════
+let _salesData = null;
+let _salesTerm = 'all';      // payment terms wali chip
+let _salesMonth = 'all';
+let _salesLoading = false;
+
+const SALES_MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+const SALES_MONTH_NAMES = { '01': 'January', '02': 'February', '03': 'March', '04': 'April', '05': 'May', '06': 'June',
+  '07': 'July', '08': 'August', '09': 'September', '10': 'October', '11': 'November', '12': 'December' };
+
+function salesMoney(n) {
+  return '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
+}
+
+async function loadSales(force) {
+  const box = document.getElementById('misResults');
+  if (_salesData && !force) { renderSales(); return; }
+  if (_salesLoading) return;
+  _salesLoading = true;
+  box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Loading Sales Report…</div>';
+  let d;
+  try { d = await api('/api/sales-report'); } finally { _salesLoading = false; }
+  if (!d || d.error || !Array.isArray(d.rows)) {
+    box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;color:#dc2626">'
+      + escapeHtml((d && d.error) || 'Sales Report load nahi ho paayi') + '</div>';
+    return;
+  }
+  _salesData = d;
+  renderSales();
+}
+
+// Sheet me payment terms kabhi "Advance", kabhi "advance", kabhi "ADVANCE" likha
+// hai — chip aur filter ke liye teeno ek hi maane jaate hain. Table me wahi
+// dikhta hai jo sheet me likha hai (data waisa ka waisa).
+function salesTermKey(r) { return String(r.terms || '').trim().toUpperCase() || '(blank)'; }
+
+function salesRows() {
+  const all = (_salesData && _salesData.rows) || [];
+  const q = (document.getElementById('salesSearch')?.value || '').trim().toLowerCase();
+  return all.filter(r => {
+    if (_salesTerm !== 'all' && salesTermKey(r) !== _salesTerm) return false;
+    if (_salesMonth !== 'all' && r.month !== _salesMonth) return false;
+    if (q && !(String(r.party).toLowerCase().includes(q)
+      || String(r.terms).toLowerCase().includes(q)
+      || String(r.creditDays).toLowerCase().includes(q)
+      || String(r.mrp).includes(q))) return false;
+    return true;
+  });
+}
+
+function renderSales() {
+  const d = _salesData;
+  if (!d) return;
+  const all = d.rows || [];
+  // Payment terms ke hisaab se chip — ginti aur amount dono
+  const groups = {};
+  all.forEach(r => {
+    const k = salesTermKey(r);
+    if (!groups[k]) groups[k] = { n: 0, amt: 0 };
+    groups[k].n++; groups[k].amt += r.mrp;
+  });
+  const totalAmt = all.reduce((a, r) => a + r.mrp, 0);
+  const chips = `<div class="pcr-chip ${_salesTerm === 'all' ? 'on' : ''}" onclick="salesSetTerm('all')">
+      <div class="s">ALL</div><div class="n">All payment terms</div>
+      <div class="c">${all.length} orders <span class="l" style="color:#16a34a">${salesMoney(totalAmt)}</span></div>
+    </div>` + Object.keys(groups).sort().map(k => `
+    <div class="pcr-chip ${_salesTerm === k ? 'on' : ''}" onclick="salesSetTerm('${escapeHtml(k).replace(/'/g, "\\'")}')">
+      <div class="s">PAYMENT</div><div class="n">${escapeHtml(k)}</div>
+      <div class="c">${groups[k].n} orders <span class="l" style="color:#16a34a">${salesMoney(groups[k].amt)}</span></div>
+    </div>`).join('');
+
+  const rows = salesRows();
+  const sum = rows.reduce((a, r) => a + r.mrp, 0);
+  const parties = new Set(rows.map(r => String(r.party).trim().toLowerCase())).size;
+  const avg = rows.length ? sum / rows.length : 0;
+  const monthsPresent = SALES_MONTHS.filter(m => all.some(r => r.month === m));
+
+  const body = rows.length ? rows.map((r, i) => `<tr>
+      <td class="pcr-c">${i + 1}</td>
+      <td>${escapeHtml(r.party)}</td>
+      <td class="pcr-c">${escapeHtml(String(r.creditDays || '—'))}</td>
+      <td class="pcr-c">${escapeHtml(r.terms || '—')}</td>
+      <td class="pcr-c" style="text-align:right;font-weight:700">${salesMoney(r.mrp)}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;padding:22px;color:#94a3b8">Nothing here</td></tr>`;
+
+  document.getElementById('misResults').innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px">${chips}</div>
+
+    <div class="sales-cards">
+      <div class="sales-card"><div class="l">TOTAL ORDERS</div><div class="v">${rows.length}</div></div>
+      <div class="sales-card"><div class="l">TOTAL AMOUNT (MRP)</div><div class="v" style="color:#16a34a">${salesMoney(sum)}</div></div>
+      <div class="sales-card"><div class="l">AVERAGE ORDER</div><div class="v">${salesMoney(avg)}</div></div>
+      <div class="sales-card"><div class="l">PARTIES</div><div class="v">${parties}</div></div>
+    </div>
+
+    <div class="pcr-bar">
+      <div class="pcr-f"><label>Month (${escapeHtml(d.year)})</label>
+        <select onchange="salesSetMonth(this.value)">
+          <option value="all" ${_salesMonth === 'all' ? 'selected' : ''}>All months</option>
+          ${monthsPresent.map(m => `<option value="${m}" ${_salesMonth === m ? 'selected' : ''}>${SALES_MONTH_NAMES[m]}</option>`).join('')}
+        </select></div>
+      <div class="pcr-f" style="flex:1;min-width:220px"><label>Search</label>
+        <input type="text" id="salesSearch" placeholder="Party name, payment terms, amount…"
+          value="${escapeHtml(document.getElementById('salesSearch')?.value || '')}" oninput="renderSales()"/></div>
+      <div class="pcr-f"><label>&nbsp;</label>
+        <button class="btn btn-outline btn-sm" onclick="salesCSV()">⬇ Export CSV</button></div>
+      <div class="pcr-f"><label>&nbsp;</label>
+        <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="salesPDF()">📄 PDF</button></div>
+      <div class="pcr-f"><label>&nbsp;</label>
+        <button class="btn btn-outline btn-sm" onclick="loadSales(true)">🔄 Refresh</button></div>
+      <div class="pcr-note">${escapeHtml(d.label)}<br>Only ${escapeHtml(d.year)} data · sheet me kul ${d.count} orders</div>
+    </div>
+
+    <div class="pcr-ttl">Sales Report ${escapeHtml(d.year)} — ${rows.length} orders · ${salesMoney(sum)}</div>
+    <div class="pcr-scroll">
+      <table class="pcr-tbl">
+        <thead><tr>
+          <th style="width:56px">S.No</th><th>Party name</th>
+          <th style="width:110px">Credit days</th><th style="width:140px">Payment terms</th>
+          <th style="width:150px">MRP (Amount)</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr>
+          <td colspan="4" style="text-align:right">TOTAL — ${rows.length} orders</td>
+          <td class="pcr-c" style="text-align:right;color:#16a34a">${salesMoney(sum)}</td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+}
+
+function salesSetTerm(k) { _salesTerm = k; renderSales(); }
+function salesSetMonth(m) { _salesMonth = m; renderSales(); }
+
+function salesCSV() {
+  const rows = salesRows();
+  if (!rows.length) return showToast('No rows to export', 'error');
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lines = [['S.No', 'Party name', 'Credit days', 'Payment terms', 'MRP (Amount)'].map(q).join(',')];
+  rows.forEach((r, i) => lines.push([i + 1, r.party, r.creditDays, r.terms, r.mrp].map(q).join(',')));
+  lines.push(['', '', '', 'TOTAL', rows.reduce((a, r) => a + r.mrp, 0)].map(q).join(','));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Sales-Report-' + ((_salesData && _salesData.year) || '') + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+  showToast(rows.length + ' row(s) exported');
+}
+
+function salesPDF() {
+  const rows = salesRows();
+  if (!rows.length) return showToast('No rows to export', 'error');
+  const sum = rows.reduce((a, r) => a + r.mrp, 0);
+  const bits = [];
+  if (_salesTerm !== 'all') bits.push('Payment terms: ' + _salesTerm);
+  if (_salesMonth !== 'all') bits.push('Month: ' + SALES_MONTH_NAMES[_salesMonth]);
+  const q = (document.getElementById('salesSearch')?.value || '').trim();
+  if (q) bits.push('Search: ' + q);
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Sales Report</title><style>
+    @page { size: A4 portrait; margin: 11mm; }
+    *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;font-size:11px}
+    .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1e3a8a;
+      padding-bottom:7px;margin-bottom:11px}
+    .head h1{margin:0;font-size:17px;color:#1e3a8a} .head .sub{font-size:10px;color:#64748b;text-align:right}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #94a3b8;padding:5px 6px;text-align:left}
+    thead th{background:#dbeafe;font-size:10px;font-weight:bold;text-align:center}
+    .c{text-align:center} .r{text-align:right}
+    tfoot td{background:#eef2ff;font-weight:bold;font-size:12px}
+    thead{display:table-header-group} tr{page-break-inside:avoid}
+    .foot{margin-top:9px;font-size:9px;color:#94a3b8;text-align:center}
+  </style></head><body>
+  <div class="head">
+    <div><h1>Sales Report ${escapeHtml((_salesData && _salesData.year) || '')}</h1>
+      <div style="font-size:10px;color:#64748b">${escapeHtml((_salesData && _salesData.label) || '')}</div></div>
+    <div class="sub">${new Date().toLocaleString('en-GB')}<br>${rows.length} orders · ${salesMoney(sum)}
+      ${bits.length ? '<br>' + escapeHtml(bits.join(' · ')) : ''}</div>
+  </div>
+  <table>
+    <thead><tr><th style="width:40px">S.No</th><th>Party name</th><th style="width:70px">Credit days</th>
+      <th style="width:95px">Payment terms</th><th style="width:105px">MRP (Amount)</th></tr></thead>
+    <tbody>${rows.map((r, i) => `<tr><td class="c">${i + 1}</td><td>${escapeHtml(r.party)}</td>
+      <td class="c">${escapeHtml(String(r.creditDays || '—'))}</td><td class="c">${escapeHtml(r.terms || '—')}</td>
+      <td class="r">${salesMoney(r.mrp)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4" class="r">TOTAL — ${rows.length} orders</td><td class="r">${salesMoney(sum)}</td></tr></tfoot>
+  </table>
+  <div class="foot">KLM Task Manager — Sales Report</div>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return showToast('Popup blocked — please allow popups', 'error');
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 400);
+}
+
 function pcrCols() {
   const info = (_pcrData && _pcrData.cols) ? _pcrData.cols : [];
   // Sheet Row sabse pehle — sheet me ye kaunsi row hai (ek jaisi dikhne wali
@@ -9243,6 +9449,7 @@ function switchMisTab(type, el) {
     doerWrap.style.display = (type !== 'fms' && type !== 'fmstat' && hasOptions) ? '' : 'none';
   }
   if (type === 'pcr') { loadPcr(); return; }
+  if (type === 'sales') { loadSales(); return; }
   if (type === 'capacity') {
     loadCapacity();
     return;
