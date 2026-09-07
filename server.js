@@ -4396,7 +4396,9 @@ app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => 
 
     const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(/[^\d.-]/g, '')); return Number.isFinite(n) ? n : 0; };
     const rows = [];
+    let rowNo = PPC_HEADER_ROW;
     for (const row of pms.slice(1)) {
+      rowNo++;
       const uid = String(row[16] || '').trim();     // Q
       const buyer = String(row[1] || '').trim();    // B
       const orderNo = String(row[9] || '').trim();  // J — PI number
@@ -4415,7 +4417,7 @@ app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => 
           balance: orderQty - actual,
           eff: orderQty > 0 ? (actual / orderQty) * 100 : null };
       });
-      rows.push({ uid, buyer, orderNo,
+      rows.push({ uid, rowKey: uid || ('r' + rowNo), buyer, orderNo,
         style: String(row[6] || '').trim(),        // G — Product Name
         code: String(row[2] || '').trim(),         // C
         color: String(row[4] || '').trim(),        // E
@@ -4425,7 +4427,15 @@ app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => 
         piApprovalDate: ppcIsoDate(row[10]),       // K
         orderQty, d });
     }
-    res.json({ sheet: cfg.key, label: cfg.label, sheetId: cfg.id,
+    // Haath se daali gayi date — { "rowKey|stepNo": "YYYY-MM-DD" }
+    const manual = {};
+    try {
+      const [md] = await db.query('SELECT row_key, step_no, manual_date FROM ppc_manual_dates WHERE sheet=?', [cfg.key]);
+      for (const m of (md || [])) {
+        if (String(m.manual_date || '').trim()) manual[m.row_key + '|' + m.step_no] = String(m.manual_date).trim();
+      }
+    } catch (e) {}
+    res.json({ sheet: cfg.key, label: cfg.label, sheetId: cfg.id, manual,
       sheets: Object.values(PPC_SHEETS).map(s => ({ key: s.key, label: s.label })),
       steps: steps.map(s => ({ code: s.code, name: s.name,
         qtyCol: s.qtyIdx >= 0 ? idxToCol(s.qtyIdx) : '', hasQty: s.qtyIdx >= 0 })),
@@ -4434,6 +4444,32 @@ app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => 
     console.error('PPC order-master FAILED:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// PPC Orders tab ki Manual Date — save/clear (khaali bhejo to hat jaati hai)
+app.post('/api/ppc/manual-date', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const sheet = String(req.body?.sheet || '').trim().toLowerCase();
+    const rowKey = String(req.body?.rowKey || '').trim();
+    const stepNo = String(req.body?.stepNo ?? '').trim();
+    const date = String(req.body?.date || '').trim();
+    if (!PPC_SHEETS[sheet]) return res.status(400).json({ error: 'Unknown sheet' });
+    if (!rowKey || stepNo === '') return res.status(400).json({ error: 'rowKey and stepNo required' });
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'Date must be YYYY-MM-DD' });
+    // step_no par SQL me barabari nahi lagate — '0' jaisi value match nahi hoti.
+    // Isliye sheet+row ki rows lekar step JS me milaate hain.
+    const [same] = await db.query('SELECT id, step_no FROM ppc_manual_dates WHERE sheet=? AND row_key=?',
+      [sheet, rowKey]);
+    const hit = (same || []).find(r => String(r.step_no) === stepNo);
+    if (hit) {
+      await db.query('UPDATE ppc_manual_dates SET manual_date=?, updated_by=?, updated_at=? WHERE id=?',
+        [date, String(req.session.userId), new Date().toISOString(), hit.id]);
+    } else if (date) {
+      await db.query('INSERT INTO ppc_manual_dates (sheet, row_key, step_no, manual_date, updated_by) VALUES (?,?,?,?,?)',
+        [sheet, rowKey, stepNo, date, String(req.session.userId)]);
+    }
+    res.json({ success: true, date });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/ppc', requireAuth, requireAdmin, async (req, res) => {

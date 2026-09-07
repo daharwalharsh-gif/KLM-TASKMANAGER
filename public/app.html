@@ -2242,6 +2242,10 @@ tbody tr:last-child td{border-bottom:none;}
     .om-tbl tbody tr:hover .om-d0{background:#eef5ff}
     .om-tbl tbody tr:hover .om-d1{background:#fbf5ec}
     .om-tbl th.om-fx{background:#f1f5f9}
+    /* Manual Date — haath se daali jaane wali date */
+    .om-tbl .om-md{width:116px;padding:3px 6px;border:1.5px solid #e2e8f0;border-radius:6px;
+      font-size:11.5px;font-family:'Inter',sans-serif;outline:none;background:#fff;color:#0f172a}
+    .om-tbl .om-md:focus{border-color:#4f46e5}
     .ppc-quick{display:flex;gap:5px}
     .ppc-quick button{padding:6px 11px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;
       font-size:12px;font-weight:600;color:#475569;font-family:'Inter',sans-serif;white-space:nowrap}
@@ -14668,15 +14672,16 @@ function exportPPCCSV() {
     ['Order Qty', 'orderQty'], ['Line / Master', 'line']];
   const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
   const h1 = ['Sr No.', ...info.map(c => c[0])].map(q)
-    .concat(steps.flatMap(s => [s.name.toUpperCase(), '', '', '', ''].map(q))).join(',');
+    .concat(steps.flatMap(s => [s.name.toUpperCase(), '', '', '', '', ''].map(q))).join(',');
   const h2 = ['', ...info.map(() => '')].map(q)
-    .concat(steps.flatMap(() => ['Date', 'Plan Qty', 'Actual Qty', 'Balance', 'Efficiency %'].map(q))).join(',');
+    .concat(steps.flatMap(() => ['Date', 'Manual Date', 'Plan Qty', 'Actual Qty', 'Balance', 'Efficiency %'].map(q))).join(',');
   const lines = [h1, h2];
   list.forEach((x, i) => {
     const row = [i + 1, ...info.map(c => c[1] === 'orderQty' ? x.orderQty
       : c[1] === 'piApprovalDate' ? (x.piApprovalDate ? ppcFmtDate(x.piApprovalDate) : '')
       : (x[c[1]] ?? ''))].map(q);
-    (x.d || []).forEach(v => row.push(q(v.date ? ppcFmtDate(v.date) : ''), q(v.plan), q(v.actual), q(v.balance),
+    (x.d || []).forEach((v, j) => row.push(q(v.date ? ppcFmtDate(v.date) : ''),
+      q(ppcManualDate(x, j) ? ppcFmtDate(ppcManualDate(x, j)) : ''), q(v.plan), q(v.actual), q(v.balance),
       q(v.eff === null ? '' : v.eff.toFixed(2) + '%')));
     lines.push(row.join(','));
   });
@@ -14742,6 +14747,33 @@ function _omInfo(x, f) {
   if (f === 'piApprovalDate') return x.piApprovalDate ? ppcFmtDate(x.piApprovalDate) : '—';
   return String(x[f] ?? '').trim() || '—';
 }
+// Haath se daali gayi date — server se aaye naksha me se
+function ppcManualDate(x, stepIdx) {
+  const m = (_ppcData && _ppcData.manual) || {};
+  return m[String(x.rowKey || '') + '|' + stepIdx] || '';
+}
+
+// Date badli — turant save (khaali karo to hat jaati hai)
+async function ppcSaveManualDate(el, rowKey, stepIdx) {
+  const date = String(el.value || '').trim();
+  const old = el.style.borderColor;
+  el.style.borderColor = '#facc15';
+  const r = await api('/api/ppc/manual-date', 'POST', {
+    sheet: (_ppcData && _ppcData.sheet) || _ppcSheet, rowKey, stepNo: stepIdx, date });
+  if (r && r.error) {
+    el.style.borderColor = '#ef4444';
+    showToast(r.error, 'error');
+    return;
+  }
+  el.style.borderColor = '#22c55e';
+  if (_ppcData) {
+    _ppcData.manual = _ppcData.manual || {};
+    const k = rowKey + '|' + stepIdx;
+    if (date) _ppcData.manual[k] = date; else delete _ppcData.manual[k];
+  }
+  setTimeout(() => { el.style.borderColor = old; }, 1200);
+}
+
 function renderPPC() {
   const list = ppcVisible();
   const box = document.getElementById('ppcContent');
@@ -14764,10 +14796,11 @@ function renderPPC() {
   ];
   const head1 = `<tr><th class="om-fx" rowspan="2" style="width:34px">#</th>` +
     info.map(c => `<th class="om-fx" rowspan="2" style="width:${c[2]}px">${escapeHtml(c[0])}</th>`).join('') +
-    steps.map((s, i) => `<th class="om-dep om-d${i % 2}" colspan="5" title="${escapeHtml(s.code)}${s.qtyCol ? ' · Actual Qty column ' + s.qtyCol : ' · Actual = full qty when done'}">${escapeHtml(s.name.toUpperCase())}</th>`).join('') +
+    steps.map((s, i) => `<th class="om-dep om-d${i % 2}" colspan="6" title="${escapeHtml(s.code)}${s.qtyCol ? ' · Actual Qty column ' + s.qtyCol : ' · Actual = full qty when done'}">${escapeHtml(s.name.toUpperCase())}</th>`).join('') +
     `</tr>`;
   const head2 = `<tr>` + steps.map((s, i) =>
     `<th class="om-d${i % 2}" style="width:96px">Date</th>` +
+    `<th class="om-d${i % 2}" style="width:126px" title="Haath se daali gayi date">Manual Date</th>` +
     `<th class="om-d${i % 2} pm-numcol" style="width:78px">Plan Qty</th>` +
     `<th class="om-d${i % 2} pm-numcol" style="width:82px">Actual Qty</th>` +
     `<th class="om-d${i % 2} pm-numcol" style="width:78px">Balance</th>` +
@@ -14779,6 +14812,8 @@ function renderPPC() {
     (x.d || []).map((v, j) => {
       const full = v.eff !== null && v.eff >= 100;
       return `<td class="om-d${j % 2}">${v.date ? ppcFmtDate(v.date) : '—'}</td>` +
+        `<td class="om-d${j % 2}"><input type="date" class="om-md" value="${escapeHtml(ppcManualDate(x, j))}"
+           onchange="ppcSaveManualDate(this, '${escapeHtml(String(x.rowKey || ''))}', ${j})"></td>` +
         `<td class="om-d${j % 2} pm-numcol">${_omN(v.plan)}</td>` +
         `<td class="om-d${j % 2} pm-numcol">${_omN(v.actual)}</td>` +
         `<td class="om-d${j % 2} pm-numcol">${_omN(v.balance)}</td>` +
@@ -14788,7 +14823,7 @@ function renderPPC() {
   const tot = steps.map((s, j) => {
     const p = list.reduce((a, x) => a + ((x.d[j] || {}).plan || 0), 0);
     const ac = list.reduce((a, x) => a + ((x.d[j] || {}).actual || 0), 0);
-    return `<td class="om-d${j % 2}"></td>` +
+    return `<td class="om-d${j % 2}"></td><td class="om-d${j % 2}"></td>` +
       `<td class="om-d${j % 2} pm-numcol">${_omN(p)}</td>` +
       `<td class="om-d${j % 2} pm-numcol">${_omN(ac)}</td>` +
       `<td class="om-d${j % 2} pm-numcol">${_omN(p - ac)}</td>` +
@@ -14900,19 +14935,20 @@ function exportPPCPDF() {
   <table>
     <thead>
       <tr><th rowspan="2" style="width:22px">#</th>${info.map(c => `<th rowspan="2">${escapeHtml(c[0])}</th>`).join('')}
-        ${steps.map(s => `<th colspan="5" style="text-align:center">${escapeHtml(s.name.toUpperCase())}</th>`).join('')}</tr>
-      <tr>${steps.map(() => `<th>Date</th><th>Plan</th><th>Actual</th><th>Bal.</th><th>Eff %</th>`).join('')}</tr>
+        ${steps.map(s => `<th colspan="6" style="text-align:center">${escapeHtml(s.name.toUpperCase())}</th>`).join('')}</tr>
+      <tr>${steps.map(() => `<th>Date</th><th>Manual Date</th><th>Plan</th><th>Actual</th><th>Bal.</th><th>Eff %</th>`).join('')}</tr>
     </thead>
     <tbody>${list.map((x, i) => `<tr><td>${i + 1}</td>` +
       info.map(c => `<td>${escapeHtml(_omInfo(x, c[1]))}</td>`).join('') +
-      (x.d || []).map(v => `<td>${v.date ? ppcFmtDate(v.date) : '—'}</td><td>${_omN(v.plan)}</td>` +
+      (x.d || []).map((v, j) => `<td>${v.date ? ppcFmtDate(v.date) : '—'}</td>` +
+        `<td>${ppcManualDate(x, j) ? ppcFmtDate(ppcManualDate(x, j)) : '—'}</td><td>${_omN(v.plan)}</td>` +
         `<td>${_omN(v.actual)}</td><td>${_omN(v.balance)}</td><td>${_omEff(v.eff)}</td>`).join('') +
       `</tr>`).join('')}</tbody>
     <tfoot><tr><td></td>${info.map((c, i) => c[1] === 'orderQty'
       ? `<td>${qty.toLocaleString('en-IN')}</td>` : `<td>${i === 0 ? 'TOTAL' : ''}</td>`).join('')}
       ${steps.map((s, j) => { const p = list.reduce((a, x) => a + ((x.d[j] || {}).plan || 0), 0);
         const ac = list.reduce((a, x) => a + ((x.d[j] || {}).actual || 0), 0);
-        return `<td></td><td>${_omN(p)}</td><td>${_omN(ac)}</td><td>${_omN(p - ac)}</td><td>${p > 0 ? (ac / p * 100).toFixed(2) + '%' : ''}</td>`; }).join('')}
+        return `<td></td><td></td><td>${_omN(p)}</td><td>${_omN(ac)}</td><td>${_omN(p - ac)}</td><td>${p > 0 ? (ac / p * 100).toFixed(2) + '%' : ''}</td>`; }).join('')}
     </tr></tfoot>
   </table>
   <div class="foot">KLM Task Manager · ${stamp}</div>

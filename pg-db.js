@@ -162,6 +162,12 @@ const SCHEMA = {
     cols: ['id','fms_id','step_id','link','updated_by','updated_at'],
     autoFill: { updated_at: 'NOW' }
   },
+  // PPC Orders tab me haath se daali gayi date — har order row ke har department ki
+  // apni. Google Sheet me kuch nahi likha jaata; ye app ka apna record hai.
+  ppc_manual_dates: {
+    cols: ['id','sheet','row_key','step_no','manual_date','updated_by','updated_at'],
+    autoFill: { updated_at: 'NOW' }
+  },
   // Time Scheduler — roz ka routine (sirf allowed emails)
   time_schedules: {
     cols: ['id','user_id','sch_date','start_time','end_time','title','remarks','status','created_at','completed_at'],
