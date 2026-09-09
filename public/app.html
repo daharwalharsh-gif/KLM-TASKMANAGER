@@ -590,6 +590,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M3 6h18M3 18h18"/></svg>
       <span class="nav-label-text">FMS Tasks</span>
     </div>
+    <div class="nav-item" id="nav-scot" onclick="navigate('scot',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <span class="nav-label-text">SCOT Sheet</span>
+    </div>
     <div class="nav-item" id="nav-forms" onclick="navigate('forms',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
       <span class="nav-label-text">Forms</span>
@@ -1100,12 +1104,6 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
 
-    <!-- FMS Tasks / SCOT Sheet ka tab -->
-    <div style="display:flex;gap:4px;background:#f1f5f9;padding:3px;border-radius:8px;width:fit-content;margin-bottom:16px">
-      <div class="tab active" id="fmsTasksTabFlow" onclick="fmsTasksTab('flow',this)">🧩 FMS Tasks</div>
-      <div class="tab" id="fmsTasksTabScot" onclick="fmsTasksTab('scot',this)">📄 SCOT Sheet</div>
-    </div>
-
     <!-- FMS Selector Dropdown -->
     <div id="fmsTasksSelectWrap" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div style="font-size:13px;font-weight:600;color:#374151;white-space:nowrap">Select FMS:</div>
@@ -1168,33 +1166,32 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
 
-    <!-- SCOT Sheet — sirf naam aur link; naam par click karte hi sheet khul jaati hai -->
-    <div id="fmsTasksScotWrap" style="display:none">
-      <div class="scot-grid">
-        <a class="scot-card" target="_blank" rel="noopener"
-          href="https://docs.google.com/spreadsheets/d/1ohsQKUsBkVedZw4WXPWJJZiy-8gx4elFWxTS8LcrnkY/edit?gid=429233310#gid=429233310">
-          <div class="scot-ico">📊</div>
-          <div class="scot-body">
-            <div class="scot-name">SCOT sheet Export</div>
-            <div class="scot-link">docs.google.com/spreadsheets/d/1ohsQKUsBkVedZw4WXPWJJZiy-8gx4elFWxTS8LcrnkY</div>
-          </div>
-          <div class="scot-go">Open ↗</div>
-        </a>
-        <a class="scot-card" target="_blank" rel="noopener"
-          href="https://docs.google.com/spreadsheets/d/1DO9DCiG_P07pq6dLr6AG4sKdvakLVRcgBI-NuUIutJM/edit?gid=0#gid=0">
-          <div class="scot-ico">📊</div>
-          <div class="scot-body">
-            <div class="scot-name">SCOT sheet domestic</div>
-            <div class="scot-link">docs.google.com/spreadsheets/d/1DO9DCiG_P07pq6dLr6AG4sKdvakLVRcgBI-NuUIutJM</div>
-          </div>
-          <div class="scot-go">Open ↗</div>
-        </a>
-      </div>
-    </div>
-
     <!-- Empty state -->
     <div id="fmsTasksEmpty" class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;display:none">
       No FMS assigned to you yet.
+    </div>
+  </div>
+
+  <!-- ── SCOT SHEET — sirf do sheet ke naam aur link ── -->
+  <div id="page-scot" class="page">
+    <div class="page-header"><h2>SCOT Sheet</h2></div>
+    <div class="scot-grid">
+      <a class="scot-card" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/1ohsQKUsBkVedZw4WXPWJJZiy-8gx4elFWxTS8LcrnkY/edit?gid=429233310#gid=429233310">
+        <div class="scot-ico">📊</div>
+        <div class="scot-body">
+          <div class="scot-name">SCOT sheet Export</div>
+          <div class="scot-link">docs.google.com/spreadsheets/d/1ohsQKUsBkVedZw4WXPWJJZiy-8gx4elFWxTS8LcrnkY</div>
+        </div>
+        <div class="scot-go">Open ↗</div>
+      </a>
+      <a class="scot-card" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/1DO9DCiG_P07pq6dLr6AG4sKdvakLVRcgBI-NuUIutJM/edit?gid=0#gid=0">
+        <div class="scot-ico">📊</div>
+        <div class="scot-body">
+          <div class="scot-name">SCOT sheet domestic</div>
+          <div class="scot-link">docs.google.com/spreadsheets/d/1DO9DCiG_P07pq6dLr6AG4sKdvakLVRcgBI-NuUIutJM</div>
+        </div>
+        <div class="scot-go">Open ↗</div>
+      </a>
     </div>
   </div>
 
@@ -4008,7 +4005,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -11793,31 +11790,6 @@ function canSeeLegal() {
 // Daily PC Report — sirf Ms. Ekta, Mr. Sachin Kumar aur admin
 function canSeePcReport() {
   return !!(ME && (ME.role === 'admin' || ME.canPcReport));
-}
-
-// FMS Tasks page ke do tab — process flow ya SCOT Sheet ke link
-let _fmsTasksTab = 'flow';
-function fmsTasksTab(which, el) {
-  _fmsTasksTab = which;
-  document.querySelectorAll('#page-fms-tasks .tab').forEach(t => t.classList.remove('active'));
-  if (el) el.classList.add('active');
-  const scot = which === 'scot';
-  const hide = id => { const e = document.getElementById(id); if (e) e.dataset._sc = e.style.display; };
-  // FMS wale hisse chhupao / wapas dikhao
-  ['fmsTasksSelectWrap', 'fmsTrainContainer', 'fmsTaskStepPanel', 'fmsTasksEmpty'].forEach(id => {
-    const e = document.getElementById(id); if (!e) return;
-    if (scot) {
-      if (e.dataset._sc === undefined) e.dataset._sc = e.style.display || '';
-      e.style.display = 'none';
-    } else if (e.dataset._sc !== undefined) {
-      e.style.display = e.dataset._sc;
-      delete e.dataset._sc;
-    }
-  });
-  const sw = document.getElementById('fmsTasksScotWrap');
-  if (sw) sw.style.display = scot ? '' : 'none';
-  const hdr = document.getElementById('fmsTasksRefreshBtn');
-  if (hdr) hdr.style.display = scot ? 'none' : (hdr.dataset._sc || 'flex');
 }
 
 async function onFMSTasksSelect() {
