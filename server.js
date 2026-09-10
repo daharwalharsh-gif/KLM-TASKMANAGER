@@ -640,7 +640,14 @@ async function fetchSheetRows(sheet) {
 
   // Range plan/actual columns ke hisaab se
   const [steps] = await db.query('SELECT plan_col, actual_col FROM fms_steps WHERE fms_id=?', [sheet.id]);
-  const allCols = steps.flatMap(s => [colToIdx(s.plan_col), colToIdx(s.actual_col)]).filter(x => x >= 0);
+  // Steps ke extra column (Status wagairah) bhi range me lo — Hold wahin likha hota hai
+  let extraCols = [];
+  try {
+    const [ex] = await db.query('SELECT col_letter FROM fms_extra_rows WHERE step_id IN (SELECT id FROM fms_steps WHERE fms_id=?)', [sheet.id]);
+    extraCols = (ex || []).map(r => colToIdx(r.col_letter)).filter(x => x >= 0);
+  } catch (e) {}
+  const allCols = steps.flatMap(s => [colToIdx(s.plan_col), colToIdx(s.actual_col)])
+    .concat(extraCols).filter(x => x >= 0);
   if (!allCols.length) return [];
   const lastCol = idxToCol(Math.max(...allCols));
   const range = `${tabName}!A:${lastCol}`;
@@ -760,6 +767,24 @@ async function computeFmsTAT() {
 // opts (sirf Owner Dashboard use karta hai — MIS/FMS tabs pe koi asar nahi):
 //   • minPlanDate: 'YYYY-MM-DD' — is date se pehle ke plan wale rows count NAHI hote
 //   • excludeSpreadsheetIds: [id] — ye spreadsheets poori tarah skip
+// ══ HOLD ══════════════════════════════════════════════════════════
+// Kuch FMS ke status dropdown me Done / Cancel / Hold hote hain. Hold ka
+// matlab kaam abhi baaki hai — isliye:
+//   • FMS Tasks me wo row PENDING hi dikhti rahe (actual date bhari ho tab bhi)
+//   • MIS me uski ginti hi na ho — na pending, na done. Score par koi asar nahi.
+// Status column wahi maana jaata hai jiske dropdown me "hold" likha ho.
+async function holdColIdx(stepId) {
+  try {
+    const [ex] = await db.query('SELECT col_letter, dropdown_options FROM fms_extra_rows WHERE step_id=?', [stepId]);
+    for (const r of (ex || [])) {
+      const opts = String(r.dropdown_options || '').toLowerCase();
+      if (r.col_letter && opts.split(',').map(o => o.trim()).includes('hold')) return colToIdx(r.col_letter);
+    }
+  } catch (e) {}
+  return -1;
+}
+function isHold(v) { return String(v || '').trim().toLowerCase() === 'hold'; }
+
 async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) {
   // opts.range = {start:'YYYY-MM-DD', end:'YYYY-MM-DD'} — is window me hue "done"
   // (actual date) aur is window ke plan wale pending alag se count hote hain (MIS ke liye).
@@ -829,6 +854,7 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       // ko Riya ki rows bhi count ho rahi thi). Row-level FMS Tasks page isi mapping ko already
       // follow karti hai (/api/fms-tasks/.../rows) — yahan wahi matching logic reuse karte hain.
       const doerFilterIdx = colToIdx(step.doer_filter_col || '');
+      const stepHoldIdx = await holdColIdx(step.id);   // Hold wala status column
       let stepFilterMap = {};
       try { stepFilterMap = JSON.parse(step.doer_filter_map || '{}') || {}; } catch (e) { stepFilterMap = {}; }
       const nameToUids = {};
@@ -871,6 +897,8 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       for (const row of rows) {
         const planVal = (row[planIdx] || '').trim();
         const actualVal = (row[actualIdx] || '').trim();
+        // Hold — MIS me na pending, na done. Poori tarah chhoda.
+        if (stepHoldIdx >= 0 && isHold(row[stepHoldIdx])) continue;
         // Owner dashboard cutoff: plan date minPlanDate se pehle ya maxPlanDate ke baad ho to row count NAHI
         if ((opts.minPlanDate || opts.maxPlanDate) && planVal) {
           const pd = parsePlanDate(planVal);
@@ -3769,6 +3797,7 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     const _fvCfg = await fmsFullViewCfg(req.session.userId);
     const isAdminView = req.session.role === 'admin' || req.session.role === 'pc'
       || fmsInFullView(_fvCfg, sheet);
+    const holdIdx = await holdColIdx(step.id);   // Hold wala status column
     let filterMap = {};
     try { filterMap = JSON.parse(step.doer_filter_map || '{}') || {}; } catch (e) { filterMap = {}; }
     // Normalized map: lowercase-name -> [userIds as strings] (ek naam pe multiple doers ho sakte hain;
@@ -3797,7 +3826,8 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     const tabName = sheet.sheet_name || 'Sheet1';
 
     // Optimized: fetch only up to the furthest needed column
-    const maxIdx = Math.max(planIdx, actualIdx, doerFilterIdx, ...(showCols.length ? showCols : [0]));
+    // holdIdx bhi jodo — warna status column range se bahar reh jaata aur Hold pakda hi na jaata
+    const maxIdx = Math.max(planIdx, actualIdx, doerFilterIdx, holdIdx, ...(showCols.length ? showCols : [0]));
     const lastCol = maxIdx >= 0 ? idxToCol(maxIdx) : 'Z';
     const range = `${tabName}!A:${lastCol}`;
 
@@ -3831,7 +3861,9 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
           }
         }
       }
-      if (planVal && !actualVal) {
+      // Hold hai to actual date bhari hone par bhi pending hi maanenge
+      const heldRow = holdIdx >= 0 && isHold(row[holdIdx]);
+      if (planVal && (!actualVal || heldRow)) {
         const rowData = {};
         let colsToShow = showCols.length ? showCols : headers.map((_,hi) => hi);
         // Plan column always show karo — mandatory
