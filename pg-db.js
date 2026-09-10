@@ -922,16 +922,35 @@ async function flushNow() {
 // hataayi hui rows ka delete. Sirf jab rows ka pata na chale (full=true) tab
 // purana tareeka — poori table DELETE + dobara INSERT. Sab ek transaction me,
 // taaki beech me kuch toote to table adhoora na rahe.
+// ══ TASK DATA KA PAKKA GUARD ══════════════════════════════════════
+// Do niyam jo har haal me lagte hain, chahe code kahin se bhi likhe:
+//  1. In tables ko kabhi poora mita kar dobara nahi likha jaata. Agar kisi
+//     wajah se pata na chale ki kaun si row badli, tab bhi sirf upsert hota
+//     hai — delete kabhi nahi. Isse kisi ka task gayab nahi ho sakta.
+//  2. Jo row database me 'completed' hai, use koi bhi flush wapas 'pending'
+//     nahi bana sakta. Purani memory wale instance ka likha hua bhi nahi.
+//     (Revise / Not Applicable pehle jaise chalte hain — sirf pending rokna hai.)
+const TASK_TABLES_NEVER_WIPE = new Set(['checklist_tasks', 'delegation_tasks']);
+function keepDoneGuard(table) {
+  if (!TASK_TABLES_NEVER_WIPE.has(table)) return '';
+  return ` WHERE NOT (${qIdent(table)}.status = 'completed' AND EXCLUDED.status = 'pending')`;
+}
+
 async function writeTablesToPg(plan) {
   if (!plan.length) return;
   const pool = getPool();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    for (const item of plan) {
+    for (let item of plan) {
       const table = item.table;
       const cols = SCHEMA[table].cols;
       const data = alasql.tables[table] ? alasql.tables[table].data : [];
+      // Niyam 1 — task tables ka poora rewrite kabhi nahi. Rows ka pata na ho
+      // to bhi sirf upsert, delete kuch nahi.
+      if (item.full && TASK_TABLES_NEVER_WIPE.has(table)) {
+        item = { table, full: false, upsert: data.map(r => String(r.id)), remove: item.remove || [] };
+      }
       if (!item.full) {
         // ── sirf badli hui rows ──
         if (item.remove.length) {
@@ -955,7 +974,8 @@ async function writeTablesToPg(plan) {
             }
             await client.query(
               `INSERT INTO ${qIdent(table)} (${colSql}) VALUES ${valuesSql.join(', ')}` +
-              (setSql ? ` ON CONFLICT (id) DO UPDATE SET ${setSql}` : ''),
+              // Niyam 2 — completed row wapas pending nahi ban sakti
+              (setSql ? ` ON CONFLICT (id) DO UPDATE SET ${setSql}${keepDoneGuard(table)}` : ''),
               flat
             );
           }

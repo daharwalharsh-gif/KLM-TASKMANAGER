@@ -1419,6 +1419,14 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'Task not found' });
     const task = rows[0];
 
+    // ══ PAKKI ROK ══════════════════════════════════════════════════
+    // Done kiya hua task wapas pending nahi kiya ja sakta — kisi bhi raste se.
+    // (Revise / Not Applicable pehle jaise chalte hain.) App me pending par
+    // wapas le jaane ka koi button hai bhi nahi; ye sirf galti se bachne ke liye.
+    if (String(status || '').trim() === 'pending' && String(task.status || '') === 'completed') {
+      return res.status(400).json({ error: 'A completed task cannot be moved back to Pending' });
+    }
+
     const isDelegType = (type || 'delegation') === 'delegation';
     // Task kisne diya — uska email + role chahiye (do alag rules isi par tikte hain)
     let assignerEmail = '', assignerRole = '';
