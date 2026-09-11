@@ -2282,7 +2282,9 @@ tbody tr:last-child td{border-bottom:none;}
     .om-tbl th.om-fx{background:#f1f5f9}
     /* Header me hi column filter */
     .om-tbl th.om-fx .om-hl{margin-bottom:5px}
-    .om-tbl select.om-hf{width:100%;max-width:100%;padding:3px 4px;border:1.5px solid #dbe2ea;border-radius:6px;
+    .om-tbl .om-hf-box{position:relative;height:24px;width:100%}
+    .om-tbl select.om-hf{position:absolute;left:0;top:0;width:100%;height:24px;
+      padding:2px 4px;border:1.5px solid #dbe2ea;border-radius:6px;
       font-size:11px;font-family:'Inter',sans-serif;font-weight:600;color:#475569;background:#fff;
       outline:none;cursor:pointer}
     .om-tbl select.om-hf:focus{border-color:#4f46e5}
@@ -14750,14 +14752,15 @@ function _ppcColOpts(f) {
 }
 function _ppcHeadSel(f, label) {
   const cur = _ppcColF[f] || '';
-  return `<select class="om-hf${cur ? ' on' : ''}" title="Filter by ${escapeHtml(label)}"
+  return `<div class="om-hf-box"><select class="om-hf${cur ? ' on' : ''}"
+    title="Filter by ${escapeHtml(label)}"
     onchange="ppcColFilter('${f}', this.value)"><option value="">All</option>` +
     _ppcColOpts(f).map(([v, lab]) => {
       const val = v === '' ? _PPC_BLANK : v;
       return `<option value="${escapeHtml(val)}"${val === cur ? ' selected' : ''}>` +
         `${escapeHtml(v === '' ? '(Blank)' : lab)}</option>`;
     }).join('') +
-    `</select>`;
+    `</select></div>`;
 }
 function ppcColFilter(f, v) {
   if (v) _ppcColF[f] = v; else delete _ppcColF[f];
@@ -14896,7 +14899,7 @@ function renderPPC() {
   // aur is page ke saare filter isi date par lagte hain.
   const info = [
     ['Buyer', 'buyer', 170], ['Order No', 'orderNo', 118], ['Order Date', 'piApprovalDate', 105],
-    ['Style', 'style', 165], ['Code', 'code', 115], ['Color', 'color', 110], ['Size', 'size', 84],
+    ['Style', 'style', 165], ['Code', 'code', 115], ['Color', 'color', 110], ['Size', 'size', 62],
     ['Order Qty', 'orderQty', 78], ['Line / Master', 'line', 105]
   ];
   const head1 = `<tr><th class="om-fx" rowspan="2" style="width:34px">#</th>` +
