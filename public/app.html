@@ -2280,6 +2280,13 @@ tbody tr:last-child td{border-bottom:none;}
     .om-tbl tbody tr:hover .om-d0{background:#eef5ff}
     .om-tbl tbody tr:hover .om-d1{background:#fbf5ec}
     .om-tbl th.om-fx{background:#f1f5f9}
+    /* Header me hi column filter */
+    .om-tbl th.om-fx .om-hl{margin-bottom:5px}
+    .om-tbl select.om-hf{width:100%;max-width:100%;padding:3px 4px;border:1.5px solid #dbe2ea;border-radius:6px;
+      font-size:11px;font-family:'Inter',sans-serif;font-weight:600;color:#475569;background:#fff;
+      outline:none;cursor:pointer}
+    .om-tbl select.om-hf:focus{border-color:#4f46e5}
+    .om-tbl select.om-hf.on{border-color:#4f46e5;background:#eef2ff;color:#3730a3}
     /* Manual Date — haath se daali jaane wali date */
     .om-tbl .om-md{width:116px;padding:3px 6px;border:1.5px solid #e2e8f0;border-radius:6px;
       font-size:11.5px;font-family:'Inter',sans-serif;outline:none;background:#fff;color:#0f172a}
@@ -14575,6 +14582,7 @@ async function loadPPC() {
   box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">Loading…</div>';
   const sheet = document.getElementById('ppcSheet').value || 'garments';
   // Order Master — poora data ek baar; PI-approval date aur search ka filter client par
+  _ppcColF = {};
   const r = await api(`/api/ppc/order-master?sheet=${encodeURIComponent(sheet)}`);
   _ppcLoading = false;
   if (!r || r.error) {
@@ -14687,7 +14695,8 @@ document.addEventListener('click', e => {
   if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('#ppcMonthBtn'))) pop.remove();
 });
 
-function ppcVisible() {
+// Upar ke bar wale filter (date / month / search) — column filter se pehle
+function ppcBaseRows() {
   const q = (document.getElementById('ppcSearch').value || '').trim().toLowerCase();
   const from = (document.getElementById('ppcFrom') || {}).value || '';
   const to = (document.getElementById('ppcTo') || {}).value || '';
@@ -14702,6 +14711,57 @@ function ppcVisible() {
     return [x.buyer, x.orderNo, x.style, x.code, x.color, x.size, x.line, x.merchant]
       .join(' ').toLowerCase().includes(q);
   });
+}
+
+// ── Har header ka apna filter ──
+// Chuni gayi value milane ke liye kaccha (raw) value chahiye — screen par
+// bhale hi date 19-06-2026 dikhe, andar 2026-06-19 hai.
+let _ppcColF = {};
+const _PPC_BLANK = '\uE000BLANK';   // khaali value ka apna nishaan
+function _ppcRaw(x, f) {
+  if (f === 'orderQty') return String(x.orderQty ?? '');
+  if (f === 'piApprovalDate') return String(x.piApprovalDate || '');
+  return String(x[f] ?? '').trim();
+}
+// skip = jis column ki apni list bana rahe hain (Excel jaisa — apne aap ko chhod kar)
+function _ppcColMatch(x, skip) {
+  for (const f in _ppcColF) {
+    if (f === skip || !_ppcColF[f]) continue;
+    const want = _ppcColF[f] === _PPC_BLANK ? '' : _ppcColF[f];
+    if (_ppcRaw(x, f) !== want) return false;
+  }
+  return true;
+}
+function ppcVisible() {
+  return ppcBaseRows().filter(x => _ppcColMatch(x, null));
+}
+// Ek column ke dropdown me kya-kya aaye — baaki filter lagne ke baad jo bacha
+function _ppcColOpts(f) {
+  const seen = new Map();
+  ppcBaseRows().forEach(x => {
+    if (!_ppcColMatch(x, f)) return;
+    const v = _ppcRaw(x, f);
+    if (!seen.has(v)) seen.set(v, _omInfo(x, f));
+  });
+  const arr = [...seen.entries()];
+  if (f === 'orderQty') arr.sort((a, b) => (Number(a[0]) || 0) - (Number(b[0]) || 0));
+  else arr.sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+  return arr;
+}
+function _ppcHeadSel(f, label) {
+  const cur = _ppcColF[f] || '';
+  return `<select class="om-hf${cur ? ' on' : ''}" title="Filter by ${escapeHtml(label)}"
+    onchange="ppcColFilter('${f}', this.value)"><option value="">All</option>` +
+    _ppcColOpts(f).map(([v, lab]) => {
+      const val = v === '' ? _PPC_BLANK : v;
+      return `<option value="${escapeHtml(val)}"${val === cur ? ' selected' : ''}>` +
+        `${escapeHtml(v === '' ? '(Blank)' : lab)}</option>`;
+    }).join('') +
+    `</select>`;
+}
+function ppcColFilter(f, v) {
+  if (v) _ppcColF[f] = v; else delete _ppcColF[f];
+  renderPPC();
 }
 
 // CSV — jo screen par dikh raha hai wahi (saare department ke column ke saath)
@@ -14825,7 +14885,9 @@ function renderPPC() {
   const tabs = document.getElementById('ppcTabs');
   if (tabs) tabs.innerHTML = '';
 
-  if (!list.length) {
+  // Agar column filter se kuch na bache to bhi table dikhani hai, warna
+  // header ke dropdown gayab ho jaate hain aur filter hataane ka rasta hi nahi bachta.
+  if (!ppcBaseRows().length) {
     box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0">No orders for this filter.</div>';
     return;
   }
@@ -14834,11 +14896,11 @@ function renderPPC() {
   // aur is page ke saare filter isi date par lagte hain.
   const info = [
     ['Buyer', 'buyer', 170], ['Order No', 'orderNo', 118], ['Order Date', 'piApprovalDate', 105],
-    ['Style', 'style', 165], ['Code', 'code', 115], ['Color', 'color', 110], ['Size', 'size', 62],
+    ['Style', 'style', 165], ['Code', 'code', 115], ['Color', 'color', 110], ['Size', 'size', 84],
     ['Order Qty', 'orderQty', 78], ['Line / Master', 'line', 105]
   ];
   const head1 = `<tr><th class="om-fx" rowspan="2" style="width:34px">#</th>` +
-    info.map(c => `<th class="om-fx" rowspan="2" style="width:${c[2]}px">${escapeHtml(c[0])}</th>`).join('') +
+    info.map(c => `<th class="om-fx" rowspan="2" style="width:${c[2]}px"><div class="om-hl">${escapeHtml(c[0])}</div>${_ppcHeadSel(c[1], c[0])}</th>`).join('') +
     steps.map((s, i) => `<th class="om-dep om-d${i % 2}" colspan="6" title="${escapeHtml(s.code)}${s.qtyCol ? ' · Actual Qty column ' + s.qtyCol : ' · Actual = full qty when done'}">${escapeHtml(s.name.toUpperCase())}</th>`).join('') +
     `</tr>`;
   const head2 = `<tr>` + steps.map((s, i) =>
@@ -14877,8 +14939,11 @@ function renderPPC() {
     info.map((c, i) => `<td class="om-fx ${c[1] === 'orderQty' ? 'pm-numcol' : ''}">${i === 0 ? 'TOTAL' : (c[1] === 'orderQty' ? _omN(qtyAll) : '')}</td>`).join('') +
     tot + `</tr>`;
 
+  const cols = 1 + info.length + steps.length * 6;
+  const bodyHtml = list.length ? body
+    : `<tr><td colspan="${cols}" style="padding:28px;text-align:center;color:#94a3b8">No orders match the header filters.</td></tr>`;
   box.innerHTML = `<div style="overflow-x:auto"><table class="pm-tbl ppc-tbl om-tbl">
-    <thead>${head1}${head2}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>`;
+    <thead>${head1}${head2}</thead><tbody>${bodyHtml}</tbody>${list.length ? `<tfoot>${foot}</tfoot>` : ''}</table></div>`;
 }
 
 function _renderPPCOld() {
@@ -14941,6 +15006,7 @@ function ppcClearDates() {
   document.getElementById('ppcTo').value = '';
   const s = document.getElementById('ppcSearch'); if (s) s.value = '';
   _ppcMonths.clear(); ppcSyncMonthBtn();
+  _ppcColF = {};
   ppcQuickOff();
   renderPPC();
 }
