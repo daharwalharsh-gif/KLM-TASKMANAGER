@@ -6004,6 +6004,178 @@ app.delete('/api/leaves/:id', requireAuth, async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════
+// MASTER RATE LIST — ek style ka operation-wise rate chart
+// ──────────────────────────────────────────────────────
+// Ek record = ek style. Uske andar operations ki grid (operation, rate, aur
+// har DATE column ke liye pcs + amount) hoti hai, plus image/PDF attachments.
+// Grid aur attachments JSON me rehte hain — wahi tareeka jo legal_cases.files
+// me use hota hai, taaki har row ke liye alag table na banani pade.
+// Naya record "pending" me banta hai; Complete dabane par "completed" ho jaata
+// hai aur Completed tab me chala jaata hai, jahan se dobara edit ho sakta hai.
+
+const RL_MAX_ROWS = 300;     // ek list me itni se zyada operation rows nahi
+const RL_MAX_DATES = 24;     // itne se zyada DATE column nahi
+
+function rlJson(v, fallback) {
+  try { const p = JSON.parse(v || ''); return Array.isArray(p) ? p : fallback; }
+  catch (e) { return fallback; }
+}
+// DB row -> client ko bhejne wala roop
+function rlShape(r) {
+  return {
+    id: r.id,
+    list_name: r.list_name || '',
+    buyer: r.buyer || '',
+    style: r.style || '',
+    status: r.status || 'pending',
+    dates: rlJson(r.date_cols, []),
+    rows: rlJson(r.rows_json, []),
+    files: rlJson(r.files_json, []),
+    created_by: r.created_by || '',
+    createdByName: r.createdByName || '',
+    completedByName: r.completedByName || '',
+    created_at: r.created_at || '',
+    updated_at: r.updated_at || '',
+    completed_at: r.completed_at || ''
+  };
+}
+// Client se aayi grid ko saaf karo — sirf wahi fields jo hum jaante hain
+function rlCleanRows(v) {
+  if (!Array.isArray(v)) return [];
+  return v.slice(0, RL_MAX_ROWS).map(r => ({
+    op: String((r && r.op) ?? '').slice(0, 300),
+    rate: String((r && r.rate) ?? '').slice(0, 40),
+    cells: (Array.isArray(r && r.cells) ? r.cells : []).slice(0, RL_MAX_DATES).map(c => ({
+      pcs: String((c && c.pcs) ?? '').slice(0, 40),
+      amount: String((c && c.amount) ?? '').slice(0, 40)
+    }))
+  }));
+}
+function rlCleanDates(v) {
+  if (!Array.isArray(v)) return [];
+  return v.slice(0, RL_MAX_DATES).map(d => String(d ?? '').slice(0, 40));
+}
+function rlCleanFiles(v) {
+  if (!Array.isArray(v)) return [];
+  return v.slice(0, 40).map(f => ({
+    name: String((f && f.name) ?? '').slice(0, 200),
+    link: String((f && f.link) ?? '').slice(0, 500),
+    kind: String((f && f.kind) ?? '').slice(0, 20) === 'image' ? 'image' : 'file'
+  })).filter(f => f.link);
+}
+const rlNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+// ── Attachment upload — image ya PDF. fms_files me jaati hai, public /f/:id link ──
+app.post('/api/rate-lists/upload-file', requireAuth, async (req, res) => {
+  try {
+    const { filename, mimeType, dataBase64 } = req.body || {};
+    if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
+    const EXT_MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+      gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', bmp: 'image/bmp' };
+    let mt = String(mimeType || '').toLowerCase();
+    if (!mt || mt === 'application/octet-stream') {
+      mt = EXT_MIME[String(filename).split('.').pop().toLowerCase()] || '';
+    }
+    const isImage = mt.startsWith('image/');
+    if (!isImage && mt !== 'application/pdf') {
+      return res.status(400).json({ error: 'Only image or PDF files are allowed' });
+    }
+    const buffer = Buffer.from(dataBase64, 'base64');
+    if (!buffer.length) return res.status(400).json({ error: 'File data is empty' });
+    if (buffer.length > 3.5 * 1024 * 1024) return res.status(400).json({ error: 'File is larger than 3MB — please upload a smaller file' });
+
+    const safeName = `${Date.now()}_${filename.replace(/[^\w.\- ]+/g, '_')}`;
+    const pool = await fmsFilesPool();
+    const fileId = require('crypto').randomBytes(18).toString('base64url');
+    await pool.query('INSERT INTO fms_files (id, filename, mime, data) VALUES ($1,$2,$3,$4)', [fileId, safeName, mt, buffer]);
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    res.json({ success: true, link: `${proto}://${req.get('host')}/f/${fileId}`, name: filename, kind: isImage ? 'image' : 'file' });
+  } catch (err) {
+    console.error('Rate list upload FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── List — ?status=pending|completed (default dono) ──
+app.get('/api/rate-lists', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT r.*, u.name AS createdByName, u2.name AS completedByName
+       FROM rate_lists r
+       LEFT JOIN users u ON r.created_by = u.id
+       LEFT JOIN users u2 ON r.completed_by = u2.id`);
+    let list = (rows || []).map(rlShape);
+    const want = String(req.query.status || '').trim();
+    if (want === 'pending' || want === 'completed') list = list.filter(x => x.status === want);
+    list.sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+    res.json(list);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Ek record ──
+app.get('/api/rate-lists/:id', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT r.*, u.name AS createdByName, u2.name AS completedByName
+       FROM rate_lists r
+       LEFT JOIN users u ON r.created_by = u.id
+       LEFT JOIN users u2 ON r.completed_by = u2.id
+       WHERE r.id=?`, [req.params.id]);
+    if (!rows || !rows[0]) return res.status(404).json({ error: 'Rate list not found' });
+    res.json(rlShape(rows[0]));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Naya record — id wapas jaata hai taaki client turant editor khol sake ──
+app.post('/api/rate-lists', requireAuth, async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!String(b.style || '').trim()) return res.status(400).json({ error: 'Style is required' });
+    const now = rlNow();
+    const [result] = await db.query(
+      `INSERT INTO rate_lists (list_name,buyer,style,status,date_cols,rows_json,files_json,
+         created_by,created_at,updated_at,completed_at,completed_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [String(b.list_name || '').trim(), String(b.buyer || '').trim(), String(b.style || '').trim(),
+       'pending', JSON.stringify(rlCleanDates(b.dates)), JSON.stringify(rlCleanRows(b.rows)),
+       JSON.stringify(rlCleanFiles(b.files)), req.session.userId, now, now, '', '']);
+    res.json({ success: true, id: result && result.insertId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Edit — Completed hone ke baad bhi chalta hai (Completed tab ka Edit button) ──
+app.put('/api/rate-lists/:id', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM rate_lists WHERE id=?', [req.params.id]);
+    if (!rows || !rows[0]) return res.status(404).json({ error: 'Rate list not found' });
+    const cur = rows[0], b = req.body || {};
+    const pick = (k, col) => b[k] !== undefined ? String(b[k] ?? '').trim() : (cur[col] ?? '');
+    await db.query(
+      `UPDATE rate_lists SET list_name=?,buyer=?,style=?,date_cols=?,rows_json=?,files_json=?,updated_at=? WHERE id=?`,
+      [pick('list_name', 'list_name'), pick('buyer', 'buyer'), pick('style', 'style'),
+       b.dates !== undefined ? JSON.stringify(rlCleanDates(b.dates)) : (cur.date_cols || '[]'),
+       b.rows !== undefined ? JSON.stringify(rlCleanRows(b.rows)) : (cur.rows_json || '[]'),
+       b.files !== undefined ? JSON.stringify(rlCleanFiles(b.files)) : (cur.files_json || '[]'),
+       rlNow(), req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Complete / wapas Pending ──
+app.post('/api/rate-lists/:id/status', requireAuth, async (req, res) => {
+  try {
+    const want = String((req.body || {}).status || '').trim();
+    if (want !== 'pending' && want !== 'completed') return res.status(400).json({ error: 'status must be pending or completed' });
+    const [rows] = await db.query('SELECT * FROM rate_lists WHERE id=?', [req.params.id]);
+    if (!rows || !rows[0]) return res.status(404).json({ error: 'Rate list not found' });
+    const now = rlNow();
+    await db.query('UPDATE rate_lists SET status=?,completed_at=?,completed_by=?,updated_at=? WHERE id=?',
+      [want, want === 'completed' ? now : '', want === 'completed' ? String(req.session.userId) : '', now, req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════
 // ADMIN: Clear ALL delegation + checklist tasks (data wipe)
 // ──────────────────────────────────────────────────────
 // IMPORTANT: Manual Google-Sheet editing se data wapas aa jaata hai (app apni

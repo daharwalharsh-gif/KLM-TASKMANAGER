@@ -598,6 +598,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
       <span class="nav-label-text">Forms</span>
     </div>
+    <div class="nav-item" id="nav-ratelist" onclick="navigate('ratelist',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+      <span class="nav-label-text">Master Rate List</span>
+    </div>
     <div class="nav-item" id="nav-department" onclick="navigate('department',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
       <span class="nav-label-text">Department</span>
@@ -1858,6 +1862,107 @@ tbody tr:last-child td{border-bottom:none;}
       .ms-title{font-size:14px}
     }
   </style>
+  <!-- ── MASTER RATE LIST — ek style ka operation-wise rate chart ── -->
+  <style>
+    .rl-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;background:#fff;border:1px solid #e2e8f0;
+      border-radius:12px;padding:14px 16px;margin-bottom:14px}
+    .rl-bar label{display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:5px;
+      text-transform:uppercase;letter-spacing:.4px}
+    .rl-bar input[type=text]{padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;
+      font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff}
+    .rl-bar input[type=text]:focus{border-color:#4f46e5}
+    .rl-acts{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+    .rl-wrap{overflow-x:auto;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+    .rl-tbl{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff}
+    .rl-tbl th{background:#eef2ff;color:#3730a3;font-size:10.5px;font-weight:800;padding:7px 8px;
+      border:1px solid #c7d2fe;text-align:center;vertical-align:middle;line-height:1.3;white-space:nowrap}
+    .rl-tbl td{padding:3px 5px;border:1px solid #e2e8f0;vertical-align:middle;color:#1e293b}
+    .rl-tbl tbody tr:nth-child(even){background:#f8fafc}
+    .rl-tbl .rl-sr{text-align:center;color:#64748b;font-weight:700;width:42px}
+    .rl-tbl .rl-del{width:34px;text-align:center}
+    .rl-tbl tfoot td{background:#eef2ff;color:#3730a3;font-weight:800;border:1px solid #c7d2fe;padding:7px 8px}
+    .rl-in{width:100%;padding:5px 7px;border:1.5px solid transparent;border-radius:6px;font-size:12.5px;
+      font-family:'Inter',sans-serif;outline:none;background:transparent;color:#0f172a}
+    .rl-in:hover{border-color:#e2e8f0}
+    .rl-in:focus{border-color:#4f46e5;background:#fff}
+    .rl-num{text-align:right}
+    .rl-op{min-width:240px}
+    .rl-d0{background:#f8fbff}
+    .rl-d1{background:#fdfbf7}
+    .rl-x{border:none;background:transparent;color:#cbd5e1;cursor:pointer;font-size:13px;line-height:1;padding:2px 4px}
+    .rl-x:hover{color:#ef4444}
+    .rl-files{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;margin-top:4px}
+    .rl-thumb{position:relative;width:84px}
+    .rl-thumb img{width:84px;height:84px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;
+      cursor:pointer;display:block;background:#f8fafc}
+    .rl-thumb .rl-x{position:absolute;top:-7px;right:-7px;background:#fff;border:1px solid #e2e8f0;
+      border-radius:50%;width:20px;height:20px;color:#94a3b8}
+    .rl-thumb .rl-nm{font-size:10px;color:#94a3b8;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rl-chip{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border:1px solid #e2e8f0;
+      border-radius:8px;padding:6px 10px;font-size:12px;color:#334155}
+    .rl-chip a{color:#4f46e5;text-decoration:none;font-weight:600}
+    .rl-sec{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-top:14px}
+    .rl-sec h4{margin:0 0 10px;font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
+    .rl-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-block}
+    .rl-bp{background:#fef3c7;color:#92400e}
+    .rl-bc{background:#dcfce7;color:#166534}
+    .rl-empty{padding:30px;text-align:center;color:#94a3b8;font-size:13px}
+  </style>
+  <div id="page-ratelist" class="page">
+    <div class="page-header">
+      <h2>Master Rate List</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-outline btn-sm" onclick="rlNew()">➕ New Rate List</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <div class="tab-group">
+        <div class="tab active" id="rlTabForm" onclick="rlTab('form',this)">📝 Rate List</div>
+        <div class="tab" id="rlTabPending" onclick="rlTab('pending',this)">⏳ Pending</div>
+        <div class="tab" id="rlTabDone" onclick="rlTab('completed',this)">✅ Completed</div>
+      </div>
+    </div>
+
+    <!-- ── EDITOR ── -->
+    <div id="rlFormWrap">
+      <div class="rl-bar">
+        <div><label>Name</label><input type="text" id="rlName" style="width:190px" placeholder="Name"
+          oninput="rlSetHead('list_name',this.value)"></div>
+        <div><label>Buyer</label><input type="text" id="rlBuyer" style="width:190px" placeholder="Buyer"
+          oninput="rlSetHead('buyer',this.value)"></div>
+        <div><label>Style</label><input type="text" id="rlStyle" style="width:220px" placeholder="Style"
+          oninput="rlSetHead('style',this.value)"></div>
+        <div><label>Status</label><div id="rlStatus" style="padding:6px 0"></div></div>
+        <div class="rl-acts">
+          <button class="btn btn-outline btn-sm" onclick="rlAddRow()">➕ Row</button>
+          <button class="btn btn-outline btn-sm" onclick="rlAddDate()">➕ Date Column</button>
+          <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="rlPDF()">📄 PDF</button>
+          <button class="btn btn-outline btn-sm" id="rlReopenBtn" style="display:none" onclick="rlSetStatus('pending')">↩ Move to Pending</button>
+          <button class="btn btn-outline btn-sm" id="rlCompleteBtn" style="color:#16a34a;border-color:#bbf7d0"
+            onclick="rlSetStatus('completed')">✅ Complete</button>
+          <button class="btn btn-primary btn-sm" onclick="rlSave()">💾 Save</button>
+        </div>
+      </div>
+
+      <div class="rl-wrap"><div id="rlGrid"></div></div>
+
+      <div class="rl-sec">
+        <h4>Details — images &amp; PDF</h4>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <input type="file" id="rlFileInput" multiple accept="image/*,application/pdf"
+            style="font-size:12px" onchange="rlUpload()">
+          <span style="font-size:11px;color:#94a3b8">Image or PDF, up to 3MB each</span>
+        </div>
+        <div id="rlErr" style="display:none;color:#dc2626;font-size:12px;margin-bottom:8px"></div>
+        <div class="rl-files" id="rlFiles"></div>
+      </div>
+    </div>
+
+    <!-- ── PENDING / COMPLETED LIST ── -->
+    <div id="rlListWrap" style="display:none"></div>
+  </div>
+
   <!-- ── DEPARTMENT — company ke poster jaisi tables ── -->
   <div id="page-department" class="page">
     <div class="page-header">
@@ -4014,7 +4119,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -4037,6 +4142,7 @@ function navigate(page, el) {
   if (page==='production') loadProduction();
   if (page==='catalogues') loadCatalogues();
   if (page==='forms') loadFormsPage();
+  if (page==='ratelist') openRateList();
   if (page==='department') loadDepartment();
   closeSidebar();   // mobile drawer band karo nav ke baad
   window.scrollTo(0,0);
@@ -4779,6 +4885,357 @@ function legalReadFileBase64(file) {
     fr.onerror = () => reject(fr.error || new Error('read failed'));
     fr.readAsDataURL(file);
   });
+}
+
+// ══════════════════════════════════════════════════════
+// MASTER RATE LIST — ek style ka operation-wise rate chart
+// ──────────────────────────────────────────────────────
+// Teen tab: "Rate List" (editor), "Pending", "Completed".
+// Poori grid ek hi record me JSON ki tarah save hoti hai, isliye har cell par
+// server call nahi jaati — Save dabane par ek hi baar jaati hai.
+// Typing ke waqt sirf total dobara ginte hain, poori table nahi banti, warna
+// har akshar par cursor input se bahar nikal jaata.
+
+let _rlView = 'form';
+let _rlCur = null;       // abhi editor me khula record
+let _rlList = [];
+let _rlSaving = false;
+const RL_NEW_ROWS = 12;  // naye record me itni khaali operation rows
+const RL_NEW_DATES = 6;  // aur itne DATE column
+
+function rlNum(v) {
+  const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
+  return isFinite(n) ? n : 0;
+}
+function rlFmt(n) {
+  if (!n) return '';
+  const r = Math.round(n * 100) / 100;
+  return r.toLocaleString('en-IN', { minimumFractionDigits: r % 1 ? 2 : 0, maximumFractionDigits: 2 });
+}
+// har row ke cells ki ginti date column ke barabar rakho
+function rlNorm(c) {
+  c.dates = Array.isArray(c.dates) ? c.dates.map(d => String(d == null ? '' : d)) : [];
+  c.rows = Array.isArray(c.rows) ? c.rows : [];
+  c.files = Array.isArray(c.files) ? c.files : [];
+  c.rows.forEach(r => {
+    const old = Array.isArray(r.cells) ? r.cells : [];
+    r.op = String(r.op == null ? '' : r.op);
+    r.rate = String(r.rate == null ? '' : r.rate);
+    r.cells = c.dates.map((_, j) => ({
+      pcs: String((old[j] && old[j].pcs) == null ? '' : old[j].pcs),
+      amount: String((old[j] && old[j].amount) == null ? '' : old[j].amount)
+    }));
+  });
+  return c;
+}
+function rlNew() {
+  _rlCur = rlNorm({
+    id: null, list_name: '', buyer: '', style: '', status: 'pending',
+    dates: Array.from({ length: RL_NEW_DATES }, () => ''),
+    rows: Array.from({ length: RL_NEW_ROWS }, () => ({ op: '', rate: '', cells: [] })),
+    files: []
+  });
+  rlTab('form');
+}
+function openRateList() { if (!_rlCur) rlNew(); else rlTab(_rlView || 'form'); }
+
+function rlTab(which, el) {
+  _rlView = which;
+  document.querySelectorAll('#page-ratelist .tab-group .tab').forEach(t => t.classList.remove('active'));
+  const t = el || document.getElementById(
+    which === 'form' ? 'rlTabForm' : which === 'pending' ? 'rlTabPending' : 'rlTabDone');
+  if (t) t.classList.add('active');
+  const isForm = which === 'form';
+  document.getElementById('rlFormWrap').style.display = isForm ? '' : 'none';
+  document.getElementById('rlListWrap').style.display = isForm ? 'none' : '';
+  if (isForm) { if (!_rlCur) rlNew(); else rlRenderAll(); }
+  else rlLoadList(which);
+}
+
+function rlRenderAll() { rlRenderHead(); rlRenderGrid(); rlRenderFiles(); }
+
+function rlRenderHead() {
+  const c = _rlCur; if (!c) return;
+  document.getElementById('rlName').value = c.list_name || '';
+  document.getElementById('rlBuyer').value = c.buyer || '';
+  document.getElementById('rlStyle').value = c.style || '';
+  const done = c.status === 'completed';
+  document.getElementById('rlStatus').innerHTML = c.id
+    ? `<span class="rl-badge ${done ? 'rl-bc' : 'rl-bp'}">${done ? 'Completed' : 'Pending'}</span>`
+    : '<span class="rl-badge rl-bp">Not saved yet</span>';
+  document.getElementById('rlCompleteBtn').style.display = done ? 'none' : '';
+  document.getElementById('rlReopenBtn').style.display = done ? '' : 'none';
+}
+function rlSetHead(k, v) { if (_rlCur) _rlCur[k] = v; }
+
+function rlRenderGrid() {
+  const c = _rlCur; if (!c) return;
+  const head1 = `<tr>
+      <th rowspan="2" style="width:42px">S.NO</th>
+      <th rowspan="2" style="min-width:240px">OPERATION</th>
+      <th rowspan="2" style="width:112px">NEW BARGAIN RATE</th>` +
+    c.dates.map((d, j) => `<th class="rl-d${j % 2}" colspan="2">
+      <div style="display:flex;align-items:center;gap:2px;justify-content:center">
+        <input type="date" class="rl-in" style="width:118px" value="${escapeHtml(d)}"
+          onchange="rlSetDate(${j},this.value)" title="Date">
+        <button class="rl-x" title="Remove this date column" onclick="rlDelDate(${j})">✕</button>
+      </div></th>`).join('') +
+    `<th rowspan="2" class="rl-del"></th></tr>`;
+  const head2 = '<tr>' + c.dates.map((_, j) =>
+    `<th class="rl-d${j % 2}" style="width:82px">NO OF PCS</th>` +
+    `<th class="rl-d${j % 2}" style="width:92px">AMOUNT</th>`).join('') + '</tr>';
+
+  const body = c.rows.map((r, i) => `<tr>
+      <td class="rl-sr">${i + 1}</td>
+      <td><input class="rl-in rl-op" value="${escapeHtml(r.op)}" placeholder="Operation"
+        oninput="rlSetCellVal(${i},null,'op',this.value)"></td>
+      <td><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(r.rate)}"
+        oninput="rlSetCellVal(${i},null,'rate',this.value)"></td>` +
+    c.dates.map((_, j) => {
+      const cell = r.cells[j] || { pcs: '', amount: '' };
+      return `<td class="rl-d${j % 2}"><input class="rl-in rl-num" inputmode="decimal"
+          value="${escapeHtml(cell.pcs)}" oninput="rlSetCellVal(${i},${j},'pcs',this.value)"></td>` +
+        `<td class="rl-d${j % 2}"><input class="rl-in rl-num" inputmode="decimal"
+          value="${escapeHtml(cell.amount)}" oninput="rlSetCellVal(${i},${j},'amount',this.value)"></td>`;
+    }).join('') +
+    `<td class="rl-del"><button class="rl-x" title="Remove this row" onclick="rlDelRow(${i})">✕</button></td>
+    </tr>`).join('');
+
+  const foot = `<tr><td></td><td>TOTAL</td><td class="rl-num" id="rlTotRate"></td>` +
+    c.dates.map((_, j) => `<td class="rl-d${j % 2} rl-num" id="rlTotPcs${j}"></td>` +
+      `<td class="rl-d${j % 2} rl-num" id="rlTotAmt${j}"></td>`).join('') + `<td></td></tr>`;
+
+  document.getElementById('rlGrid').innerHTML =
+    `<table class="rl-tbl"><thead>${head1}${head2}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table>`;
+  rlUpdateTotals();
+}
+
+// Ek hi jagah se saari cell edit — model badlo aur sirf total dobara gino
+function rlSetCellVal(i, j, field, v) {
+  const c = _rlCur; if (!c || !c.rows[i]) return;
+  if (j === null) c.rows[i][field] = v;
+  else { if (!c.rows[i].cells[j]) c.rows[i].cells[j] = { pcs: '', amount: '' }; c.rows[i].cells[j][field] = v; }
+  if (field !== 'op') rlUpdateTotals();
+}
+function rlSetDate(j, v) { if (_rlCur) _rlCur.dates[j] = v; }
+
+function rlUpdateTotals() {
+  const c = _rlCur; if (!c) return;
+  const tr = document.getElementById('rlTotRate');
+  if (tr) tr.textContent = rlFmt(c.rows.reduce((a, r) => a + rlNum(r.rate), 0));
+  c.dates.forEach((_, j) => {
+    const p = document.getElementById('rlTotPcs' + j), m = document.getElementById('rlTotAmt' + j);
+    if (p) p.textContent = rlFmt(c.rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).pcs), 0));
+    if (m) m.textContent = rlFmt(c.rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).amount), 0));
+  });
+}
+
+function rlAddRow() {
+  if (!_rlCur) return;
+  if (_rlCur.rows.length >= 300) return showToast('A rate list can hold up to 300 rows', 'error');
+  _rlCur.rows.push({ op: '', rate: '', cells: _rlCur.dates.map(() => ({ pcs: '', amount: '' })) });
+  rlRenderGrid();
+}
+function rlDelRow(i) {
+  if (!_rlCur || !_rlCur.rows[i]) return;
+  const r = _rlCur.rows[i];
+  const filled = String(r.op || '').trim() || String(r.rate || '').trim() ||
+    r.cells.some(c => String(c.pcs || '').trim() || String(c.amount || '').trim());
+  if (filled && !confirm('Remove this row? It still has data in it.')) return;
+  _rlCur.rows.splice(i, 1);
+  rlRenderGrid();
+}
+function rlAddDate() {
+  if (!_rlCur) return;
+  if (_rlCur.dates.length >= 24) return showToast('A rate list can hold up to 24 date columns', 'error');
+  _rlCur.dates.push('');
+  _rlCur.rows.forEach(r => r.cells.push({ pcs: '', amount: '' }));
+  rlRenderGrid();
+}
+function rlDelDate(j) {
+  if (!_rlCur || j < 0 || j >= _rlCur.dates.length) return;
+  const used = _rlCur.rows.some(r => (r.cells[j] || {}).pcs || (r.cells[j] || {}).amount);
+  if (used && !confirm('Remove this date column? Its pcs and amount will be lost.')) return;
+  _rlCur.dates.splice(j, 1);
+  _rlCur.rows.forEach(r => r.cells.splice(j, 1));
+  rlRenderGrid();
+}
+
+// ── Attachments — image chhoti dikhti hai, PDF link ki tarah ──
+function rlRenderFiles() {
+  const c = _rlCur; if (!c) return;
+  const box = document.getElementById('rlFiles');
+  if (!c.files.length) { box.innerHTML = '<span style="font-size:12px;color:#94a3b8">No images or PDF added yet.</span>'; return; }
+  box.innerHTML = c.files.map((f, i) => f.kind === 'image'
+    ? `<div class="rl-thumb">
+         <img src="${escapeHtml(f.link)}" alt="${escapeHtml(f.name)}" title="${escapeHtml(f.name)}"
+           onclick="rlOpenFile(${i})">
+         <button class="rl-x" title="Remove" onclick="rlDelFile(${i})">✕</button>
+         <div class="rl-nm" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
+       </div>`
+    : `<span class="rl-chip">📄 <a href="${escapeHtml(f.link)}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>
+         <button class="rl-x" title="Remove" onclick="rlDelFile(${i})">✕</button></span>`).join('');
+}
+function rlDelFile(i) { if (_rlCur) { _rlCur.files.splice(i, 1); rlRenderFiles(); } }
+function rlOpenFile(i) { const f = _rlCur && _rlCur.files[i]; if (f && f.link) window.open(f.link, '_blank'); }
+
+async function rlUpload() {
+  const input = document.getElementById('rlFileInput');
+  const err = document.getElementById('rlErr');
+  const files = [...(input.files || [])];
+  if (!files.length || !_rlCur) return;
+  err.style.display = 'none';
+  let ok = 0;
+  for (const file of files) {
+    const bad = m => { err.textContent = `${file.name}: ${m}`; err.style.display = 'block'; };
+    if (file.size > 3.5 * 1024 * 1024) { bad('file is larger than 3MB'); continue; }
+    let b64;
+    try {
+      b64 = await new Promise((res, rej) => {
+        const fr = new FileReader();
+        fr.onload = () => res(String(fr.result).split(',')[1] || '');
+        fr.onerror = rej;
+        fr.readAsDataURL(file);
+      });
+    } catch (e) { bad('could not read the file'); continue; }
+    const r = await api('/api/rate-lists/upload-file', 'POST',
+      { filename: file.name, mimeType: file.type || '', dataBase64: b64 });
+    if (!r || r.error) { bad((r && r.error) || 'upload failed'); continue; }
+    _rlCur.files.push({ name: file.name, link: r.link, kind: r.kind || 'file' });
+    ok++;
+  }
+  input.value = '';
+  rlRenderFiles();
+  if (ok) showToast(`📎 ${ok} file(s) attached — press Save to keep them`, 'success');
+}
+
+// ── Save / status ──
+async function rlSave() {
+  const c = _rlCur; if (!c || _rlSaving) return false;
+  if (!String(c.style || '').trim()) { showToast('Style is required', 'error'); return false; }
+  _rlSaving = true;
+  const payload = { list_name: c.list_name, buyer: c.buyer, style: c.style,
+    dates: c.dates, rows: c.rows, files: c.files };
+  const r = c.id ? await api('/api/rate-lists/' + c.id, 'PUT', payload)
+                 : await api('/api/rate-lists', 'POST', payload);
+  _rlSaving = false;
+  if (!r || r.error) { showToast((r && r.error) || 'Could not save the rate list', 'error'); return false; }
+  if (!c.id && r.id) c.id = r.id;
+  rlRenderHead();
+  showToast('💾 Rate list saved', 'success');
+  return true;
+}
+async function rlSetStatus(st) {
+  const c = _rlCur; if (!c) return;
+  if (!(await rlSave())) return;            // pehle jo likha hai wo bach jaaye
+  const r = await api('/api/rate-lists/' + _rlCur.id + '/status', 'POST', { status: st });
+  if (!r || r.error) return showToast((r && r.error) || 'Could not change the status', 'error');
+  _rlCur.status = st;
+  if (st === 'completed') { showToast('✅ Moved to Completed', 'success'); rlTab('completed'); }
+  else { showToast('↩ Moved back to Pending', 'success'); rlRenderHead(); }
+}
+
+// ── Pending / Completed list ──
+async function rlLoadList(which) {
+  const box = document.getElementById('rlListWrap');
+  box.innerHTML = '<div class="rl-empty">Loading…</div>';
+  const list = await api('/api/rate-lists?status=' + which);
+  if (!Array.isArray(list)) { box.innerHTML = '<div class="rl-empty">Could not load the rate lists.</div>'; return; }
+  _rlList = list;
+  if (!list.length) {
+    box.innerHTML = `<div class="rl-empty">No ${which === 'pending' ? 'pending' : 'completed'} rate lists yet.</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="rl-wrap"><table class="rl-tbl" style="font-size:13px">
+    <thead><tr>
+      <th style="width:44px">#</th><th style="text-align:left">Name</th><th style="text-align:left">Buyer</th>
+      <th style="text-align:left">Style</th><th style="width:90px">Operations</th><th style="width:100px">Total Rate</th>
+      <th style="width:90px">Files</th><th style="text-align:left">Created by</th>
+      <th style="text-align:left;width:140px">Updated</th><th style="width:96px">Action</th>
+    </tr></thead><tbody>` +
+    list.map((x, i) => {
+      const tot = (x.rows || []).reduce((a, r) => a + rlNum(r.rate), 0);
+      const ops = (x.rows || []).filter(r => String(r.op || '').trim()).length;
+      return `<tr>
+        <td class="rl-sr">${i + 1}</td>
+        <td style="padding:9px 10px">${escapeHtml(x.list_name) || '—'}</td>
+        <td style="padding:9px 10px">${escapeHtml(x.buyer) || '—'}</td>
+        <td style="padding:9px 10px"><b>${escapeHtml(x.style) || '—'}</b></td>
+        <td style="text-align:center">${ops}</td>
+        <td class="rl-num" style="padding:9px 10px">${rlFmt(tot) || '—'}</td>
+        <td style="text-align:center">${(x.files || []).length || '—'}</td>
+        <td style="padding:9px 10px">${escapeHtml(x.createdByName || '') || '—'}</td>
+        <td style="padding:9px 10px;white-space:nowrap">${escapeHtml(String(x.updated_at || '').slice(0, 16))}</td>
+        <td style="text-align:center"><button class="btn btn-outline btn-sm" onclick="rlOpen(${x.id})">✏️ Edit</button></td>
+      </tr>`;
+    }).join('') + '</tbody></table></div>';
+}
+async function rlOpen(id) {
+  const r = await api('/api/rate-lists/' + id);
+  if (!r || r.error) return showToast((r && r.error) || 'Could not open this rate list', 'error');
+  _rlCur = rlNorm(r);
+  rlTab('form');
+}
+
+// ── PDF ──
+function rlPDF() {
+  const c = _rlCur;
+  if (!c) return showToast('Nothing to print', 'error');
+  const now = new Date();
+  const stamp = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()} ` +
+    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const dt = d => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || '')); return m ? `${m[3]}-${m[2]}-${m[1]}` : (d || ''); };
+  const rows = c.rows.filter(r => String(r.op || '').trim() || String(r.rate || '').trim());
+  const totRate = rlFmt(c.rows.reduce((a, r) => a + rlNum(r.rate), 0));
+  const imgs = c.files.filter(f => f.kind === 'image');
+  const pdfs = c.files.filter(f => f.kind !== 'image');
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>KLM Task Manager — Master Rate List</title><style>
+    @page { size: A4 landscape; margin: 10mm; }
+    *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:0;font-size:10.5px}
+    .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #4f46e5;padding-bottom:7px;margin-bottom:12px}
+    .head h1{margin:0;font-size:17px;color:#4f46e5} .head .sub{font-size:10.5px;color:#64748b}
+    table{width:100%;border-collapse:collapse;table-layout:fixed}
+    th,td{border:1px solid #cbd5e1;padding:4px 5px;text-align:center;vertical-align:middle;word-wrap:break-word}
+    th{background:#eef2ff;color:#3730a3;font-size:9.5px}
+    td.op{text-align:left}
+    tbody tr:nth-child(even){background:#f8fafc}
+    tfoot td{background:#eef2ff;font-weight:bold}
+    .imgs{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+    .imgs img{width:120px;height:120px;object-fit:cover;border:1px solid #cbd5e1;border-radius:4px}
+    .foot{margin-top:10px;font-size:9px;color:#94a3b8;text-align:center}
+  </style></head><body>
+  <div class="head">
+    <div><h1>Master Rate List</h1>
+      <div class="sub">Name: ${escapeHtml(c.list_name) || '—'} &nbsp;·&nbsp; Buyer: ${escapeHtml(c.buyer) || '—'}
+        &nbsp;·&nbsp; Style: ${escapeHtml(c.style) || '—'}</div></div>
+    <div class="sub">${stamp}<br>${c.status === 'completed' ? 'Completed' : 'Pending'} · ${rows.length} operation(s)</div>
+  </div>
+  <table>
+    <thead>
+      <tr><th rowspan="2" style="width:26px">S.NO</th><th rowspan="2" style="width:190px">OPERATION</th>
+        <th rowspan="2" style="width:60px">NEW BARGAIN RATE</th>
+        ${c.dates.map(d => `<th colspan="2">${escapeHtml(dt(d)) || 'DATE'}</th>`).join('')}</tr>
+      <tr>${c.dates.map(() => '<th>NO OF PCS</th><th>AMOUNT</th>').join('')}</tr>
+    </thead>
+    <tbody>${rows.map((r, i) => `<tr><td>${i + 1}</td><td class="op">${escapeHtml(r.op)}</td>
+      <td>${escapeHtml(r.rate)}</td>` +
+      c.dates.map((_, j) => {
+        const cell = r.cells[j] || {};
+        return `<td>${escapeHtml(cell.pcs || '')}</td><td>${escapeHtml(cell.amount || '')}</td>`;
+      }).join('') + '</tr>').join('')}</tbody>
+    <tfoot><tr><td></td><td class="op">TOTAL</td><td>${totRate}</td>` +
+      c.dates.map((_, j) => `<td>${rlFmt(c.rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).pcs), 0))}</td>` +
+        `<td>${rlFmt(c.rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).amount), 0))}</td>`).join('') +
+    `</tr></tfoot>
+  </table>
+  ${imgs.length ? `<div class="imgs">${imgs.map(f => `<img src="${escapeHtml(f.link)}">`).join('')}</div>` : ''}
+  ${pdfs.length ? `<div class="sub" style="margin-top:8px">Attached PDF: ${pdfs.map(f => escapeHtml(f.name)).join(', ')}</div>` : ''}
+  <div class="foot">KLM Task Manager · ${stamp}</div>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return showToast('Popup blocked — please allow popups', 'error');
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 600);
 }
 
 function legalTab(which, el) {

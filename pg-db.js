@@ -168,6 +168,14 @@ const SCHEMA = {
     cols: ['id','sheet','row_key','step_no','manual_date','updated_by','updated_at'],
     autoFill: { updated_at: 'NOW' }
   },
+  // Master Rate List — ek style ka operation-wise rate chart. Grid (operations,
+  // rate, date-wise pcs/amount) aur attachments JSON me rehte hain, jaise
+  // legal_cases.files. "pending" me bante hain, Complete par "completed".
+  rate_lists: {
+    cols: ['id','list_name','buyer','style','status','date_cols','rows_json','files_json',
+           'created_by','created_at','updated_at','completed_at','completed_by'],
+    autoFill: { created_at: 'NOW', updated_at: 'NOW' }
+  },
   // Time Scheduler — roz ka routine (sirf allowed emails)
   time_schedules: {
     cols: ['id','user_id','sch_date','start_time','end_time','title','remarks','status','created_at','completed_at'],
