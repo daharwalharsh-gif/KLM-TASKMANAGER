@@ -173,7 +173,8 @@ const SCHEMA = {
   // legal_cases.files. "pending" me bante hain, Complete par "completed".
   rate_lists: {
     cols: ['id','list_name','buyer','style','status','date_cols','rows_json','files_json',
-           'created_by','created_at','updated_at','completed_at','completed_by'],
+           'created_by','created_at','updated_at','completed_at','completed_by',
+           'kind','sheet_date','fabric','gsm'],
     autoFill: { created_at: 'NOW', updated_at: 'NOW' }
   },
   // Time Scheduler — roz ka routine (sirf allowed emails)

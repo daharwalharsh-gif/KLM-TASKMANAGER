@@ -6015,6 +6015,20 @@ app.delete('/api/leaves/:id', requireAuth, async (req, res) => {
 
 const RL_MAX_ROWS = 300;     // ek list me itni se zyada operation rows nahi
 const RL_MAX_DATES = 24;     // itne se zyada DATE column nahi
+// pg-db 45,000 akshar se badi cell ko local disk par bhej deta hai
+// (MAX_CELL_CHARS -> blobStore), jo Vercel par likhi nahi ja sakti. Utna bada
+// data kabhi DB tak pahunchne hi nahi dena — warna save chup-chaap fail hota
+// hai aur usi flush me baaki tables ke writes bhi roll back ho jaate hain.
+const RL_MAX_JSON = 40000;
+function rlTooBig(res, ...jsons) {
+  for (const j of jsons) {
+    if (String(j || '').length > RL_MAX_JSON) {
+      res.status(400).json({ error: 'This sheet is too large to save — please remove some rows, date columns or attachments.' });
+      return true;
+    }
+  }
+  return false;
+}
 
 function rlJson(v, fallback) {
   try { const p = JSON.parse(v || ''); return Array.isArray(p) ? p : fallback; }
@@ -6024,9 +6038,13 @@ function rlJson(v, fallback) {
 function rlShape(r) {
   return {
     id: r.id,
+    kind: r.kind === 'cost' ? 'cost' : 'rate',   // 'rate' = Rate List, 'cost' = Cost Sheet
     list_name: r.list_name || '',
     buyer: r.buyer || '',
     style: r.style || '',
+    sheet_date: r.sheet_date || '',
+    fabric: r.fabric || '',
+    gsm: r.gsm || '',
     status: r.status || 'pending',
     dates: rlJson(r.date_cols, []),
     rows: rlJson(r.rows_json, []),
@@ -6039,15 +6057,27 @@ function rlShape(r) {
     completed_at: r.completed_at || ''
   };
 }
-// Client se aayi grid ko saaf karo — sirf wahi fields jo hum jaante hain
-function rlCleanRows(v) {
+// Client se aayi grid ko saaf karo — sirf wahi fields jo hum jaante hain.
+// Cost Sheet ki grid alag hai: Kariger Rate / Add Cost / New Kariger Rate,
+// aur beech me "TOTAL" ki rows bhi ho sakti hain (type: 'total').
+function rlCleanRows(v, kind) {
   if (!Array.isArray(v)) return [];
+  const cut = (x, n) => String(x ?? '').slice(0, n);
+  if (kind === 'cost') {
+    return v.slice(0, RL_MAX_ROWS).map(r => ({
+      type: (r && r.type) === 'total' ? 'total' : 'item',
+      op: cut(r && r.op, 300),
+      rate: cut(r && r.rate, 40),
+      add: cut(r && r.add, 40),
+      newRate: cut(r && r.newRate, 40)
+    }));
+  }
   return v.slice(0, RL_MAX_ROWS).map(r => ({
-    op: String((r && r.op) ?? '').slice(0, 300),
-    rate: String((r && r.rate) ?? '').slice(0, 40),
+    op: cut(r && r.op, 300),
+    rate: cut(r && r.rate, 40),
     cells: (Array.isArray(r && r.cells) ? r.cells : []).slice(0, RL_MAX_DATES).map(c => ({
-      pcs: String((c && c.pcs) ?? '').slice(0, 40),
-      amount: String((c && c.amount) ?? '').slice(0, 40)
+      pcs: cut(c && c.pcs, 40),
+      amount: cut(c && c.amount, 40)
     }))
   }));
 }
@@ -6059,7 +6089,9 @@ function rlCleanFiles(v) {
   if (!Array.isArray(v)) return [];
   return v.slice(0, 40).map(f => ({
     name: String((f && f.name) ?? '').slice(0, 200),
-    link: String((f && f.link) ?? '').slice(0, 500),
+    // sirf saaf http(s) link — warna "javascript:..." jaisa link chip ke
+    // href me pahunch kar click par chal sakta hai
+    link: /^https?:\/\//i.test(String((f && f.link) ?? '')) ? String(f.link).slice(0, 500) : '',
     kind: String((f && f.kind) ?? '').slice(0, 20) === 'image' ? 'image' : 'file'
   })).filter(f => f.link);
 }
@@ -6072,13 +6104,16 @@ app.post('/api/rate-lists/upload-file', requireAuth, async (req, res) => {
     if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
     const EXT_MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
       gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', bmp: 'image/bmp' };
-    let mt = String(mimeType || '').toLowerCase();
+    let mt = String(mimeType || '').toLowerCase().split(';')[0].trim();
     if (!mt || mt === 'application/octet-stream') {
       mt = EXT_MIME[String(filename).split('.').pop().toLowerCase()] || '';
     }
-    const isImage = mt.startsWith('image/');
+    // Poori ginti — "image/*" maan lene par image/svg+xml bhi guzar jaata hai,
+    // aur SVG ke andar ki script /f/:id par isi origin me chal jaati hai.
+    const OK_IMAGE = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/heic', 'image/bmp'];
+    const isImage = OK_IMAGE.includes(mt);
     if (!isImage && mt !== 'application/pdf') {
-      return res.status(400).json({ error: 'Only image or PDF files are allowed' });
+      return res.status(400).json({ error: 'Only PNG, JPG, GIF, WEBP, HEIC, BMP images or PDF files are allowed' });
     }
     const buffer = Buffer.from(dataBase64, 'base64');
     if (!buffer.length) return res.status(400).json({ error: 'File data is empty' });
@@ -6131,14 +6166,19 @@ app.post('/api/rate-lists', requireAuth, async (req, res) => {
   try {
     const b = req.body || {};
     if (!String(b.style || '').trim()) return res.status(400).json({ error: 'Style is required' });
+    const kind = b.kind === 'cost' ? 'cost' : 'rate';
+    const jRows = JSON.stringify(rlCleanRows(b.rows, kind));
+    const jDates = JSON.stringify(rlCleanDates(b.dates));
+    const jFiles = JSON.stringify(rlCleanFiles(b.files));
+    if (rlTooBig(res, jRows, jDates, jFiles)) return;
     const now = rlNow();
     const [result] = await db.query(
       `INSERT INTO rate_lists (list_name,buyer,style,status,date_cols,rows_json,files_json,
-         created_by,created_at,updated_at,completed_at,completed_by)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+         created_by,created_at,updated_at,completed_at,completed_by,kind,sheet_date,fabric,gsm)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [String(b.list_name || '').trim(), String(b.buyer || '').trim(), String(b.style || '').trim(),
-       'pending', JSON.stringify(rlCleanDates(b.dates)), JSON.stringify(rlCleanRows(b.rows)),
-       JSON.stringify(rlCleanFiles(b.files)), req.session.userId, now, now, '', '']);
+       'pending', jDates, jRows, jFiles, req.session.userId, now, now, '', '',
+       kind, String(b.sheet_date || '').trim(), String(b.fabric || '').trim(), String(b.gsm || '').trim()]);
     res.json({ success: true, id: result && result.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -6150,12 +6190,18 @@ app.put('/api/rate-lists/:id', requireAuth, async (req, res) => {
     if (!rows || !rows[0]) return res.status(404).json({ error: 'Rate list not found' });
     const cur = rows[0], b = req.body || {};
     const pick = (k, col) => b[k] !== undefined ? String(b[k] ?? '').trim() : (cur[col] ?? '');
+    // kind kabhi badalta nahi — jo record bana tha wahi rehta hai
+    const kind = cur.kind === 'cost' ? 'cost' : 'rate';
+    const jRows = b.rows !== undefined ? JSON.stringify(rlCleanRows(b.rows, kind)) : (cur.rows_json || '[]');
+    const jDates = b.dates !== undefined ? JSON.stringify(rlCleanDates(b.dates)) : (cur.date_cols || '[]');
+    const jFiles = b.files !== undefined ? JSON.stringify(rlCleanFiles(b.files)) : (cur.files_json || '[]');
+    if (rlTooBig(res, jRows, jDates, jFiles)) return;
     await db.query(
-      `UPDATE rate_lists SET list_name=?,buyer=?,style=?,date_cols=?,rows_json=?,files_json=?,updated_at=? WHERE id=?`,
+      `UPDATE rate_lists SET list_name=?,buyer=?,style=?,date_cols=?,rows_json=?,files_json=?,
+         sheet_date=?,fabric=?,gsm=?,updated_at=? WHERE id=?`,
       [pick('list_name', 'list_name'), pick('buyer', 'buyer'), pick('style', 'style'),
-       b.dates !== undefined ? JSON.stringify(rlCleanDates(b.dates)) : (cur.date_cols || '[]'),
-       b.rows !== undefined ? JSON.stringify(rlCleanRows(b.rows)) : (cur.rows_json || '[]'),
-       b.files !== undefined ? JSON.stringify(rlCleanFiles(b.files)) : (cur.files_json || '[]'),
+       jDates, jRows, jFiles,
+       pick('sheet_date', 'sheet_date'), pick('fabric', 'fabric'), pick('gsm', 'gsm'),
        rlNow(), req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

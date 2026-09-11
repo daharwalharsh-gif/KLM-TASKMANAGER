@@ -1881,6 +1881,7 @@ tbody tr:last-child td{border-bottom:none;}
     .rl-tbl .rl-sr{text-align:center;color:#64748b;font-weight:700;width:42px}
     .rl-tbl .rl-del{width:34px;text-align:center}
     .rl-tbl tfoot td{background:#eef2ff;color:#3730a3;font-weight:800;border:1px solid #c7d2fe;padding:7px 8px}
+    .rl-tbl tr.rl-totrow td{background:#eef2ff;color:#3730a3;font-weight:800;border:1px solid #c7d2fe;padding:7px 8px}
     .rl-in{width:100%;padding:5px 7px;border:1.5px solid transparent;border-radius:6px;font-size:12.5px;
       font-family:'Inter',sans-serif;outline:none;background:transparent;color:#0f172a}
     .rl-in:hover{border-color:#e2e8f0}
@@ -1912,13 +1913,14 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="page-header">
       <h2>Master Rate List</h2>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn btn-outline btn-sm" onclick="rlNew()">➕ New Rate List</button>
+        <button class="btn btn-outline btn-sm" onclick="rlNew()" id="rlNewBtn">➕ New Rate List</button>
       </div>
     </div>
 
     <div style="display:flex;gap:8px;margin-bottom:16px">
       <div class="tab-group">
         <div class="tab active" id="rlTabForm" onclick="rlTab('form',this)">📝 Rate List</div>
+        <div class="tab" id="rlTabCost" onclick="rlTab('cost',this)">🧾 Cost Sheet</div>
         <div class="tab" id="rlTabPending" onclick="rlTab('pending',this)">⏳ Pending</div>
         <div class="tab" id="rlTabDone" onclick="rlTab('completed',this)">✅ Completed</div>
       </div>
@@ -1926,7 +1928,32 @@ tbody tr:last-child td{border-bottom:none;}
 
     <!-- ── EDITOR ── -->
     <div id="rlFormWrap">
-      <div class="rl-bar">
+      <!-- Cost Sheet ka header — Rate List se alag fields -->
+      <div class="rl-bar" id="rlCostBar" style="display:none">
+        <div><label>Date</label><input type="date" id="rlCDate" style="width:160px;padding:8px 11px;
+          border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"
+          onchange="rlSetHead('sheet_date',this.value)"></div>
+        <div><label>Buyer</label><input type="text" id="rlCBuyer" style="width:170px" placeholder="Buyer"
+          oninput="rlSetHead('buyer',this.value)"></div>
+        <div><label>Style</label><input type="text" id="rlCStyle" style="width:200px" placeholder="Style"
+          oninput="rlSetHead('style',this.value)"></div>
+        <div><label>Fabric</label><input type="text" id="rlCFabric" style="width:180px" placeholder="Fabric"
+          oninput="rlSetHead('fabric',this.value)"></div>
+        <div><label>GSM</label><input type="text" id="rlCGsm" style="width:100px" placeholder="GSM"
+          oninput="rlSetHead('gsm',this.value)"></div>
+        <div><label>Status</label><div id="rlCStatus" style="padding:6px 0"></div></div>
+        <div class="rl-acts">
+          <button class="btn btn-outline btn-sm" onclick="rlAddRow()">➕ Row</button>
+          <button class="btn btn-outline btn-sm" onclick="rlAddTotalRow()">➕ Total Row</button>
+          <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="rlPDF()">📄 PDF</button>
+          <button class="btn btn-outline btn-sm" id="rlCReopenBtn" style="display:none" onclick="rlSetStatus('pending')">↩ Move to Pending</button>
+          <button class="btn btn-outline btn-sm" id="rlCCompleteBtn" style="color:#16a34a;border-color:#bbf7d0"
+            onclick="rlSetStatus('completed')">✅ Complete</button>
+          <button class="btn btn-primary btn-sm" onclick="rlSave()">💾 Save</button>
+        </div>
+      </div>
+
+      <div class="rl-bar" id="rlRateBar">
         <div><label>Name</label><input type="text" id="rlName" style="width:190px" placeholder="Name"
           oninput="rlSetHead('list_name',this.value)"></div>
         <div><label>Buyer</label><input type="text" id="rlBuyer" style="width:190px" placeholder="Buyer"
@@ -4916,64 +4943,161 @@ function rlFmt(n) {
   const r = Math.round(n * 100) / 100;
   return r.toLocaleString('en-IN', { minimumFractionDigits: r % 1 ? 2 : 0, maximumFractionDigits: 2 });
 }
-// har row ke cells ki ginti date column ke barabar rakho
+const rlStr = v => String(v == null ? '' : v);
+// Rate List me har row ke cells ki ginti date column ke barabar rakho.
+// Cost Sheet ki rows alag hain — Kariger Rate / Add Cost / New Kariger Rate,
+// aur beech me "TOTAL" ki rows (type: 'total').
 function rlNorm(c) {
-  c.dates = Array.isArray(c.dates) ? c.dates.map(d => String(d == null ? '' : d)) : [];
+  c.kind = c.kind === 'cost' ? 'cost' : 'rate';
   c.rows = Array.isArray(c.rows) ? c.rows : [];
   c.files = Array.isArray(c.files) ? c.files : [];
+  if (c.kind === 'cost') {
+    c.dates = [];
+    c.rows.forEach(r => {
+      r.type = r.type === 'total' ? 'total' : 'item';
+      r.op = rlStr(r.op); r.rate = rlStr(r.rate);
+      r.add = rlStr(r.add); r.newRate = rlStr(r.newRate);
+    });
+    return c;
+  }
+  c.dates = Array.isArray(c.dates) ? c.dates.map(rlStr) : [];
   c.rows.forEach(r => {
     const old = Array.isArray(r.cells) ? r.cells : [];
-    r.op = String(r.op == null ? '' : r.op);
-    r.rate = String(r.rate == null ? '' : r.rate);
+    r.op = rlStr(r.op);
+    r.rate = rlStr(r.rate);
     r.cells = c.dates.map((_, j) => ({
-      pcs: String((old[j] && old[j].pcs) == null ? '' : old[j].pcs),
-      amount: String((old[j] && old[j].amount) == null ? '' : old[j].amount)
+      pcs: rlStr(old[j] && old[j].pcs),
+      amount: rlStr(old[j] && old[j].amount)
     }));
   });
   return c;
 }
-function rlNew() {
-  _rlCur = rlNorm({
-    id: null, list_name: '', buyer: '', style: '', status: 'pending',
+// Har kism ka apna khula record — tab badalne par kaam kho na jaaye
+const _rlKeep = { rate: null, cost: null };
+function rlBlank(kind) {
+  if (kind === 'cost') return rlNorm({
+    id: null, kind: 'cost', list_name: '', buyer: '', style: '',
+    sheet_date: '', fabric: '', gsm: '', status: 'pending', dates: [],
+    rows: Array.from({ length: RL_NEW_ROWS + 8 }, () => ({ type: 'item', op: '', rate: '', add: '', newRate: '' }))
+      .concat([{ type: 'total', op: '', rate: '', add: '', newRate: '' }]),
+    files: []
+  });
+  return rlNorm({
+    id: null, kind: 'rate', list_name: '', buyer: '', style: '',
+    sheet_date: '', fabric: '', gsm: '', status: 'pending',
     dates: Array.from({ length: RL_NEW_DATES }, () => ''),
     rows: Array.from({ length: RL_NEW_ROWS }, () => ({ op: '', rate: '', cells: [] })),
     files: []
   });
-  rlTab('form');
 }
-function openRateList() { if (!_rlCur) rlNew(); else rlTab(_rlView || 'form'); }
+function rlNew() {
+  const kind = _rlView === 'cost' ? 'cost' : 'rate';
+  _rlKeep[kind] = rlBlank(kind);
+  _rlCur = _rlKeep[kind];
+  rlTab(kind === 'cost' ? 'cost' : 'form');
+}
+function openRateList() { rlTab(_rlView || 'form'); }
 
 function rlTab(which, el) {
+  if (_rlCur) _rlKeep[_rlCur.kind] = _rlCur;      // jo khula tha wo sambhal lo
   _rlView = which;
   document.querySelectorAll('#page-ratelist .tab-group .tab').forEach(t => t.classList.remove('active'));
   const t = el || document.getElementById(
-    which === 'form' ? 'rlTabForm' : which === 'pending' ? 'rlTabPending' : 'rlTabDone');
+    which === 'form' ? 'rlTabForm' : which === 'cost' ? 'rlTabCost'
+      : which === 'pending' ? 'rlTabPending' : 'rlTabDone');
   if (t) t.classList.add('active');
-  const isForm = which === 'form';
-  document.getElementById('rlFormWrap').style.display = isForm ? '' : 'none';
-  document.getElementById('rlListWrap').style.display = isForm ? 'none' : '';
-  if (isForm) { if (!_rlCur) rlNew(); else rlRenderAll(); }
-  else rlLoadList(which);
+  const isCost = which === 'cost', isEditor = which === 'form' || isCost;
+  document.getElementById('rlFormWrap').style.display = isEditor ? '' : 'none';
+  document.getElementById('rlListWrap').style.display = isEditor ? 'none' : '';
+  const nb = document.getElementById('rlNewBtn');
+  if (nb) nb.textContent = isCost ? '➕ New Cost Sheet' : '➕ New Rate List';
+  if (isEditor) {
+    const kind = isCost ? 'cost' : 'rate';
+    if (!_rlKeep[kind]) _rlKeep[kind] = rlBlank(kind);
+    _rlCur = _rlKeep[kind];
+    rlRenderAll();
+  } else rlLoadList(which);
 }
 
 function rlRenderAll() { rlRenderHead(); rlRenderGrid(); rlRenderFiles(); }
 
 function rlRenderHead() {
   const c = _rlCur; if (!c) return;
-  document.getElementById('rlName').value = c.list_name || '';
-  document.getElementById('rlBuyer').value = c.buyer || '';
-  document.getElementById('rlStyle').value = c.style || '';
+  const cost = c.kind === 'cost';
+  document.getElementById('rlCostBar').style.display = cost ? '' : 'none';
+  document.getElementById('rlRateBar').style.display = cost ? 'none' : '';
+  if (cost) {
+    document.getElementById('rlCDate').value = c.sheet_date || '';
+    document.getElementById('rlCBuyer').value = c.buyer || '';
+    document.getElementById('rlCStyle').value = c.style || '';
+    document.getElementById('rlCFabric').value = c.fabric || '';
+    document.getElementById('rlCGsm').value = c.gsm || '';
+  } else {
+    document.getElementById('rlName').value = c.list_name || '';
+    document.getElementById('rlBuyer').value = c.buyer || '';
+    document.getElementById('rlStyle').value = c.style || '';
+  }
   const done = c.status === 'completed';
-  document.getElementById('rlStatus').innerHTML = c.id
+  const badge = c.id
     ? `<span class="rl-badge ${done ? 'rl-bc' : 'rl-bp'}">${done ? 'Completed' : 'Pending'}</span>`
     : '<span class="rl-badge rl-bp">Not saved yet</span>';
-  document.getElementById('rlCompleteBtn').style.display = done ? 'none' : '';
-  document.getElementById('rlReopenBtn').style.display = done ? '' : 'none';
+  document.getElementById(cost ? 'rlCStatus' : 'rlStatus').innerHTML = badge;
+  document.getElementById(cost ? 'rlCCompleteBtn' : 'rlCompleteBtn').style.display = done ? 'none' : '';
+  document.getElementById(cost ? 'rlCReopenBtn' : 'rlReopenBtn').style.display = done ? '' : 'none';
 }
 function rlSetHead(k, v) { if (_rlCur) _rlCur[k] = v; }
 
+// Cost Sheet ki TOTAL row = uske upar ki saari item rows ka jod
+function rlCostTotals(upto) {
+  const c = _rlCur, t = { rate: 0, add: 0, newRate: 0 };
+  for (let i = 0; i < upto; i++) {
+    const r = c.rows[i];
+    if (!r || r.type === 'total') continue;
+    t.rate += rlNum(r.rate); t.add += rlNum(r.add); t.newRate += rlNum(r.newRate);
+  }
+  return t;
+}
+function rlRenderCostGrid() {
+  const c = _rlCur;
+  const head = `<tr>
+      <th style="width:46px">S.NO</th>
+      <th style="min-width:300px">OPERATION</th>
+      <th style="width:110px">KARIGER RATE</th>
+      <th style="width:100px">ADD COST</th>
+      <th style="width:130px">NEW KARIGER RATE</th>
+      <th class="rl-del"></th></tr>`;
+  let sr = 0;
+  const body = c.rows.map((r, i) => {
+    if (r.type === 'total') {
+      const t = rlCostTotals(i);
+      return `<tr class="rl-totrow">
+        <td></td><td style="text-align:center">TOTAL</td>
+        <td class="rl-num" id="rlCT${i}r">${rlFmt(t.rate)}</td>
+        <td class="rl-num" id="rlCT${i}a">${rlFmt(t.add)}</td>
+        <td class="rl-num" id="rlCT${i}n">${rlFmt(t.newRate)}</td>
+        <td class="rl-del"><button class="rl-x" title="Remove this total row" onclick="rlDelRow(${i})">✕</button></td>
+      </tr>`;
+    }
+    sr++;
+    return `<tr>
+      <td class="rl-sr">${sr}</td>
+      <td><input class="rl-in rl-op" value="${escapeHtml(r.op)}" placeholder="Operation"
+        oninput="rlSetCellVal(${i},null,'op',this.value)"></td>
+      <td><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(r.rate)}"
+        oninput="rlSetCellVal(${i},null,'rate',this.value)"></td>
+      <td><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(r.add)}"
+        oninput="rlSetCellVal(${i},null,'add',this.value)"></td>
+      <td><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(r.newRate)}"
+        oninput="rlSetCellVal(${i},null,'newRate',this.value)"></td>
+      <td class="rl-del"><button class="rl-x" title="Remove this row" onclick="rlDelRow(${i})">✕</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('rlGrid').innerHTML =
+    `<table class="rl-tbl"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
 function rlRenderGrid() {
   const c = _rlCur; if (!c) return;
+  if (c.kind === 'cost') return rlRenderCostGrid();
   const head1 = `<tr>
       <th rowspan="2" style="width:42px">S.NO</th>
       <th rowspan="2" style="min-width:240px">OPERATION</th>
@@ -5025,6 +5149,15 @@ function rlSetDate(j, v) { if (_rlCur) _rlCur.dates[j] = v; }
 
 function rlUpdateTotals() {
   const c = _rlCur; if (!c) return;
+  if (c.kind === 'cost') {
+    c.rows.forEach((r, i) => {
+      if (r.type !== 'total') return;
+      const t = rlCostTotals(i);
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = rlFmt(v); };
+      set('rlCT' + i + 'r', t.rate); set('rlCT' + i + 'a', t.add); set('rlCT' + i + 'n', t.newRate);
+    });
+    return;
+  }
   const tr = document.getElementById('rlTotRate');
   if (tr) tr.textContent = rlFmt(c.rows.reduce((a, r) => a + rlNum(r.rate), 0));
   c.dates.forEach((_, j) => {
@@ -5036,15 +5169,26 @@ function rlUpdateTotals() {
 
 function rlAddRow() {
   if (!_rlCur) return;
-  if (_rlCur.rows.length >= 300) return showToast('A rate list can hold up to 300 rows', 'error');
-  _rlCur.rows.push({ op: '', rate: '', cells: _rlCur.dates.map(() => ({ pcs: '', amount: '' })) });
+  if (_rlCur.rows.length >= 300) return showToast('This sheet can hold up to 300 rows', 'error');
+  _rlCur.rows.push(_rlCur.kind === 'cost'
+    ? { type: 'item', op: '', rate: '', add: '', newRate: '' }
+    : { op: '', rate: '', cells: _rlCur.dates.map(() => ({ pcs: '', amount: '' })) });
+  rlRenderGrid();
+}
+// TOTAL ki row — apne upar ki saari rows ka jod dikhati hai
+function rlAddTotalRow() {
+  if (!_rlCur || _rlCur.kind !== 'cost') return;
+  if (_rlCur.rows.length >= 300) return showToast('This sheet can hold up to 300 rows', 'error');
+  _rlCur.rows.push({ type: 'total', op: '', rate: '', add: '', newRate: '' });
   rlRenderGrid();
 }
 function rlDelRow(i) {
   if (!_rlCur || !_rlCur.rows[i]) return;
   const r = _rlCur.rows[i];
+  if (r.type === 'total') { _rlCur.rows.splice(i, 1); rlRenderGrid(); return; }
   const filled = String(r.op || '').trim() || String(r.rate || '').trim() ||
-    r.cells.some(c => String(c.pcs || '').trim() || String(c.amount || '').trim());
+    String(r.add || '').trim() || String(r.newRate || '').trim() ||
+    (r.cells || []).some(c => String(c.pcs || '').trim() || String(c.amount || '').trim());
   if (filled && !confirm('Remove this row? It still has data in it.')) return;
   _rlCur.rows.splice(i, 1);
   rlRenderGrid();
@@ -5088,6 +5232,7 @@ async function rlUpload() {
   const err = document.getElementById('rlErr');
   const files = [...(input.files || [])];
   if (!files.length || !_rlCur) return;
+  const rec = _rlCur;   // upload ke beech me user doosra record khol sakta hai
   err.style.display = 'none';
   let ok = 0;
   for (const file of files) {
@@ -5105,11 +5250,11 @@ async function rlUpload() {
     const r = await api('/api/rate-lists/upload-file', 'POST',
       { filename: file.name, mimeType: file.type || '', dataBase64: b64 });
     if (!r || r.error) { bad((r && r.error) || 'upload failed'); continue; }
-    _rlCur.files.push({ name: file.name, link: r.link, kind: r.kind || 'file' });
+    rec.files.push({ name: file.name, link: r.link, kind: r.kind || 'file' });
     ok++;
   }
   input.value = '';
-  rlRenderFiles();
+  if (rec === _rlCur) rlRenderFiles();
   if (ok) showToast(`📎 ${ok} file(s) attached — press Save to keep them`, 'success');
 }
 
@@ -5117,8 +5262,14 @@ async function rlUpload() {
 async function rlSave() {
   const c = _rlCur; if (!c || _rlSaving) return false;
   if (!String(c.style || '').trim()) { showToast('Style is required', 'error'); return false; }
+  const size = JSON.stringify(c.rows).length + JSON.stringify(c.files).length;
+  if (size > 38000) {
+    showToast('This sheet is too large to save — please remove some rows, date columns or attachments', 'error');
+    return false;
+  }
   _rlSaving = true;
-  const payload = { list_name: c.list_name, buyer: c.buyer, style: c.style,
+  const payload = { kind: c.kind, list_name: c.list_name, buyer: c.buyer, style: c.style,
+    sheet_date: c.sheet_date || '', fabric: c.fabric || '', gsm: c.gsm || '',
     dates: c.dates, rows: c.rows, files: c.files };
   const r = c.id ? await api('/api/rate-lists/' + c.id, 'PUT', payload)
                  : await api('/api/rate-lists', 'POST', payload);
@@ -5126,16 +5277,17 @@ async function rlSave() {
   if (!r || r.error) { showToast((r && r.error) || 'Could not save the rate list', 'error'); return false; }
   if (!c.id && r.id) c.id = r.id;
   rlRenderHead();
-  showToast('💾 Rate list saved', 'success');
+  showToast(c.kind === 'cost' ? '💾 Cost sheet saved' : '💾 Rate list saved', 'success');
   return true;
 }
 async function rlSetStatus(st) {
   const c = _rlCur; if (!c) return;
   if (!(await rlSave())) return;            // pehle jo likha hai wo bach jaaye
-  const r = await api('/api/rate-lists/' + _rlCur.id + '/status', 'POST', { status: st });
+  if (!c.id) return showToast('Could not save this sheet — please try again', 'error');
+  const r = await api('/api/rate-lists/' + c.id + '/status', 'POST', { status: st });
   if (!r || r.error) return showToast((r && r.error) || 'Could not change the status', 'error');
-  _rlCur.status = st;
-  _rlExpectId = _rlCur.id;
+  c.status = st;
+  _rlExpectId = c.id;
   if (st === 'completed') { showToast('✅ Moved to Completed', 'success'); rlTab('completed'); }
   else { showToast('↩ Moved back to Pending', 'success'); rlRenderHead(); }
 }
@@ -5160,16 +5312,20 @@ async function rlLoadList(which) {
   }
   box.innerHTML = `<div class="rl-wrap"><table class="rl-tbl" style="font-size:13px">
     <thead><tr>
-      <th style="width:44px">#</th><th style="text-align:left">Name</th><th style="text-align:left">Buyer</th>
-      <th style="text-align:left">Style</th><th style="width:90px">Operations</th><th style="width:100px">Total Rate</th>
+      <th style="width:44px">#</th><th style="width:104px">Type</th>
+      <th style="text-align:left">Name</th><th style="text-align:left">Buyer</th>
+      <th style="text-align:left">Style</th><th style="width:90px">Operations</th><th style="width:100px">Total</th>
       <th style="width:90px">Files</th><th style="text-align:left">Created by</th>
       <th style="text-align:left;width:140px">Updated</th><th style="width:96px">Action</th>
     </tr></thead><tbody>` +
     list.map((x, i) => {
-      const tot = (x.rows || []).reduce((a, r) => a + rlNum(r.rate), 0);
-      const ops = (x.rows || []).filter(r => String(r.op || '').trim()).length;
+      const cost = x.kind === 'cost';
+      const items = (x.rows || []).filter(r => r.type !== 'total');
+      const tot = items.reduce((a, r) => a + rlNum(cost ? r.newRate : r.rate), 0);
+      const ops = items.filter(r => String(r.op || '').trim()).length;
       return `<tr>
         <td class="rl-sr">${i + 1}</td>
+        <td style="text-align:center"><span class="rl-badge" style="background:${cost ? '#ede9fe' : '#e0f2fe'};color:${cost ? '#5b21b6' : '#075985'}">${cost ? 'Cost Sheet' : 'Rate List'}</span></td>
         <td style="padding:9px 10px">${escapeHtml(x.list_name) || '—'}</td>
         <td style="padding:9px 10px">${escapeHtml(x.buyer) || '—'}</td>
         <td style="padding:9px 10px"><b>${escapeHtml(x.style) || '—'}</b></td>
@@ -5189,21 +5345,72 @@ async function rlOpen(id, want) {
     await new Promise(x => setTimeout(x, 1200));
     r = await api('/api/rate-lists/' + id);
   }
-  if (!r || r.error) return showToast((r && r.error) || 'Could not open this rate list', 'error');
-  _rlCur = rlNorm(r);
-  rlTab('form');
+  if (!r || r.error) return showToast((r && r.error) || 'Could not open this sheet', 'error');
+  const rec = rlNorm(r);
+  _rlKeep[rec.kind] = rec;
+  _rlCur = rec;
+  rlTab(rec.kind === 'cost' ? 'cost' : 'form');
 }
 
 // ── PDF ──
+function rlCostPDF() {
+  const c = _rlCur;
+  const now = new Date();
+  const stamp = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()} ` +
+    `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const dt = d => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || "")); return m ? m[3] + "-" + m[2] + "-" + m[1] : (d || ""); };
+  let sr = 0;
+  const body = c.rows.map((r, i) => {
+    if (r.type === "total") {
+      const t = rlCostTotals(i);
+      return `<tr class="tot"><td></td><td>TOTAL</td><td>${rlFmt(t.rate)}</td><td>${rlFmt(t.add)}</td><td>${rlFmt(t.newRate)}</td></tr>`;
+    }
+    if (!String(r.op || "").trim() && !String(r.rate || "").trim()) return "";
+    sr++;
+    return `<tr><td>${sr}</td><td class="op">${escapeHtml(r.op)}</td><td>${escapeHtml(r.rate)}</td><td>${escapeHtml(r.add)}</td><td>${escapeHtml(r.newRate)}</td></tr>`;
+  }).join("");
+  const imgs = c.files.filter(f => f.kind === "image");
+  const pdfs = c.files.filter(f => f.kind !== "image");
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>KLM Task Manager — Cost Sheet</title><style>
+    @page { size: A4 portrait; margin: 10mm; }
+    *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:0;font-size:11px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #334155;padding:4px 6px;text-align:center}
+    th{background:#f1f5f9;font-size:10px}
+    td.op{text-align:left}
+    tr.tot td{background:#f1f5f9;font-weight:bold}
+    .hd td{font-weight:bold;text-align:left}
+    .imgs{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+    .imgs img{width:120px;height:120px;object-fit:cover;border:1px solid #cbd5e1;border-radius:4px}
+    .foot{margin-top:10px;font-size:9px;color:#94a3b8;text-align:center}
+  </style></head><body>
+  <table>
+    <tr class="hd"><td colspan="3" style="text-align:center;font-size:14px">COST SHEET</td><td colspan="2">DATE- ${escapeHtml(dt(c.sheet_date)) || "—"}</td></tr>
+    <tr class="hd"><td colspan="3">BUYER- ${escapeHtml(c.buyer) || "—"}</td><td>${escapeHtml(c.fabric) || "—"}</td><td>${escapeHtml(c.gsm) || "—"}</td></tr>
+    <tr class="hd"><td colspan="2">STYLE- ${escapeHtml(c.style) || "—"}</td><td>KARIGER RATE</td><td>ADD COST</td><td>NEW KARIGER RATE</td></tr>
+    ${body}
+  </table>
+  ${imgs.length ? `<div class="imgs">${imgs.map(f => `<img src="${escapeHtml(f.link)}">`).join("")}</div>` : ""}
+  ${pdfs.length ? `<div style="margin-top:8px;font-size:10px;color:#64748b">Attached PDF: ${pdfs.map(f => escapeHtml(f.name)).join(", ")}</div>` : ""}
+  <div class="foot">KLM Task Manager · ${stamp}</div>
+  </body></html>`;
+  const w = window.open("", "_blank");
+  if (!w) return showToast("Popup blocked — please allow popups", "error");
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 600);
+}
 function rlPDF() {
   const c = _rlCur;
   if (!c) return showToast('Nothing to print', 'error');
+  if (c.kind === 'cost') return rlCostPDF();
   const now = new Date();
   const stamp = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()} ` +
     `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const dt = d => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || '')); return m ? `${m[3]}-${m[2]}-${m[1]}` : (d || ''); };
+  // TOTAL wahi rows gine jo PDF me chhap rahi hain, warna chhapa hua jod
+  // dikhayi de rahi rows se mel nahi khata
   const rows = c.rows.filter(r => String(r.op || '').trim() || String(r.rate || '').trim());
-  const totRate = rlFmt(c.rows.reduce((a, r) => a + rlNum(r.rate), 0));
+  const totRate = rlFmt(rows.reduce((a, r) => a + rlNum(r.rate), 0));
   const imgs = c.files.filter(f => f.kind === 'image');
   const pdfs = c.files.filter(f => f.kind !== 'image');
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>KLM Task Manager — Master Rate List</title><style>
@@ -5241,8 +5448,8 @@ function rlPDF() {
         return `<td>${escapeHtml(cell.pcs || '')}</td><td>${escapeHtml(cell.amount || '')}</td>`;
       }).join('') + '</tr>').join('')}</tbody>
     <tfoot><tr><td></td><td class="op">TOTAL</td><td>${totRate}</td>` +
-      c.dates.map((_, j) => `<td>${rlFmt(c.rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).pcs), 0))}</td>` +
-        `<td>${rlFmt(c.rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).amount), 0))}</td>`).join('') +
+      c.dates.map((_, j) => `<td>${rlFmt(rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).pcs), 0))}</td>` +
+        `<td>${rlFmt(rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).amount), 0))}</td>`).join('') +
     `</tr></tfoot>
   </table>
   ${imgs.length ? `<div class="imgs">${imgs.map(f => `<img src="${escapeHtml(f.link)}">`).join('')}</div>` : ''}
