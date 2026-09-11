@@ -1913,6 +1913,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="page-header">
       <h2>Master Rate List</h2>
       <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-outline btn-sm" onclick="rlRefresh()">🔄 Refresh</button>
         <button class="btn btn-outline btn-sm" onclick="rlNew()" id="rlNewBtn">➕ New Rate List</button>
       </div>
     </div>
@@ -4927,10 +4928,40 @@ let _rlView = 'form';
 let _rlCur = null;       // abhi editor me khula record
 let _rlList = [];
 let _rlSaving = false;
-// Abhi jis record ka status badla hai. Vercel par likhne ke turant baad padhne
-// par pg-db ki purani copy mil sakti hai (GET ka reload TTL ~3 second), isliye
-// list me ye record dikhne tak thoda ruk kar dobara poochte hain.
-let _rlExpectId = null;
+// Saari sheets ek hi baar server se aati hain aur yahin rehti hain. Pending /
+// Completed tab badalne par dobara call nahi jaati, aur Edit bhi isi copy se
+// khulta hai — isliye kahin "Loading…" nahi dikhta.
+// Save ya Complete ke baad hum khud yahi copy sudhar dete hain, isliye Vercel
+// ke ~3 second wale purane-data ka intezaar bhi nahi karna padta.
+let _rlCache = null;
+let _rlFetching = null;
+async function rlEnsure(force) {
+  if (_rlCache && !force) return _rlCache;
+  if (_rlFetching && !force) return _rlFetching;
+  _rlFetching = (async () => {
+    const list = await api('/api/rate-lists');
+    if (Array.isArray(list)) _rlCache = list;
+    _rlFetching = null;
+    return _rlCache;
+  })();
+  return _rlFetching;
+}
+const rlCopy = x => rlNorm(JSON.parse(JSON.stringify(x)));
+// save/complete ke baad cache ko wahi bana do jo abhi screen par hai
+function rlCacheSet(rec) {
+  if (!_rlCache || !rec || !rec.id) return;
+  const copy = JSON.parse(JSON.stringify(rec));
+  const i = _rlCache.findIndex(x => String(x.id) === String(rec.id));
+  if (i >= 0) _rlCache[i] = Object.assign({}, _rlCache[i], copy);
+  else _rlCache.unshift(copy);
+}
+// dobara laane ka button
+async function rlRefresh() {
+  _rlCache = null;
+  await rlEnsure(true);
+  if (_rlView === 'pending' || _rlView === 'completed') rlLoadList(_rlView);
+  showToast('🔄 Refreshed', 'success');
+}
 const RL_NEW_ROWS = 12;  // naye record me itni khaali operation rows
 const RL_NEW_DATES = 6;  // aur itne DATE column
 
@@ -5259,7 +5290,7 @@ async function rlUpload() {
 }
 
 // ── Save / status ──
-async function rlSave() {
+async function rlSave(newStatus) {
   const c = _rlCur; if (!c || _rlSaving) return false;
   if (!String(c.style || '').trim()) { showToast('Style is required', 'error'); return false; }
   const size = JSON.stringify(c.rows).length + JSON.stringify(c.files).length;
@@ -5271,23 +5302,35 @@ async function rlSave() {
   const payload = { kind: c.kind, list_name: c.list_name, buyer: c.buyer, style: c.style,
     sheet_date: c.sheet_date || '', fabric: c.fabric || '', gsm: c.gsm || '',
     dates: c.dates, rows: c.rows, files: c.files };
+  if (newStatus) payload.status = newStatus;   // Save aur Complete ek hi call me
   const r = c.id ? await api('/api/rate-lists/' + c.id, 'PUT', payload)
                  : await api('/api/rate-lists', 'POST', payload);
   _rlSaving = false;
   if (!r || r.error) { showToast((r && r.error) || 'Could not save the rate list', 'error'); return false; }
   if (!c.id && r.id) c.id = r.id;
+  if (!c.created_at) c.created_at = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  c.updated_at = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  if (!c.createdByName && window.ME) c.createdByName = ME.name || '';
+  rlCacheSet(c);
   rlRenderHead();
   showToast(c.kind === 'cost' ? '💾 Cost sheet saved' : '💾 Rate list saved', 'success');
   return true;
 }
 async function rlSetStatus(st) {
   const c = _rlCur; if (!c) return;
-  if (!(await rlSave())) return;            // pehle jo likha hai wo bach jaaye
+  const isNew = !c.id;
+  // Naya record pehle banana padta hai (POST), uske baad ek hi PUT me
+  // likha hua data + status dono chale jaate hain
+  if (!(await rlSave(isNew ? null : st))) return;
   if (!c.id) return showToast('Could not save this sheet — please try again', 'error');
-  const r = await api('/api/rate-lists/' + c.id + '/status', 'POST', { status: st });
-  if (!r || r.error) return showToast((r && r.error) || 'Could not change the status', 'error');
+  if (isNew) {
+    const r = await api('/api/rate-lists/' + c.id + '/status', 'POST', { status: st });
+    if (!r || r.error) return showToast((r && r.error) || 'Could not change the status', 'error');
+  }
   c.status = st;
-  _rlExpectId = c.id;
+  c.updated_at = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  await rlEnsure();          // poori list paas me aa jaaye
+  rlCacheSet(c);             // phir usme apna record sach ke hisaab se sudhaar do
   if (st === 'completed') { showToast('✅ Moved to Completed', 'success'); rlTab('completed'); }
   else { showToast('↩ Moved back to Pending', 'success'); rlRenderHead(); }
 }
@@ -5295,19 +5338,15 @@ async function rlSetStatus(st) {
 // ── Pending / Completed list ──
 async function rlLoadList(which) {
   const box = document.getElementById('rlListWrap');
-  box.innerHTML = '<div class="rl-empty">Loading…</div>';
-  const want = _rlExpectId; _rlExpectId = null;
-  const ask = () => api('/api/rate-lists?status=' + which);
-  let list = await ask();
-  const missing = () => want && Array.isArray(list) && !list.some(x => String(x.id) === String(want));
-  for (let i = 0; i < 4 && missing(); i++) {
-    await new Promise(r => setTimeout(r, 1200));
-    list = await ask();
-  }
-  if (!Array.isArray(list)) { box.innerHTML = '<div class="rl-empty">Could not load the rate lists.</div>'; return; }
+  if (!_rlCache) box.innerHTML = '<div class="rl-empty">Loading…</div>';
+  const all = await rlEnsure();
+  if (!Array.isArray(all)) { box.innerHTML = '<div class="rl-empty">Could not load the sheets.</div>'; return; }
+  if (_rlView !== which) return;              // beech me tab badal gaya
+  const list = all.filter(x => (x.status || 'pending') === which)
+    .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
   _rlList = list;
   if (!list.length) {
-    box.innerHTML = `<div class="rl-empty">No ${which === 'pending' ? 'pending' : 'completed'} rate lists yet.</div>`;
+    box.innerHTML = `<div class="rl-empty">No ${which === 'pending' ? 'pending' : 'completed'} sheets yet.</div>`;
     return;
   }
   box.innerHTML = `<div class="rl-wrap"><table class="rl-tbl" style="font-size:13px">
@@ -5335,18 +5374,17 @@ async function rlLoadList(which) {
         <td style="padding:9px 10px">${escapeHtml(x.createdByName || '') || '—'}</td>
         <td style="padding:9px 10px;white-space:nowrap">${escapeHtml(String(x.updated_at || '').slice(0, 16))}</td>
         <td style="text-align:center"><button class="btn btn-outline btn-sm"
-          onclick="rlOpen(${x.id},'${which}')">✏️ Edit</button></td>
+          onclick="rlOpen(${x.id})">✏️ Edit</button></td>
       </tr>`;
     }).join('') + '</tbody></table></div>';
 }
-async function rlOpen(id, want) {
-  let r = await api('/api/rate-lists/' + id);
-  for (let i = 0; i < 4 && want && r && !r.error && r.status !== want; i++) {
-    await new Promise(x => setTimeout(x, 1200));
-    r = await api('/api/rate-lists/' + id);
-  }
+async function rlOpen(id) {
+  // list wali call poora record laati hai, isliye Edit par dobara server
+  // nahi poochte — turant khul jaata hai
+  let r = (_rlCache || []).find(x => String(x.id) === String(id));
+  if (!r) r = await api('/api/rate-lists/' + id);
   if (!r || r.error) return showToast((r && r.error) || 'Could not open this sheet', 'error');
-  const rec = rlNorm(r);
+  const rec = rlCopy(r);
   _rlKeep[rec.kind] = rec;
   _rlCur = rec;
   rlTab(rec.kind === 'cost' ? 'cost' : 'form');

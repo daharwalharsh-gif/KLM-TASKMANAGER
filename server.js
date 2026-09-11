@@ -6196,14 +6196,22 @@ app.put('/api/rate-lists/:id', requireAuth, async (req, res) => {
     const jDates = b.dates !== undefined ? JSON.stringify(rlCleanDates(b.dates)) : (cur.date_cols || '[]');
     const jFiles = b.files !== undefined ? JSON.stringify(rlCleanFiles(b.files)) : (cur.files_json || '[]');
     if (rlTooBig(res, jRows, jDates, jFiles)) return;
+    // status yahin bhi badal sakta hai — Complete dabane par Save aur status
+    // do alag call na jaayein (har write app se saari tables dobara padhwata hai)
+    const st = String(b.status || '').trim();
+    const newStatus = (st === 'pending' || st === 'completed') ? st : (cur.status || 'pending');
+    const now = rlNow();
     await db.query(
       `UPDATE rate_lists SET list_name=?,buyer=?,style=?,date_cols=?,rows_json=?,files_json=?,
-         sheet_date=?,fabric=?,gsm=?,updated_at=? WHERE id=?`,
+         sheet_date=?,fabric=?,gsm=?,status=?,completed_at=?,completed_by=?,updated_at=? WHERE id=?`,
       [pick('list_name', 'list_name'), pick('buyer', 'buyer'), pick('style', 'style'),
        jDates, jRows, jFiles,
        pick('sheet_date', 'sheet_date'), pick('fabric', 'fabric'), pick('gsm', 'gsm'),
-       rlNow(), req.params.id]);
-    res.json({ success: true });
+       newStatus,
+       newStatus === 'completed' ? (cur.completed_at || now) : '',
+       newStatus === 'completed' ? (cur.completed_by || String(req.session.userId)) : '',
+       now, req.params.id]);
+    res.json({ success: true, status: newStatus });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
