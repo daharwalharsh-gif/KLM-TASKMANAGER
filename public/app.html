@@ -4900,6 +4900,10 @@ let _rlView = 'form';
 let _rlCur = null;       // abhi editor me khula record
 let _rlList = [];
 let _rlSaving = false;
+// Abhi jis record ka status badla hai. Vercel par likhne ke turant baad padhne
+// par pg-db ki purani copy mil sakti hai (GET ka reload TTL ~3 second), isliye
+// list me ye record dikhne tak thoda ruk kar dobara poochte hain.
+let _rlExpectId = null;
 const RL_NEW_ROWS = 12;  // naye record me itni khaali operation rows
 const RL_NEW_DATES = 6;  // aur itne DATE column
 
@@ -5131,6 +5135,7 @@ async function rlSetStatus(st) {
   const r = await api('/api/rate-lists/' + _rlCur.id + '/status', 'POST', { status: st });
   if (!r || r.error) return showToast((r && r.error) || 'Could not change the status', 'error');
   _rlCur.status = st;
+  _rlExpectId = _rlCur.id;
   if (st === 'completed') { showToast('✅ Moved to Completed', 'success'); rlTab('completed'); }
   else { showToast('↩ Moved back to Pending', 'success'); rlRenderHead(); }
 }
@@ -5139,7 +5144,14 @@ async function rlSetStatus(st) {
 async function rlLoadList(which) {
   const box = document.getElementById('rlListWrap');
   box.innerHTML = '<div class="rl-empty">Loading…</div>';
-  const list = await api('/api/rate-lists?status=' + which);
+  const want = _rlExpectId; _rlExpectId = null;
+  const ask = () => api('/api/rate-lists?status=' + which);
+  let list = await ask();
+  const missing = () => want && Array.isArray(list) && !list.some(x => String(x.id) === String(want));
+  for (let i = 0; i < 4 && missing(); i++) {
+    await new Promise(r => setTimeout(r, 1200));
+    list = await ask();
+  }
   if (!Array.isArray(list)) { box.innerHTML = '<div class="rl-empty">Could not load the rate lists.</div>'; return; }
   _rlList = list;
   if (!list.length) {
