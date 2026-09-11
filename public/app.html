@@ -5178,12 +5178,17 @@ async function rlLoadList(which) {
         <td style="text-align:center">${(x.files || []).length || '—'}</td>
         <td style="padding:9px 10px">${escapeHtml(x.createdByName || '') || '—'}</td>
         <td style="padding:9px 10px;white-space:nowrap">${escapeHtml(String(x.updated_at || '').slice(0, 16))}</td>
-        <td style="text-align:center"><button class="btn btn-outline btn-sm" onclick="rlOpen(${x.id})">✏️ Edit</button></td>
+        <td style="text-align:center"><button class="btn btn-outline btn-sm"
+          onclick="rlOpen(${x.id},'${which}')">✏️ Edit</button></td>
       </tr>`;
     }).join('') + '</tbody></table></div>';
 }
-async function rlOpen(id) {
-  const r = await api('/api/rate-lists/' + id);
+async function rlOpen(id, want) {
+  let r = await api('/api/rate-lists/' + id);
+  for (let i = 0; i < 4 && want && r && !r.error && r.status !== want; i++) {
+    await new Promise(x => setTimeout(x, 1200));
+    r = await api('/api/rate-lists/' + id);
+  }
   if (!r || r.error) return showToast((r && r.error) || 'Could not open this rate list', 'error');
   _rlCur = rlNorm(r);
   rlTab('form');
