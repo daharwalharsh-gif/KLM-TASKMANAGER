@@ -4097,12 +4097,10 @@ async function init() {
     else loadDashboard();
     buildMobileNav();
     setTimeout(checkHolidayNotice, 1200);   // app khulte hi holiday notice
-    loadApprovalBadge();
-    loadTransferBadge();
+    loadApprovalBadge();   // ye khud transfer badge bhi refresh karta hai
     loadNotifications();
     // Refresh badges every 30 seconds
     setInterval(loadApprovalBadge, 30000);
-    setInterval(loadTransferBadge, 30000);
     setInterval(loadNotifications, 60000);
     setInterval(syncBottomNav, 30000);
   } catch(e) { console.error('Init error:', e); window.location.replace('/'); }
@@ -6798,6 +6796,11 @@ async function loadDashboard() {
   const baseUrl = (isAdmin || isHod || isPC)
     ? `/api/dashboard?employee=${empVal}${hodParam}${dateParams}&taskType=`
     : `/api/dashboard?taskType=`;
+  // Ye dono kisi aur call ka intezaar nahi karte — saath hi chhod do,
+  // warna ye sabse ant me chalte the aur screen 9 second tak khaali rehti thi
+  loadDashFMS();
+  loadDashPerf();
+
   const [dDel, dChl] = await Promise.all([
     api(baseUrl + 'delegation'),
     api(baseUrl + 'checklist')
@@ -6829,14 +6832,17 @@ async function loadDashboard() {
       // Smart dropdown: sirf pending wale users
       await refreshPCEmployeeDropdown();
     } else if (empFilter.options.length <= 1) {
-      const users = await api('/api/users');
-      const filtered = isHod
-        ? users.filter(u => u.department === ME.department)
-        : users;
-      filtered.forEach(u => {
-        const opt = document.createElement('option');
-        opt.value = u.id; opt.textContent = (u.title ? u.title + ' ' : '') + titleName(u.name);
-        empFilter.appendChild(opt);
+      // dropdown background me bharega — iske liye baaki dashboard rukta nahi
+      api('/api/users').then(users => {
+        if (!Array.isArray(users) || empFilter.options.length > 1) return;
+        const filtered = isHod
+          ? users.filter(u => u.department === ME.department)
+          : users;
+        filtered.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u.id; opt.textContent = (u.title ? u.title + ' ' : '') + titleName(u.name);
+          empFilter.appendChild(opt);
+        });
       });
     }
 
@@ -6875,9 +6881,7 @@ async function loadDashboard() {
   // Keep sort state across reloads (don't reset)
   renderDashTable(allTodayPending, dashType);
 
-  // Load FMS section — respects same employee filter
-  loadDashFMS();
-  loadDashPerf();   // Performance & Activity (Checklist + Delegation)
+  // loadDashFMS() aur loadDashPerf() upar hi chhod diye gaye hain
 }
 
 // PC: date range change → refresh dropdown then dashboard
