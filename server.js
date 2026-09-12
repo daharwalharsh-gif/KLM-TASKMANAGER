@@ -6215,6 +6215,22 @@ app.put('/api/rate-lists/:id', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Delete — sirf admin, ya jisne khud banayi thi ──
+// Attachment (image/PDF) fms_files me padi rehti hain; unhe chhedte nahi,
+// kyunki wo wapas nahi aayengi aur kisi aur jagah bhi lagi ho sakti hain.
+app.delete('/api/rate-lists/:id', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM rate_lists WHERE id=?', [req.params.id]);
+    if (!rows || !rows[0]) return res.status(404).json({ error: 'Sheet not found' });
+    const mine = String(rows[0].created_by || '') === String(req.session.userId);
+    if (req.session.role !== 'admin' && !mine) {
+      return res.status(403).json({ error: 'Only an admin or the person who created this sheet can delete it' });
+    }
+    await db.query('DELETE FROM rate_lists WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── Complete / wapas Pending ──
 app.post('/api/rate-lists/:id/status', requireAuth, async (req, res) => {
   try {
