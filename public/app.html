@@ -1946,6 +1946,12 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="rl-acts">
           <button class="btn btn-outline btn-sm" onclick="rlAddRow()">➕ Row</button>
           <button class="btn btn-outline btn-sm" onclick="rlAddTotalRow()">➕ Total Row</button>
+          <button class="btn btn-outline btn-sm" title="Download a blank CSV in the right format"
+            onclick="rlCostSampleCSV()">📄 Sample CSV</button>
+          <input type="file" id="rlCostCsvInput" accept=".csv,text/csv" style="display:none"
+            onchange="rlCostUploadCSV(this)">
+          <button class="btn btn-outline btn-sm" title="Fill this sheet from a CSV"
+            onclick="document.getElementById('rlCostCsvInput').click()">⬆ Upload CSV</button>
           <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="rlPDF()">📄 PDF</button>
           <button class="btn btn-outline btn-sm" id="rlCReopenBtn" style="display:none" onclick="rlSetStatus('pending')">↩ Move to Pending</button>
           <button class="btn btn-outline btn-sm" id="rlCCompleteBtn" style="color:#16a34a;border-color:#bbf7d0"
@@ -5325,6 +5331,91 @@ function rlDelDate(j) {
   _rlCur.dates.splice(j, 1);
   _rlCur.rows.forEach(r => r.cells.splice(j, 1));
   rlRenderGrid();
+}
+
+// ── CSV — Cost Sheet seedha CSV se bhar sakein ──
+// Sample CSV me wahi column hain jo sheet me dikhte hain. TOTAL ki row
+// chahiye to OPERATION me bas "TOTAL" likh dijiye.
+function rlCostSampleCSV() {
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [
+    ['S.NO', 'OPERATION', 'KARIGER RATE', 'ADD COST', 'NEW KARIGER RATE'],
+    ['1', 'SIDE POCKET MARKING', '1', '0.5', '1.50'],
+    ['2', 'POCKET ZIP ATTACH AND BONE MAKING', '7', '', '7.00'],
+    ['3', 'POCKET OVERLOCK', '1.5', '', '1.50'],
+    ['', 'TOTAL', '', '', '']
+  ].map(r => r.map(q).join(','));
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Cost-Sheet-Sample.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast('📄 Sample CSV downloaded', 'success');
+}
+// Comma aur quote dono sambhalta hai ("A, B" jaisa naam bhi theek padhta hai)
+function rlParseCSV(text) {
+  const out = []; let row = [], cur = '', q = false;
+  const t = String(text || '').replace(/^\ufeff/, '');
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) {
+      if (c === '"') { if (t[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+      else cur += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { row.push(cur); cur = ''; }
+    else if (c === '\n') { row.push(cur); out.push(row); row = []; cur = ''; }
+    else if (c !== '\r') cur += c;
+  }
+  if (cur !== '' || row.length) { row.push(cur); out.push(row); }
+  return out.filter(r => r.some(x => String(x).trim() !== ''));
+}
+async function rlCostUploadCSV(input) {
+  const file = (input.files || [])[0];
+  input.value = '';
+  if (!file) return;
+  if (!_rlCur || _rlCur.kind !== 'cost') return showToast('Open the Cost Sheet tab first', 'error');
+  if (file.size > 2 * 1024 * 1024) return showToast('That CSV is larger than 2MB', 'error');
+  let text;
+  try { text = await file.text(); } catch (e) { return showToast('Could not read that file', 'error'); }
+  const rows = rlParseCSV(text);
+  if (!rows.length) return showToast('That CSV is empty', 'error');
+
+  // Column kahan hai — naam se dhoondo; naam na mile to ginti ke hisaab se
+  const norm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/[^a-z]/g, '');
+  const head = rows[0].map(norm);
+  const at = (...names) => head.findIndex(h => names.indexOf(h) >= 0);
+  let iOp = at('operation', 'operationname'), start = 1;
+  let iRate = at('karigerrate', 'karigarrate', 'rate'),
+      iAdd = at('addcost', 'add'),
+      iNew = at('newkarigerrate', 'newkarigarrate', 'newrate');
+  if (iOp < 0) {
+    start = 0;
+    const w = rows[0].length;
+    if (w >= 5) { iOp = 1; iRate = 2; iAdd = 3; iNew = 4; }        // S.NO bhi hai
+    else if (w === 4) { iOp = 0; iRate = 1; iAdd = 2; iNew = 3; }
+    else { iOp = 0; iRate = 1; iAdd = -1; iNew = -1; }
+  }
+  const cell = (r, i) => i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : '';
+  const out = [];
+  for (let i = start; i < rows.length; i++) {
+    const r = rows[i];
+    const op = cell(r, iOp);
+    if (/^total$/i.test(op)) { out.push({ type: 'total', op: '', rate: '', add: '', newRate: '' }); continue; }
+    const rate = cell(r, iRate), add = cell(r, iAdd), nw = cell(r, iNew);
+    if (!op && !rate && !add && !nw) continue;
+    out.push({ type: 'item', op: op.slice(0, 300), rate: rate.slice(0, 40),
+      add: add.slice(0, 40), newRate: nw.slice(0, 40) });
+  }
+  if (!out.length) return showToast('No rows found in that CSV', 'error');
+  if (out.length > 300) return showToast('A cost sheet can hold up to 300 rows', 'error');
+  const filled = (_rlCur.rows || []).some(r => r.type !== 'total' &&
+    (String(r.op || '').trim() || String(r.rate || '').trim()));
+  if (filled && !confirm('Replace the operations in this cost sheet with the ones from the CSV?')) return;
+  _rlCur.rows = out;
+  rlNorm(_rlCur);
+  rlRenderAll();
+  const items = out.filter(r => r.type !== 'total').length;
+  showToast('📥 ' + items + ' operation(s) loaded from the CSV — press Save to keep them', 'success');
 }
 
 // ── Attachments — image chhoti dikhti hai, PDF link ki tarah ──
