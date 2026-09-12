@@ -1955,8 +1955,13 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
 
       <div class="rl-bar" id="rlRateBar">
-        <div><label>Name</label><input type="text" id="rlName" style="width:190px" placeholder="Name"
-          oninput="rlSetHead('list_name',this.value)"></div>
+        <div><label>Approval Date</label><input type="date" id="rlDate" style="width:160px;padding:8px 11px;
+          border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"
+          onchange="rlSetHead('sheet_date',this.value)"></div>
+        <div><label>From Cost Sheet</label><select id="rlFromCost" onchange="rlLoadFromCost(this.value)"
+          style="width:260px;padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;
+          font-family:'Inter',sans-serif;outline:none;background:#fff;color:#1e293b;cursor:pointer">
+          <option value="">Load from Cost Sheet…</option></select></div>
         <div><label>Buyer</label><input type="text" id="rlBuyer" style="width:190px" placeholder="Buyer"
           oninput="rlSetHead('buyer',this.value)"></div>
         <div><label>Style</label><input type="text" id="rlStyle" style="width:220px" placeholder="Style"
@@ -4947,6 +4952,53 @@ async function rlEnsure(force) {
   return _rlFetching;
 }
 const rlCopy = x => rlNorm(JSON.parse(JSON.stringify(x)));
+// 2026-06-19 -> 19-06-2026, aur 2026-06-19 11:56 -> 19-06-2026 11:56
+function rlDMY(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || ''));
+  return m ? m[3] + '-' + m[2] + '-' + m[1] : '';
+}
+function rlStamp(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || ''));
+  return m ? m[3] + '-' + m[2] + '-' + m[1] + ' ' + m[4] + ':' + m[5] : String(v || '').slice(0, 16);
+}
+// Rate List me "From Cost Sheet" ka dropdown — sirf Completed cost sheets
+async function rlFillCostDrop() {
+  const sel = document.getElementById('rlFromCost');
+  if (!sel) return;
+  const all = await rlEnsure();
+  if (!Array.isArray(all) || !document.getElementById('rlFromCost')) return;
+  const cs = all.filter(x => x.kind === 'cost' && (x.status || 'pending') === 'completed')
+    .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">' + (cs.length ? 'Load from Cost Sheet…' : 'No completed cost sheet yet') + '</option>' +
+    cs.map(c => '<option value="' + c.id + '">' +
+      escapeHtml([c.buyer, c.style].filter(Boolean).join(' — ') || ('Cost Sheet #' + c.id)) +
+      '</option>').join('');
+  sel.value = cur;
+}
+// Cost Sheet chunne par uske operation aur rate yahan aa jaate hain
+async function rlLoadFromCost(id) {
+  const sel = document.getElementById('rlFromCost');
+  if (sel) sel.value = '';
+  if (!id || !_rlCur) return;
+  const all = await rlEnsure();
+  const src = (all || []).find(x => String(x.id) === String(id));
+  if (!src) return showToast('That cost sheet is no longer available', 'error');
+  const c = _rlCur;
+  const hasData = (c.rows || []).some(r => String(r.op || '').trim() || String(r.rate || '').trim());
+  if (hasData && !confirm('Replace the operations in this rate list with the ones from this cost sheet?')) return;
+  c.buyer = src.buyer || '';
+  c.style = src.style || '';
+  c.sheet_date = src.sheet_date || '';
+  // TOTAL ki rows nahi aati; rate wahi jo kariger ko sach me milta hai
+  const items = (src.rows || []).filter(r => r.type !== 'total' && String(r.op || '').trim());
+  c.rows = items.map(r => ({ op: r.op, rate: String(r.newRate || r.rate || ''), cells: [] }))
+    .concat(Array.from({ length: 3 }, () => ({ op: '', rate: '', cells: [] })));
+  if (!c.dates.length) c.dates = Array.from({ length: RL_NEW_DATES }, () => '');
+  rlNorm(c);
+  rlRenderAll();
+  showToast('📋 ' + items.length + ' operation(s) loaded from the cost sheet', 'success');
+}
 // save/complete ke baad cache ko wahi bana do jo abhi screen par hai
 function rlCacheSet(rec) {
   if (!_rlCache || !rec || !rec.id) return;
@@ -5064,9 +5116,10 @@ function rlRenderHead() {
     document.getElementById('rlCFabric').value = c.fabric || '';
     document.getElementById('rlCGsm').value = c.gsm || '';
   } else {
-    document.getElementById('rlName').value = c.list_name || '';
+    document.getElementById('rlDate').value = c.sheet_date || '';
     document.getElementById('rlBuyer').value = c.buyer || '';
     document.getElementById('rlStyle').value = c.style || '';
+    rlFillCostDrop();
   }
   const done = c.status === 'completed';
   const badge = c.id
@@ -5132,7 +5185,7 @@ function rlRenderGrid() {
   const head1 = `<tr>
       <th rowspan="2" style="width:42px">S.NO</th>
       <th rowspan="2" style="min-width:240px">OPERATION</th>
-      <th rowspan="2" style="width:112px">NEW BARGAIN RATE</th>` +
+      <th rowspan="2" style="width:112px">KARIGER RATE</th>` +
     c.dates.map((d, j) => `<th class="rl-d${j % 2}" colspan="2">
       <div style="display:flex;align-items:center;gap:2px;justify-content:center">
         <input type="date" class="rl-in" style="width:118px" value="${escapeHtml(d)}"
@@ -5352,7 +5405,7 @@ async function rlLoadList(which) {
   box.innerHTML = `<div class="rl-wrap"><table class="rl-tbl" style="font-size:13px">
     <thead><tr>
       <th style="width:44px">#</th><th style="width:104px">Type</th>
-      <th style="text-align:left">Name</th><th style="text-align:left">Buyer</th>
+      <th style="width:120px">Approval Date</th><th style="text-align:left">Buyer</th>
       <th style="text-align:left">Style</th><th style="width:90px">Operations</th><th style="width:100px">Total</th>
       <th style="width:90px">Files</th><th style="text-align:left">Created by</th>
       <th style="text-align:left;width:140px">Updated</th><th style="width:96px">Action</th>
@@ -5365,14 +5418,14 @@ async function rlLoadList(which) {
       return `<tr>
         <td class="rl-sr">${i + 1}</td>
         <td style="text-align:center"><span class="rl-badge" style="background:${cost ? '#ede9fe' : '#e0f2fe'};color:${cost ? '#5b21b6' : '#075985'}">${cost ? 'Cost Sheet' : 'Rate List'}</span></td>
-        <td style="padding:9px 10px">${escapeHtml(x.list_name) || '—'}</td>
+        <td style="text-align:center;white-space:nowrap">${escapeHtml(rlDMY(x.sheet_date)) || '—'}</td>
         <td style="padding:9px 10px">${escapeHtml(x.buyer) || '—'}</td>
         <td style="padding:9px 10px"><b>${escapeHtml(x.style) || '—'}</b></td>
         <td style="text-align:center">${ops}</td>
         <td class="rl-num" style="padding:9px 10px">${rlFmt(tot) || '—'}</td>
         <td style="text-align:center">${(x.files || []).length || '—'}</td>
         <td style="padding:9px 10px">${escapeHtml(x.createdByName || '') || '—'}</td>
-        <td style="padding:9px 10px;white-space:nowrap">${escapeHtml(String(x.updated_at || '').slice(0, 16))}</td>
+        <td style="padding:9px 10px;white-space:nowrap">${escapeHtml(rlStamp(x.updated_at))}</td>
         <td style="text-align:center"><button class="btn btn-outline btn-sm"
           onclick="rlOpen(${x.id})">✏️ Edit</button></td>
       </tr>`;
@@ -5468,14 +5521,14 @@ function rlPDF() {
   </style></head><body>
   <div class="head">
     <div><h1>Master Rate List</h1>
-      <div class="sub">Name: ${escapeHtml(c.list_name) || '—'} &nbsp;·&nbsp; Buyer: ${escapeHtml(c.buyer) || '—'}
+      <div class="sub">Approval Date: ${escapeHtml(rlDMY(c.sheet_date)) || '—'} &nbsp;·&nbsp; Buyer: ${escapeHtml(c.buyer) || '—'}
         &nbsp;·&nbsp; Style: ${escapeHtml(c.style) || '—'}</div></div>
     <div class="sub">${stamp}<br>${c.status === 'completed' ? 'Completed' : 'Pending'} · ${rows.length} operation(s)</div>
   </div>
   <table>
     <thead>
       <tr><th rowspan="2" style="width:26px">S.NO</th><th rowspan="2" style="width:190px">OPERATION</th>
-        <th rowspan="2" style="width:60px">NEW BARGAIN RATE</th>
+        <th rowspan="2" style="width:60px">KARIGER RATE</th>
         ${c.dates.map(d => `<th colspan="2">${escapeHtml(dt(d)) || 'DATE'}</th>`).join('')}</tr>
       <tr>${c.dates.map(() => '<th>NO OF PCS</th><th>AMOUNT</th>').join('')}</tr>
     </thead>
