@@ -6796,11 +6796,6 @@ async function loadDashboard() {
   const baseUrl = (isAdmin || isHod || isPC)
     ? `/api/dashboard?employee=${empVal}${hodParam}${dateParams}&taskType=`
     : `/api/dashboard?taskType=`;
-  // Ye dono kisi aur call ka intezaar nahi karte — saath hi chhod do,
-  // warna ye sabse ant me chalte the aur screen 9 second tak khaali rehti thi
-  loadDashFMS();
-  loadDashPerf();
-
   const [dDel, dChl] = await Promise.all([
     api(baseUrl + 'delegation'),
     api(baseUrl + 'checklist')
@@ -6821,6 +6816,12 @@ async function loadDashboard() {
   document.getElementById('dPending').textContent = (dDel.pending||0) + (dChl.pending||0);
   document.getElementById('dRevised').textContent = (dDel.revised||0) + (dChl.revised||0);
   document.getElementById('dCompleted').textContent = (dDel.completed||0) + (dChl.completed||0);
+
+  // Ginti dikh gayi — ab bhaari kaam shuru karo. Ye dono kisi aur call ka
+  // intezaar nahi karte, par inhe pehle chhod dein to ye ginti ko hi rok
+  // lete hain (server ek waqt me ek hi kaam karta hai).
+  loadDashFMS();
+  loadDashPerf();
 
   if (isAdmin || isHod || isPC) {
     empFilter.style.display = 'block';
