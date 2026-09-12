@@ -1931,7 +1931,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div id="rlFormWrap">
       <!-- Cost Sheet ka header — Rate List se alag fields -->
       <div class="rl-bar" id="rlCostBar" style="display:none">
-        <div><label>Date</label><input type="date" id="rlCDate" style="width:160px;padding:8px 11px;
+        <div><label>Approved Date</label><input type="date" id="rlCDate" style="width:160px;padding:8px 11px;
           border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"
           onchange="rlSetHead('sheet_date',this.value)"></div>
         <div><label>Buyer</label><input type="text" id="rlCBuyer" style="width:170px" placeholder="Buyer"
@@ -1955,7 +1955,7 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
 
       <div class="rl-bar" id="rlRateBar">
-        <div><label>Approval Date</label><input type="date" id="rlDate" style="width:160px;padding:8px 11px;
+        <div><label>Approved Date</label><input type="date" id="rlDate" style="width:160px;padding:8px 11px;
           border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"
           onchange="rlSetHead('sheet_date',this.value)"></div>
         <div><label>From Cost Sheet</label><select id="rlFromCost" onchange="rlLoadFromCost(this.value)"
@@ -1989,6 +1989,27 @@ tbody tr:last-child td{border-bottom:none;}
         </div>
         <div id="rlErr" style="display:none;color:#dc2626;font-size:12px;margin-bottom:8px"></div>
         <div class="rl-files" id="rlFiles"></div>
+      </div>
+    </div>
+
+    <!-- ── kisi bhi row par click -> poori details ── -->
+    <div class="modal-overlay" id="rlDetailModal">
+      <div class="modal" style="width:1150px;padding:20px 22px">
+        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px">
+          <div style="flex:1">
+            <h3 style="margin:0 0 6px" id="rlDTitle"></h3>
+            <div id="rlDMeta" style="font-size:12px;color:#64748b"></div>
+          </div>
+          <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe"
+            onclick="rlDetailPDF()">📄 PDF</button>
+          <button class="btn btn-outline btn-sm" onclick="rlDetailEdit()">✏️ Edit</button>
+          <button class="btn btn-outline btn-sm" onclick="closeModal('rlDetailModal')">✕ Close</button>
+        </div>
+        <div class="rl-wrap" style="max-height:46vh;overflow:auto"><div id="rlDGrid"></div></div>
+        <div class="rl-sec" style="margin-top:14px">
+          <h4>Details — images &amp; PDF</h4>
+          <div class="rl-files" id="rlDFiles"></div>
+        </div>
       </div>
     </div>
 
@@ -5147,8 +5168,8 @@ function rlRenderHead() {
 function rlSetHead(k, v) { if (_rlCur) _rlCur[k] = v; }
 
 // Cost Sheet ki TOTAL row = uske upar ki saari item rows ka jod
-function rlCostTotals(upto) {
-  const c = _rlCur, t = { rate: 0, add: 0, newRate: 0 };
+function rlCostTotals(upto, rec) {
+  const c = rec || _rlCur, t = { rate: 0, add: 0, newRate: 0 };
   for (let i = 0; i < upto; i++) {
     const r = c.rows[i];
     if (!r || r.type === 'total') continue;
@@ -5420,7 +5441,7 @@ async function rlLoadList(which) {
   box.innerHTML = `<div class="rl-wrap"><table class="rl-tbl" style="font-size:13px">
     <thead><tr>
       <th style="width:44px">#</th><th style="width:104px">Type</th>
-      <th style="width:120px">Approval Date</th><th style="text-align:left">Buyer</th>
+      <th style="width:130px">Approved Date</th><th style="text-align:left">Buyer</th>
       <th style="text-align:left">Style</th><th style="width:90px">Operations</th><th style="width:100px">Total</th>
       <th style="width:90px">Files</th><th style="text-align:left">Created by</th>
       <th style="text-align:left;width:140px">Updated</th><th style="width:150px">Action</th>
@@ -5430,7 +5451,8 @@ async function rlLoadList(which) {
       const items = (x.rows || []).filter(r => r.type !== 'total');
       const tot = items.reduce((a, r) => a + rlNum(cost ? r.newRate : r.rate), 0);
       const ops = items.filter(r => String(r.op || '').trim()).length;
-      return `<tr>
+      return `<tr style="cursor:pointer" title="Click to see the full details"
+        onclick="if(!event.target.closest('button')) rlDetail(${x.id})">
         <td class="rl-sr">${i + 1}</td>
         <td style="text-align:center"><span class="rl-badge" style="background:${cost ? '#ede9fe' : '#e0f2fe'};color:${cost ? '#5b21b6' : '#075985'}">${cost ? 'Cost Sheet' : 'Rate List'}</span></td>
         <td style="text-align:center;white-space:nowrap">${escapeHtml(rlDMY(x.sheet_date)) || '—'}</td>
@@ -5475,9 +5497,104 @@ async function rlOpen(id) {
   rlTab(rec.kind === 'cost' ? 'cost' : 'form');
 }
 
+// ── Kisi bhi row par click — poori details, image aur PDF ke saath ──
+let _rlDetail = null;
+async function rlDetail(id) {
+  const all = await rlEnsure();
+  const r = (all || []).find(x => String(x.id) === String(id));
+  if (!r) return showToast('Could not open this sheet', 'error');
+  const c = rlCopy(r);
+  _rlDetail = c;
+  const cost = c.kind === 'cost';
+  document.getElementById('rlDTitle').textContent =
+    (cost ? 'Cost Sheet' : 'Rate List') + ' — ' + (c.style || c.buyer || ('#' + c.id));
+  const done = c.status === 'completed';
+  const bit = (k, v) => v ? '<b>' + k + ':</b> ' + escapeHtml(v) : '';
+  document.getElementById('rlDMeta').innerHTML = [
+    '<span class="rl-badge ' + (done ? 'rl-bc' : 'rl-bp') + '">' + (done ? 'Completed' : 'Pending') + '</span>',
+    bit('Approved Date', rlDMY(c.sheet_date)), bit('Buyer', c.buyer), bit('Style', c.style),
+    cost ? bit('Fabric', c.fabric) : '', cost ? bit('GSM', c.gsm) : '',
+    bit('Created by', r.createdByName), bit('Updated', rlStamp(c.updated_at))
+  ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  document.getElementById('rlDGrid').innerHTML = cost ? rlDetailCostHtml(c) : rlDetailRateHtml(c);
+  const box = document.getElementById('rlDFiles');
+  box.innerHTML = c.files.length
+    ? c.files.map((f, i) => f.kind === 'image'
+      ? '<div class="rl-thumb"><img src="' + escapeHtml(f.link) + '" alt="' + escapeHtml(f.name) +
+        '" title="' + escapeHtml(f.name) + '" onclick="rlDetailOpenFile(' + i + ')">' +
+        '<div class="rl-nm" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + '</div></div>'
+      : '<span class="rl-chip">📄 <a href="' + escapeHtml(f.link) + '" target="_blank" rel="noopener">' +
+        escapeHtml(f.name) + '</a></span>').join('')
+    : '<span style="font-size:12px;color:#94a3b8">No images or PDF added.</span>';
+  openModal('rlDetailModal');
+}
+function rlDetailOpenFile(i) {
+  const f = _rlDetail && _rlDetail.files[i];
+  if (f && f.link) window.open(f.link, '_blank');
+}
+function rlDetailPDF() { if (_rlDetail) rlPDF(_rlDetail); }
+function rlDetailEdit() {
+  if (!_rlDetail) return;
+  const id = _rlDetail.id;
+  closeModal('rlDetailModal');
+  rlOpen(id);
+}
+// Rate List ki poori grid — padhne ke liye, badal nahi sakte
+function rlDetailRateHtml(c) {
+  const rows = c.rows.filter(r => String(r.op || '').trim() || String(r.rate || '').trim());
+  if (!rows.length) return '<div class="rl-empty">Nothing filled in yet.</div>';
+  const head1 = '<tr><th rowspan="2" style="width:42px">S.NO</th>' +
+    '<th rowspan="2" style="min-width:240px">OPERATION</th>' +
+    '<th rowspan="2" style="width:100px">KARIGER RATE</th>' +
+    c.dates.map((d, j) => '<th class="rl-d' + (j % 2) + '" colspan="2">' +
+      (escapeHtml(rlDMY(d)) || 'DATE') + '</th>').join('') + '</tr>';
+  const head2 = '<tr>' + c.dates.map((_, j) =>
+    '<th class="rl-d' + (j % 2) + '">NO OF PCS</th><th class="rl-d' + (j % 2) + '">AMOUNT</th>').join('') + '</tr>';
+  const body = rows.map((r, i) => '<tr><td class="rl-sr">' + (i + 1) + '</td>' +
+    '<td style="padding:6px 8px">' + escapeHtml(r.op) + '</td>' +
+    '<td class="rl-num" style="padding:6px 8px">' + escapeHtml(r.rate) + '</td>' +
+    c.dates.map((_, j) => {
+      const cell = r.cells[j] || {};
+      return '<td class="rl-d' + (j % 2) + ' rl-num" style="padding:6px 8px">' + escapeHtml(cell.pcs || '') + '</td>' +
+        '<td class="rl-d' + (j % 2) + ' rl-num" style="padding:6px 8px">' + escapeHtml(cell.amount || '') + '</td>';
+    }).join('') + '</tr>').join('');
+  const foot = '<tr><td></td><td>TOTAL</td><td class="rl-num">' +
+    rlFmt(rows.reduce((a, r) => a + rlNum(r.rate), 0)) + '</td>' +
+    c.dates.map((_, j) => '<td class="rl-d' + (j % 2) + ' rl-num">' +
+      rlFmt(rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).pcs), 0)) + '</td>' +
+      '<td class="rl-d' + (j % 2) + ' rl-num">' +
+      rlFmt(rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).amount), 0)) + '</td>').join('') + '</tr>';
+  return '<table class="rl-tbl"><thead>' + head1 + head2 + '</thead><tbody>' + body +
+    '</tbody><tfoot>' + foot + '</tfoot></table>';
+}
+// Cost Sheet ki poori grid — TOTAL wali rows samet
+function rlDetailCostHtml(c) {
+  const any = c.rows.some(r => r.type !== 'total' && (String(r.op || '').trim() || String(r.rate || '').trim()));
+  if (!any) return '<div class="rl-empty">Nothing filled in yet.</div>';
+  let sr = 0;
+  const body = c.rows.map((r, i) => {
+    if (r.type === 'total') {
+      const t = rlCostTotals(i, c);
+      return '<tr class="rl-totrow"><td></td><td style="text-align:center">TOTAL</td>' +
+        '<td class="rl-num">' + rlFmt(t.rate) + '</td><td class="rl-num">' + rlFmt(t.add) + '</td>' +
+        '<td class="rl-num">' + rlFmt(t.newRate) + '</td></tr>';
+    }
+    if (!String(r.op || '').trim() && !String(r.rate || '').trim()) return '';
+    sr++;
+    return '<tr><td class="rl-sr">' + sr + '</td><td style="padding:6px 8px">' + escapeHtml(r.op) + '</td>' +
+      '<td class="rl-num" style="padding:6px 8px">' + escapeHtml(r.rate) + '</td>' +
+      '<td class="rl-num" style="padding:6px 8px">' + escapeHtml(r.add) + '</td>' +
+      '<td class="rl-num" style="padding:6px 8px">' + escapeHtml(r.newRate) + '</td></tr>';
+  }).join('');
+  return '<table class="rl-tbl"><thead><tr><th style="width:46px">S.NO</th>' +
+    '<th style="min-width:300px">OPERATION</th><th style="width:110px">KARIGER RATE</th>' +
+    '<th style="width:100px">ADD COST</th><th style="width:130px">NEW KARIGER RATE</th></tr></thead><tbody>' +
+    body + '</tbody></table>';
+}
+
 // ── PDF ──
-function rlCostPDF() {
-  const c = _rlCur;
+function rlCostPDF(rec) {
+  const c = rec || _rlCur;
   const now = new Date();
   const stamp = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()} ` +
     `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -5485,7 +5602,7 @@ function rlCostPDF() {
   let sr = 0;
   const body = c.rows.map((r, i) => {
     if (r.type === "total") {
-      const t = rlCostTotals(i);
+      const t = rlCostTotals(i, c);
       return `<tr class="tot"><td></td><td>TOTAL</td><td>${rlFmt(t.rate)}</td><td>${rlFmt(t.add)}</td><td>${rlFmt(t.newRate)}</td></tr>`;
     }
     if (!String(r.op || "").trim() && !String(r.rate || "").trim()) return "";
@@ -5508,7 +5625,7 @@ function rlCostPDF() {
     .foot{margin-top:10px;font-size:9px;color:#94a3b8;text-align:center}
   </style></head><body>
   <table>
-    <tr class="hd"><td colspan="3" style="text-align:center;font-size:14px">COST SHEET</td><td colspan="2">DATE- ${escapeHtml(dt(c.sheet_date)) || "—"}</td></tr>
+    <tr class="hd"><td colspan="3" style="text-align:center;font-size:14px">COST SHEET</td><td colspan="2">APPROVED DATE- ${escapeHtml(dt(c.sheet_date)) || "—"}</td></tr>
     <tr class="hd"><td colspan="3">BUYER- ${escapeHtml(c.buyer) || "—"}</td><td>${escapeHtml(c.fabric) || "—"}</td><td>${escapeHtml(c.gsm) || "—"}</td></tr>
     <tr class="hd"><td colspan="2">STYLE- ${escapeHtml(c.style) || "—"}</td><td>KARIGER RATE</td><td>ADD COST</td><td>NEW KARIGER RATE</td></tr>
     ${body}
@@ -5522,10 +5639,10 @@ function rlCostPDF() {
   w.document.open(); w.document.write(html); w.document.close();
   setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 600);
 }
-function rlPDF() {
-  const c = _rlCur;
+function rlPDF(rec) {
+  const c = rec || _rlCur;
   if (!c) return showToast('Nothing to print', 'error');
-  if (c.kind === 'cost') return rlCostPDF();
+  if (c.kind === 'cost') return rlCostPDF(c);
   const now = new Date();
   const stamp = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()} ` +
     `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -5553,7 +5670,7 @@ function rlPDF() {
   </style></head><body>
   <div class="head">
     <div><h1>Master Rate List</h1>
-      <div class="sub">Approval Date: ${escapeHtml(rlDMY(c.sheet_date)) || '—'} &nbsp;·&nbsp; Buyer: ${escapeHtml(c.buyer) || '—'}
+      <div class="sub">Approved Date: ${escapeHtml(rlDMY(c.sheet_date)) || '—'} &nbsp;·&nbsp; Buyer: ${escapeHtml(c.buyer) || '—'}
         &nbsp;·&nbsp; Style: ${escapeHtml(c.style) || '—'}</div></div>
     <div class="sub">${stamp}<br>${c.status === 'completed' ? 'Completed' : 'Pending'} · ${rows.length} operation(s)</div>
   </div>
