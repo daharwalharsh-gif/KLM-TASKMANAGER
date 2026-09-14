@@ -590,6 +590,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M3 6h18M3 18h18"/></svg>
       <span class="nav-label-text">FMS Tasks</span>
     </div>
+    <div class="nav-item" id="nav-accounts" onclick="navigate('accounts',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m-6 4h6m-6 4h4m-7 6h12a2 2 0 002-2V7.414a1 1 0 00-.293-.707l-3.414-3.414A1 1 0 0014.586 3H6a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+      <span class="nav-label-text">Accounts Department</span>
+    </div>
     <div class="nav-item" id="nav-scot" onclick="navigate('scot',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
       <span class="nav-label-text">SCOT Sheet</span>
@@ -1177,6 +1181,15 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 
   <!-- ── SCOT SHEET — sirf do sheet ke naam aur link ── -->
+  <div id="page-accounts" class="page">
+    <div class="page-header">
+      <h2>Accounts Department</h2>
+    </div>
+    <div class="rl-empty" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px">
+      Nothing set up here yet.
+    </div>
+  </div>
+
   <div id="page-scot" class="page">
     <div class="page-header"><h2>SCOT Sheet</h2></div>
     <div class="scot-grid">
@@ -1931,7 +1944,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div id="rlFormWrap">
       <!-- Cost Sheet ka header — Rate List se alag fields -->
       <div class="rl-bar" id="rlCostBar" style="display:none">
-        <div><label>Approved Date</label><input type="date" id="rlCDate" style="width:160px;padding:8px 11px;
+        <div><label>Rate Approved Date</label><input type="date" id="rlCDate" style="width:160px;padding:8px 11px;
           border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"
           onchange="rlSetHead('sheet_date',this.value)"></div>
         <div><label>Buyer</label><input type="text" id="rlCBuyer" style="width:170px" placeholder="Buyer"
@@ -4180,7 +4193,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List',accounts:'Accounts Department'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -5553,8 +5566,8 @@ async function rlLoadList(which) {
       <th style="width:44px">#</th><th style="width:104px">Type</th>
       <th style="width:148px">Rate Approved Date</th><th style="text-align:left">Buyer</th>
       <th style="text-align:left">Style</th><th style="width:90px">Operations</th><th style="width:100px">Total</th>
-      <th style="width:100px">PDF Files</th><th style="text-align:left">Created by</th>
-      <th style="text-align:left;width:140px">Updated</th><th style="width:150px">Action</th>
+      <th style="width:100px">PDF view</th><th style="text-align:left">Created by</th>
+      <th style="text-align:left;width:140px">Updated</th><th style="width:96px">Action</th>
     </tr></thead><tbody>` +
     list.map((x, i) => {
       const cost = x.kind === 'cost';
@@ -5573,10 +5586,8 @@ async function rlLoadList(which) {
         <td style="text-align:center">${(x.files || []).length || '—'}</td>
         <td style="padding:9px 10px">${escapeHtml(x.createdByName || '') || '—'}</td>
         <td style="padding:9px 10px;white-space:nowrap">${escapeHtml(rlStamp(x.updated_at))}</td>
-        <td style="text-align:center;white-space:nowrap"><button class="btn btn-outline btn-sm"
-          onclick="rlOpen(${x.id})">✏️ Edit</button>
-          <button class="btn btn-outline btn-sm" title="Delete" style="color:#dc2626;border-color:#fecaca;margin-left:5px"
-            onclick="rlDelete(${x.id})">🗑</button></td>
+        <td style="text-align:center"><button class="btn btn-outline btn-sm"
+          onclick="rlOpen(${x.id})">✏️ Edit</button></td>
       </tr>`;
     }).join('') + '</tbody></table></div>';
 }
