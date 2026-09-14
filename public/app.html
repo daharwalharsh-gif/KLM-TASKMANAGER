@@ -16483,12 +16483,15 @@ function downloadPcrPdf() {
 // ══════════════════════════════════════════════════════
 // Sirf ek dropdown — form chunte hi wahi form khulta hai. Jis form ki
 // permission nahi, wo dropdown me aata hi nahi.
+const SHORT_OPT = '__shortdetails__';
 function formsCatalogue() {
   return [
     { key: PCR_OPT,   icon: '🗂️', name: 'Daily PC Report',                 show: canSeePcReport() },
     { key: CHAL_OPT,  icon: '📝', name: 'Invincible Open Challenges Form', show: canSeeChallenges() },
     { key: LEGAL_OPT, icon: '⚖️', name: 'Legal Case Form',                 show: canSeeLegal() },
-    { key: FB_OPT,    icon: '💬', name: 'Employee Feedback Form',          show: true }
+    { key: FB_OPT,    icon: '💬', name: 'Employee Feedback Form',          show: true },
+    { key: SHORT_OPT, icon: '📋', name: 'Invincible Short Details Form',   show: true,
+      url: 'https://sites.google.com/e-marketing.io/invincible-short-details-forms' }
   ].filter(f => f.show);
 }
 
@@ -16525,6 +16528,16 @@ async function onFormSelect() {
   });
   document.getElementById('formsHome').style.display = key ? 'none' : '';
   if (!key || !allowed.has(key)) return;
+
+  // Bahar wala form — app ke andar nahi khulta, naye tab me jaata hai
+  const ext = formsCatalogue().find(f => f.key === key && f.url);
+  if (ext) {
+    const w = window.open(ext.url, '_blank', 'noopener');
+    document.getElementById('formsSelect').value = '';
+    document.getElementById('formsHome').style.display = '';
+    if (!w) showToast('Popup blocked — please allow popups to open this form', 'error');
+    return;
+  }
 
   const el = document.getElementById(FORM_WRAPS[key]);
   if (!el) return;
