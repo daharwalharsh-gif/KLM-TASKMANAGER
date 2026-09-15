@@ -518,22 +518,20 @@ function getTable(type) {
 }
 
 // ── MIS ka Score % ──
-// Pehle score PENDING par banta tha: 0 - (pending/total)*100 - ... — isliye jis
-// bande ka aaj ka task abhi pending tha uska score seedha -100 chala jaata tha,
-// jabki wo late hai hi nahi.
-// Ab score SIRF DELAY (overdue) par banta hai aur delay hone par MINUS me bhi
-// jaata hai — range -100 se +100:
-//   sab time par  = +100
-//   aadhe delay   =    0
-//   sab delay     = -100
-// Har overdue task dugna ghatata hai, revised uska chauthai. Aaj ya aage ki
-// date wala pending task score bilkul nahi girata.
-function misScore(total, overdue, revised) {
+// Score KIYE HUE KAAM par banta hai. Pehle formula sirf overdue/revised ghatata
+// tha aur 100% se shuru hota tha — isliye jisne ek bhi task nahi kiya uska bhi
+// 100% aa jaata tha, bas delay na ho. Ab jitna kaam poora hua utna hi score.
+// Range -100 se +100:
+//   sab poore, koi delay nahi = +100
+//   kuch nahi kiya            =    0 (aur delay ho to minus me)
+// Har overdue task dugna ghatata hai, revised uska chauthai.
+function misScore(total, completed, overdue, revised) {
   total = parseInt(total) || 0;
+  completed = parseInt(completed) || 0;
   overdue = parseInt(overdue) || 0;
   revised = parseInt(revised) || 0;
   if (!total) return null;
-  const s = ((total - overdue * 2 - revised * 0.5) / total) * 100;
+  const s = ((completed - overdue * 2 - revised * 0.5) / total) * 100;
   return Math.round(Math.max(-100, Math.min(100, s)) * 10) / 10;
 }
 
@@ -1886,7 +1884,8 @@ app.get('/api/mis', requireAuth, requireMisView, async (req, res) => {
 
     const calc = rows => rows.map(r => {
       const total=parseInt(r.total)||0, overdue=parseInt(r.overdue)||0, revised=parseInt(r.revised)||0;
-      const score = misScore(total, overdue, revised);
+      const completed=parseInt(r.completed)||0;
+      const score = misScore(total, completed, overdue, revised);
       return { ...r, delayed: overdue, score: score === null ? 0 : score };
     });
     const [delRows] = await db.query(`SELECT u.id AS userId,u.name,COUNT(*) AS total,SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,SUM(CASE WHEN t.status='revised' THEN 1 ELSE 0 END) AS revised,SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue FROM delegation_tasks t JOIN users u ON t.assigned_to=u.id WHERE t.due_date BETWEEN ? AND ? ${deptFilter} GROUP BY u.id,u.name ORDER BY u.name`, deptParams);
@@ -2915,11 +2914,12 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
       deptParams = [start, end, hodDept];
     }
 
-    const calc = (total, pending, overdue, revised) => {
+    const calc = (total, pending, overdue, revised, completed) => {
       total = parseInt(total)||0; pending = parseInt(pending)||0;
       overdue = parseInt(overdue)||0; revised = parseInt(revised)||0;
-      const score = misScore(total, overdue, revised);
-      return { total, pending, overdue, revised, score: score === null ? 0 : score };
+      completed = parseInt(completed)||0;
+      const score = misScore(total, completed, overdue, revised);
+      return { total, pending, overdue, revised, completed, score: score === null ? 0 : score };
     };
 
     // Fetch delegation + checklist stats per user (same style as /api/mis)
@@ -2949,7 +2949,7 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
     const userMap = {};
     for (const r of delRows) {
       userMap[r.userId] = { userId: r.userId, name: r.name, department: r.department||'',
-        delegation: calc(r.total, r.pending, r.overdue, r.revised),
+        delegation: calc(r.total, r.pending, r.overdue, r.revised, r.completed),
         delegationCompleted: parseInt(r.completed)||0,
         checklist: calc(0,0,0,0), checklistCompleted: 0 };
       userMap[r.userId].delegation.completed = parseInt(r.completed)||0;
@@ -2961,7 +2961,7 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
           checklist: calc(0,0,0,0), checklistCompleted: 0 };
         userMap[r.userId].delegation.completed = 0;
       }
-      userMap[r.userId].checklist = calc(r.total, r.pending, r.overdue, 0);
+      userMap[r.userId].checklist = calc(r.total, r.pending, r.overdue, 0, r.completed);
       userMap[r.userId].checklist.completed = parseInt(r.completed)||0;
       userMap[r.userId].checklistCompleted = parseInt(r.completed)||0;
     }
@@ -3040,7 +3040,7 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
       const overdueAll = d.overdue + c.overdue + fmsOver;
       const revisedAll = d.revised;
       const completedAll = (d.completed||0) + (c.completed||0) + fmsDoneR;
-      const overallScore = misScore(totalAll, overdueAll, revisedAll);
+      const overallScore = misScore(totalAll, completedAll, overdueAll, revisedAll);
       const plan = planMap[u.userId] || null;
       const isFmsDoer = (fms.total || 0) > 0 || fmsDoneR > 0;
       // FMS score ab TARGET-based: 20/week kiye to 100%
@@ -3140,7 +3140,7 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
     }
 
     // Score formula — bilkul wahi jo MIS me use hota hai (consistency)
-    const calcScore = (total, pending, overdue, revised) => misScore(total, overdue, revised);
+    const calcScore = (total, pending, overdue, revised, completed) => misScore(total, completed, overdue, revised);
 
     // Dept filter sirf visibility ke liye (numbers par nahi)
     let deptFilter = '';
@@ -3261,7 +3261,7 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
       const done    = e.del.completed + e.chl.completed + e.fms.done;
       const overdue = e.del.overdue + e.chl.overdue;
       const revised = e.del.revised;
-      const score   = calcScore(total, pending, overdue, revised);
+      const score   = calcScore(total, pending, overdue, revised, done);
       const plan    = planMap[e.userId] || null;
       return {
         userId: e.userId, name: e.name, department: e.department,
