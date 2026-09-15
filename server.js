@@ -631,6 +631,26 @@ function idxToCol(idx) {
 const _fmsSheetCache = new Map(); // key: spreadsheetId|range  -> { rows, ts }
 const FMS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min — FMS sheets slowly change; kam baar heavy read
 
+// MIS ek saath 16 FMS sheets padhta hai, isliye Google kabhi-kabhi 429 (quota)
+// ya 5xx de deta hai. Pehle aisi ek-do reads chup-chaap fail ho jaati thi aur
+// report me "X sheet(s) did not load — click Generate again" aa jaata tha.
+// Ab thoda ruk kar dobara koshish hoti hai, har baar intezaar dugna.
+const SHEETS_RETRY_CODES = new Set([429, 500, 502, 503, 504]);
+async function sheetsValuesGetRetry(api, spreadsheetId, range, tries = 3) {
+  let lastErr;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await api.spreadsheets.values.get({ spreadsheetId, range });
+    } catch (e) {
+      lastErr = e;
+      if (!SHEETS_RETRY_CODES.has(e.code || e.status)) throw e;   // asli galti — turant bata do
+      if (i === tries - 1) break;
+      await new Promise(r => setTimeout(r, 400 * Math.pow(2, i) + Math.floor(Math.random() * 250)));
+    }
+  }
+  throw lastErr;
+}
+
 async function fetchSheetRows(sheet) {
   const spreadsheetId = extractSpreadsheetId(sheet.sheet_id);
   const tabName = sheet.sheet_name || 'Sheet1';
@@ -655,7 +675,7 @@ async function fetchSheetRows(sheet) {
   if (hit && (Date.now() - hit.ts) < FMS_CACHE_TTL_MS) return hit.rows;
 
   const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
-  const response = await sheetsApi.spreadsheets.values.get({ spreadsheetId, range });
+  const response = await sheetsValuesGetRetry(sheetsApi, spreadsheetId, range);
   const allRowsData = response.data.values || [];
   const rows = allRowsData.slice(headerRowIdx + 1);
   _fmsSheetCache.set(cacheKey, { rows, ts: Date.now() });
@@ -696,7 +716,11 @@ async function computeFmsTAT() {
   const rowsBySheet = new Map();
   await Promise.all(sheets.map(async sheet => {
     try { rowsBySheet.set(sheet.id, { rows: await fetchSheetRows(sheet) }); }
-    catch (e) { rowsBySheet.set(sheet.id, { error: true }); }
+    catch (e) {
+      // Wajah chhupao mat — warna pata hi nahi chalta ki sheet kyu nahi aayi
+      console.error('FMS sheet read failed:', sheet.fms_name || sheet.sheet_name, e.code || '', e.message);
+      rowsBySheet.set(sheet.id, { error: true, reason: e.message });
+    }
   }));
 
   for (const sheet of sheets) {
@@ -704,7 +728,7 @@ async function computeFmsTAT() {
     const fetched = rowsBySheet.get(sheet.id);
     if (!fetched || fetched.error) {
       result.errors.push(fmsName);
-      result.perFms.push({ fmsId: sheet.id, fmsName, stepCount: 0, steps: [], error: 'Sheet read failed (try again)' });
+      result.perFms.push({ fmsId: sheet.id, fmsName, stepCount: 0, steps: [], error: (fetched && fetched.reason) ? ('Sheet read failed: ' + fetched.reason) : 'Sheet read failed (try again)' });
       continue;
     }
     const rows = fetched.rows;
@@ -805,7 +829,8 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
     try {
       rowsBySheet.set(sheet.id, { rows: await fetchSheetRows(sheet) });
     } catch (e) {
-      rowsBySheet.set(sheet.id, { error: true });
+      console.error('FMS sheet read failed:', sheet.fms_name || sheet.sheet_name, e.code || '', e.message);
+      rowsBySheet.set(sheet.id, { error: true, reason: e.message });
     }
   }));
 
@@ -832,7 +857,7 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
     if (!fetched || fetched.error) {
       // Silent 0 NAHI — error report karo taaki total achanak na badle
       result.errors.push(fmsName);
-      result.perFms.push({ fmsId: sheet.id, fmsName, pending: 0, done: 0, total: 0, steps: [], error: 'Sheet read failed (try again)' });
+      result.perFms.push({ fmsId: sheet.id, fmsName, pending: 0, done: 0, total: 0, steps: [], error: (fetched && fetched.reason) ? ('Sheet read failed: ' + fetched.reason) : 'Sheet read failed (try again)' });
       continue;
     }
     const rows = fetched.rows;
