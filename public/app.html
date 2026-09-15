@@ -5633,7 +5633,7 @@ async function rlDetail(id) {
   const bit = (k, v) => v ? '<b>' + k + ':</b> ' + escapeHtml(v) : '';
   document.getElementById('rlDMeta').innerHTML = [
     '<span class="rl-badge ' + (done ? 'rl-bc' : 'rl-bp') + '">' + (done ? 'Completed' : 'Pending') + '</span>',
-    bit('Approved Date', rlDMY(c.sheet_date)), bit('Buyer', c.buyer), bit('Style', c.style),
+    bit('Rate Approved Date', rlDMY(c.sheet_date)), bit('Buyer', c.buyer), bit('Style', c.style),
     cost ? bit('Fabric', c.fabric) : '', cost ? bit('GSM', c.gsm) : '',
     bit('Created by', r.createdByName), bit('Updated', rlStamp(c.updated_at))
   ].filter(Boolean).join(' &nbsp;·&nbsp; ');
@@ -5746,7 +5746,7 @@ function rlCostPDF(rec) {
     .foot{margin-top:10px;font-size:9px;color:#94a3b8;text-align:center}
   </style></head><body>
   <table>
-    <tr class="hd"><td colspan="3" style="text-align:center;font-size:14px">COST SHEET</td><td colspan="2">APPROVED DATE- ${escapeHtml(dt(c.sheet_date)) || "—"}</td></tr>
+    <tr class="hd"><td colspan="3" style="text-align:center;font-size:14px">COST SHEET</td><td colspan="2">RATE APPROVED DATE- ${escapeHtml(dt(c.sheet_date)) || "—"}</td></tr>
     <tr class="hd"><td colspan="3">BUYER- ${escapeHtml(c.buyer) || "—"}</td><td>${escapeHtml(c.fabric) || "—"}</td><td>${escapeHtml(c.gsm) || "—"}</td></tr>
     <tr class="hd"><td colspan="2">STYLE- ${escapeHtml(c.style) || "—"}</td><td>KARIGER RATE</td><td>ADD COST</td><td>NEW KARIGER RATE</td></tr>
     ${body}
@@ -5791,7 +5791,7 @@ function rlPDF(rec) {
   </style></head><body>
   <div class="head">
     <div><h1>Master Rate List</h1>
-      <div class="sub">Approved Date: ${escapeHtml(rlDMY(c.sheet_date)) || '—'} &nbsp;·&nbsp; Buyer: ${escapeHtml(c.buyer) || '—'}
+      <div class="sub">Rate Approved Date: ${escapeHtml(rlDMY(c.sheet_date)) || '—'} &nbsp;·&nbsp; Buyer: ${escapeHtml(c.buyer) || '—'}
         &nbsp;·&nbsp; Style: ${escapeHtml(c.style) || '—'}</div></div>
     <div class="sub">${stamp}<br>${c.status === 'completed' ? 'Completed' : 'Pending'} · ${rows.length} operation(s)</div>
   </div>
