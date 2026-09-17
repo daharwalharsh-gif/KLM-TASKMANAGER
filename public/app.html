@@ -13990,12 +13990,17 @@ async function openNewTransferModal() {
 
   if (isAdmin || isHod) {
     const allUsers = await api('/api/users');
+    // HOD apne department walon ke tasks transfer kar sakta hai — aur apne
+    // khud ke bhi (server bhi theek yahi allow karta hai). Pehle `u.id !== ME.id`
+    // se HOD khud list se hat jaata tha, isliye jis HOD ke department me aur
+    // koi na ho use dropdown bilkul khaali dikhta tha.
     const eligible = isAdmin
       ? allUsers
-      : allUsers.filter(u => u.department === ME.department && u.id !== ME.id);
-    document.getElementById('transferFromUser').innerHTML =
-      '<option value="">-- Select user --</option>' +
-      eligible.map(u=>`<option value="${u.id}">${u.name} (${u.department||u.role})</option>`).join('');
+      : allUsers.filter(u => u.department === ME.department);
+    document.getElementById('transferFromUser').innerHTML = eligible.length
+      ? '<option value="">-- Select user --</option>' +
+        eligible.map(u=>`<option value="${u.id}">${u.name} (${u.department||u.role})</option>`).join('')
+      : '<option value="">-- aapke department me koi user nahi hai --</option>';
     document.getElementById('transferStep1').style.display = 'block';
   } else {
     _transferFromUserId = ME.id;
@@ -14061,12 +14066,15 @@ async function onTransferDateChange() {
   }
 
   const allUsers = await api('/api/users');
-  const eligible = (ME.role === 'hod')
-    ? allUsers.filter(u => u.department === ME.department && u.id !== _transferFromUserId)
-    : allUsers.filter(u => u.id !== _transferFromUserId);
-  document.getElementById('transferToUser').innerHTML =
-    '<option value="">-- Select user --</option>' +
-    eligible.map(u=>`<option value="${u.id}">${u.name} (${u.department||u.role})</option>`).join('');
+  // Task KISKO dena hai — is par server koi department ki rok nahi lagata,
+  // isliye UI bhi na lagaye. Pehle HOD ki list uske apne department tak
+  // simat jaati thi, to akele HOD ke liye khaali reh jaati thi aur transfer
+  // ho hi nahi paata tha.
+  const eligible = allUsers.filter(u => u.id !== _transferFromUserId);
+  document.getElementById('transferToUser').innerHTML = eligible.length
+    ? '<option value="">-- Select user --</option>' +
+      eligible.map(u=>`<option value="${u.id}">${u.name} (${u.department||u.role})</option>`).join('')
+    : '<option value="">-- koi doosra user nahi mila --</option>';
 }
 
 async function _doTransfer(tasks) {
@@ -14188,12 +14196,16 @@ async function openTransferTask(taskId, taskType) {
   document.getElementById('taskTransferModal').classList.add('open');
 
   const users = await api('/api/users');
-  // HOD sirf apne department me bhej sakta hai; task jiske paas hai wo list me nahi
+  // Task kisko dena hai — server is par department ki koi rok nahi lagata.
+  // Pehle HOD ki list uske apne department tak simat jaati thi, isliye jis
+  // HOD ke department me aur koi na ho uska dropdown khaali reh jaata tha
+  // aur transfer ho hi nahi paata tha. Sirf jiske paas task hai wo hata do.
   const list = (Array.isArray(users) ? users : [])
-    .filter(u => String(u.id) !== String(t.assigned_to))
-    .filter(u => ME.role !== 'hod' || u.department === ME.department);
-  sel.innerHTML = '<option value="">-- Select person --</option>' +
-    list.map(u => `<option value="${u.id}">${(u.title ? u.title + ' ' : '') + titleName(u.name)}${u.department ? ' — ' + u.department : ''}</option>`).join('');
+    .filter(u => String(u.id) !== String(t.assigned_to));
+  sel.innerHTML = list.length
+    ? '<option value="">-- Select person --</option>' +
+      list.map(u => `<option value="${u.id}">${(u.title ? u.title + ' ' : '') + titleName(u.name)}${u.department ? ' — ' + u.department : ''}</option>`).join('')
+    : '<option value="">-- koi doosra user nahi mila --</option>';
 }
 
 async function submitTaskTransfer() {
