@@ -1988,21 +1988,18 @@ tbody tr:last-child td{border-bottom:none;}
           oninput="rlSetHead('buyer',this.value)"></div>
         <div><label>Style</label><input type="text" id="rlStyle" style="width:220px" placeholder="Style"
           oninput="rlSetHead('style',this.value)"></div>
-        <div><label>Status</label><div id="rlStatus" style="padding:6px 0"></div></div>
+        <!-- Ye tab sirf print out ke liye hai: cost sheet uthao, saare operation
+             aur total dekho, PDF nikaalo. Status / Row / Date Column / Complete /
+             Save yahan se hata diye gaye hain. -->
         <div class="rl-acts">
-          <button class="btn btn-outline btn-sm" onclick="rlAddRow()">➕ Row</button>
-          <button class="btn btn-outline btn-sm" onclick="rlAddDate()">➕ Date Column</button>
           <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="rlPDF()">📄 PDF</button>
-          <button class="btn btn-outline btn-sm" id="rlReopenBtn" style="display:none" onclick="rlSetStatus('pending')">↩ Move to Pending</button>
-          <button class="btn btn-outline btn-sm" id="rlCompleteBtn" style="color:#16a34a;border-color:#bbf7d0"
-            onclick="rlSetStatus('completed')">✅ Complete</button>
-          <button class="btn btn-primary btn-sm" onclick="rlSave()">💾 Save</button>
         </div>
       </div>
 
       <div class="rl-wrap"><div id="rlGrid"></div></div>
 
-      <div class="rl-sec">
+      <!-- Sirf Cost Sheet tab me — Print out tab me ye chhupa rehta hai -->
+      <div class="rl-sec" id="rlDetailsSec">
         <h4>Details — images &amp; PDF</h4>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
           <input type="file" id="rlFileInput" multiple accept="image/*,application/pdf"
@@ -5104,6 +5101,8 @@ const rlStr = v => String(v == null ? '' : v);
 // Rate List me har row ke cells ki ginti date column ke barabar rakho.
 // Cost Sheet ki rows alag hain — Kariger Rate / Add Cost / New Kariger Rate,
 // aur beech me "TOTAL" ki rows (type: 'total').
+// Print out wali sheet me hamesha itni khaali DATE columns rehti hain
+const RL_PRINT_DATE_COLS = 6;
 function rlNorm(c) {
   c.kind = c.kind === 'cost' ? 'cost' : 'rate';
   c.rows = Array.isArray(c.rows) ? c.rows : [];
@@ -5114,10 +5113,16 @@ function rlNorm(c) {
       r.type = r.type === 'total' ? 'total' : 'item';
       r.op = rlStr(r.op); r.rate = rlStr(r.rate);
       r.add = rlStr(r.add); r.newRate = rlStr(r.newRate);
+      // NEW KARIGER RATE ab hamesha kariger rate + add cost se banta hai,
+      // taaki neeche ka total aur save hua data dono mel khaate rahein.
+      if (r.type !== 'total') r.newRate = rlCostNewRate(r);
     });
     return c;
   }
   c.dates = Array.isArray(c.dates) ? c.dates.map(rlStr) : [];
+  // Print out tab me "Date Column" ka button nahi hai — chhe khaali DATE
+  // columns khud ban jaati hain, jaisi chhapi hui sheet me chahiye hoti hain.
+  while (c.dates.length < RL_PRINT_DATE_COLS) c.dates.push('');
   c.rows.forEach(r => {
     const old = Array.isArray(r.cells) ? r.cells : [];
     r.op = rlStr(r.op);
@@ -5153,9 +5158,23 @@ function rlNew() {
   _rlCur = _rlKeep[kind];
   rlTab(kind === 'cost' ? 'cost' : 'form');
 }
-function openRateList() { rlTab(_rlView || 'form'); }
+function openRateList() { rlApplyPrintAccess(); rlTab(_rlView || 'form'); }
+
+// "Cost Sheet Print out" tab sirf admin aur in logon ko dikhta hai
+const RL_PRINT_EMAILS = ['rohit@klmahajan.com', 'gm@klmahajan.com'];
+function canSeeRlPrint() {
+  if (!window.ME) return false;
+  if (ME.role === 'admin') return true;
+  return RL_PRINT_EMAILS.includes(String(ME.email || '').trim().toLowerCase());
+}
+function rlApplyPrintAccess() {
+  const tab = document.getElementById('rlTabForm');
+  if (tab) tab.style.display = canSeeRlPrint() ? '' : 'none';
+}
 
 function rlTab(which, el) {
+  // Jinke paas print out tab ka access nahi, unhe Cost Sheet par bhej do
+  if (which === 'form' && !canSeeRlPrint()) which = 'cost';
   if (_rlCur) _rlKeep[_rlCur.kind] = _rlCur;      // jo khula tha wo sambhal lo
   _rlView = which;
   document.querySelectorAll('#page-ratelist .tab-group .tab').forEach(t => t.classList.remove('active'));
@@ -5183,6 +5202,9 @@ function rlRenderHead() {
   const cost = c.kind === 'cost';
   document.getElementById('rlCostBar').style.display = cost ? '' : 'none';
   document.getElementById('rlRateBar').style.display = cost ? 'none' : '';
+  // Images/PDF sirf Cost Sheet me — print out wali sheet me zaroorat nahi
+  const dsec = document.getElementById('rlDetailsSec');
+  if (dsec) dsec.style.display = cost ? '' : 'none';
   if (cost) {
     document.getElementById('rlCDate').value = c.sheet_date || '';
     document.getElementById('rlCBuyer').value = c.buyer || '';
@@ -5199,9 +5221,12 @@ function rlRenderHead() {
   const badge = c.id
     ? `<span class="rl-badge ${done ? 'rl-bc' : 'rl-bp'}">${done ? 'Completed' : 'Pending'}</span>`
     : '<span class="rl-badge rl-bp">Not saved yet</span>';
-  document.getElementById(cost ? 'rlCStatus' : 'rlStatus').innerHTML = badge;
-  document.getElementById(cost ? 'rlCCompleteBtn' : 'rlCompleteBtn').style.display = done ? 'none' : '';
-  document.getElementById(cost ? 'rlCReopenBtn' : 'rlReopenBtn').style.display = done ? '' : 'none';
+  // Print out tab me status/complete/save hain hi nahi, isliye har element
+  // ka hona zaroori nahi — jo mile usi ko set karo.
+  const put = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
+  put(cost ? 'rlCStatus' : 'rlStatus', el => { el.innerHTML = badge; });
+  put(cost ? 'rlCCompleteBtn' : 'rlCompleteBtn', el => { el.style.display = done ? 'none' : ''; });
+  put(cost ? 'rlCReopenBtn' : 'rlReopenBtn', el => { el.style.display = done ? '' : 'none'; });
 }
 function rlSetHead(k, v) { if (_rlCur) _rlCur[k] = v; }
 
@@ -5245,13 +5270,24 @@ function rlRenderCostGrid() {
         oninput="rlSetCellVal(${i},null,'rate',this.value)"></td>
       <td><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(r.add)}"
         oninput="rlSetCellVal(${i},null,'add',this.value)"></td>
-      <td><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(r.newRate)}"
-        oninput="rlSetCellVal(${i},null,'newRate',this.value)"></td>
+      <td><input class="rl-in rl-num" id="rlCN${i}" readonly tabindex="-1"
+        title="Kariger Rate + Add Cost — khud jud jaata hai"
+        style="background:#f8fafc;color:#475569;cursor:default"
+        value="${escapeHtml(rlCostNewRate(r))}"></td>
       <td class="rl-del"><button class="rl-x" title="Remove this row" onclick="rlDelRow(${i})">✕</button></td>
     </tr>`;
   }).join('');
+  // Sabse neeche poore sheet ka TOTAL — khud banta hai, "Total Row" daalne
+  // ki zaroorat nahi. Beech me daali gayi total rows isme nahi ginti.
+  const gt = rlCostTotals(c.rows.length, c);
+  const foot = `<tr class="rl-totrow">
+      <td></td><td style="text-align:center">TOTAL</td>
+      <td class="rl-num" id="rlCGTr">${rlFmt(gt.rate)}</td>
+      <td class="rl-num" id="rlCGTa">${rlFmt(gt.add)}</td>
+      <td class="rl-num" id="rlCGTn">${rlFmt(gt.newRate)}</td>
+      <td class="rl-del"></td></tr>`;
   document.getElementById('rlGrid').innerHTML =
-    `<table class="rl-tbl"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+    `<table class="rl-tbl"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table>`;
 }
 function rlRenderGrid() {
   const c = _rlCur; if (!c) return;
@@ -5264,9 +5300,7 @@ function rlRenderGrid() {
       <div style="display:flex;align-items:center;gap:2px;justify-content:center">
         <input type="date" class="rl-in" style="width:118px" value="${escapeHtml(d)}"
           onchange="rlSetDate(${j},this.value)" title="Date">
-        <button class="rl-x" title="Remove this date column" onclick="rlDelDate(${j})">✕</button>
-      </div></th>`).join('') +
-    `<th rowspan="2" class="rl-del"></th></tr>`;
+      </div></th>`).join('') + '</tr>';
   const head2 = '<tr>' + c.dates.map((_, j) =>
     `<th class="rl-d${j % 2}" style="width:82px">NO OF PCS</th>` +
     `<th class="rl-d${j % 2}" style="width:92px">AMOUNT</th>`).join('') + '</tr>';
@@ -5283,13 +5317,11 @@ function rlRenderGrid() {
           value="${escapeHtml(cell.pcs)}" oninput="rlSetCellVal(${i},${j},'pcs',this.value)"></td>` +
         `<td class="rl-d${j % 2}"><input class="rl-in rl-num" inputmode="decimal"
           value="${escapeHtml(cell.amount)}" oninput="rlSetCellVal(${i},${j},'amount',this.value)"></td>`;
-    }).join('') +
-    `<td class="rl-del"><button class="rl-x" title="Remove this row" onclick="rlDelRow(${i})">✕</button></td>
-    </tr>`).join('');
+    }).join('') + '</tr>').join('');
 
   const foot = `<tr><td></td><td>TOTAL</td><td class="rl-num" id="rlTotRate"></td>` +
     c.dates.map((_, j) => `<td class="rl-d${j % 2} rl-num" id="rlTotPcs${j}"></td>` +
-      `<td class="rl-d${j % 2} rl-num" id="rlTotAmt${j}"></td>`).join('') + `<td></td></tr>`;
+      `<td class="rl-d${j % 2} rl-num" id="rlTotAmt${j}"></td>`).join('') + `</tr>`;
 
   document.getElementById('rlGrid').innerHTML =
     `<table class="rl-tbl"><thead>${head1}${head2}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table>`;
@@ -5297,10 +5329,25 @@ function rlRenderGrid() {
 }
 
 // Ek hi jagah se saari cell edit — model badlo aur sirf total dobara gino
+// Cost Sheet me NEW KARIGER RATE ab khud banta hai: kariger rate + add cost.
+// (5 + 5 = 10). Dono khaali ho to ye bhi khaali rehta hai.
+function rlCostNewRate(r) {
+  const hasAny = String(r.rate || '').trim() !== '' || String(r.add || '').trim() !== '';
+  if (!hasAny) return '';
+  const s = Math.round((rlNum(r.rate) + rlNum(r.add)) * 100) / 100;
+  return String(s);
+}
 function rlSetCellVal(i, j, field, v) {
   const c = _rlCur; if (!c || !c.rows[i]) return;
   if (j === null) c.rows[i][field] = v;
   else { if (!c.rows[i].cells[j]) c.rows[i].cells[j] = { pcs: '', amount: '' }; c.rows[i].cells[j][field] = v; }
+  // Rate ya add cost badla to NEW KARIGER RATE turant dobara jod do
+  if (c.kind === 'cost' && (field === 'rate' || field === 'add')) {
+    const row = c.rows[i];
+    row.newRate = rlCostNewRate(row);
+    const el = document.getElementById('rlCN' + i);
+    if (el) el.value = row.newRate;
+  }
   if (field !== 'op') rlUpdateTotals();
 }
 function rlSetDate(j, v) { if (_rlCur) _rlCur.dates[j] = v; }
@@ -5314,6 +5361,10 @@ function rlUpdateTotals() {
       const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = rlFmt(v); };
       set('rlCT' + i + 'r', t.rate); set('rlCT' + i + 'a', t.add); set('rlCT' + i + 'n', t.newRate);
     });
+    // Sabse neeche wala grand total bhi saath-saath badalta rahe
+    const gt = rlCostTotals(c.rows.length, c);
+    const setG = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = rlFmt(v); };
+    setG('rlCGTr', gt.rate); setG('rlCGTa', gt.add); setG('rlCGTn', gt.newRate);
     return;
   }
   const tr = document.getElementById('rlTotRate');
