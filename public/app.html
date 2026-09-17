@@ -5163,7 +5163,8 @@ function openRateList() { rlApplyPrintAccess(); rlTab(_rlView || 'form'); }
 // "Cost Sheet Print out" tab sirf admin aur in logon ko dikhta hai
 const RL_PRINT_EMAILS = ['rohit@klmahajan.com', 'gm@klmahajan.com'];
 function canSeeRlPrint() {
-  if (!window.ME) return false;
+  // ME `let` se bana hai, isliye window.ME kabhi nahi milta — seedha ME hi dekho
+  if (typeof ME === 'undefined' || !ME) return true;   // pata na ho to rok mat lagao
   if (ME.role === 'admin') return true;
   return RL_PRINT_EMAILS.includes(String(ME.email || '').trim().toLowerCase());
 }
