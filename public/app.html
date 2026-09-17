@@ -11592,13 +11592,25 @@ async function openAllMISDetail(userId, userName, rangeType) {
 
   const today = new Date().toISOString().split('T')[0];
 
-  const makeTaskRows = (tasks, showRevised) => tasks.map(t => `
+  // List me sirf wo kaam jo abhi baaki hai — done wale sirf ginti me
+  // (header par "X done" chip), warna list bhar jaati hai.
+  // Nipta hua kaam (Done aur Not Applicable) list se bahar — sirf ginti
+  // header par. List me wahi jo abhi baaki hai: pending, overdue, revision.
+  const CLOSED = new Set(['completed', 'not_applicable']);
+  const openOnly = list => (list || []).filter(t => !CLOSED.has(String(t.status || '').toLowerCase()));
+  const countBy = (list, st) => (list || []).filter(t => String(t.status || '').toLowerCase() === st).length;
+  const chip = (n, label, bg, fg, bd) => n > 0
+    ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:${bg};color:${fg};font-weight:700;border:1px solid ${bd}">${label}</span>`
+    : '';
+  const doneChip = list => chip(countBy(list, 'completed'), '✅ ' + countBy(list, 'completed') + ' done', '#ecfdf5', '#047857', '#a7f3d0')
+    + chip(countBy(list, 'not_applicable'), '⊘ ' + countBy(list, 'not_applicable') + ' N/A', '#f8fafc', '#64748b', '#e2e8f0');
+  const makeTaskRows = (tasks, showRevised) => openOnly(tasks).map(t => `
     <tr>
       <td style="font-size:12px">${t.description}</td>
       <td style="color:#64748b;font-size:11px;white-space:nowrap">${fmtDate(t.due_date)}</td>
       <td><span class="status-badge ${t.status}">${t.status === 'revised' ? 'Revision' : t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
       <td>${t.status==='pending' && t.due_date < today ? '<span style="font-size:10px;color:#dc2626;font-weight:600">⏰ Overdue</span>' : ''}</td>
-    </tr>`).join('') || `<tr><td colspan="4" class="empty" style="font-size:12px">No tasks</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="4" class="empty" style="font-size:12px">✅ Koi pending kaam nahi</td></tr>`;
 
   const score = emp.overallScore;
   const scoreColor = misScoreColor(score);
@@ -11667,7 +11679,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
 
   const delegationSectionHtml = emp.delegation.total > 0 ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score > 0 ? '+' : ''}${emp.delegation.score.toFixed(1)}%
+      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score > 0 ? '+' : ''}${emp.delegation.score.toFixed(1)}%${doneChip(delDetail.tasks)}
         ${emp.delegation.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.delegation.overdue} Overdue</span>` : ''}</div>
       <div class="tbl-freeze" style="max-height:300px">
         <table style="font-size:12px">
@@ -11679,7 +11691,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
 
   const checklistSectionHtml = emp.checklist.total > 0 ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score > 0 ? '+' : ''}${emp.checklist.score.toFixed(1)}%
+      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score > 0 ? '+' : ''}${emp.checklist.score.toFixed(1)}%${doneChip(chlDetail.tasks)}
         ${emp.checklist.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.checklist.overdue} Overdue</span>` : ''}</div>
       <div class="tbl-freeze" style="max-height:300px">
         <table style="font-size:12px">
