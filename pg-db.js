@@ -35,11 +35,11 @@ const SCHEMA = {
     autoFill: {}
   },
   delegation_tasks: {
-    cols: ['id','description','assigned_to','assigned_by','due_date','status','priority','approval','waiting_approval','remarks','created_at','last_reminder_date','completed_at'],
+    cols: ['id','description','assigned_to','assigned_by','due_date','status','priority','approval','waiting_approval','remarks','created_at','last_reminder_date','completed_at','completed_by'],
     autoFill: { created_at: 'NOW' }
   },
   checklist_tasks: {
-    cols: ['id','description','assigned_to','assigned_by','due_date','status','priority','remarks','frequency','created_at','completed_at'],
+    cols: ['id','description','assigned_to','assigned_by','due_date','status','priority','remarks','frequency','created_at','completed_at','completed_by'],
     autoFill: { created_at: 'NOW' }
   },
   task_approvals: {
@@ -429,7 +429,16 @@ let _lastReloadTs = 0;
 async function reload(force) {
   if (!_initialized) return init();
   if (_testMode) return;
-  if (_flushInProgress || _dirtyTables.size > 0) return;
+  if (_flushInProgress) return;
+  // Dirty tables pade hain to pehle unhe likh do. Pehle yahan seedha `return`
+  // tha — ek bhi flush fail ho jaaye (network blip) to table hamesha dirty
+  // reh jaata tha aur ye instance DOBARA KABHI reload nahi karta tha. Nateeja:
+  // done kiya hua task screen par wapas pending dikhta tha, jabki DB me sahi
+  // tha. Ab likhne ki koshish karo; ho gaya to fresh data uthao.
+  if (_dirtyTables.size > 0) {
+    try { await flushNow(); } catch (e) { return; }   // na likh paaye to purana hi sahi
+    if (_dirtyTables.size > 0) return;
+  }
   if (!force) {
     const ttl = parseInt(process.env.PG_RELOAD_TTL_MS || '3000', 10);
     if (ttl > 0 && (Date.now() - _lastReloadTs) < ttl) return;

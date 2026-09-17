@@ -1322,7 +1322,21 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
       where += ` AND t.due_date >= '${ownerFyStart()}'`;
     }
 
-    const [tasks] = await db.query(`SELECT t.id,'${type||'delegation'}' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,${isDeleg?"'' AS frequency,":"COALESCE(t.frequency,'') AS frequency,"}${isDeleg?"COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,":"'no' AS approval,0 AS waiting_approval,t.remarks,"}DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,DATE_FORMAT(t.created_at,'%Y-%m-%d') AS assigned_on,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail,u2.role AS assignedByRole FROM ${table} t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id ${where} ORDER BY t.due_date ASC`, params);
+    const [tasks] = await db.query(`SELECT t.id,'${type||'delegation'}' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,${isDeleg?"'' AS frequency,":"COALESCE(t.frequency,'') AS frequency,"}${isDeleg?"COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,":"'no' AS approval,0 AS waiting_approval,t.remarks,"}DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,DATE_FORMAT(t.created_at,'%Y-%m-%d') AS assigned_on,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail,u2.role AS assignedByRole,t.completed_at,t.completed_by FROM ${table} t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id ${where} ORDER BY t.due_date ASC`, params);
+
+    // "Done kisne kiya" — id se naam. (alasql ka LEFT JOIN bharosemand nahi,
+    // isliye yahan ek hi users query se map bana kar bhar dete hain.)
+    try {
+      const [uRows] = await db.query('SELECT id, name FROM users');
+      const nameById = {};
+      for (const u of uRows) nameById[String(u.id)] = u.name || '';
+      for (const t of tasks) {
+        t.completed_at = t.completed_at || '';
+        t.completedByName = t.completed_by ? (nameById[String(t.completed_by)] || '') : '';
+      }
+    } catch (e) {
+      for (const t of tasks) { t.completed_at = t.completed_at || ''; t.completedByName = ''; }
+    }
 
     // ── Comments attach karo (count + latest) taaki table me dikh sakein ──
     // Pehle comment sirf 💬 modal kholne par dikhta tha; list me koi ishara nahi tha.
@@ -1510,10 +1524,12 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
     // Timestamp: status='completed' pe NOW(); warna NULL (un-complete pe clear).
     const nowTs = new Date().toISOString().slice(0,19).replace('T',' ');
     const completedAt = status === 'completed' ? nowTs : null;
+    // Kisne done kiya — audit ke liye. Complete na ho to khaali.
+    const completedBy = status === 'completed' ? String(uid) : null;
     if (status === 'completed' && task.waiting_approval) {
       await db.query(`DELETE FROM task_approvals WHERE task_id=? AND task_type=? AND status='pending'`, [req.params.id, type]);
-      if (type === 'checklist') await db.query(`UPDATE ${table} SET status='completed',completed_at=? WHERE id=?`, [nowTs, req.params.id]);
-      else await db.query(`UPDATE ${table} SET status='completed',waiting_approval=0,completed_at=? WHERE id=?`, [nowTs, req.params.id]);
+      if (type === 'checklist') await db.query(`UPDATE ${table} SET status='completed',completed_at=?,completed_by=? WHERE id=?`, [nowTs, String(uid), req.params.id]);
+      else await db.query(`UPDATE ${table} SET status='completed',waiting_approval=0,completed_at=?,completed_by=? WHERE id=?`, [nowTs, String(uid), req.params.id]);
       return res.json({ success: true, needsApproval: false });
     }
     // EA khud (assigner) Done kare to approval-request nahi banti — wo khud hi approver hai.
@@ -1539,14 +1555,14 @@ app.put('/api/tasks/:id/status', requireAuth, async (req, res) => {
     const rParam = mergedRemarks !== null ? [mergedRemarks] : [];
 
     if (newDate && status === 'revised') {
-      await db.query(`UPDATE ${table} SET status=?,waiting_approval=0,due_date=?,completed_at=?${rSet} WHERE id=?`,
-        [status, newDate, completedAt, ...rParam, req.params.id]);
+      await db.query(`UPDATE ${table} SET status=?,waiting_approval=0,due_date=?,completed_at=?,completed_by=?${rSet} WHERE id=?`,
+        [status, newDate, completedAt, completedBy, ...rParam, req.params.id]);
     } else {
       // checklist_tasks mein waiting_approval column nahi hota
-      if (type === 'checklist') await db.query(`UPDATE ${table} SET status=?,completed_at=?${rSet} WHERE id=?`,
-        [status, completedAt, ...rParam, req.params.id]);
-      else await db.query(`UPDATE ${table} SET status=?,waiting_approval=0,completed_at=?${rSet} WHERE id=?`,
-        [status, completedAt, ...rParam, req.params.id]);
+      if (type === 'checklist') await db.query(`UPDATE ${table} SET status=?,completed_at=?,completed_by=?${rSet} WHERE id=?`,
+        [status, completedAt, completedBy, ...rParam, req.params.id]);
+      else await db.query(`UPDATE ${table} SET status=?,waiting_approval=0,completed_at=?,completed_by=?${rSet} WHERE id=?`,
+        [status, completedAt, completedBy, ...rParam, req.params.id]);
     }
     res.json({ success: true, needsApproval: false });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1883,7 +1899,9 @@ app.put('/api/approvals/:id', requireAuth, async (req, res) => {
     const table = getTable(appr.task_type);
     if (action === 'approved') {
       const completedAt = appr.action_type === 'completed' ? new Date().toISOString().slice(0,19).replace('T',' ') : null;
-      await db.query(`UPDATE ${table} SET status=?,waiting_approval=0,completed_at=? WHERE id=?`, [appr.action_type, completedAt, appr.task_id]);
+      // "Done kisne kiya" = jisne request bheji thi (approve karne wala nahi)
+      const completedBy = appr.action_type === 'completed' ? String(appr.requested_by) : null;
+      await db.query(`UPDATE ${table} SET status=?,waiting_approval=0,completed_at=?,completed_by=? WHERE id=?`, [appr.action_type, completedAt, completedBy, appr.task_id]);
     } else await db.query(`UPDATE ${table} SET waiting_approval=0 WHERE id=?`, [appr.task_id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

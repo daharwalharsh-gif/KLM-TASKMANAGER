@@ -8090,13 +8090,16 @@ function renderTasksTable() {
             <div style="font-size:10px;color:#64748b;margin-top:2px">— ${t.lastCommentBy||''}${_cc > 1 ? ` &nbsp;·&nbsp; +${_cc-1} aur comment` : ''}</div>
           </div>` : ''}
       </td>
+      <td style="white-space:nowrap;font-size:12px;color:#64748b">${t.completedByName ? titleName(t.completedByName) : '—'}</td>
+      <td style="white-space:nowrap;font-size:12px;color:#64748b">${fmtDoneAt(t.completed_at)}</td>
       <td><span class="status-badge ${t.status}">${t.status==='revised'?'Revision Requested':t.status==='not_applicable'?'Not Applicable':t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
     </tr>`;
   };
 
   const tableHead = `<thead><tr>
     <th>Action</th><th>Desc</th><th>Doer</th><th>Assignee</th>
-    <th title="Date jab task delegate hua tha">Assigned On</th><th>Due Date</th><th>Remarks</th><th>Status</th>
+    <th title="Date jab task delegate hua tha">Assigned On</th><th>Due Date</th><th>Remarks</th>
+    <th title="Kisne Done kiya">Done By</th><th title="Kab Done kiya">Done On</th><th>Status</th>
   </tr></thead>`;
 
   // ── DOER-WISE GROUPING ── (toggle ON hone par pagination nahi — sab groups dikhte hain)
@@ -8160,6 +8163,8 @@ function renderTasksTable() {
             <th title="Date jab task delegate hua tha">Assigned On</th>
             <th>Due Date</th>
             <th>Remarks</th>
+            <th title="Kisne Done kiya">Done By</th>
+            <th title="Kab Done kiya">Done On</th>
             <th>Status</th>
           </tr></thead>
           <tbody>${pageRows}</tbody>
@@ -10543,6 +10548,17 @@ function fmtDate(d) {
   const parts = d.split('-');
   if (parts.length !== 3) return d;
   return `${parts[2]}-${parts[1]}-${parts[0]}`;
+}
+// Task kab Done hua — "17-09-2026 2:20 PM". DB me "YYYY-MM-DD HH:MM:SS" hota hai.
+function fmtDoneAt(v) {
+  const s = String(v || '').trim();
+  if (!s) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(s);
+  if (!m) return fmtDate(s.slice(0, 10)) || s;
+  let h = parseInt(m[4], 10);
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${m[3]}-${m[2]}-${m[1]} ${h}:${m[5]} ${ap}`;
 }
 // Naam ko Title Case me — har word ka pehla letter capital, baaki small.
 // e.g. "HARSH" -> "Harsh", "kavita sharma" -> "Kavita Sharma".
