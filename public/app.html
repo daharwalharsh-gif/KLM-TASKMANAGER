@@ -3468,6 +3468,18 @@ tbody tr:last-child td{border-bottom:none;}
 <!-- ══════════════════════════════════════
      MIS DETAIL MODAL
 ══════════════════════════════════════ -->
+<!-- FMS Overview me kisi FMS par click — us FMS ki step-wise detail -->
+<div class="modal-overlay" id="fmsMisModal">
+  <div class="modal" style="width:860px;max-width:95vw">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;background:#fff;padding-bottom:10px;margin-bottom:10px;z-index:20;border-bottom:1px solid #f1f5f9">
+      <h3 id="fmsMisTitle" style="margin:0">FMS Detail</h3>
+      <button class="btn btn-outline" onclick="closeModal('fmsMisModal')" style="flex-shrink:0">✕ Close</button>
+    </div>
+    <div id="fmsMisSummary" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:14px"></div>
+    <div id="fmsMisSteps"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="misDetailModal">
   <div class="modal" style="width:680px;max-width:95vw">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;background:#fff;padding-bottom:10px;margin-bottom:10px;z-index:20;border-bottom:1px solid #f1f5f9">
@@ -11421,8 +11433,9 @@ function renderAllMIS(data, fmsData) {
     const fmsRows = fmsData.map(f => {
       const pct = f.total > 0 ? Math.round((f.done/f.total)*100) : 0;
       const barColor = pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
-      return `<tr>
-        <td style="font-weight:600;color:#374151">${f.fmsName}</td>
+      return `<tr onclick="openFmsMisDetail(${f.fmsId})" style="cursor:pointer"
+          title="Click karke step-wise detail dekhein — kaun sa step pending hai">
+        <td style="font-weight:600;color:#4f46e5;text-decoration:underline">${f.fmsName}</td>
         <td style="font-weight:700">${f.total}</td>
         <td style="color:#ef4444;font-weight:600">${f.pending}</td>
         <td style="color:#10b981;font-weight:600">${f.done}</td>
@@ -11448,6 +11461,80 @@ function renderAllMIS(data, fmsData) {
         </div>
       </div>`;
   }
+}
+
+// FMS Overview me kisi row par click — us FMS ki step-wise detail.
+// Sabse upar wo steps jinme sabse zyada pending hai, taaki atka hua kaam
+// pehli nazar me dikh jaye.
+function openFmsMisDetail(fmsId) {
+  const f = (misFMSData || []).find(x => String(x.fmsId) === String(fmsId));
+  if (!f) return showToast('Is FMS ka data nahi mila — Generate dobara chalayein', 'error');
+
+  document.getElementById('fmsMisTitle').textContent = f.fmsName || 'FMS Detail';
+
+  if (f.error) {
+    document.getElementById('fmsMisSummary').innerHTML =
+      `<div style="color:#b91c1c;font-size:13px">⚠️ ${escapeHtml(f.error)}</div>`;
+    document.getElementById('fmsMisSteps').innerHTML = '';
+    document.getElementById('fmsMisModal').classList.add('open');
+    return;
+  }
+
+  const pct = f.total > 0 ? Math.round((f.done / f.total) * 100) : 0;
+  const chip = (label, val, color) =>
+    `<span style="display:inline-block;margin-right:16px;font-size:13px;color:${color}">${label}: <strong>${val}</strong></span>`;
+  document.getElementById('fmsMisSummary').innerHTML =
+    `<div style="margin-bottom:8px">
+       ${chip('📋 Total', f.total || 0, '#334155')}
+       ${chip('⏳ Pending', f.pending || 0, '#ef4444')}
+       ${chip('⏰ Overdue', f.overdue || 0, '#dc2626')}
+       ${chip('✅ Done', f.done || 0, '#10b981')}
+       ${chip('📈 Completion', pct + '%', '#4f46e5')}
+     </div>
+     <div style="font-size:11.5px;color:#64748b">Is date range me — done: <strong>${f.doneInRange || 0}</strong>
+       &nbsp;·&nbsp; pending: <strong>${f.pendingInRange || 0}</strong>
+       &nbsp;·&nbsp; overdue: <strong>${f.overdueInRange || 0}</strong></div>`;
+
+  const steps = (f.steps || []).slice().sort((a, b) => (b.pending || 0) - (a.pending || 0));
+  const rows = steps.map(s => {
+    const sPct = s.total > 0 ? Math.round((s.done / s.total) * 100) : 0;
+    const bar = sPct >= 80 ? '#10b981' : sPct >= 50 ? '#f59e0b' : '#ef4444';
+    return `<tr${(s.pending || 0) > 0 ? ' style="background:#fff7ed"' : ''}>
+      <td style="text-align:center;color:#64748b">${s.stepOrder || ''}</td>
+      <td style="font-weight:600;color:#374151">${escapeHtml(s.stepName || '—')}</td>
+      <td style="color:#475569">${escapeHtml(s.doers || '—')}</td>
+      <td style="text-align:center;color:#ef4444;font-weight:700">${s.pending || 0}</td>
+      <td style="text-align:center;color:#dc2626;font-weight:600">${s.overdue || 0}</td>
+      <td style="text-align:center;color:#10b981;font-weight:600">${s.done || 0}</td>
+      <td style="text-align:center">${s.total || 0}</td>
+      <td style="min-width:90px">
+        <div style="font-size:12px;font-weight:700;color:${bar}">${sPct}%</div>
+        <div style="height:5px;border-radius:3px;background:#e2e8f0;margin-top:3px;overflow:hidden">
+          <div style="height:100%;width:${sPct}%;background:${bar};border-radius:3px"></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('fmsMisSteps').innerHTML =
+    `<div style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">
+       Step-wise detail — sabse zyada pending upar
+     </div>
+     <div style="max-height:420px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px">
+       <table>
+         <thead><tr>
+           <th style="width:40px">#</th><th>Step</th><th>Doer</th>
+           <th style="width:70px;text-align:center">Pending</th>
+           <th style="width:70px;text-align:center">Overdue</th>
+           <th style="width:60px;text-align:center">Done</th>
+           <th style="width:60px;text-align:center">Total</th>
+           <th style="width:100px">Completion</th>
+         </tr></thead>
+         <tbody>${rows || '<tr><td colspan="8" class="empty">Is FMS ka koi step data nahi</td></tr>'}</tbody>
+       </table>
+     </div>`;
+
+  document.getElementById('fmsMisModal').classList.add('open');
 }
 
 // This week (Mon-Sat) aur this month (1st -> aaj) ke ranges
