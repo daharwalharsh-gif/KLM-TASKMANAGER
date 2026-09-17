@@ -5839,6 +5839,8 @@ function rlPDF(rec) {
     /* Kariger Name / Card No — haath se bharne ke liye khaali jagah */
     .fillin{display:flex;gap:26px;color:#1e293b;font-size:11px}
     .fillin .line{display:inline-block;width:132px;border-bottom:1px solid #64748b;margin-left:5px}
+    /* DATE bilkul kone me — baaki khaana haath se date likhne ke liye khaali */
+    th.dth{text-align:left;padding-left:5px}
     table{width:100%;border-collapse:collapse;table-layout:fixed}
     th,td{border:1px solid #cbd5e1;padding:4px 5px;text-align:center;vertical-align:middle;word-wrap:break-word}
     th{background:#eef2ff;color:#3730a3;font-size:9.5px}
@@ -5863,7 +5865,7 @@ function rlPDF(rec) {
     <thead>
       <tr><th rowspan="2" style="width:26px">S.NO</th><th rowspan="2" style="width:190px">OPERATION</th>
         <th rowspan="2" style="width:60px">KARIGER RATE</th>
-        ${c.dates.map(d => `<th colspan="2">${escapeHtml(dt(d)) || 'DATE'}</th>`).join('')}</tr>
+        ${c.dates.map(d => `<th colspan="2" class="dth">${escapeHtml(dt(d)) || 'DATE'}</th>`).join('')}</tr>
       <tr>${c.dates.map(() => '<th>NO OF PCS</th><th>AMOUNT</th>').join('')}</tr>
     </thead>
     <tbody>${rows.map((r, i) => `<tr><td>${i + 1}</td><td class="op">${escapeHtml(r.op)}</td>
