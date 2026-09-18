@@ -5314,6 +5314,57 @@ function rlRenderCostGrid() {
   document.getElementById('rlGrid').innerHTML =
     `<table class="rl-tbl"><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table>`;
 }
+
+// ══════════════════════════════════════════════════════
+// GRID ME KEYBOARD SE UPAR-NEECHE — Excel jaisa
+// ══════════════════════════════════════════════════════
+// Harsh (18 Sep 2026): "data fill karta hoon to ek entry ke baad doosri --
+// neeche wale arrow se neeche ja sakun."
+// Pehle har entry ke baad mouse se agli row par click karna padta tha,
+// kyunki input me arrow dabane par cursor sirf text ke andar hilta tha.
+// Ab:
+//   ↓  ya  Enter  -> usi column me AGLI row
+//   ↑             -> usi column me PICHHLI row
+// ←/→ ko haath nahi lagaya — wo text ke andar cursor chalane ke liye hi
+// rehne chahiye. Tab pehle jaisa dayein chalta hai.
+//
+// Jo khaane bharne layak nahi (NEW KARIGER RATE readonly hai, TOTAL wali
+// rows me input hi nahi) wo apne aap chhut jaate hain — cursor seedha agle
+// bharne wale khaane par jaata hai.
+function rlGridKeyNav(e) {
+  const k = e.key;
+  if (k !== 'ArrowDown' && k !== 'ArrowUp' && k !== 'Enter') return;
+  const el = e.target;
+  if (!el || el.tagName !== 'INPUT') return;
+  if (el.type === 'date') return;              // date picker ko apne arrow chahiye
+  const grid = document.getElementById('rlGrid');
+  if (!grid || !grid.contains(el)) return;
+
+  const td = el.closest('td'), tr = el.closest('tr');
+  if (!td || !tr) return;
+  const tbody = tr.parentNode;
+  if (!tbody || tbody.tagName !== 'TBODY') return;   // sirf data rows
+
+  const col = Array.prototype.indexOf.call(tr.children, td);
+  const rows = Array.prototype.slice.call(tbody.rows);
+  const step = (k === 'ArrowUp') ? -1 : 1;
+
+  for (let i = rows.indexOf(tr) + step; i >= 0 && i < rows.length; i += step) {
+    const cell = rows[i].children[col];
+    if (!cell) continue;
+    const inp = cell.querySelector('input:not([readonly]):not([disabled])');
+    if (inp) {
+      e.preventDefault();
+      inp.focus();
+      if (inp.select) inp.select();            // poora value chuna hua, seedha type karo
+      return;
+    }
+  }
+  // Aakhri row par Enter -- page reload/submit na ho jaye
+  if (k === 'Enter') e.preventDefault();
+}
+document.addEventListener('keydown', rlGridKeyNav);
+
 function rlRenderGrid() {
   const c = _rlCur; if (!c) return;
   if (c.kind === 'cost') return rlRenderCostGrid();
