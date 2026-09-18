@@ -5911,10 +5911,18 @@ function rlDetailCostHtml(c) {
       '<td class="rl-num" style="padding:6px 8px">' + escapeHtml(r.add) + '</td>' +
       '<td class="rl-num" style="padding:6px 8px">' + escapeHtml(r.newRate) + '</td></tr>';
   }).join('');
+  // Sabse neeche poore sheet ka TOTAL — bilkul wahi jo Cost Sheet edit karte
+  // waqt dikhta hai. Beech wali TOTAL row sirf apne upar ke rows jodti hai,
+  // isliye uske baad wali rows chhoot jaati thi aur ye view edit se mel nahi
+  // khata tha.
+  const gt = rlCostTotals(c.rows.length, c);
+  const foot = '<tfoot><tr class="rl-totrow"><td></td><td style="text-align:center">TOTAL</td>' +
+    '<td class="rl-num">' + rlFmt(gt.rate) + '</td><td class="rl-num">' + rlFmt(gt.add) + '</td>' +
+    '<td class="rl-num">' + rlFmt(gt.newRate) + '</td></tr></tfoot>';
   return '<table class="rl-tbl"><thead><tr><th style="width:46px">S.NO</th>' +
     '<th style="min-width:300px">OPERATION</th><th style="width:110px">KARIGER RATE</th>' +
     '<th style="width:100px">ADD COST</th><th style="width:130px">NEW KARIGER RATE</th></tr></thead><tbody>' +
-    body + '</tbody></table>';
+    body + '</tbody>' + foot + '</table>';
 }
 
 // ── PDF ──
@@ -5934,6 +5942,12 @@ function rlCostPDF(rec) {
     sr++;
     return `<tr><td>${sr}</td><td class="op">${escapeHtml(r.op)}</td><td>${escapeHtml(r.rate)}</td><td>${escapeHtml(r.add)}</td><td>${escapeHtml(r.newRate)}</td></tr>`;
   }).join("");
+  // Sabse neeche poore sheet ka TOTAL — wahi jo Cost Sheet edit karte waqt
+  // dikhta hai. Beech wali TOTAL row sirf apne upar ke rows jodti hai, isliye
+  // uske baad wali rows chhoot jaati thi aur print edit se mel nahi khata tha.
+  const gt = rlCostTotals(c.rows.length, c);
+  const grandFoot =
+    `<tr class="tot"><td></td><td>TOTAL</td><td>${rlFmt(gt.rate)}</td><td>${rlFmt(gt.add)}</td><td>${rlFmt(gt.newRate)}</td></tr>`;
   const imgs = c.files.filter(f => f.kind === "image");
   const pdfs = c.files.filter(f => f.kind !== "image");
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>KLM Task Manager — Cost Sheet</title><style>
@@ -5954,6 +5968,7 @@ function rlCostPDF(rec) {
     <tr class="hd"><td colspan="3">BUYER- ${escapeHtml(c.buyer) || "—"}</td><td>${escapeHtml(c.fabric) || "—"}</td><td>${escapeHtml(c.gsm) || "—"}</td></tr>
     <tr class="hd"><td colspan="2">STYLE- ${escapeHtml(c.style) || "—"}</td><td>KARIGER RATE</td><td>ADD COST</td><td>NEW KARIGER RATE</td></tr>
     ${body}
+    ${grandFoot}
   </table>
   ${imgs.length ? `<div class="imgs">${imgs.map(f => `<img src="${escapeHtml(f.link)}">`).join("")}</div>` : ""}
   ${pdfs.length ? `<div style="margin-top:8px;font-size:10px;color:#64748b">Attached PDF: ${pdfs.map(f => escapeHtml(f.name)).join(", ")}</div>` : ""}
