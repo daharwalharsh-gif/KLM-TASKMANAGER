@@ -11436,9 +11436,9 @@ function renderAllMIS(data, fmsData) {
 
     // Mini breakdown badges — Delegation, Checklist, FMS sab
     const delBadge = emp.delegation.total > 0
-      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${delScore<0?'#fef2f2':'#f0fdf4'};color:${delScore<0?'#dc2626':'#16a34a'};font-weight:600;border:1px solid ${delScore<0?'#fecaca':'#bbf7d0'}">Del: ${delScore>0?'+':''}${delScore.toFixed(0)}%</span>` : '';
+      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${delScore<0?'#fef2f2':'#f0fdf4'};color:${delScore<0?'#dc2626':'#16a34a'};font-weight:600;border:1px solid ${delScore<0?'#fecaca':'#bbf7d0'}">Del: ${delScore.toFixed(0)}%</span>` : '';
     const chlBadge = emp.checklist.total > 0
-      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${chlScore<0?'#fef2f2':'#f0fdf4'};color:${chlScore<0?'#dc2626':'#16a34a'};font-weight:600;border:1px solid ${chlScore<0?'#fecaca':'#bbf7d0'}">CL: ${chlScore>0?'+':''}${chlScore.toFixed(0)}%</span>` : '';
+      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:${chlScore<0?'#fef2f2':'#f0fdf4'};color:${chlScore<0?'#dc2626':'#16a34a'};font-weight:600;border:1px solid ${chlScore<0?'#fecaca':'#bbf7d0'}">CL: ${chlScore.toFixed(0)}%</span>` : '';
     const fmsBadge = (fmsObj.isDoer || (fmsObj.done||0) > 0 || fmsObj.total > 0)
       ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:600;border:1px solid #bfdbfe">FMS: ${fmsObj.done||0} done</span>` : '';
 
@@ -11738,7 +11738,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
   const combinedSummaryHtml = `
     <div style="${fmsSectionHtml ? 'margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px;' : ''}">
       <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.3px">📊 FMS + Delegation + Checklist — Combined</div>
-      <div style="font-size:28px;font-weight:800;color:${scoreColor}">${score !== null ? (score>0?'+':'')+ score.toFixed(1)+'%' : '—'}</div>
+      <div style="font-size:28px;font-weight:800;color:${scoreColor}">${score !== null ? score.toFixed(1)+'%' : '—'}</div>
       <div style="display:flex;gap:16px;margin-top:10px;font-size:13px;flex-wrap:wrap">
         <span>📋 Total: <strong>${emp.totalAll}</strong></span>
         <span style="color:#10b981">✅ Done: <strong>${completedTotal}</strong></span>
@@ -11750,7 +11750,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
 
   const delegationSectionHtml = emp.delegation.total > 0 ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score > 0 ? '+' : ''}${emp.delegation.score.toFixed(1)}%${doneChip(delDetail.tasks)}
+      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score.toFixed(1)}%${doneChip(delDetail.tasks)}
         ${emp.delegation.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.delegation.overdue} Overdue</span>` : ''}</div>
       <div class="tbl-freeze" style="max-height:300px">
         <table style="font-size:12px">
@@ -11762,7 +11762,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
 
   const checklistSectionHtml = emp.checklist.total > 0 ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score > 0 ? '+' : ''}${emp.checklist.score.toFixed(1)}%${doneChip(chlDetail.tasks)}
+      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score.toFixed(1)}%${doneChip(chlDetail.tasks)}
         ${emp.checklist.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.checklist.overdue} Overdue</span>` : ''}</div>
       <div class="tbl-freeze" style="max-height:300px">
         <table style="font-size:12px">
@@ -12039,7 +12039,7 @@ async function openRecordDetail(userId) {
   document.getElementById('recDetailBody').innerHTML = `
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px">
       <div style="font-size:12px;color:#475569;margin-bottom:10px">${committedLine}</div>
-      <div style="font-size:26px;font-weight:800;color:${scoreColor}">${r.score !== null ? (r.score>0?'+':'')+r.score.toFixed(1)+'%' : '—'}</div>
+      <div style="font-size:26px;font-weight:800;color:${scoreColor}">${r.score !== null ? r.score.toFixed(1)+'%' : '—'}</div>
       <div style="display:flex;gap:16px;margin-top:10px;font-size:13px;flex-wrap:wrap">
         <span>📋 Total: <strong>${r.total}</strong></span>
         <span style="color:#10b981">✅ Done: <strong>${r.done}</strong></span>
