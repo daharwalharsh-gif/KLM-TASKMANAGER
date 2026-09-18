@@ -5333,7 +5333,9 @@ function rlRenderCostGrid() {
 // bharne wale khaane par jaata hai.
 function rlGridKeyNav(e) {
   const k = e.key;
-  if (k !== 'ArrowDown' && k !== 'ArrowUp' && k !== 'Enter') return;
+  const seedha = (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Enter');
+  const bagal  = (k === 'ArrowLeft' || k === 'ArrowRight');
+  if (!seedha && !bagal) return;
   const el = e.target;
   if (!el || el.tagName !== 'INPUT') return;
   if (el.type === 'date') return;              // date picker ko apne arrow chahiye
@@ -5346,6 +5348,24 @@ function rlGridKeyNav(e) {
   if (!tbody || tbody.tagName !== 'TBODY') return;   // sirf data rows
 
   const col = Array.prototype.indexOf.call(tr.children, td);
+
+  // ── DAYE-BAYE ──
+  // Text ke andar cursor pehle jaisa hi chalta hai. Column TABHI badalta hai
+  // jab cursor bilkul kinare par ho aur kuch selected na ho -- warna operation
+  // ka naam theek karna namumkin ho jaata. (18 Sep 2026)
+  if (bagal) {
+    let s = null, en = null;
+    try { s = el.selectionStart; en = el.selectionEnd; } catch (_) { }
+    if (s === null || s !== en) return;               // kuch chuna hua hai
+    if (k === 'ArrowLeft'  && s !== 0) return;        // abhi text ke andar hai
+    if (k === 'ArrowRight' && s !== String(el.value || '').length) return;
+    const qadam = (k === 'ArrowLeft') ? -1 : 1;
+    for (let j = col + qadam; j >= 0 && j < tr.children.length; j += qadam) {
+      const inp = tr.children[j].querySelector('input:not([readonly]):not([disabled])');
+      if (inp) { e.preventDefault(); inp.focus(); if (inp.select) inp.select(); return; }
+    }
+    return;
+  }
   const rows = Array.prototype.slice.call(tbody.rows);
   const step = (k === 'ArrowUp') ? -1 : 1;
 
