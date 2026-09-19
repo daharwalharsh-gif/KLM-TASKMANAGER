@@ -156,8 +156,18 @@ if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
     const origJson = res.json.bind(res);
     res.json = function (body) {
       db.flushNow()
-        .catch(err => console.error('  ❌ Pre-response flush failed:', err.message))
-        .finally(() => origJson(body));
+        .then(() => origJson(body))
+        .catch(err => {
+          console.error('  ❌ Pre-response flush failed:', err.message);
+          // Pehle yahan .finally() tha — flush fail hone par bhi client ko
+          // "success" (aur nayi id) chala jaata tha, jabki record database me
+          // pahuncha hi nahi. Client wo id yaad rakh leta aur agli baar Save
+          // karne par "Rate list not found" milta. Ab saaf bata dete hain
+          // taaki user dobara koshish kar sake aur kaam na khoye.
+          if (res.headersSent) return;
+          res.status(503);
+          origJson({ error: 'Database tak save nahi pahuncha — thodi der me dobara Save karein.' });
+        });
       return res;
     };
     next();

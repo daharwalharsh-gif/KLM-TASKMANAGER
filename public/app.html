@@ -5767,8 +5767,20 @@ async function rlSave(newStatus) {
     sheet_date: c.sheet_date || '', fabric: c.fabric || '', gsm: c.gsm || '',
     dates: c.dates, rows: c.rows, files: c.files };
   if (newStatus) payload.status = newStatus;   // Save aur Complete ek hi call me
-  const r = c.id ? await api('/api/rate-lists/' + c.id, 'PUT', payload)
-                 : await api('/api/rate-lists', 'POST', payload);
+  let r = c.id ? await api('/api/rate-lists/' + c.id, 'PUT', payload)
+               : await api('/api/rate-lists', 'POST', payload);
+  // Purani id ka record database me na mile ("Rate list not found") to Save
+  // yahin atak jaata tha aur poora kaam phansa reh jaata tha. Ab us id ko
+  // chhod kar naya record bana dete hain — kaam bachana zyada zaroori hai.
+  if (r && r.error && /not found/i.test(String(r.error))) {
+    c.id = null;
+    r = await api('/api/rate-lists', 'POST', payload);
+    // POST hamesha 'pending' banata hai (body ka status nahi dekhta), isliye
+    // Complete dabaya tha to status alag se lagana padta hai.
+    if (r && !r.error && r.id && newStatus) {
+      await api('/api/rate-lists/' + r.id + '/status', 'POST', { status: newStatus });
+    }
+  }
   _rlSaving = false;
   if (!r || r.error) { showToast((r && r.error) || 'Could not save the rate list', 'error'); return false; }
   if (!c.id && r.id) c.id = r.id;
