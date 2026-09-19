@@ -5085,10 +5085,15 @@ async function rlLoadFromCost(id) {
   c.buyer = src.buyer || '';
   c.style = src.style || '';
   c.sheet_date = src.sheet_date || '';
-  // TOTAL ki rows nahi aati; rate wahi jo kariger ko sach me milta hai
-  const items = (src.rows || []).filter(r => r.type !== 'total' && String(r.op || '').trim());
-  c.rows = items.map(r => ({ op: r.op, rate: String(r.newRate || r.rate || ''), cells: [] }))
-    .concat(Array.from({ length: 3 }, () => ({ op: '', rate: '', cells: [] })));
+  // TOTAL ki rows bhi wahin ki wahin aati hain, taaki chhapi hui sheet bilkul
+  // waisi dikhe jaise Cost Sheet me data bhara gaya tha.
+  // Rate wahi jo kariger ko sach me milta hai (new kariger rate).
+  const picked = (src.rows || []).filter(r => r.type === 'total' || String(r.op || '').trim());
+  const items = picked.filter(r => r.type !== 'total');
+  c.rows = picked.map(r => r.type === 'total'
+    ? { type: 'total', op: '', rate: '', cells: [] }
+    : { type: 'item', op: r.op, rate: String(r.newRate || r.rate || ''), cells: [] })
+    .concat(Array.from({ length: 3 }, () => ({ type: 'item', op: '', rate: '', cells: [] })));
   if (!c.dates.length) c.dates = Array.from({ length: RL_NEW_DATES }, () => '');
   rlNorm(c);
   rlRenderAll();
@@ -5149,6 +5154,8 @@ function rlNorm(c) {
   while (c.dates.length < RL_PRINT_DATE_COLS) c.dates.push('');
   c.rows.forEach(r => {
     const old = Array.isArray(r.cells) ? r.cells : [];
+    // Cost Sheet se aayi TOTAL rows yahan bhi TOTAL hi rehti hain
+    r.type = r.type === 'total' ? 'total' : 'item';
     r.op = rlStr(r.op);
     r.rate = rlStr(r.rate);
     r.cells = c.dates.map((_, j) => ({
@@ -5157,6 +5164,23 @@ function rlNorm(c) {
     }));
   });
   return c;
+}
+// Rate List ki TOTAL row = uske upar ki saari item rows ka jod
+// (Cost Sheet ke rlCostTotals jaisa hi, par date columns ke saath.)
+function rlRateTotals(upto, rec) {
+  const c = rec || _rlCur;
+  const t = { rate: 0, cells: (c.dates || []).map(() => ({ pcs: 0, amount: 0 })) };
+  for (let i = 0; i < upto; i++) {
+    const r = c.rows[i];
+    if (!r || r.type === 'total') continue;
+    t.rate += rlNum(r.rate);
+    (c.dates || []).forEach((_, j) => {
+      const cell = (r.cells && r.cells[j]) || {};
+      t.cells[j].pcs += rlNum(cell.pcs);
+      t.cells[j].amount += rlNum(cell.amount);
+    });
+  }
+  return t;
 }
 // Har kism ka apna khula record — tab badalne par kaam kho na jaaye
 const _rlKeep = { rate: null, cost: null };
@@ -5401,8 +5425,22 @@ function rlRenderGrid() {
     `<th class="rl-d${j % 2}" style="width:82px">NO OF PCS</th>` +
     `<th class="rl-d${j % 2}" style="width:92px">AMOUNT</th>`).join('') + '</tr>';
 
-  const body = c.rows.map((r, i) => `<tr>
-      <td class="rl-sr">${i + 1}</td>
+  let sr = 0;
+  const body = c.rows.map((r, i) => {
+    // Cost Sheet se aayi TOTAL row — apne upar ke rows ka jod, waise hi
+    // jaise Cost Sheet me dikhta hai
+    if (r.type === 'total') {
+      const t = rlRateTotals(i, c);
+      return `<tr class="rl-totrow">
+        <td></td><td style="text-align:center">TOTAL</td>
+        <td class="rl-num" id="rlRT${i}r">${rlFmt(t.rate)}</td>` +
+        c.dates.map((_, j) => `<td class="rl-d${j % 2} rl-num" id="rlRT${i}p${j}">${rlFmt(t.cells[j].pcs)}</td>` +
+          `<td class="rl-d${j % 2} rl-num" id="rlRT${i}a${j}">${rlFmt(t.cells[j].amount)}</td>`).join('') +
+        `</tr>`;
+    }
+    sr++;
+    return `<tr>
+      <td class="rl-sr">${sr}</td>
       <td><input class="rl-in rl-op" value="${escapeHtml(r.op)}" placeholder="Operation"
         oninput="rlSetCellVal(${i},null,'op',this.value)"></td>
       <td><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(r.rate)}"
@@ -5413,7 +5451,8 @@ function rlRenderGrid() {
           value="${escapeHtml(cell.pcs)}" oninput="rlSetCellVal(${i},${j},'pcs',this.value)"></td>` +
         `<td class="rl-d${j % 2}"><input class="rl-in rl-num" inputmode="decimal"
           value="${escapeHtml(cell.amount)}" oninput="rlSetCellVal(${i},${j},'amount',this.value)"></td>`;
-    }).join('') + '</tr>').join('');
+    }).join('') + '</tr>';
+  }).join('');
 
   const foot = `<tr><td></td><td>TOTAL</td><td class="rl-num" id="rlTotRate"></td>` +
     c.dates.map((_, j) => `<td class="rl-d${j % 2} rl-num" id="rlTotPcs${j}"></td>` +
@@ -5463,12 +5502,21 @@ function rlUpdateTotals() {
     setG('rlCGTr', gt.rate); setG('rlCGTa', gt.add); setG('rlCGTn', gt.newRate);
     return;
   }
+  // Beech me aayi TOTAL rows bhi typing ke saath badalti rahein
+  c.rows.forEach((r, i) => {
+    if (r.type !== 'total') return;
+    const t = rlRateTotals(i, c);
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = rlFmt(v); };
+    set('rlRT' + i + 'r', t.rate);
+    c.dates.forEach((_, j) => { set('rlRT' + i + 'p' + j, t.cells[j].pcs); set('rlRT' + i + 'a' + j, t.cells[j].amount); });
+  });
   const tr = document.getElementById('rlTotRate');
-  if (tr) tr.textContent = rlFmt(c.rows.reduce((a, r) => a + rlNum(r.rate), 0));
+  const sum = (fn) => c.rows.reduce((a, r) => a + (r.type === 'total' ? 0 : fn(r)), 0);
+  if (tr) tr.textContent = rlFmt(sum(r => rlNum(r.rate)));
   c.dates.forEach((_, j) => {
     const p = document.getElementById('rlTotPcs' + j), m = document.getElementById('rlTotAmt' + j);
-    if (p) p.textContent = rlFmt(c.rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).pcs), 0));
-    if (m) m.textContent = rlFmt(c.rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).amount), 0));
+    if (p) p.textContent = rlFmt(sum(r => rlNum((r.cells[j] || {}).pcs)));
+    if (m) m.textContent = rlFmt(sum(r => rlNum((r.cells[j] || {}).amount)));
   });
 }
 
@@ -5989,8 +6037,10 @@ function rlPDF(rec) {
   const dt = d => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || '')); return m ? `${m[3]}-${m[2]}-${m[1]}` : (d || ''); };
   // TOTAL wahi rows gine jo PDF me chhap rahi hain, warna chhapa hua jod
   // dikhayi de rahi rows se mel nahi khata
-  const rows = c.rows.filter(r => String(r.op || '').trim() || String(r.rate || '').trim());
-  const totRate = rlFmt(rows.reduce((a, r) => a + rlNum(r.rate), 0));
+  // Khaali rows chhod do, par Cost Sheet se aayi TOTAL rows rakho — unka op
+  // aur rate khaali hota hai par chhapni zaroori hain.
+  const rows = c.rows.filter(r => r.type === 'total' || String(r.op || '').trim() || String(r.rate || '').trim());
+  const totRate = rlFmt(rows.reduce((a, r) => a + (r.type === 'total' ? 0 : rlNum(r.rate)), 0));
   const imgs = c.files.filter(f => f.kind === 'image');
   const pdfs = c.files.filter(f => f.kind !== 'image');
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>KLM Task Manager — Master Rate List</title><style>
@@ -6030,15 +6080,35 @@ function rlPDF(rec) {
         ${c.dates.map(d => `<th colspan="2" class="dth">${escapeHtml(dt(d)) || 'DATE'}</th>`).join('')}</tr>
       <tr>${c.dates.map(() => '<th>NO OF PCS</th><th>AMOUNT</th>').join('')}</tr>
     </thead>
-    <tbody>${rows.map((r, i) => `<tr><td>${i + 1}</td><td class="op">${escapeHtml(r.op)}</td>
-      <td>${escapeHtml(r.rate)}</td>` +
-      c.dates.map((_, j) => {
-        const cell = r.cells[j] || {};
-        return `<td>${escapeHtml(cell.pcs || '')}</td><td>${escapeHtml(cell.amount || '')}</td>`;
-      }).join('') + '</tr>').join('')}</tbody>
+    <tbody>${(() => {
+      // Cost Sheet se aayi TOTAL row apne UPAR ke rows ka jod dikhati hai —
+      // bilkul waise hi jaise Cost Sheet me bhara gaya tha.
+      let sr = 0, accRate = 0;
+      const accCells = c.dates.map(() => ({ pcs: 0, amount: 0 }));
+      return rows.map(r => {
+        if (r.type === 'total') {
+          return `<tr class="tot"><td></td><td class="op">TOTAL</td><td>${rlFmt(accRate)}</td>` +
+            c.dates.map((_, j) => `<td>${rlFmt(accCells[j].pcs)}</td><td>${rlFmt(accCells[j].amount)}</td>`).join('') +
+            '</tr>';
+        }
+        sr++;
+        accRate += rlNum(r.rate);
+        c.dates.forEach((_, j) => {
+          const cl = (r.cells && r.cells[j]) || {};
+          accCells[j].pcs += rlNum(cl.pcs);
+          accCells[j].amount += rlNum(cl.amount);
+        });
+        return `<tr><td>${sr}</td><td class="op">${escapeHtml(r.op)}</td>` +
+          `<td>${escapeHtml(r.rate)}</td>` +
+          c.dates.map((_, j) => {
+            const cell = (r.cells && r.cells[j]) || {};
+            return `<td>${escapeHtml(cell.pcs || '')}</td><td>${escapeHtml(cell.amount || '')}</td>`;
+          }).join('') + '</tr>';
+      }).join('');
+    })()}</tbody>
     <tfoot><tr><td></td><td class="op">TOTAL</td><td>${totRate}</td>` +
-      c.dates.map((_, j) => `<td>${rlFmt(rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).pcs), 0))}</td>` +
-        `<td>${rlFmt(rows.reduce((a, r) => a + rlNum((r.cells[j] || {}).amount), 0))}</td>`).join('') +
+      c.dates.map((_, j) => `<td>${rlFmt(rows.reduce((a, r) => a + (r.type === 'total' ? 0 : rlNum((r.cells[j] || {}).pcs)), 0))}</td>` +
+        `<td>${rlFmt(rows.reduce((a, r) => a + (r.type === 'total' ? 0 : rlNum((r.cells[j] || {}).amount)), 0))}</td>`).join('') +
     `</tr></tfoot>
   </table>
   ${imgs.length ? `<div class="imgs">${imgs.map(f => `<img src="${escapeHtml(f.link)}">`).join('')}</div>` : ''}
