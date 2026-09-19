@@ -8924,7 +8924,13 @@ async function saveChecklist() {
 
   btn.disabled=false; btn.textContent='Generate Tasks';
 
-  if (result.error) { err.textContent=result.error; err.style.display='block'; return; }
+  if (result.error) {
+    // Duplicate wala message multi-line hota hai — poora dikhna chahiye
+    err.style.whiteSpace = 'pre-line';
+    err.textContent = result.error;
+    err.style.display = 'block';
+    return;
+  }
 
   suc.textContent = `✅ ${dates.length} tasks generated` +
     (!days.length ? '' : ` — every ${days.map(w => CL_DAYS[w]).join(' & ')}`) +
@@ -10182,6 +10188,7 @@ async function uploadCSVC() {
   const allUsers = await api('/api/users');
 
   let totalTasks = 0, skipped = 0;
+  const dupes = [];   // jo task pehle se bane hue the
   const validFreqs = ['daily','weekly','alternative_week','monthly','quarterly','yearly'];
 
   showToast('⏳ Generating tasks, please wait…');
@@ -10228,9 +10235,12 @@ async function uploadCSVC() {
     });
 
     if (!result.error) totalTasks += dates.length;
-    else skipped++;
+    else { skipped++; if (result.duplicate) dupes.push(description + ' → ' + (user.name || user.id)); }
   }
 
+  if (dupes.length) {
+    showToast(`⚠️ ${dupes.length} task pehle se bane hue the, isliye chhode: ${dupes.slice(0,3).join(', ')}${dupes.length>3?' …':''}`, 'error');
+  }
   showToast(`✅ ${totalTasks} tasks generated!${skipped ? ` (${skipped} rows skipped)` : ''}`);
   closeModal('checklistModal');
   loadDashboard();

@@ -1480,6 +1480,47 @@ app.post('/api/tasks/bulk-checklist', requireAuth, requireAdmin, async (req, res
     const { desc, assignedTo, priority, remarks, dates, frequency } = req.body;
     if (!desc || !assignedTo || !dates || !dates.length) return res.status(400).json({ error: 'Missing fields' });
     const freq = (frequency || '').toLowerCase().trim();
+
+    // ── DUPLICATE GUARD ──
+    // Pehle yahan koi jaanch nahi thi: wahi checklist task dobara banane par
+    // ek poori nayi series ban jaati thi. Doer purani wali Done karta, par nayi
+    // series ka aaj ka task pending dikhta rehta — "Done karne ke baad bhi
+    // wapas aa gaya". (Ek monthly task galti se daily bana to 365 rows ban
+    // gayi thi.) Ab aisa hone se pehle saaf bataya jaata hai.
+    if (!req.body.force) {
+      // Rows seedha lekar JS me gin lete hain — alasql ke MIN/MAX alias
+      // bharose ke nahi (undefined de dete hain).
+      const [exist] = await db.query(
+        'SELECT frequency, status, due_date FROM checklist_tasks WHERE assigned_to=? AND description=?',
+        [parseInt(assignedTo), desc]);
+      if (exist && exist.length) {
+        const byFreq = new Map();
+        for (const r of exist) {
+          const k = String(r.frequency || '').trim() || '(bina frequency)';
+          let g = byFreq.get(k);
+          if (!g) { g = { frequency: k, count: 0, pending: 0, firstDue: null, lastDue: null }; byFreq.set(k, g); }
+          g.count++;
+          if (String(r.status) === 'pending') g.pending++;
+          const d = String(r.due_date || '');
+          if (d) {
+            if (!g.firstDue || d < g.firstDue) g.firstDue = d;
+            if (!g.lastDue || d > g.lastDue) g.lastDue = d;
+          }
+        }
+        const dupe = [...byFreq.values()].sort((x, y) => y.count - x.count);
+        const [uRow] = await db.query('SELECT name FROM users WHERE id=? LIMIT 1', [parseInt(assignedTo)]);
+        const who = uRow[0]?.name || 'is doer';
+        const parts = dupe.map(d =>
+          `${d.frequency} — ${d.count} task (${d.pending} pending), ${d.firstDue || '?'} se ${d.lastDue || '?'} tak`);
+        return res.status(409).json({
+          error: `Ye checklist task "${who}" ke liye pehle se bana hua hai:\n• ${parts.join('\n• ')}\n\n` +
+                 `Dobara banaoge to purani series ke saath-saath nayi bhi chalegi — doer ko ek hi kaam do baar dikhega. ` +
+                 `Pehle purani series hata do, ya frequency badalni ho to usi task ko edit karo.`,
+          duplicate: true,
+          existing: dupe
+        });
+      }
+    }
     const values = dates.map(date => [desc, parseInt(assignedTo), req.session.userId, date, 'pending', priority||'low', remarks||'', freq]);
     await db.query(`INSERT INTO checklist_tasks (description,assigned_to,assigned_by,due_date,status,priority,remarks,frequency) VALUES ?`, [values]);
     res.json({ success: true, count: dates.length });
