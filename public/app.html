@@ -5713,6 +5713,23 @@ async function rlCostUploadCSV(input) {
   }
   if (!out.length) return showToast('No rows found in that CSV', 'error');
   if (out.length > 300) return showToast('A cost sheet can hold up to 300 rows', 'error');
+  // "???" matlab Excel ne file SAVE karte waqt hi Hindi mita diya tha — wo text
+  // file me hai hi nahi, koi code use wapas nahi la sakta. Pehle warning dekar
+  // data load kar dete the aur log usi ko Save kar dete the. Ab load hi nahi
+  // karte, taaki kharab data sheet me na aaye.
+  // Kharab row wahi jisme 2+ lagatar "?" hon AUR koi angrezi akshar na bache —
+  // matlab poora naam hi mit gaya. "WHAT?? CHECK" jaisa asli naam nahi rukta.
+  const kharabRows = out.filter(r => {
+    const op = String(r.op || '');
+    return /\?{2,}/.test(op) && !/[A-Za-z]/.test(op);
+  }).length;
+  if (kharabRows) {
+    return showToast(
+      'Is CSV me Hindi text "???" ban chuka hai (' + kharabRows + ' rows) — file hi kharab hai, ' +
+      'isliye load nahi kiya. Excel me File → Save As → type me ' +
+      '"CSV UTF-8 (Comma delimited)" chunein (sirf "CSV (Comma delimited)" NAHI), ' +
+      'phir dobara upload karein.', 'error');
+  }
   // TOTAL ki row bhi CSV me likhne ki zaroorat nahi — aakhir me khud lagti hai
   if (!out.some(r => r.type === 'total'))
     out.push({ type: 'total', op: '', rate: '', add: '', newRate: '' });
@@ -5723,11 +5740,7 @@ async function rlCostUploadCSV(input) {
   rlNorm(_rlCur);
   rlRenderAll();
   const items = out.filter(r => r.type !== 'total').length;
-  // "???" ka matlab file save karte waqt hi Hindi text kho gaya tha
-  if (out.some(r => /\?{3,}/.test(r.op)))
-    showToast(items + ' rows aa gayin, par text "???" ban gaya — Excel me "CSV UTF-8" chunkar dobara save karein', 'error');
-  else
-    showToast('📥 ' + items + ' operation(s) loaded from the CSV — press Save to keep them', 'success');
+  showToast('📥 ' + items + ' operation(s) loaded from the CSV — press Save to keep them', 'success');
 }
 
 // ── Attachments — image chhoti dikhti hai, PDF link ki tarah ──
