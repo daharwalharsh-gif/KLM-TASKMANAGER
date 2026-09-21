@@ -11787,7 +11787,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
       <td style="font-size:12px">${t.description}</td>
       <td style="color:#64748b;font-size:11px;white-space:nowrap">${fmtDate(t.due_date)}</td>
       <td><span class="status-badge ${t.status}">${t.status === 'revised' ? 'Revision' : t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
-      <td>${t.status==='pending' && t.due_date < today ? '<span style="font-size:10px;color:#dc2626;font-weight:600">⏰ Overdue</span>' : ''}</td>
+      <td>${!['completed','not_applicable'].includes(String(t.status)) && t.due_date < today ? '<span style="font-size:10px;color:#dc2626;font-weight:600">⏰ Overdue</span>' : ''}</td>
     </tr>`).join('') || `<tr><td colspan="4" class="empty" style="font-size:12px">✅ Koi pending kaam nahi</td></tr>`;
 
   const score = emp.overallScore;

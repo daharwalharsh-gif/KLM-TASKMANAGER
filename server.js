@@ -1998,8 +1998,8 @@ app.get('/api/mis', requireAuth, requireMisView, async (req, res) => {
       const score = misScore(total, completed, overdue, revised, pending);
       return { ...r, delayed: overdue, score: score === null ? 0 : score };
     });
-    const [delRows] = await db.query(`SELECT u.id AS userId,u.name,COUNT(*) AS total,SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,SUM(CASE WHEN t.status='revised' THEN 1 ELSE 0 END) AS revised,SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue FROM delegation_tasks t JOIN users u ON t.assigned_to=u.id WHERE t.due_date BETWEEN ? AND ? ${deptFilter} GROUP BY u.id,u.name ORDER BY u.name`, deptParams);
-    const [chlRows] = await db.query(`SELECT u.id AS userId,u.name,COUNT(*) AS total,SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,0 AS revised,SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue FROM checklist_tasks t JOIN users u ON t.assigned_to=u.id WHERE t.due_date BETWEEN ? AND ? ${deptFilter} GROUP BY u.id,u.name ORDER BY u.name`, deptParams);
+    const [delRows] = await db.query(`SELECT u.id AS userId,u.name,COUNT(*) AS total,SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,SUM(CASE WHEN t.status='revised' THEN 1 ELSE 0 END) AS revised,SUM(CASE WHEN t.status NOT IN ('completed','not_applicable') AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue FROM delegation_tasks t JOIN users u ON t.assigned_to=u.id WHERE t.due_date BETWEEN ? AND ? ${deptFilter} GROUP BY u.id,u.name ORDER BY u.name`, deptParams);
+    const [chlRows] = await db.query(`SELECT u.id AS userId,u.name,COUNT(*) AS total,SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,0 AS revised,SUM(CASE WHEN t.status NOT IN ('completed','not_applicable') AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue FROM checklist_tasks t JOIN users u ON t.assigned_to=u.id WHERE t.due_date BETWEEN ? AND ? ${deptFilter} GROUP BY u.id,u.name ORDER BY u.name`, deptParams);
     res.json({ delegation: calc(delRows), checklist: calc(chlRows) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2054,7 +2054,7 @@ app.get('/api/owner-dashboard', requireAuth, async (req, res) => {
            SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,
            SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,
            SUM(CASE WHEN t.status='revised' THEN 1 ELSE 0 END) AS revised,
-           SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
+           SUM(CASE WHEN t.status NOT IN ('completed','not_applicable') AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
          FROM ${table} t JOIN users u ON t.assigned_to=u.id
          WHERE t.due_date BETWEEN ? AND ? ${dC} ${fC(table)}`, [s, e, ...dP, ...fP(table)]);
       const x = r[0] || {};
@@ -2069,7 +2069,7 @@ app.get('/api/owner-dashboard', requireAuth, async (req, res) => {
         `SELECT u.department AS dept, COUNT(*) AS total,
            SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,
            SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,
-           SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
+           SUM(CASE WHEN t.status NOT IN ('completed','not_applicable') AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
          FROM ${table} t JOIN users u ON t.assigned_to=u.id
          WHERE t.due_date BETWEEN ? AND ? ${dC} ${fC(table)} GROUP BY u.department`, [s, e, ...dP, ...fP(table)]);
       return r;
@@ -2111,7 +2111,7 @@ app.get('/api/owner-dashboard', requireAuth, async (req, res) => {
         `SELECT u.id, u.name, u.department AS dept, COUNT(*) AS total,
            SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,
            SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,
-           SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
+           SUM(CASE WHEN t.status NOT IN ('completed','not_applicable') AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
          FROM ${table} t JOIN users u ON t.assigned_to=u.id
          WHERE t.due_date BETWEEN ? AND ? ${dC} ${fC(table)} GROUP BY u.id, u.name, u.department`, [s, e, ...dP, ...fP(table)]);
       return r;
@@ -3039,7 +3039,7 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
         SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,
         SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,
         SUM(CASE WHEN t.status='revised' THEN 1 ELSE 0 END) AS revised,
-        SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
+        SUM(CASE WHEN t.status NOT IN ('completed','not_applicable') AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
        FROM delegation_tasks t JOIN users u ON t.assigned_to=u.id
        WHERE t.due_date BETWEEN ? AND ? ${deptFilter}
        GROUP BY u.id, u.name, u.department ORDER BY u.name`, deptParams);
@@ -3050,7 +3050,7 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
         SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,
         SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,
         0 AS revised,
-        SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
+        SUM(CASE WHEN t.status NOT IN ('completed','not_applicable') AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
        FROM checklist_tasks t JOIN users u ON t.assigned_to=u.id
        WHERE t.due_date BETWEEN ? AND ? ${deptFilter}
        GROUP BY u.id, u.name, u.department ORDER BY u.name`, deptParams);
@@ -3264,7 +3264,7 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
         SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,
         SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,
         SUM(CASE WHEN t.status='revised' THEN 1 ELSE 0 END) AS revised,
-        SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
+        SUM(CASE WHEN t.status NOT IN ('completed','not_applicable') AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
        FROM delegation_tasks t JOIN users u ON t.assigned_to=u.id
        WHERE t.due_date BETWEEN ? AND ? ${deptFilter}
        GROUP BY u.id, u.name, u.department`, deptParams);
@@ -3274,7 +3274,7 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
         COUNT(*) AS total,
         SUM(CASE WHEN t.status='pending' THEN 1 ELSE 0 END) AS pending,
         SUM(CASE WHEN t.status='completed' THEN 1 ELSE 0 END) AS completed,
-        SUM(CASE WHEN t.status='pending' AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
+        SUM(CASE WHEN t.status NOT IN ('completed','not_applicable') AND t.due_date<CURDATE() THEN 1 ELSE 0 END) AS overdue
        FROM checklist_tasks t JOIN users u ON t.assigned_to=u.id
        WHERE t.due_date BETWEEN ? AND ? ${deptFilter}
        GROUP BY u.id, u.name, u.department`, deptParams);
