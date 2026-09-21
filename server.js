@@ -528,36 +528,34 @@ function getTable(type) {
 }
 
 // ── MIS ka Score % ──
-// Harsh ka flowchart (Sep 2026): "Only Overdue Pending Tasks Affect the Score".
+// Harsh (21 Sep 2026): "10 task hain, aaj ek hua to 90 minus, kal ek hua to
+// 80 minus" — yaani JO BHI KAAM BAAKI HAI wo minus banata hai, chahe uski
+// date aayi ho ya nahi.
 //
-//   Total task           -> 100% ka base
-//   Done                 -> koi katauti nahi
-//   Pending, date NAHI aayi -> koi katauti nahi (abhi waqt bacha hai)
-//   Pending, date NIKAL gayi (overdue) -> yahi minus banata hai
+//   Total task            -> 100% ka base
+//   Done                  -> minus nahi
+//   Not Applicable        -> minus nahi (ye kaam karna hi nahi tha)
+//   Pending / Revision    -> YAHI minus banate hain
 //
-//   Minus  = (overdue / total) x 100
-//   Score  = 100 - Minus
+//   Minus = (pending + revision) / total x 100
+//   Score = 100 - Minus  =  (total - pending - revision) / total x 100
 //
-//   Example (flowchart): 20 task, 5 overdue -> minus 25% -> score 75%
+//   Example: 10 task -> 1 done = 90% minus (score 10%),
+//                       2 done = 80% minus (score 20%)
 //
-// DB me overdue ki alag ginti nahi hoti — wo PENDING ka hi hissa hai
-// (status='pending' AND due_date < CURDATE()).
+// PEHLE kya tha: sirf OVERDUE (jinki date nikal chuki) ka minus lagta tha,
+// aage ki date wale pending score nahi girate the. Harsh ne 21 Sep ko kaha
+// ki har baaki task ginna hai, isliye badla.
 //
-// PEHLE kya tha: (done + date-nahi-aayi - overdue) / total x 100 — usme
-// overdue DO baar katta tha (ek baar plus me na ginkar, doosri baar minus
-// karke), isliye upar wale example par 50% aata tha. Ab 75% aata hai.
-//
-// 'completed' aur 'revised' ab score me alag se kuch nahi karte — flowchart
-// ke hisaab se sirf overdue maayne rakhta hai. Signature waisi hi rakhi hai
-// taaki baaki jagah kuch badalna na pade.
-//
-// Range 0 se 100. Sab overdue = 0, koi overdue nahi = 100.
+// Range 0 se 100.
 function misScore(total, completed, overdue, revised, pending) {
   total = parseInt(total) || 0;
-  overdue = parseInt(overdue) || 0;
+  revised = parseInt(revised) || 0;
+  pending = parseInt(pending) || 0;
   if (!total) return null;
-  if (overdue > total) overdue = total;        // kabhi minus me na jaaye
-  const s = ((total - overdue) / total) * 100;
+  let baaki = pending + revised;               // jo kaam abhi khatam nahi hua
+  if (baaki > total) baaki = total;
+  const s = ((total - baaki) / total) * 100;
   return Math.round(Math.max(0, Math.min(100, s)) * 10) / 10;
 }
 
