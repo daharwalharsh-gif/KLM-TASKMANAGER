@@ -5672,12 +5672,10 @@ async function rlReadXlsx(buf) {
       shared.push(parts.map(t => t.replace(/<[^>]+>/g, '')).join(''));
     }
   }
-  const sheetName = Object.keys(files).filter(n => n !== 'xl/sharedStrings.xml').sort()[0];
-  if (!sheetName) throw new Error('Is xlsx me koi sheet nahi mili');
-  const xml = files[sheetName];
   const unesc = s => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
     .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, x) => String.fromCodePoint(parseInt(x, 16)))
     .replace(/&amp;/g, '&');
   const colOf = ref => {
     const m = /^([A-Z]+)/.exec(String(ref || ''));
@@ -5685,26 +5683,40 @@ async function rlReadXlsx(buf) {
     let n = 0; for (const ch of m[1]) n = n * 26 + (ch.charCodeAt(0) - 64);
     return n - 1;
   };
-  const rows = [];
-  for (const rowXml of (xml.match(/<row[\s\S]*?<\/row>|<row[^>]*\/>/g) || [])) {
-    const cells = [];
-    for (const c of (rowXml.match(/<c[\s\S]*?<\/c>|<c[^>]*\/>/g) || [])) {
-      const ref = (/r="([A-Z]+\d+)"/.exec(c) || [])[1];
-      const type = (/t="([^"]+)"/.exec(c) || [])[1] || '';
-      let val = '';
-      if (type === 'inlineStr') {
-        val = ((c.match(/<t[^>]*>([\s\S]*?)<\/t>/g) || [])
-          .map(t => t.replace(/<[^>]+>/g, '')).join(''));
-      } else {
-        const v = (/<v>([\s\S]*?)<\/v>/.exec(c) || [])[1];
-        if (v !== undefined) val = type === 's' ? (shared[+v] || '') : v;
+  const parseSheet = xml => {
+    const rows = [];
+    for (const rowXml of (xml.match(/<row[\s\S]*?<\/row>|<row[^>]*\/>/g) || [])) {
+      const cells = [];
+      for (const c of (rowXml.match(/<c[\s\S]*?<\/c>|<c[^>]*\/>/g) || [])) {
+        const ref = (/r="([A-Z]+\d+)"/.exec(c) || [])[1];
+        const type = (/t="([^"]+)"/.exec(c) || [])[1] || '';
+        let val = '';
+        if (type === 'inlineStr' || /<is>/.test(c)) {
+          // inline string — <is> ke andar ke saare <t> jod do
+          val = (c.match(/<t[^>]*>([\s\S]*?)<\/t>/g) || [])
+            .map(t => t.replace(/<[^>]+>/g, '')).join('');
+        } else {
+          const v = (/<v>([\s\S]*?)<\/v>/.exec(c) || [])[1];
+          if (v !== undefined) val = type === 's' ? (shared[+v] || '') : v;
+        }
+        cells[colOf(ref)] = unesc(val).trim();
       }
-      cells[colOf(ref)] = unesc(val).trim();
+      for (let i = 0; i < cells.length; i++) if (cells[i] === undefined) cells[i] = '';
+      rows.push(cells);
     }
-    for (let i = 0; i < cells.length; i++) if (cells[i] === undefined) cells[i] = '';
-    rows.push(cells);
+    return rows.filter(r => r.some(x => String(x).trim() !== ''));
+  };
+  // Asli Excel file me data hamesha sheet1.xml me nahi hota — kabhi pehli sheet
+  // khaali hoti hai aur kaam sheet2/sheet3 me. Isliye SAARI sheets padh kar
+  // jisme sabse zyada data ho wahi uthate hain.
+  let best = [];
+  for (const name of Object.keys(files)) {
+    if (name === 'xl/sharedStrings.xml') continue;
+    const rows = parseSheet(files[name]);
+    if (rows.length > best.length) best = rows;
   }
-  return rows.filter(r => r.some(x => String(x).trim() !== ''));
+  if (!best.length) throw new Error('Is Excel file me koi data nahi mila');
+  return best;
 }
 
 function rlDecodeCSV(buf) {
