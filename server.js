@@ -528,42 +528,37 @@ function getTable(type) {
 }
 
 // ── MIS ka Score % ──
-// Harsh (18 Sep 2026): "20 task hain, 10 done kar chuka hoon, 5 ki date aayi
-// hi nahi, 5 overdue hain -- to score +50% aana chahiye."
+// Harsh ka flowchart (Sep 2026): "Only Overdue Pending Tasks Affect the Score".
 //
-// Hisaab:
-//   done                  -> achha (+)
-//   jinki DATE NAHI AAYI  -> achha (+)   abhi unka waqt hi nahi aaya,
-//                                        isme bande ka kasoor nahi
-//   overdue               -> bura  (-)
+//   Total task           -> 100% ka base
+//   Done                 -> koi katauti nahi
+//   Pending, date NAHI aayi -> koi katauti nahi (abhi waqt bacha hai)
+//   Pending, date NIKAL gayi (overdue) -> yahi minus banata hai
 //
-//   score = (done + date-nahi-aayi - overdue) / total x 100
-//         = (10  +        5        -    5   ) / 20 x 100 = +50%
+//   Minus  = (overdue / total) x 100
+//   Score  = 100 - Minus
 //
-// DB me overdue ki alag ginti nahi hoti -- wo PENDING ka hi hissa hai
-// (status='pending' AND due_date < CURDATE()). Isliye yahan:
-//     date-nahi-aayi = pending - overdue
+//   Example (flowchart): 20 task, 5 overdue -> minus 25% -> score 75%
 //
-// PEHLE kya tha: (completed - overdue*2 - revised*0.5) / total x 100
-// Usme jinki date nahi aayi unka koi faayda nahi milta tha, aur overdue
-// DO baar katta tha. Upar wale example par wo 0% deta tha -- isi wajah se
-// sabke score asli mehnat se kam dikh rahe the.
+// DB me overdue ki alag ginti nahi hoti — wo PENDING ka hi hissa hai
+// (status='pending' AND due_date < CURDATE()).
 //
-// 'revised' ab alag se minus nahi hota. Wo na done hai, na "date nahi
-// aayi" -- to total me ginta hai par plus me nahi aata, aur utna hi apne
-// aap score kam kar deta hai. Pehle wo DO baar katta tha (total me bhi,
-// aur -0.5 alag se bhi).
+// PEHLE kya tha: (done + date-nahi-aayi - overdue) / total x 100 — usme
+// overdue DO baar katta tha (ek baar plus me na ginkar, doosri baar minus
+// karke), isliye upar wale example par 50% aata tha. Ab 75% aata hai.
 //
-// Range -100 se +100. Sab overdue = -100, koi overdue nahi = +100.
+// 'completed' aur 'revised' ab score me alag se kuch nahi karte — flowchart
+// ke hisaab se sirf overdue maayne rakhta hai. Signature waisi hi rakhi hai
+// taaki baaki jagah kuch badalna na pade.
+//
+// Range 0 se 100. Sab overdue = 0, koi overdue nahi = 100.
 function misScore(total, completed, overdue, revised, pending) {
   total = parseInt(total) || 0;
-  completed = parseInt(completed) || 0;
   overdue = parseInt(overdue) || 0;
-  pending = parseInt(pending) || 0;
   if (!total) return null;
-  const dateNahiAayi = Math.max(0, pending - overdue);
-  const s = ((completed + dateNahiAayi - overdue) / total) * 100;
-  return Math.round(Math.max(-100, Math.min(100, s)) * 10) / 10;
+  if (overdue > total) overdue = total;        // kabhi minus me na jaaye
+  const s = ((total - overdue) / total) * 100;
+  return Math.round(Math.max(0, Math.min(100, s)) * 10) / 10;
 }
 
 // ══════════════════════════════════════════════════════
