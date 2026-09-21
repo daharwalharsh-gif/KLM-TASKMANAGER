@@ -88,7 +88,21 @@ const cookieParser = require('cookie-parser');
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// HTML kabhi cache na ho — warna naya deploy user tak pahunchta hi nahi.
+// Vercel par file ka mtime hamesha ek hi (2018) rehta hai, isliye express ka
+// apna ETag sirf FILE KE SIZE par bante hai aur Last-Modified bekaar ho jaata
+// hai. Aise me browser purana app.html pakde reh sakta hai aur user ko lagta
+// hai ki fix aaya hi nahi. no-store lagane se har baar taaza file aati hai.
+// (Image/SVG par koi rok nahi — wo pehle jaise hi cache hote hain.)
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (/\.html?$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // ══════════════════════════════════════════════════════
 // DATABASE — in-memory alasql engine backed by a persistence layer.

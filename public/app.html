@@ -1959,11 +1959,11 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="rl-acts">
           <button class="btn btn-outline btn-sm" data-rl-edit onclick="rlAddRow()">➕ Row</button>
           <button class="btn btn-outline btn-sm" data-rl-edit onclick="rlAddTotalRow()">➕ Total Row</button>
-          <button class="btn btn-outline btn-sm" data-rl-edit title="Download a blank CSV in the right format"
-            onclick="rlCostSampleCSV()">📄 Sample CSV</button>
+          <button class="btn btn-outline btn-sm" data-rl-edit title="Excel file download karein — usi me apna data bharkar wapas upload karein"
+            onclick="rlCostSampleCSV()">📄 Sample Excel</button>
           <input type="file" id="rlCostCsvInput" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none"
             onchange="rlCostUploadCSV(this)">
-          <button class="btn btn-outline btn-sm" data-rl-edit title="Fill this sheet from a CSV"
+          <button class="btn btn-outline btn-sm" data-rl-edit title="Excel (.xlsx) ya CSV se ye sheet bharein"
             onclick="document.getElementById(&#39;rlCostCsvInput&#39;).click()">⬆ Upload CSV / Excel</button>
           <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="rlPDF()">📄 PDF</button>
           <button class="btn btn-outline btn-sm" data-rl-edit id="rlCReopenBtn" style="display:none" onclick="rlSetStatus('pending')">↩ Move to Pending</button>
@@ -5592,20 +5592,97 @@ function rlDelDate(j) {
 // CSV me sirf data dijiye — NEW KARIGER RATE (rate + add cost) aur TOTAL
 // ki row app khud jod deta hai. Apna NEW KARIGER RATE dena ho to us naam
 // ka column bhi de sakte hain, tab wahi value chalegi.
+// ── Sample file ab .xlsx banti hai, .csv nahi ──
+// Wajah: Excel me "CSV (Comma delimited)" chunkar save karne par Hindi FILE ME
+// HI "?" ban jaati hai (screen par sahi dikhti rehti hai). .xlsx me aisa kabhi
+// nahi hota. Isliye sample hi xlsx dete hain — user usi ko bharkar wapas upload
+// karta hai aur Hindi kabhi nahi bigadti. ZIP "stored" (bina dabaye) banate
+// hain, isliye na koi library chahiye na CompressionStream.
+function rlCrc32(bytes) {
+  let c, crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) {
+    c = (crc ^ bytes[i]) & 0xFF;
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1));
+    crc = (crc >>> 8) ^ c;
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+function rlMakeZip(files) {
+  const enc = new TextEncoder();
+  const locals = [], central = [];
+  let off = 0;
+  for (const [name, text] of files) {
+    const nb = enc.encode(name), data = enc.encode(text), crc = rlCrc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true);
+    lh.setUint32(22, data.length, true); lh.setUint16(26, nb.length, true);
+    locals.push(new Uint8Array(lh.buffer), nb, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true);
+    ch.setUint32(16, crc, true); ch.setUint32(20, data.length, true);
+    ch.setUint32(24, data.length, true); ch.setUint16(28, nb.length, true);
+    ch.setUint32(42, off, true);
+    central.push(new Uint8Array(ch.buffer), nb);
+    off += 30 + nb.length + data.length;
+  }
+  const cdSize = central.reduce((a, p) => a + p.length, 0);
+  const eo = new DataView(new ArrayBuffer(22));
+  eo.setUint32(0, 0x06054b50, true);
+  eo.setUint16(8, files.length, true); eo.setUint16(10, files.length, true);
+  eo.setUint32(12, cdSize, true); eo.setUint32(16, off, true);
+  return new Blob([...locals, ...central, new Uint8Array(eo.buffer)],
+    { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
 function rlCostSampleCSV() {
-  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-  const lines = [
-    ['S.NO', 'OPERATION', 'KARIGER RATE', 'ADD COST'],
-    ['1', 'SIDE POCKET MARKING', '1', '0.5'],
-    ['2', 'POCKET ZIP ATTACH AND BONE MAKING', '7', ''],
-    ['3', 'POCKET OVERLOCK', '1.5', '']
-  ].map(r => r.map(q).join(','));
-  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'Cost-Sheet-Sample.csv';
+  const x = s => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const rows = [
+    ["S.NO", "OPERATION", "KARIGER RATE", "ADD COST"],
+    ["1", "पाम बनाना", "18", "2"],
+    ["2", "SIDE POCKET MARKING", "1", "0.5"],
+    ["3", "स्टेप पर मगज़ी", "2", ""],
+    ["4", "POCKET OVERLOCK", "1.5", ""]
+  ];
+  const col = i => String.fromCharCode(65 + i);
+  const sheetRows = rows.map((r, ri) =>
+    "<row r=\"" + (ri + 1) + "\">" + r.map((v, ci) => {
+      const ref = col(ci) + (ri + 1);
+      if (String(v) === "") return "";
+      if (ri > 0 && ci !== 1 && !isNaN(Number(v)))
+        return "<c r=\"" + ref + "\"><v>" + x(v) + "</v></c>";
+      return "<c r=\"" + ref + "\" t=\"inlineStr\"><is><t xml:space=\"preserve\">" + x(v) + "</t></is></c>";
+    }).join("") + "</row>").join("");
+  const P = "http://schemas.openxmlformats.org/";
+  const files = [
+    ["[Content_Types].xml",
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Types xmlns=\"" + P + "package/2006/content-types\">" +
+      "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
+      "<Default Extension=\"xml\" ContentType=\"application/xml\"/>" +
+      "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>" +
+      "<Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>" +
+      "</Types>"],
+    ["_rels/.rels",
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"" + P + "package/2006/relationships\">" +
+      "<Relationship Id=\"rId1\" Type=\"" + P + "officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>" +
+      "</Relationships>"],
+    ["xl/workbook.xml",
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?><workbook xmlns=\"" + P + "spreadsheetml/2006/main\" " +
+      "xmlns:r=\"" + P + "officeDocument/2006/relationships\"><sheets>" +
+      "<sheet name=\"Cost Sheet\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>"],
+    ["xl/_rels/workbook.xml.rels",
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"" + P + "package/2006/relationships\">" +
+      "<Relationship Id=\"rId1\" Type=\"" + P + "officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>" +
+      "</Relationships>"],
+    ["xl/worksheets/sheet1.xml",
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?><worksheet xmlns=\"" + P + "spreadsheetml/2006/main\">" +
+      "<sheetData>" + sheetRows + "</sheetData></worksheet>"]
+  ];
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(rlMakeZip(files));
+  a.download = "Cost-Sheet-Sample.xlsx";
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  showToast('📄 Sample CSV downloaded', 'success');
+  showToast("📄 Sample Excel file download ho gayi — isi me apna data bharkar wapas upload karein", "success");
 }
 // File ko sahi encoding me padho. Excel "Unicode Text" ko UTF-16 me save
 // karta hai aur "CSV UTF-8" ko BOM ke saath \u2014 galat encoding padhne par
