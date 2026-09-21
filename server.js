@@ -2397,10 +2397,14 @@ app.get('/api/mis/detail', requireAuth, requireMisView, async (req, res) => {
 // Kaun kaun si FMS sheet is report me aayegi — dropdown me yahi list dikhti hai.
 // cols = us sheet ke apne info column (c = 0-based column number),
 // group = kin columns par grouping ki ja sakti hai.
+// Range har sheet ki asli chaudai se zyada rakha hai (A:DZ = 130 column).
+// Pehle chhote range the — O to D ka "Post production Q.C report" step CU ke
+// baad (column DB) par tha, isliye wo poora step aur uska 32 pending kaam
+// report me aata hi nahi tha. Sheet me naya step jude to bhi ab chhootega nahi.
 const PCR_SOURCES = {
   sampling: {
     label: 'Sampling FMS',
-    id: '1Rqp2S6MqVqMhskj8CUcwipVoa601DwPNtzFhRrMkvvk', tab: 'FMS', headerRow: 6, range: 'A:BT',
+    id: '1Rqp2S6MqVqMhskj8CUcwipVoa601DwPNtzFhRrMkvvk', tab: 'FMS', headerRow: 6, range: 'A:DZ',
     keyCol: 1, idCol: 16,
     cols: [
       { k: 'buyer',      h: 'Buyer',            c: 1 },
@@ -2416,7 +2420,7 @@ const PCR_SOURCES = {
   },
   salesnbd: {
     label: 'Sales NBD — Incoming (domestic offline)',
-    id: '1dTOORmrhgQxZlOxFDADkrGO6RT3I-Ml7fG7z4pf81co', tab: 'FMS', headerRow: 6, range: 'A:AC',
+    id: '1dTOORmrhgQxZlOxFDADkrGO6RT3I-Ml7fG7z4pf81co', tab: 'FMS', headerRow: 6, range: 'A:DZ',
     keyCol: 1, idCol: -1,
     cols: [
       { k: 'enquirer',   h: 'Enquirer',        c: 1 },
@@ -2433,7 +2437,7 @@ const PCR_SOURCES = {
   },
   otod: {
     label: 'O to D — Merchant FMS',
-    id: '1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY', tab: 'FMS3', headerRow: 6, range: 'A:CU',
+    id: '1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY', tab: 'FMS3', headerRow: 6, range: 'A:DZ',
     keyCol: 6, idCol: -1,
     cols: [
       { k: 'piNo',      h: 'PI number',     c: 6 },
@@ -2454,7 +2458,7 @@ const PCR_SOURCES = {
   // H Merchant · J PI number · K PI approval date · O Line · P Process · Q unique id
   pmsgarments: {
     label: 'PMS Garments',
-    id: '1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg', tab: 'PMS', headerRow: 6, range: 'A:CZ',
+    id: '1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg', tab: 'PMS', headerRow: 6, range: 'A:DZ',
     keyCol: 1, idCol: 16,
     cols: [
       { k: 'buyer',    h: 'Buyer',        c: 1 },
@@ -2473,7 +2477,7 @@ const PCR_SOURCES = {
   },
   pmsboxing: {
     label: 'PMS Boxing',
-    id: '1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM', tab: 'PMS', headerRow: 6, range: 'A:CZ',
+    id: '1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM', tab: 'PMS', headerRow: 6, range: 'A:DZ',
     keyCol: 1, idCol: 16,
     cols: [
       { k: 'buyer',    h: 'Buyer',        c: 1 },
@@ -2492,7 +2496,7 @@ const PCR_SOURCES = {
   },
   invincible: {
     label: 'Invincible Order To Dispatch FMS Offline Domestic',
-    id: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw', tab: 'FMS', headerRow: 6, range: 'A:AT',
+    id: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw', tab: 'FMS', headerRow: 6, range: 'A:DZ',
     keyCol: 1, idCol: 12,
     cols: [
       { k: 'party',      h: 'Party name',      c: 1 },
@@ -2508,7 +2512,7 @@ const PCR_SOURCES = {
   },
   purchase: {
     label: 'Purchase FMS',
-    id: '1NrXS-WHgR6ME3SDn6tau3Ty0O-4VR_KWNKm7maDaLnM', tab: 'FMS', headerRow: 6, range: 'A:AV',
+    id: '1NrXS-WHgR6ME3SDn6tau3Ty0O-4VR_KWNKm7maDaLnM', tab: 'FMS', headerRow: 6, range: 'A:DZ',
     keyCol: 1, idCol: 11,
     cols: [
       { k: 'poNo',     h: 'PO number',        c: 1 },
