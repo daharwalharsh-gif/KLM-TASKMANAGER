@@ -5719,16 +5719,21 @@ async function rlCostUploadCSV(input) {
   // karte, taaki kharab data sheet me na aaye.
   // Kharab row wahi jisme 2+ lagatar "?" hon AUR koi angrezi akshar na bache —
   // matlab poora naam hi mit gaya. "WHAT?? CHECK" jaisa asli naam nahi rukta.
+  // Pehle yahan hard rok thi, par usse kaam hi ruk jaata tha. Ab bas bata
+  // dete hain aur faisla user par chhodte hain — wo naam baad me theek kar
+  // sakta hai, ya sahi file laakar dobara upload kar sakta hai.
   const kharabRows = out.filter(r => {
     const op = String(r.op || '');
     return /\?{2,}/.test(op) && !/[A-Za-z]/.test(op);
   }).length;
-  if (kharabRows) {
-    return showToast(
-      'Is CSV me Hindi text "???" ban chuka hai (' + kharabRows + ' rows) — file hi kharab hai, ' +
-      'isliye load nahi kiya. Excel me File → Save As → type me ' +
-      '"CSV UTF-8 (Comma delimited)" chunein (sirf "CSV (Comma delimited)" NAHI), ' +
-      'phir dobara upload karein.', 'error');
+  if (kharabRows && !confirm(
+      'Is CSV ki ' + kharabRows + ' rows me Hindi text "???" ban chuka hai.\n\n' +
+      'Aisa tab hota hai jab Excel me "CSV (Comma delimited)" chunkar save kiya ho — ' +
+      'Hindi file me hi mit jaati hai. Sahi tareeka: File → Save As → ' +
+      '"CSV UTF-8 (Comma delimited)".\n\n' +
+      'OK dabayein to abhi ye "???" wala data hi load ho jayega (naam baad me theek kar lena).\n' +
+      'Cancel dabakar sahi file se dobara upload kar sakte hain.')) {
+    return;
   }
   // TOTAL ki row bhi CSV me likhne ki zaroorat nahi — aakhir me khud lagti hai
   if (!out.some(r => r.type === 'total'))
