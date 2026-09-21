@@ -1957,19 +1957,19 @@ tbody tr:last-child td{border-bottom:none;}
           oninput="rlSetHead('gsm',this.value)"></div>
         <div><label>Status</label><div id="rlCStatus" style="padding:6px 0"></div></div>
         <div class="rl-acts">
-          <button class="btn btn-outline btn-sm" onclick="rlAddRow()">➕ Row</button>
-          <button class="btn btn-outline btn-sm" onclick="rlAddTotalRow()">➕ Total Row</button>
-          <button class="btn btn-outline btn-sm" title="Download a blank CSV in the right format"
+          <button class="btn btn-outline btn-sm" data-rl-edit onclick="rlAddRow()">➕ Row</button>
+          <button class="btn btn-outline btn-sm" data-rl-edit onclick="rlAddTotalRow()">➕ Total Row</button>
+          <button class="btn btn-outline btn-sm" data-rl-edit title="Download a blank CSV in the right format"
             onclick="rlCostSampleCSV()">📄 Sample CSV</button>
           <input type="file" id="rlCostCsvInput" accept=".csv,text/csv" style="display:none"
             onchange="rlCostUploadCSV(this)">
-          <button class="btn btn-outline btn-sm" title="Fill this sheet from a CSV"
+          <button class="btn btn-outline btn-sm" data-rl-edit title="Fill this sheet from a CSV"
             onclick="document.getElementById('rlCostCsvInput').click()">⬆ Upload CSV</button>
           <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="rlPDF()">📄 PDF</button>
-          <button class="btn btn-outline btn-sm" id="rlCReopenBtn" style="display:none" onclick="rlSetStatus('pending')">↩ Move to Pending</button>
-          <button class="btn btn-outline btn-sm" id="rlCCompleteBtn" style="color:#16a34a;border-color:#bbf7d0"
+          <button class="btn btn-outline btn-sm" data-rl-edit id="rlCReopenBtn" style="display:none" onclick="rlSetStatus('pending')">↩ Move to Pending</button>
+          <button class="btn btn-outline btn-sm" data-rl-edit id="rlCCompleteBtn" style="color:#16a34a;border-color:#bbf7d0"
             onclick="rlSetStatus('completed')">✅ Complete</button>
-          <button class="btn btn-primary btn-sm" onclick="rlSave()">💾 Save</button>
+          <button class="btn btn-primary btn-sm" data-rl-edit onclick="rlSave()">💾 Save</button>
         </div>
       </div>
 
@@ -2021,7 +2021,7 @@ tbody tr:last-child td{border-bottom:none;}
           </div>
           <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe"
             onclick="rlDetailPDF()">📄 PDF</button>
-          <button class="btn btn-outline btn-sm" onclick="rlDetailEdit()">✏️ Edit</button>
+          <button class="btn btn-outline btn-sm" data-rl-edit onclick="rlDetailEdit()">✏️ Edit</button>
           <button class="btn btn-outline btn-sm" onclick="closeModal('rlDetailModal')">✕ Close</button>
         </div>
         <div class="rl-wrap" style="max-height:46vh;overflow:auto"><div id="rlDGrid"></div></div>
@@ -5206,7 +5206,31 @@ function rlNew() {
   _rlCur = _rlKeep[kind];
   rlTab(kind === 'cost' ? 'cost' : 'form');
 }
-function openRateList() { rlApplyPrintAccess(); rlTab(_rlView || 'form'); }
+function openRateList() { rlApplyPrintAccess(); rlApplyEditAccess(); rlTab(_rlView || 'form'); }
+
+// Cost Sheet me edit karne ka haq sirf admin ko. Baaki sab dekh sakte hain
+// aur PDF nikaal sakte hain, par badal nahi sakte.
+function rlCanEdit() {
+  return typeof ME !== 'undefined' && !!ME && ME.role === 'admin';
+}
+// Edit ke saare buttons/fields ko chhupana ya readonly karna
+function rlApplyEditAccess() {
+  const can = rlCanEdit();
+  // toolbar ke wo buttons jo data badalte hain (PDF chhod kar)
+  ['rlNewBtn'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = can ? '' : 'none'; });
+  document.querySelectorAll('[data-rl-edit]').forEach(el => { el.style.display = can ? '' : 'none'; });
+  // header ke input — dekhne ke liye khule, badalne ke liye band
+  ['rlCDate','rlCBuyer','rlCStyle','rlCFabric','rlCGsm','rlDate','rlBuyer','rlStyle','rlFromCost']
+    .forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.readOnly = !can;
+      el.disabled = !can;
+      el.style.background = can ? '' : '#f8fafc';
+    });
+  const fi = document.getElementById('rlFileInput');
+  if (fi) fi.style.display = can ? '' : 'none';
+}
 
 // "Cost Sheet Print out" tab sirf admin aur in logon ko dikhta hai
 const RL_PRINT_EMAILS = ['rohit@klmahajan.com', 'gm@klmahajan.com'];
@@ -5244,7 +5268,7 @@ function rlTab(which, el) {
   } else rlLoadList(which);
 }
 
-function rlRenderAll() { rlRenderHead(); rlRenderGrid(); rlRenderFiles(); }
+function rlRenderAll() { rlRenderHead(); rlRenderGrid(); rlRenderFiles(); rlApplyEditAccess(); }
 
 function rlRenderHead() {
   const c = _rlCur; if (!c) return;
@@ -5311,19 +5335,21 @@ function rlRenderCostGrid() {
       </tr>`;
     }
     sr++;
+    // Admin na ho to sirf dekhne ke liye — badalna band
+    const ro = rlCanEdit() ? '' : ' readonly tabindex="-1" style="background:#f8fafc;cursor:default"';
     return `<tr>
       <td class="rl-sr">${sr}</td>
-      <td><input class="rl-in rl-op" value="${escapeHtml(r.op)}" placeholder="Operation"
+      <td><input class="rl-in rl-op"${ro} value="${escapeHtml(r.op)}" placeholder="Operation"
         oninput="rlSetCellVal(${i},null,'op',this.value)"></td>
-      <td><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(r.rate)}"
+      <td><input class="rl-in rl-num"${ro} inputmode="decimal" value="${escapeHtml(r.rate)}"
         oninput="rlSetCellVal(${i},null,'rate',this.value)"></td>
-      <td><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(r.add)}"
+      <td><input class="rl-in rl-num"${ro} inputmode="decimal" value="${escapeHtml(r.add)}"
         oninput="rlSetCellVal(${i},null,'add',this.value)"></td>
       <td><input class="rl-in rl-num" id="rlCN${i}" readonly tabindex="-1"
         title="Kariger Rate + Add Cost — khud jud jaata hai"
         style="background:#f8fafc;color:#475569;cursor:default"
         value="${escapeHtml(rlCostNewRate(r))}"></td>
-      <td class="rl-del"><button class="rl-x" title="Remove this row" onclick="rlDelRow(${i})">✕</button></td>
+      <td class="rl-del">${rlCanEdit() ? `<button class="rl-x" title="Remove this row" onclick="rlDelRow(${i})">✕</button>` : ''}</td>
     </tr>`;
   }).join('');
   // Sabse neeche poore sheet ka TOTAL — khud banta hai, "Total Row" daalne
@@ -5851,7 +5877,7 @@ async function rlLoadList(which) {
         <td style="padding:9px 10px">${escapeHtml(x.createdByName || '') || '—'}</td>
         <td style="padding:9px 10px;white-space:nowrap">${escapeHtml(rlStamp(x.updated_at))}</td>
         <td style="text-align:center"><button class="btn btn-outline btn-sm"
-          onclick="rlOpen(${x.id})">✏️ Edit</button></td>
+          onclick="rlOpen(${x.id})">${rlCanEdit() ? '✏️ Edit' : '👁 View'}</button></td>
       </tr>`;
     }).join('') + '</tbody></table></div>';
 }

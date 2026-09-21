@@ -6206,7 +6206,7 @@ function rlCleanFiles(v) {
 const rlNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
 
 // ── Attachment upload — image ya PDF. fms_files me jaati hai, public /f/:id link ──
-app.post('/api/rate-lists/upload-file', requireAuth, async (req, res) => {
+app.post('/api/rate-lists/upload-file', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { filename, mimeType, dataBase64 } = req.body || {};
     if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
@@ -6270,7 +6270,9 @@ app.get('/api/rate-lists/:id', requireAuth, async (req, res) => {
 });
 
 // ── Naya record — id wapas jaata hai taaki client turant editor khol sake ──
-app.post('/api/rate-lists', requireAuth, async (req, res) => {
+// Cost sheet / rate list BADALNA sirf admin ka kaam. Dekhna sabke liye khula
+// hai (GET par rok nahi), par likhne wale raaste admin-only.
+app.post('/api/rate-lists', requireAuth, requireAdmin, async (req, res) => {
   try {
     const b = req.body || {};
     if (!String(b.style || '').trim()) return res.status(400).json({ error: 'Style is required' });
@@ -6292,7 +6294,7 @@ app.post('/api/rate-lists', requireAuth, async (req, res) => {
 });
 
 // ── Edit — Completed hone ke baad bhi chalta hai (Completed tab ka Edit button) ──
-app.put('/api/rate-lists/:id', requireAuth, async (req, res) => {
+app.put('/api/rate-lists/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM rate_lists WHERE id=?', [req.params.id]);
     if (!rows || !rows[0]) return res.status(404).json({ error: 'Rate list not found' });
@@ -6326,7 +6328,7 @@ app.put('/api/rate-lists/:id', requireAuth, async (req, res) => {
 // ── Delete — sirf admin, ya jisne khud banayi thi ──
 // Attachment (image/PDF) fms_files me padi rehti hain; unhe chhedte nahi,
 // kyunki wo wapas nahi aayengi aur kisi aur jagah bhi lagi ho sakti hain.
-app.delete('/api/rate-lists/:id', requireAuth, async (req, res) => {
+app.delete('/api/rate-lists/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM rate_lists WHERE id=?', [req.params.id]);
     if (!rows || !rows[0]) return res.status(404).json({ error: 'Sheet not found' });
@@ -6340,7 +6342,7 @@ app.delete('/api/rate-lists/:id', requireAuth, async (req, res) => {
 });
 
 // ── Complete / wapas Pending ──
-app.post('/api/rate-lists/:id/status', requireAuth, async (req, res) => {
+app.post('/api/rate-lists/:id/status', requireAuth, requireAdmin, async (req, res) => {
   try {
     const want = String((req.body || {}).status || '').trim();
     if (want !== 'pending' && want !== 'completed') return res.status(400).json({ error: 'status must be pending or completed' });
