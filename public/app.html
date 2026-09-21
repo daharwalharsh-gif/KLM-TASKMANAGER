@@ -1961,10 +1961,10 @@ tbody tr:last-child td{border-bottom:none;}
           <button class="btn btn-outline btn-sm" data-rl-edit onclick="rlAddTotalRow()">➕ Total Row</button>
           <button class="btn btn-outline btn-sm" data-rl-edit title="Download a blank CSV in the right format"
             onclick="rlCostSampleCSV()">📄 Sample CSV</button>
-          <input type="file" id="rlCostCsvInput" accept=".csv,text/csv" style="display:none"
+          <input type="file" id="rlCostCsvInput" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none"
             onchange="rlCostUploadCSV(this)">
           <button class="btn btn-outline btn-sm" data-rl-edit title="Fill this sheet from a CSV"
-            onclick="document.getElementById('rlCostCsvInput').click()">⬆ Upload CSV</button>
+            onclick="document.getElementById(&#39;rlCostCsvInput&#39;).click()">⬆ Upload CSV / Excel</button>
           <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="rlPDF()">📄 PDF</button>
           <button class="btn btn-outline btn-sm" data-rl-edit id="rlCReopenBtn" style="display:none" onclick="rlSetStatus('pending')">↩ Move to Pending</button>
           <button class="btn btn-outline btn-sm" data-rl-edit id="rlCCompleteBtn" style="color:#16a34a;border-color:#bbf7d0"
@@ -5610,6 +5610,103 @@ function rlCostSampleCSV() {
 // File ko sahi encoding me padho. Excel "Unicode Text" ko UTF-16 me save
 // karta hai aur "CSV UTF-8" ko BOM ke saath \u2014 galat encoding padhne par
 // Hindi ke operation kachra ban jaate hain.
+// ── Excel ki .xlsx file seedha padhna ──
+// CSV ka jhanjhat: Excel "CSV (Comma delimited)" me Hindi ko "?" bana deta hai
+// (screen par sahi dikhta hai, file me mit jaata hai). .xlsx me aisa kabhi nahi
+// hota — usme text hamesha Unicode me rehta hai. Isliye ab xlsx bhi chalti hai.
+// Koi library nahi chahiye: xlsx asal me ek ZIP hai, aur browser khud unzip
+// kar leta hai (DecompressionStream).
+function rlIsXlsx(buf) {
+  const b = new Uint8Array(buf);
+  return b.length > 3 && b[0] === 0x50 && b[1] === 0x4B;   // "PK"
+}
+async function rlInflate(bytes, method) {
+  if (method === 0) return bytes;                           // bina dabaye rakha hua
+  const ds = new DecompressionStream('deflate-raw');
+  const ab = await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();
+  return new Uint8Array(ab);
+}
+// ZIP ke andar se maange hue naam wali file nikaal kar text me do
+async function rlZipRead(buf, wanted) {
+  const b = new Uint8Array(buf);
+  const dv = new DataView(buf);
+  // End of Central Directory peeche se dhoondo
+  let eocd = -1;
+  for (let i = b.length - 22; i >= 0 && i > b.length - 66000; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('Ye xlsx file theek nahi lag rahi');
+  const count = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+  const out = {};
+  const dec = new TextDecoder('utf-8');
+  for (let i = 0; i < count; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true);
+    const csize = dv.getUint32(p + 20, true);
+    const nlen = dv.getUint16(p + 28, true);
+    const mlen = dv.getUint16(p + 30, true);
+    const klen = dv.getUint16(p + 32, true);
+    const lho = dv.getUint32(p + 42, true);
+    const name = dec.decode(b.subarray(p + 46, p + 46 + nlen));
+    p += 46 + nlen + mlen + klen;
+    if (!wanted(name)) continue;
+    // local header se asli data ka shuru nikaalo
+    const ln = dv.getUint16(lho + 26, true), lx = dv.getUint16(lho + 28, true);
+    const start = lho + 30 + ln + lx;
+    out[name] = dec.decode(await rlInflate(b.subarray(start, start + csize), method));
+  }
+  return out;
+}
+// xlsx -> rows ka 2D array (CSV jaisa hi)
+async function rlReadXlsx(buf) {
+  const files = await rlZipRead(buf, n =>
+    n === 'xl/sharedStrings.xml' || /^xl\/worksheets\/sheet\d+\.xml$/.test(n));
+  // sharedStrings — <si> ke andar ke saare <t> jod do
+  const shared = [];
+  const ss = files['xl/sharedStrings.xml'];
+  if (ss) {
+    const si = ss.match(/<si>[\s\S]*?<\/si>/g) || [];
+    for (const one of si) {
+      const parts = one.match(/<t[^>]*>([\s\S]*?)<\/t>/g) || [];
+      shared.push(parts.map(t => t.replace(/<[^>]+>/g, '')).join(''));
+    }
+  }
+  const sheetName = Object.keys(files).filter(n => n !== 'xl/sharedStrings.xml').sort()[0];
+  if (!sheetName) throw new Error('Is xlsx me koi sheet nahi mili');
+  const xml = files[sheetName];
+  const unesc = s => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
+    .replace(/&amp;/g, '&');
+  const colOf = ref => {
+    const m = /^([A-Z]+)/.exec(String(ref || ''));
+    if (!m) return 0;
+    let n = 0; for (const ch of m[1]) n = n * 26 + (ch.charCodeAt(0) - 64);
+    return n - 1;
+  };
+  const rows = [];
+  for (const rowXml of (xml.match(/<row[\s\S]*?<\/row>|<row[^>]*\/>/g) || [])) {
+    const cells = [];
+    for (const c of (rowXml.match(/<c[\s\S]*?<\/c>|<c[^>]*\/>/g) || [])) {
+      const ref = (/r="([A-Z]+\d+)"/.exec(c) || [])[1];
+      const type = (/t="([^"]+)"/.exec(c) || [])[1] || '';
+      let val = '';
+      if (type === 'inlineStr') {
+        val = ((c.match(/<t[^>]*>([\s\S]*?)<\/t>/g) || [])
+          .map(t => t.replace(/<[^>]+>/g, '')).join(''));
+      } else {
+        const v = (/<v>([\s\S]*?)<\/v>/.exec(c) || [])[1];
+        if (v !== undefined) val = type === 's' ? (shared[+v] || '') : v;
+      }
+      cells[colOf(ref)] = unesc(val).trim();
+    }
+    for (let i = 0; i < cells.length; i++) if (cells[i] === undefined) cells[i] = '';
+    rows.push(cells);
+  }
+  return rows.filter(r => r.some(x => String(x).trim() !== ''));
+}
+
 function rlDecodeCSV(buf) {
   const b = new Uint8Array(buf);
   const dec = (enc, part) => new TextDecoder(enc).decode(part);
@@ -5668,11 +5765,19 @@ async function rlCostUploadCSV(input) {
   if (!file) return;
   if (!_rlCur || _rlCur.kind !== 'cost') return showToast('Open the Cost Sheet tab first', 'error');
   if (file.size > 2 * 1024 * 1024) return showToast('That CSV is larger than 2MB', 'error');
-  let text;
-  try { text = rlDecodeCSV(await file.arrayBuffer()); }
-  catch (e) { return showToast('Could not read that file', 'error'); }
-  const rows = rlParseCSV(text, rlSniffDelim(text));
-  if (!rows.length) return showToast('That CSV is empty', 'error');
+  let rows;
+  try {
+    const buf = await file.arrayBuffer();
+    // .xlsx (Excel ki apni file) — isme Hindi kabhi nahi bigadti
+    if (rlIsXlsx(buf)) rows = await rlReadXlsx(buf);
+    else {
+      const text = rlDecodeCSV(buf);
+      rows = rlParseCSV(text, rlSniffDelim(text));
+    }
+  } catch (e) {
+    return showToast('Ye file nahi padhi ja saki: ' + (e.message || 'unknown'), 'error');
+  }
+  if (!rows || !rows.length) return showToast('Is file me koi data nahi mila', 'error');
 
   // Column kahan hai — naam se dhoondo; naam na mile to ginti ke hisaab se
   const norm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/[^a-z]/g, '');
