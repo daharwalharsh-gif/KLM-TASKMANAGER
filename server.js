@@ -527,36 +527,32 @@ function getTable(type) {
   return type === 'delegation' ? 'delegation_tasks' : 'checklist_tasks';
 }
 
-// ── MIS ka Score % ──
-// Harsh (21 Sep 2026): "10 task hain, aaj ek hua to 90 minus, kal ek hua to
-// 80 minus" — yaani JO BHI KAAM BAAKI HAI wo minus banata hai, chahe uski
-// date aayi ho ya nahi.
+// ── MIS ka MINUS % ──
+// Harsh (21 Sep 2026): "6 pending hain to 60% show ho, red me" aur
+// "10 task hain, ek done hua to 90 minus, doosra hua to 80 minus".
 //
-//   Total task            -> 100% ka base
-//   Done                  -> minus nahi
-//   Not Applicable        -> minus nahi (ye kaam karna hi nahi tha)
-//   Pending / Revision    -> YAHI minus banate hain
+// Yaani har BAAKI task = 10% minus. Jitna kaam baaki, utna bada minus.
 //
-//   Minus = (pending + revision) / total x 100
-//   Score = 100 - Minus  =  (total - pending - revision) / total x 100
+//   Minus = (pending + revision) x 10      (100 par rok diya jaata hai)
+//   Done aur Not Applicable ka koi minus nahi.
 //
-//   Example: 10 task -> 1 done = 90% minus (score 10%),
-//                       2 done = 80% minus (score 20%)
+//   6 baaki  -> 60%      9 baaki -> 90%
+//   10 baaki -> 100%     15 baaki -> 100% (upar cap)
 //
-// PEHLE kya tha: sirf OVERDUE (jinki date nikal chuki) ka minus lagta tha,
-// aage ki date wale pending score nahi girate the. Harsh ne 21 Sep ko kaha
-// ki har baaki task ginna hai, isliye badla.
+// Ye ab SCORE nahi, MINUS hai — isliye jitna BADA number utna BURA.
+// Frontend me laal rang isi hisaab se lagta hai.
 //
-// Range 0 se 100.
+// PEHLE kya tha: score = 100 - (baaki/total)x100, yaani total ke hisaab se
+// hissa. Harsh ko flat 10% per task chahiye tha, isliye badla.
+const MIS_MINUS_PER_TASK = 10;
 function misScore(total, completed, overdue, revised, pending) {
   total = parseInt(total) || 0;
   revised = parseInt(revised) || 0;
   pending = parseInt(pending) || 0;
   if (!total) return null;
-  let baaki = pending + revised;               // jo kaam abhi khatam nahi hua
-  if (baaki > total) baaki = total;
-  const s = ((total - baaki) / total) * 100;
-  return Math.round(Math.max(0, Math.min(100, s)) * 10) / 10;
+  const baaki = pending + revised;             // jo kaam abhi khatam nahi hua
+  const minus = baaki * MIS_MINUS_PER_TASK;
+  return Math.round(Math.max(0, Math.min(100, minus)) * 10) / 10;
 }
 
 // ══════════════════════════════════════════════════════

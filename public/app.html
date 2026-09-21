@@ -11089,10 +11089,12 @@ async function generateMIS() {
 // Score -100 se +100 (+100 sabse achha) — sirf delay/overdue se ghatta hai,
 // delay zyada ho to minus me chala jaata hai.
 const _misBad = s => (s === null || s === undefined || isNaN(s));
-function misScoreColor(s) { return _misBad(s) ? '#94a3b8' : s >= 80 ? '#16a34a' : s >= 40 ? '#a16207' : '#dc2626'; }
-function misScoreBar(s)   { return _misBad(s) ? '#94a3b8' : s >= 80 ? '#10b981' : s >= 40 ? '#f59e0b' : '#ef4444'; }
-function misScoreClass(s) { return _misBad(s) ? 'score-zero' : s >= 80 ? 'score-positive' : s >= 40 ? 'score-zero' : 'score-negative'; }
-function misScoreLabel(s) { return _misBad(s) ? '—' : s >= 80 ? '✅ Good' : s >= 40 ? '⚠️ Needs Improvement' : '❌ Poor'; }
+// Ab ye SCORE nahi, MINUS hai — har baaki task 10%. Isliye jitna BADA
+// number utna BURA: bada = laal, chhota = hara. (Pehle ulta tha.)
+function misScoreColor(s) { return _misBad(s) ? '#94a3b8' : s >= 60 ? '#dc2626' : s >= 20 ? '#a16207' : '#16a34a'; }
+function misScoreBar(s)   { return _misBad(s) ? '#94a3b8' : s >= 60 ? '#ef4444' : s >= 20 ? '#f59e0b' : '#10b981'; }
+function misScoreClass(s) { return _misBad(s) ? 'score-zero' : s >= 60 ? 'score-negative' : s >= 20 ? 'score-zero' : 'score-positive'; }
+function misScoreLabel(s) { return _misBad(s) ? '—' : s >= 60 ? '❌ Poor' : s >= 20 ? '⚠️ Needs Improvement' : '✅ Good'; }
 function misScoreWidth(s) { return _misBad(s) ? 0 : Math.min(100, Math.abs(s)); }
 function renderMIS(data) {
   const container = document.getElementById('misResults');
@@ -11246,7 +11248,7 @@ function exportMIS() {
       'Del Total','Del Pending','Del Completed','Del Revised','Del Delayed','Del Score%',
       'Checklist Total','Checklist Pending','Checklist Completed','Checklist Delayed','Checklist Score%',
       'FMS Total','FMS Pending','FMS Done','FMS Score%',
-      'Total All','Pending All','Completed All','Revised All','Delayed All','Overall Score%'
+      'Total All','Pending All','Completed All','Revised All','Delayed All','Minus %'
     ].join(',');
     const lines = [header];
     misAllData.forEach(emp => {
@@ -11355,7 +11357,7 @@ async function exportMISToSheet() {
       'Del Total','Del Pending','Del Completed','Del Revised','Del Delayed','Del Score %',
       'Checklist Total','Checklist Pending','Checklist Completed','Checklist Delayed','Checklist Score %',
       'FMS Total','FMS Pending','FMS Done','FMS Score %',
-      'Total All','Pending All','Completed All','Revised All','Delayed All','Overall Score %'
+      'Total All','Pending All','Completed All','Revised All','Delayed All','Minus %'
     ]);
     const allRows = Array.isArray(all) ? all : (all && Array.isArray(all.rows) ? all.rows : []);
     allRows.forEach(emp => {
@@ -11607,7 +11609,7 @@ function renderAllMIS(data, fmsData) {
           ${sh('Employee', 'name')}
           ${sh('Total', 'total')}${sh('Pending', 'pending')}${sh('Completed', 'completed')}${sh('Revised', 'revised')}${sh('⚠️ Overdue', 'overdue')}
           ${sh('✅ FMS Done', 'fmsdone')}
-          <th>📅 Next Week Plan</th>${sh('Overall Score', 'score')}
+          <th>📅 Next Week Plan</th>${sh('Minus %', 'score')}
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
@@ -11745,7 +11747,7 @@ function misRangeFor(rangeType) {
 
 // Open All MIS detail modal for employee. rangeType: 'report' (default) | 'week' | 'month'
 async function openAllMISDetail(userId, userName, rangeType) {
-  rangeType = rangeType || 'report';
+  rangeType = rangeType || 'week';   // pehle 'report' tha — ab This Week default
   const { start, end } = misRangeFor(rangeType);
   window._misDetailCtx = { userId, userName, rangeType };
 
@@ -11844,7 +11846,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
 
   const combinedSummaryHtml = `
     <div style="${fmsSectionHtml ? 'margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px;' : ''}">
-      <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.3px">📊 FMS + Delegation + Checklist — Combined</div>
+      <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.3px">📊 FMS + Delegation + Checklist — Combined Minus</div>
       <div style="font-size:28px;font-weight:800;color:${scoreColor}">${score !== null ? score.toFixed(1)+'%' : '—'}</div>
       <div style="display:flex;gap:16px;margin-top:10px;font-size:13px;flex-wrap:wrap">
         <span>📋 Total: <strong>${emp.totalAll}</strong></span>
@@ -11866,7 +11868,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
 
   const delegationSectionHtml = emp.delegation.total > 0 ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Score: ${emp.delegation.score.toFixed(1)}%${doneChip(delDetail.tasks)}
+      <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px">📋 Delegation (${emp.delegation.total} tasks) — Minus: ${emp.delegation.score.toFixed(1)}%${doneChip(delDetail.tasks)}
         ${emp.delegation.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.delegation.overdue} Overdue</span>` : ''}</div>
       <div class="tbl-freeze" style="max-height:300px">
         <table style="font-size:12px">
@@ -11878,7 +11880,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
 
   const checklistSectionHtml = emp.checklist.total > 0 ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Score: ${emp.checklist.score.toFixed(1)}%${doneChip(chlDetail.tasks)}
+      <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">✅ Checklist (${emp.checklist.total} tasks) — Minus: ${emp.checklist.score.toFixed(1)}%${doneChip(chlDetail.tasks)}
         ${emp.checklist.overdue > 0 ? `<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:700;border:1px solid #fecaca">⚠️ ${emp.checklist.overdue} Overdue</span>` : ''}</div>
       <div class="tbl-freeze" style="max-height:300px">
         <table style="font-size:12px">
