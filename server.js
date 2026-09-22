@@ -6432,10 +6432,22 @@ app.get('/api/debug', requireAuth, requireAdmin, async (req, res) => {
 // ══════════════════════════════════════════════════════
 // PAGES
 // ══════════════════════════════════════════════════════
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// User asal me /app kholta hai (index.html turant /app par bhej deta hai),
+// aur ye route express.static se NAHI jaata — isliye cache ki rok yahan bhi
+// alag se lagani padti hai. Warna Vercel par purana app.html chipka reh jaata
+// hai aur naya deploy user tak pahunchta hi nahi.
+function sendHtmlNoCache(res, file) {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  res.sendFile(path.join(__dirname, 'public', file), { etag: false, lastModified: false });
+}
+app.get('/', (req, res) => sendHtmlNoCache(res, 'index.html'));
 // Auth check is handled client-side via /api/me in init() — removing server-side
 // requireAuth here prevents app.html from loading if cookie has any timing/domain issue
-app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
+app.get('/app', (req, res) => sendHtmlNoCache(res, 'app.html'));
 
 // On Vercel/serverless we export the app and let the platform invoke it
 // as a request handler — calling app.listen() there would crash the function.
