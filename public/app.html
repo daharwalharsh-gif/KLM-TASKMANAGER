@@ -11984,8 +11984,16 @@ function misRangeFor(rangeType) {
 }
 
 // Open All MIS detail modal for employee. rangeType: 'report' (default) | 'week' | 'month'
+// Ek doer ki detail kholte waqt kai await lagte hain. Beech me user doosre
+// doer par click kar de to dono chalte rehte the aur JO BAAD ME AAYA wo modal
+// me likh deta tha — nateeja: Arjun ke naam par Vipul ke task dikhte the.
+// Ab har click ko ek number milta hai; sirf SABSE NAYA click screen par likhta
+// hai, purane chup-chaap ruk jaate hain.
+let _misDetailSeq = 0;
 async function openAllMISDetail(userId, userName, rangeType) {
   rangeType = rangeType || 'week';   // pehle 'report' tha — ab This Week default
+  const myTurn = ++_misDetailSeq;
+  const stale = () => myTurn !== _misDetailSeq;
   const { start, end } = misRangeFor(rangeType);
   window._misDetailCtx = { userId, userName, rangeType };
 
@@ -11997,16 +12005,29 @@ async function openAllMISDetail(userId, userName, rangeType) {
     document.getElementById('misDetailTitle').textContent = `${userName} — Loading…`;
     document.getElementById('misDetailModal').classList.add('open');
     const all = await api(`/api/mis/all?start=${start}&end=${end}`);
+    if (stale()) return;
     const rows2 = Array.isArray(all) ? all : (all && all.rows) || [];
     emp = rows2.find(e => String(e.userId) === String(userId));
   }
-  if (!emp) { showToast('No data for this doer in the selected range', 'error'); return; }
+  if (!emp) {
+    if (stale()) return;
+    // Is range me is doer ka kuch hai hi nahi — khaali modal dikha do,
+    // taaki pichhle doer ka data screen par pada na rahe.
+    document.getElementById('misDetailTitle').textContent = `${userName} — All Tasks`;
+    document.getElementById('misDetailScore').innerHTML =
+      '<div style="padding:18px;text-align:center;color:#64748b;font-size:13px">' +
+      'Is date range me is doer ka koi task nahi</div>';
+    document.getElementById('misDetailBody').innerHTML = '';
+    document.getElementById('misDetailModal').classList.add('open');
+    return;
+  }
 
   // Fetch task details for both types
   const [delDetail, chlDetail] = await Promise.all([
     emp.delegation.total > 0 ? api(`/api/mis/detail?userId=${userId}&type=delegation&start=${start}&end=${end}`) : Promise.resolve({ tasks: [] }),
     emp.checklist.total > 0  ? api(`/api/mis/detail?userId=${userId}&type=checklist&start=${start}&end=${end}`)  : Promise.resolve({ tasks: [] })
   ]);
+  if (stale()) return;
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -12128,6 +12149,9 @@ async function openAllMISDetail(userId, userName, rangeType) {
       </div>
     </div>` : emptySec('✅', 'Checklist', '#16a34a');
 
+  // Aakhri jaanch — is beech user kisi aur doer par click kar chuka ho to
+  // ye purana nateeja screen par mat likho
+  if (stale()) return;
   document.getElementById('misDetailScore').innerHTML =
     rangeBar + fmsSectionHtml + combinedSummaryHtml + delegationSectionHtml + checklistSectionHtml;
 
