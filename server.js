@@ -542,30 +542,33 @@ function getTable(type) {
 }
 
 // ── MIS ka MINUS % ──
-// Harsh (21 Sep 2026): "6 pending hain to 60% show ho, red me" aur
-// "10 task hain, ek done hua to 90 minus, doosra hua to 80 minus".
+// Harsh (21 Sep 2026): "10 task hain, ek done hua to 90 minus, doosra hua
+// to 80 minus" — yaani jitna kaam BAAKI hai utne HISSE ka minus.
 //
-// Yaani har BAAKI task = 10% minus. Jitna kaam baaki, utna bada minus.
-//
-//   Minus = (pending + revision) x 10      (100 par rok diya jaata hai)
+//   Minus % = (pending + revision) / total x 100
 //   Done aur Not Applicable ka koi minus nahi.
 //
-//   6 baaki  -> 60%      9 baaki -> 90%
-//   10 baaki -> 100%     15 baaki -> 100% (upar cap)
+//   10 me se 0 done  -> 10 baaki -> 100% minus
+//   10 me se 1 done  ->  9 baaki ->  90% minus
+//   10 me se 2 done  ->  8 baaki ->  80% minus
+//   sab done         ->  0 baaki ->   0% minus
 //
-// Ye ab SCORE nahi, MINUS hai — isliye jitna BADA number utna BURA.
+// Ye SCORE nahi, MINUS hai — isliye jitna BADA number utna BURA.
 // Frontend me laal rang isi hisaab se lagta hai.
 //
-// PEHLE kya tha: score = 100 - (baaki/total)x100, yaani total ke hisaab se
-// hissa. Harsh ko flat 10% per task chahiye tha, isliye badla.
-const MIS_MINUS_PER_TASK = 10;
+// PEHLE flat 10% per baaki task tha. Wo sirf 10 task walo par sahi
+// baithta tha — Harsh (22 Sep 2026): "kisi ne sabhi task done kar liye to
+// usko 0 show nahi ho raha, 100 minus me ja raha hai". Kiran ke 260 me se
+// sirf 9 pending the aur 90% minus aa raha tha, Kashvi ke 225 me se 18
+// pending the aur poora 100%. Ab hissa ginte hain, isliye jisne jitna
+// nipta diya utna minus kam.
 function misScore(total, completed, overdue, revised, pending) {
   total = parseInt(total) || 0;
   revised = parseInt(revised) || 0;
   pending = parseInt(pending) || 0;
   if (!total) return null;
   const baaki = pending + revised;             // jo kaam abhi khatam nahi hua
-  const minus = baaki * MIS_MINUS_PER_TASK;
+  const minus = (baaki / total) * 100;
   return Math.round(Math.max(0, Math.min(100, minus)) * 10) / 10;
 }
 
@@ -3313,7 +3316,11 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
     // ── FMS (ROLE-INDEPENDENT: hamesha all-doers crediting) + pending detail ──
     let fmsPerUser = {}, fmsPerUserPending = {}, fmsErrors = [];
     try {
-      const fmsStats = await computeFmsStats('', true);
+      // Range zaroori hai. Bina range ke FMS ke SAARE purane task aate the,
+      // jabki delegation/checklist sirf chuni hui dates ke. Ek hi bande ka
+      // minus MIS Report me kuch aur aur Employee Records me kuch aur dikhta
+      // tha. /api/mis/all bhi yahi range bhejta hai — ab dono ek jaise.
+      const fmsStats = await computeFmsStats('', true, { range: { start, end } });
       fmsPerUser = fmsStats.perUser || {};
       fmsPerUserPending = fmsStats.perUserPending || {};
       fmsErrors = fmsStats.errors || [];
@@ -3329,8 +3336,10 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
       for (const u of extra) ensure({ userId: u.id, name: u.name, department: u.department });
     }
     for (const e of Object.values(map)) {
-      const f = fmsPerUser[e.userId] || { pending:0, done:0 };
-      e.fms = { pending: f.pending||0, done: f.done||0, total: (f.pending||0)+(f.done||0) };
+      const f = fmsPerUser[e.userId] || {};
+      // …InRange = sirf is date window ka, bilkul jaise /api/mis/all me hai
+      const fp = f.pendingInRange || 0, fd = f.doneInRange || 0;
+      e.fms = { pending: fp, done: fd, total: fp + fd };
     }
 
     // ── Committed plans (week_plans) for range ──
