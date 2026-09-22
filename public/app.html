@@ -820,12 +820,12 @@ tbody tr:last-child td{border-bottom:none;}
         </div>
       </div>
       <div class="perf-grid">
-        <div class="perf-card"><div class="perf-card-title">🏆 Top 5 Performers <span style="font-weight:400;color:#94a3b8;font-size:10px">(sabse kam minus)</span></div><div id="perfTop"></div></div>
-        <div class="perf-card"><div class="perf-card-title">🌱 Bottom 5 Performers <span style="font-weight:400;color:#94a3b8;font-size:10px">(sabse zyada minus)</span></div><div id="perfBottom"></div></div>
+        <div class="perf-card"><div class="perf-card-title">🏆 Top 5 Performers <span style="font-weight:400;color:#94a3b8;font-size:10px">(lowest minus)</span></div><div id="perfTop"></div></div>
+        <div class="perf-card"><div class="perf-card-title">🌱 Bottom 5 Performers <span style="font-weight:400;color:#94a3b8;font-size:10px">(highest minus)</span></div><div id="perfBottom"></div></div>
         <div class="perf-card"><div class="perf-card-title">🔥 Top 5 Most Active</div><div id="perfActive"></div></div>
       </div>
       <div style="font-size:11px;color:#94a3b8;padding:0 16px 12px">
-        Minus % = (pending + revised) ÷ total × 100 — wahi number jo MIS Report me hai. Jitna KAM utna ACHHA (0% = saara kaam ho gaya). Sirf un task ka hisaab jinki due date aa chuki hai · Most Active = is range me complete kiye gaye task
+        Minus % = (pending + revised) ÷ total × 100 — the same number as in the MIS Report. Lower is better (0% = everything done). Only tasks whose due date has arrived are counted · Most Active = tasks completed in this range
       </div>
     </div>
 
@@ -11323,15 +11323,18 @@ async function generateMIS() {
 }
 
 // null/undefined/NaN = data hi nahi (grey "—"). 0 BURA NAHI hai —
-// 0 ka matlab sab kaam nipta diya, isliye wo hara "✅ Good" dikhta hai.
+// 0 ka matlab sab kaam nipta diya, isliye wo hara dikhta hai.
 const _misBad = s => (s === null || s === undefined || isNaN(s));
 // Ye SCORE nahi, MINUS % hai = (pending + revised) / total x 100.
-// Jitna BADA number utna BURA: bada = laal, chhota = hara.
-//   60%+ baaki -> laal     20-59% -> peela     20% se kam -> hara
-function misScoreColor(s) { return _misBad(s) ? '#94a3b8' : s >= 60 ? '#dc2626' : s >= 20 ? '#a16207' : '#16a34a'; }
-function misScoreBar(s)   { return _misBad(s) ? '#94a3b8' : s >= 60 ? '#ef4444' : s >= 20 ? '#f59e0b' : '#10b981'; }
-function misScoreClass(s) { return _misBad(s) ? 'score-zero' : s >= 60 ? 'score-negative' : s >= 20 ? 'score-zero' : 'score-positive'; }
-function misScoreLabel(s) { return _misBad(s) ? '—' : s >= 60 ? '❌ Poor' : s >= 20 ? '⚠️ Needs Improvement' : '✅ Good'; }
+// Harsh (22 Sep 2026): "ye percentage vale jo colour h red show ho" —
+// minus to minus hai, chhota ho ya bada, isliye 0 se upar ka har number
+// LAAL. Sirf 0% hara (matlab kuch baaki hi nahi). Kitna bada minus hai wo
+// neeche ki patti ki lambai se dikhta hai.
+// "Good / Needs Improvement / Poor" wale label hata diye — Harsh:
+// "ye jo Good vgera h ye sab na likha ho".
+function misScoreColor(s) { return _misBad(s) ? '#94a3b8' : s > 0 ? '#dc2626' : '#16a34a'; }
+function misScoreBar(s)   { return _misBad(s) ? '#94a3b8' : s > 0 ? '#ef4444' : '#10b981'; }
+function misScoreClass(s) { return _misBad(s) ? 'score-zero' : s > 0 ? 'score-negative' : 'score-positive'; }
 function misScoreWidth(s) { return _misBad(s) ? 0 : Math.min(100, Math.abs(s)); }
 // Del: / CL: badge ka rang — wahi teen band jo bade score par lagte hain.
 // Pehle "score < 0" par laal hota tha; MINUS scale me score kabhi minus me
@@ -11339,8 +11342,7 @@ function misScoreWidth(s) { return _misBad(s) ? 0 : Math.min(100, Math.abs(s)); 
 // raha tha. Ab 100% laal hi dikhega.
 function misBadgeStyle(s) {
   const b = _misBad(s) ? ['#f8fafc','#64748b','#e2e8f0']
-          : s >= 60    ? ['#fef2f2','#dc2626','#fecaca']
-          : s >= 20    ? ['#fffbeb','#a16207','#fde68a']
+          : s > 0      ? ['#fef2f2','#dc2626','#fecaca']
                        : ['#f0fdf4','#16a34a','#bbf7d0'];
   return `background:${b[0]};color:${b[1]};border:1px solid ${b[2]}`;
 }
@@ -11368,7 +11370,6 @@ function renderMIS(data) {
     const scoreClass = misScoreClass(score);
     const barWidth = misScoreWidth(score);
     const barColor = misScoreBar(score);
-    const scoreLabel = misScoreLabel(score);
 
     return `<tr style="cursor:pointer" onclick="openMISDetail('${r.userId||r.id}','${titleName(r.name).replace(/'/g,"\\'")}')" title="Click to see task details">
       <td>
@@ -11381,7 +11382,6 @@ function renderMIS(data) {
       <td style="color:#dc2626;font-weight:600">${r.delayed||0}</td>
       <td>
         <div class="${scoreClass}" style="font-size:14px;font-weight:700">${score.toFixed(1)}%</div>
-        <div style="font-size:10px;color:#94a3b8;margin-top:1px">${scoreLabel}</div>
         <div class="mis-score-bar">
           <div class="mis-score-fill" style="width:${barWidth}%;background:${barColor}"></div>
         </div>
@@ -11400,11 +11400,11 @@ function renderMIS(data) {
       </table>
     </div>
     <div style="font-size:12px;color:#94a3b8;margin-top:10px;padding:0 4px">
-      * Minus % = (Pending + Revised) ÷ Total × 100. Jitna KAM utna ACHHA —
-      0% matlab saara kaam nipat gaya, 100% matlab kuch bhi nahi hua.
-      Done aur Not Applicable ka koi minus nahi lagta.
-      <b>Sirf un task ka hisaab jinki due date aa chuki hai</b> — aage ki
-      date wale task par abhi samay baaki hai, wo nahi gine jaate.
+      * Minus % = (Pending + Revised) ÷ Total × 100. Lower is better —
+      0% means all the work is done, 100% means none of it is.
+      Done and Not Applicable carry no minus.
+      <b>Only tasks whose due date has arrived are counted</b> — tasks dated
+      later still have time left, so they are not counted yet.
     </div>`;
 }
 
@@ -11432,7 +11432,7 @@ async function openMISDetail(userId, userName) {
 
   const data = await api(`/api/mis/detail?userId=${userId}&type=${misType}&start=${start}&end=${end}`);
   if (stale()) return;
-  if (data && data.error) { showToast('Detail nahi aa payi: ' + data.error, 'error'); return; }
+  if (data && data.error) { showToast('Could not load details: ' + data.error, 'error'); return; }
 
   const score = parseFloat(row.score);
   const scoreColor = misScoreColor(score);
@@ -11444,12 +11444,12 @@ async function openMISDetail(userId, userName) {
     const pend = parseInt(row.pending) || 0, rev = parseInt(row.revised) || 0;
     const late = parseInt(row.delayed) || 0, tot = parseInt(row.total) || 0;
     const parts = [];
-    if (pend > 0) parts.push(`${pend} task abhi pending`);
-    if (rev > 0) parts.push(`${rev} task revised/rejected`);
+    if (pend > 0) parts.push(`${pend} still pending`);
+    if (rev > 0) parts.push(`${rev} revised/rejected`);
     scoreReason = parts.length
-      ? `⚠️ ${score}% minus isliye: ` + parts.join(' + ') + ` (kul ${tot} me se)`
-        + (late > 0 ? ` · inme se ${late} ki due date bhi nikal chuki hai` : '')
-      : '✅ 0% minus — saara kaam nipta diya gaya hai.';
+      ? `${score}% minus because: ` + parts.join(' + ') + ` (out of ${tot})`
+        + (late > 0 ? ` · ${late} of these are past their due date` : '')
+      : '0% minus — all the work is done.';
   }
 
   const taskRows = (data.tasks||[]).map(t => `
@@ -11807,11 +11807,10 @@ function renderAllMIS(data, fmsData) {
     const upcoming = emp.upcomingAll || 0;
     const scoreDisplay = score === null ? '—' : `${score.toFixed(1)}%`;
     const upcomingHtml = upcoming > 0
-      ? `<div style="font-size:10px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:1px 7px;display:inline-block;margin-top:3px" title="In task ki due date abhi aayi nahi hai, isliye minus me nahi gine gaye">🔜 ${upcoming} aane wale</div>`
+      ? `<div style="font-size:10px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:1px 7px;display:inline-block;margin-top:3px" title="These tasks' due dates have not arrived yet, so they are not counted in the minus">🔜 ${upcoming} upcoming</div>`
       : '';
     const barColor = misScoreBar(score);
     const barWidth = misScoreWidth(score);
-    const scoreLabel = misScoreLabel(score);
 
     const delScore = emp.delegation.score;
     const chlScore = emp.checklist.score;
@@ -11823,9 +11822,9 @@ function renderAllMIS(data, fmsData) {
 
     // Mini breakdown badges — Delegation, Checklist, FMS sab
     const delBadge = emp.delegation.total > 0
-      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;font-weight:600;${misBadgeStyle(delScore)}" title="Delegation ka minus %">Del: ${delScore.toFixed(0)}%</span>` : '';
+      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;font-weight:600;${misBadgeStyle(delScore)}" title="Delegation minus %">Del: ${delScore.toFixed(0)}%</span>` : '';
     const chlBadge = emp.checklist.total > 0
-      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;font-weight:600;${misBadgeStyle(chlScore)}" title="Checklist ka minus %">CL: ${chlScore.toFixed(0)}%</span>` : '';
+      ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;font-weight:600;${misBadgeStyle(chlScore)}" title="Checklist minus %">CL: ${chlScore.toFixed(0)}%</span>` : '';
     const fmsBadge = (fmsObj.isDoer || (fmsObj.done||0) > 0 || fmsObj.total > 0)
       ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:600;border:1px solid #bfdbfe">FMS: ${fmsObj.done||0} done</span>` : '';
 
@@ -11872,7 +11871,7 @@ function renderAllMIS(data, fmsData) {
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">${delBadge}${chlBadge}${fmsBadge}</div>
         <div class="${scoreClass}" style="font-size:15px;font-weight:800">${scoreDisplay}</div>
-        <div style="font-size:10px;color:#94a3b8">${score === null && upcoming > 0 ? 'Abhi kuch due nahi' : scoreLabel}</div>
+        ${score === null && upcoming > 0 ? '<div style="font-size:10px;color:#94a3b8">Nothing due yet</div>' : ''}
         ${upcomingHtml}
         <div class="mis-score-bar" style="margin-top:3px">
           <div class="mis-score-fill" style="width:${barWidth}%;background:${barColor}"></div>
@@ -11903,7 +11902,7 @@ function renderAllMIS(data, fmsData) {
       const pct = f.total > 0 ? Math.round((f.done/f.total)*100) : 0;
       const barColor = pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
       return `<tr onclick="openFmsMisDetail(${f.fmsId})" style="cursor:pointer"
-          title="Click karke step-wise detail dekhein — kaun sa step pending hai">
+          title="Click to see the step-wise detail — which step is pending">
         <td style="font-weight:600;color:#4f46e5;text-decoration:underline">${f.fmsName}</td>
         <td style="font-weight:700">${f.total}</td>
         <td style="color:#ef4444;font-weight:600">${f.pending}</td>
@@ -12049,9 +12048,9 @@ async function openAllMISDetail(userId, userName, rangeType) {
     document.getElementById('misDetailTitle').textContent = `${userName} — All Tasks`;
     document.getElementById('misDetailScore').innerHTML =
       `<div style="padding:20px;text-align:center">
-         <div style="font-size:13px;color:#dc2626;font-weight:600;margin-bottom:4px">Detail nahi aa payi</div>
-         <div style="font-size:12px;color:#64748b;margin-bottom:12px">${escapeHtml(String(msg || 'Server ne jawab nahi diya'))}</div>
-         <button class="btn btn-sm" onclick="openAllMISDetail('${String(userId).replace(/'/g,"\\'")}','${String(userName).replace(/'/g,"\\'")}','${rangeType}')">🔄 Dobara koshish karein</button>
+         <div style="font-size:13px;color:#dc2626;font-weight:600;margin-bottom:4px">Could not load details</div>
+         <div style="font-size:12px;color:#64748b;margin-bottom:12px">${escapeHtml(String(msg || 'The server did not respond'))}</div>
+         <button class="btn btn-sm" onclick="openAllMISDetail('${String(userId).replace(/'/g,"\\'")}','${String(userName).replace(/'/g,"\\'")}','${rangeType}')">🔄 Try again</button>
        </div>`;
     document.getElementById('misDetailBody').innerHTML = '';
     document.getElementById('misDetailModal').classList.add('open');
@@ -12062,7 +12061,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
   // hi nahi dikhta tha.
   document.getElementById('misDetailTitle').textContent = `${userName} — Loading…`;
   document.getElementById('misDetailScore').innerHTML =
-    '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">⏳ Load ho raha hai…</div>';
+    '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">⏳ Loading…</div>';
   document.getElementById('misDetailBody').innerHTML = '';
   document.getElementById('misDetailModal').classList.add('open');
 
@@ -12091,10 +12090,10 @@ async function openAllMISDetail(userId, userName, rangeType) {
     const upN = (cached && cached.upcomingAll) || 0;
     document.getElementById('misDetailScore').innerHTML = upN > 0
       ? `<div style="padding:18px;text-align:center;color:#9a3412;font-size:13px">
-           Is range me <b>${upN}</b> task hain, par unki due date abhi aayi nahi —
-           isliye abhi ginti me nahi hain.</div>`
+           <b>${upN}</b> task(s) in this range, but their due date has not arrived yet —
+           so they are not counted.</div>`
       : '<div style="padding:18px;text-align:center;color:#64748b;font-size:13px">' +
-        'Is date range me is doer ka koi task nahi</div>';
+        'No tasks for this doer in this date range</div>';
     document.getElementById('misDetailBody').innerHTML = '';
     document.getElementById('misDetailModal').classList.add('open');
     return;
@@ -12133,7 +12132,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
       <td style="color:#64748b;font-size:11px;white-space:nowrap">${fmtDate(t.due_date)}</td>
       <td><span class="status-badge ${t.status}">${t.status === 'revised' ? 'Revision' : t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
       <td>${!['completed','not_applicable'].includes(String(t.status)) && t.due_date < today ? '<span style="font-size:10px;color:#dc2626;font-weight:600">⏰ Overdue</span>' : ''}</td>
-    </tr>`).join('') || `<tr><td colspan="4" class="empty" style="font-size:12px">✅ Koi pending kaam nahi</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="4" class="empty" style="font-size:12px">✅ No pending work</td></tr>`;
 
   const score = emp.overallScore;
   const scoreColor = misScoreColor(score);
@@ -12159,7 +12158,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
   const rangeBar = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
     <span style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase">Range:</span>
     ${rbtn('📅 This Week', 'week')}${rbtn('🗓️ This Month', 'month')}${rbtn('Report Range', 'report')}
-    <span style="font-size:11px;color:#94a3b8">${fmtDate(start)} → ${fmtDate(endShown)}${endShown !== end ? ' <span style="color:#9a3412">(aaj tak)</span>' : ''}</span>
+    <span style="font-size:11px;color:#94a3b8">${fmtDate(start)} → ${fmtDate(endShown)}${endShown !== end ? ' <span style="color:#9a3412">(up to today)</span>' : ''}</span>
   </div>`;
 
   // Harsh (22 Sep 2026): "FMS me koi pending hai to kaun sa hai wo bhi show
@@ -12173,11 +12172,11 @@ async function openAllMISDetail(userId, userName, rangeType) {
     .sort((a, b) => b.n - a.n);
   const fmsPendingList = pendSteps.length ? `
     <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:9px 11px;margin-bottom:10px">
-      <div style="font-size:11px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">⏳ Abhi ye FMS kaam baaki hai</div>
+      <div style="font-size:11px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">⏳ FMS work still pending</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">
         ${pendSteps.map(x => `
           <span onclick="openFmsStepDetail(${x.si})" style="cursor:pointer;font-size:11.5px;padding:3px 9px;border-radius:8px;background:#fff;border:1px solid #fdba74;color:#9a3412;font-weight:600"
-                title="Click karke is step ke pending kaam dekhein">
+                title="Click to see this step's pending work">
             ${escapeHtml(x.st.fmsName)} · Step ${x.st.stepOrder}: ${escapeHtml(x.st.stepName)}
             <strong style="color:#dc2626">${x.n}</strong>${(x.st.overdueInRange || 0) > 0 ? ` <span style="color:#dc2626">⚠️${x.st.overdueInRange}</span>` : ''}
           </span>`).join('')}
@@ -12205,7 +12204,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
           <thead><tr><th>FMS</th><th>Step</th><th>✅ Done (range)</th><th>⏳ Pending</th><th>⚠️ Overdue</th></tr></thead>
           <tbody>${emp.fmsSteps.map((s, si) => `
             <tr onclick="openFmsStepDetail(${si})" style="cursor:pointer"
-                title="Click karke is step ke pending kaam dekhein">
+                title="Click to see this step's pending work">
               <td style="color:#64748b">${s.fmsName}</td>
               <td style="color:#4f46e5;text-decoration:underline">Step ${s.stepOrder}: ${s.stepName}</td>
               <td style="color:#16a34a;font-weight:700">${s.doneInRange}</td>
@@ -12228,7 +12227,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
         <span style="color:#f59e0b">🔄 Revised: <strong>${emp.revisedAll}</strong></span>
       </div>
       ${(emp.upcomingAll || 0) > 0 ? `<div style="margin-top:8px;font-size:12px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:6px 10px">
-        🔜 <b>${emp.upcomingAll}</b> task aur hain jinki due date abhi aayi nahi — wo upar ki ginti me nahi hain.</div>` : ''}
+        🔜 <b>${emp.upcomingAll}</b> more task(s) whose due date has not arrived yet — not counted above.</div>` : ''}
     </div>`;
 
   // Section ab khaali hone par bhi dikhta hai. Pehle total 0 hone par poora
@@ -12237,7 +12236,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
   const emptySec = (icon, title, color) => `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
       <div style="font-size:13px;font-weight:700;color:${color};margin-bottom:8px">${icon} ${title} (0 tasks)</div>
-      <div style="font-size:12px;color:#94a3b8;padding:10px 2px">Is range me koi task nahi</div>
+      <div style="font-size:12px;color:#94a3b8;padding:10px 2px">No tasks in this range</div>
     </div>`;
 
   const delegationSectionHtml = emp.delegation.total > 0 ? `
@@ -12295,7 +12294,7 @@ async function openFmsStepDetail(stepIdx) {
      <div style="font-size:11.5px;color:#64748b">Doer: ${escapeHtml(ctx.userName || '')}
        &nbsp;·&nbsp; All-time — pending <strong>${s.pending || 0}</strong>, done <strong>${s.done || 0}</strong>, overdue <strong>${s.overdue || 0}</strong></div>`;
   document.getElementById('fmsStepBody').innerHTML =
-    '<div style="padding:16px;text-align:center;color:#94a3b8;font-size:12px">⏳ Pending kaam load ho raha hai…</div>';
+    '<div style="padding:16px;text-align:center;color:#94a3b8;font-size:12px">⏳ Loading pending work…</div>';
   document.getElementById('fmsStepModal').classList.add('open');
 
   try {
