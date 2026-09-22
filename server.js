@@ -572,6 +572,26 @@ function misScore(total, completed, overdue, revised, pending) {
   return Math.round(Math.max(0, Math.min(100, minus)) * 10) / 10;
 }
 
+// ── MIS sirf AAJ TAK ka kaam ginti hai ──
+// Harsh (22 Sep 2026): "jinki date nahi aa rahi unki kyu show ho rahi hai,
+// aane wale ki? … current date lo, piche ke din."
+//
+// Aage ki date wale task par abhi samay baaki hai — wo na minus me jaate
+// hain, na pending list me. Isliye range ka END aaj se aage nahi jaata.
+// Numerator aur denominator DONO isi se bante hain, isliye hisaab poora
+// rehta hai: Riya ke 6 checklist me se 4 ki date 23-26 Sep thi (aaj 22),
+// to ab wo 2 me se 2 done = 0% minus, pehle 6 me se 4 baaki = 66.7% tha.
+//
+// CURDATE() bhi bilkul yahi deta hai (pg-db.js ka isoDate), isliye SQL ke
+// overdue wale hisaab se poori tarah milta hai.
+//
+// NOTE: week_plans (Next Week Plan) aur FMS ka weekly target ASLI end se
+// hi chalte hain — wo aage ki cheezein hain, unhe kaatna galat hoga.
+function misEndCap(end) {
+  const today = new Date().toISOString().slice(0, 10);
+  return (!end || end > today) ? today : end;
+}
+
 // ══════════════════════════════════════════════════════
 // GOOGLE SHEETS HELPERS
 // ══════════════════════════════════════════════════════
@@ -981,7 +1001,11 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
             if (inRange) perDoerStep[id].pendingInRange++;
             if (isOverdue && inRange) perDoerStep[id].overdueInRange++;
           }
-          if (collectPending) {
+          // Ginti (pendingInRange) range ki hoti hai, par ye LIST pehle saari
+          // purani pending bhi utha leti thi — header par 1 likha aata tha aur
+          // neeche 40 rows. Ab dono ek hi range ki.
+          // (Jahan range di hi nahi gayi, wahan pehle jaisa hi — sab aata hai.)
+          if (collectPending && (!opts.range || inRange)) {
             stepPendingRows.push({
               fmsName, stepName: step.step_name, planValue: planVal,
               planDate, isLate: isOverdue, creditUids: rowDoerIds
@@ -1992,15 +2016,16 @@ app.get('/api/mis', requireAuth, requireMisView, async (req, res) => {
   try {
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Dates required' });
+    const endT = misEndCap(end);   // task ginti sirf aaj tak
     const isHod = await misHodScoped(req);
     // HOD ke liye apne department ka filter
     let deptFilter = '';
-    let deptParams = [start, end];
+    let deptParams = [start, endT];
     if (isHod) {
       const [me] = await db.query('SELECT department FROM users WHERE id=?', [req.session.userId]);
       const dept = me[0]?.department || '';
       deptFilter = 'AND u.department=?';
-      deptParams = [start, end, dept];
+      deptParams = [start, endT, dept];
     }
 
     const calc = rows => rows.map(r => {
@@ -2391,8 +2416,9 @@ app.get('/api/mis/detail', requireAuth, requireMisView, async (req, res) => {
   try {
     const { userId, type, start, end } = req.query;
     if (!userId || !start || !end) return res.status(400).json({ error: 'Missing params' });
+    const endT = misEndCap(end);   // aage ki date wale task list me nahi aate
     const table = type === 'delegation' ? 'delegation_tasks' : 'checklist_tasks';
-    const [tasks] = await db.query(`SELECT t.id,t.description,t.status,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u2.name AS assigned_by_name FROM ${table} t JOIN users u2 ON t.assigned_by=u2.id WHERE t.assigned_to=? AND t.due_date BETWEEN ? AND ? ORDER BY t.due_date ASC`, [userId, start, end]);
+    const [tasks] = await db.query(`SELECT t.id,t.description,t.status,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u2.name AS assigned_by_name FROM ${table} t JOIN users u2 ON t.assigned_by=u2.id WHERE t.assigned_to=? AND t.due_date BETWEEN ? AND ? ORDER BY t.due_date ASC`, [userId, start, endT]);
     res.json({ tasks });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3021,6 +3047,7 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
   try {
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Dates required' });
+    const endT = misEndCap(end);   // task/FMS ginti sirf aaj tak
     const isHod = await misHodScoped(req);
     const uid = req.session.userId;
 
@@ -3033,10 +3060,10 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
 
     // Same deptFilter logic as /api/mis — tasks JOIN users se filter
     let deptFilter = '';
-    let deptParams = [start, end];
+    let deptParams = [start, endT];
     if (isHod) {
       deptFilter = 'AND u.department=?';
-      deptParams = [start, end, hodDept];
+      deptParams = [start, endT, hodDept];
     }
 
     const calc = (total, pending, overdue, revised, completed) => {
@@ -3069,6 +3096,32 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
        FROM checklist_tasks t JOIN users u ON t.assigned_to=u.id
        WHERE t.due_date BETWEEN ? AND ? ${deptFilter}
        GROUP BY u.id, u.name, u.department ORDER BY u.name`, deptParams);
+
+    // Aage ki date wale task minus me nahi jaate (misEndCap), par inhe gin
+    // lete hain taaki jis bande ka SAARA kaam aage ka hai wo report se gayab
+    // na ho jaye — uske saamne "—" aur "🔜 N aane wale" dikhega.
+    // Ye query sirf tab chalti hai jab range aaj se aage tak jaati ho.
+    const upcomingMap = {};
+    if (endT < end) {
+      // Pehle sirf "due_date > endT" tha. Agar user ki chuni hui range poori
+      // aage ki ho (maan lo 1-7 Oct, aaj 22 Sep), to wo 23-30 Sep ke task bhi
+      // gin leta tha — jo range me the hi nahi. Isliye pehle range ki apni
+      // BETWEEN, uske BAAD hi "aaj se aage" wali shart.
+      const upParams = isHod ? [start, end, endT, hodDept] : [start, end, endT];
+      for (const tbl of ['delegation_tasks', 'checklist_tasks']) {
+        const [ur] = await db.query(
+          `SELECT u.id AS userId, u.name, u.department, COUNT(*) AS n
+           FROM ${tbl} t JOIN users u ON t.assigned_to=u.id
+           WHERE t.due_date BETWEEN ? AND ? AND t.due_date > ?
+             AND t.status NOT IN ('completed','not_applicable') ${deptFilter}
+           GROUP BY u.id, u.name, u.department`, upParams);
+        for (const r of ur) {
+          const e = upcomingMap[r.userId] || (upcomingMap[r.userId] =
+            { n: 0, name: r.name, department: r.department || '' });
+          e.n += parseInt(r.n) || 0;
+        }
+      }
+    }
 
     // Merge by userId
     const userMap = {};
@@ -3120,7 +3173,7 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
       // FMS total/score admin aur HOD dono ko BILKUL EK JAISA dikhe. Dept ka filter sirf
       // niche rows (kaun-kaun employee dikhega) par lagta hai — numbers par nahi.
       // range pass hota hai => doneInRange (is window me kiye) + pendingInRange + overdue milte hain.
-      const fmsStats = await computeFmsStats('', false, { range: { start, end } });
+      const fmsStats = await computeFmsStats('', false, { range: { start, end: endT } });
       fmsUserMap = fmsStats.perUser || {};
       fmsStepsMap = fmsStats.perUserSteps || {};
       fmsErrors = fmsStats.errors || [];
@@ -3148,6 +3201,14 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
           userMap[u.id].delegation.completed = 0;
         }
       }
+    }
+
+    // Jiska is range me sirf aage ka kaam hai — usko bhi list me rakho
+    for (const [uidStr, up] of Object.entries(upcomingMap)) {
+      if (userMap[uidStr]) continue;
+      userMap[uidStr] = { userId: parseInt(uidStr), name: up.name, department: up.department,
+        delegation: calc(0,0,0,0,0), delegationCompleted: 0,
+        checklist: calc(0,0,0,0,0), checklistCompleted: 0 };
     }
 
     const rows = Object.values(userMap).map(u => {
@@ -3178,8 +3239,9 @@ app.get('/api/mis/all', requireAuth, requireMisView, async (req, res) => {
                backlog: fmsPendActual, target: isFmsDoer ? fmsTarget : 0, due: fmsDue,
                isDoer: isFmsDoer, score: fmsScore },
         fmsSteps: fmsStepsMap[u.userId] || [],
+        upcomingAll: (upcomingMap[u.userId] || {}).n || 0,
         totalAll, pendingAll, overdueAll, revisedAll, completedAll, overallScore, plan };
-    }).filter(u => u.totalAll > 0 || u.overdueAll > 0 || (u.fms && u.fms.isDoer)).sort((a,b) => a.name.localeCompare(b.name));
+    }).filter(u => u.totalAll > 0 || u.overdueAll > 0 || u.upcomingAll > 0 || (u.fms && u.fms.isDoer)).sort((a,b) => a.name.localeCompare(b.name));
 
     // Backward compatible: agar koi error nahi to seedha array bhejte hain (jaise pehle).
     // Error hone par object bhejte hain taaki frontend warning dikha sake.
@@ -3193,6 +3255,7 @@ app.get('/api/mis/fms', requireAuth, requireMisView, async (req, res) => {
   try {
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Dates required' });
+    const endT = misEndCap(end);   // aage ki date wale FMS step nahi ginte
     const isHod = await misHodScoped(req);
     const uid = req.session.userId;
 
@@ -3205,7 +3268,7 @@ app.get('/api/mis/fms', requireAuth, requireMisView, async (req, res) => {
 
     // Same shared engine jo /api/mis/all use karta hai => numbers HAMESHA match honge
     // range => har step ka doneInRange (is window me kiye) + overdue bhi aata hai
-    const fmsStats = await computeFmsStats(hodDept, false, { range: { start, end } });
+    const fmsStats = await computeFmsStats(hodDept, false, { range: { start, end: endT } });
     res.json(fmsStats.perFms);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3254,6 +3317,7 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
   try {
     const { start, end } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'Dates required' });
+    const endT = misEndCap(end);   // task/FMS ginti sirf aaj tak
     const isHod = req.session.role === 'hod';
     const uid = req.session.userId;
 
@@ -3269,8 +3333,8 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
 
     // Dept filter sirf visibility ke liye (numbers par nahi)
     let deptFilter = '';
-    let deptParams = [start, end];
-    if (isHod) { deptFilter = 'AND u.department=?'; deptParams = [start, end, hodDept]; }
+    let deptParams = [start, endT];
+    if (isHod) { deptFilter = 'AND u.department=?'; deptParams = [start, endT, hodDept]; }
 
     // ── Delegation + Checklist aggregate per user ──
     const [delRows] = await db.query(
@@ -3320,7 +3384,7 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
       // jabki delegation/checklist sirf chuni hui dates ke. Ek hi bande ka
       // minus MIS Report me kuch aur aur Employee Records me kuch aur dikhta
       // tha. /api/mis/all bhi yahi range bhejta hai — ab dono ek jaise.
-      const fmsStats = await computeFmsStats('', true, { range: { start, end } });
+      const fmsStats = await computeFmsStats('', true, { range: { start, end: endT } });
       fmsPerUser = fmsStats.perUser || {};
       fmsPerUserPending = fmsStats.perUserPending || {};
       fmsErrors = fmsStats.errors || [];
@@ -3339,7 +3403,32 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
       const f = fmsPerUser[e.userId] || {};
       // …InRange = sirf is date window ka, bilkul jaise /api/mis/all me hai
       const fp = f.pendingInRange || 0, fd = f.doneInRange || 0;
-      e.fms = { pending: fp, done: fd, total: fp + fd };
+      // isDoer = ye banda FMS me kaam karta hai (chahe is range me 0 ho).
+      // Iske bina FMS-only log range chhoti hone par list se gayab ho jaate
+      // the, jabki MIS Report me dikhte rehte hain.
+      e.fms = { pending: fp, done: fd, total: fp + fd, isDoer: !!fmsPerUser[e.userId] };
+    }
+
+    // Jiska is range me saara kaam aage ki date ka hai wo yahan se gayab ho
+    // jaata tha (cap ke baad wo kisi bhi query me nahi aata). /api/mis/all me
+    // iska safety net hai, yahan bhi wahi — warna ek hi hafte par do report
+    // me alag-alag log dikhte.
+    const upcomingMap = {};
+    if (endT < end) {
+      const upParams = isHod ? [start, end, endT, hodDept] : [start, end, endT];
+      for (const tbl of ['delegation_tasks', 'checklist_tasks']) {
+        const [ur] = await db.query(
+          `SELECT u.id AS userId, u.name, u.department, COUNT(*) AS n
+           FROM ${tbl} t JOIN users u ON t.assigned_to=u.id
+           WHERE t.due_date BETWEEN ? AND ? AND t.due_date > ?
+             AND t.status NOT IN ('completed','not_applicable') ${deptFilter}
+           GROUP BY u.id, u.name, u.department`, upParams);
+        for (const r of ur) {
+          const e = upcomingMap[r.userId] || (upcomingMap[r.userId] = { n: 0 });
+          e.n += parseInt(r.n) || 0;
+          ensure({ userId: r.userId, name: r.name, department: r.department });
+        }
+      }
     }
 
     // ── Committed plans (week_plans) for range ──
@@ -3373,7 +3462,7 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
          FROM delegation_tasks t
          WHERE t.assigned_to IN (${ph}) AND t.due_date BETWEEN ? AND ?
            AND t.status IN ('pending','revised')
-         ORDER BY t.due_date ASC`, [...visibleIds, start, end]);
+         ORDER BY t.due_date ASC`, [...visibleIds, start, endT]);
       for (const r of dp) { (delPending[r.uid] = delPending[r.uid] || []).push(r); }
       const [cp] = await db.query(
         `SELECT t.assigned_to AS uid, t.description, t.status,
@@ -3381,7 +3470,7 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
          FROM checklist_tasks t
          WHERE t.assigned_to IN (${ph}) AND t.due_date BETWEEN ? AND ?
            AND t.status='pending'
-         ORDER BY t.due_date ASC`, [...visibleIds, start, end]);
+         ORDER BY t.due_date ASC`, [...visibleIds, start, endT]);
       for (const r of cp) { (chlPending[r.uid] = chlPending[r.uid] || []).push(r); }
     }
 
@@ -3396,6 +3485,8 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
       const plan    = planMap[e.userId] || null;
       return {
         userId: e.userId, name: e.name, department: e.department,
+        upcoming: (upcomingMap[e.userId] || {}).n || 0,
+        isFmsDoer: !!(e.fms && e.fms.isDoer),
         committed: plan ? {
           start_date: plan.start_date,
           target_count: plan.target_count,
@@ -3413,7 +3504,9 @@ app.get('/api/employee-records', requireAuth, requireAdminOrHod, async (req, res
           fms:        fmsPerUserPending[e.userId] || []
         }
       };
-    }).filter(r => r.total > 0 || r.committed)
+    // Wahi shart jo /api/mis/all me hai, taaki dono report me ek hi log dikhein:
+    // kaam hai, ya plan hai, ya aage ka kaam hai, ya FMS doer hai.
+    }).filter(r => r.total > 0 || r.committed || r.upcoming > 0 || r.isFmsDoer)
       .sort((a,b) => a.name.localeCompare(b.name));
 
     res.json({ rows, fmsErrors });

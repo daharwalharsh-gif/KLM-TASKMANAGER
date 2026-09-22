@@ -825,7 +825,7 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="perf-card"><div class="perf-card-title">🔥 Top 5 Most Active</div><div id="perfActive"></div></div>
       </div>
       <div style="font-size:11px;color:#94a3b8;padding:0 16px 12px">
-        Minus % = (pending + revised) ÷ total × 100 — wahi number jo MIS Report me hai. Jitna KAM utna ACHHA (0% = saara kaam ho gaya) · Most Active = is range me complete kiye gaye task
+        Minus % = (pending + revised) ÷ total × 100 — wahi number jo MIS Report me hai. Jitna KAM utna ACHHA (0% = saara kaam ho gaya). Sirf un task ka hisaab jinki due date aa chuki hai · Most Active = is range me complete kiye gaye task
       </div>
     </div>
 
@@ -11403,8 +11403,16 @@ function renderMIS(data) {
       * Minus % = (Pending + Revised) ÷ Total × 100. Jitna KAM utna ACHHA —
       0% matlab saara kaam nipat gaya, 100% matlab kuch bhi nahi hua.
       Done aur Not Applicable ka koi minus nahi lagta.
+      <b>Sirf un task ka hisaab jinki due date aa chuki hai</b> — aage ki
+      date wale task par abhi samay baaki hai, wo nahi gine jaate.
     </div>`;
 }
+
+// Detail popup ka pehra — dono popup (Delegation/Checklist wala aur All MIS
+// wala) yahi counter use karte hain. Har click ko ek number milta hai; response
+// aane par jaancha jaata hai ki ye abhi bhi sabse naya click hai ya nahi. Isse
+// ek doer ke naam par doosre ke task nahi aate.
+let _misDetailSeq = 0;
 
 // Open MIS detail modal for a user
 async function openMISDetail(userId, userName) {
@@ -11413,9 +11421,18 @@ async function openMISDetail(userId, userName) {
   const row = (misData[key] || []).find(r => String(r.userId||r.id) === String(userId));
   if (!row) { showToast('Data not found, please Generate again', 'error'); return; }
 
+  // Ek doer par click karke turant doosre par click karne se pehle dono chalte
+  // rehte the aur JO BAAD ME AAYA wo modal me likh deta tha — ek ke naam par
+  // doosre ke task. Wahi pehra jo All MIS ke popup me hai. Seq dono ke beech
+  // saanjha hai, isliye ek tab ka click doosre ka adhoora render bhi rok deta hai.
+  const myTurn = ++_misDetailSeq;
+  const stale = () => myTurn !== _misDetailSeq;
+
   const { start, end } = misDates();
 
   const data = await api(`/api/mis/detail?userId=${userId}&type=${misType}&start=${start}&end=${end}`);
+  if (stale()) return;
+  if (data && data.error) { showToast('Detail nahi aa payi: ' + data.error, 'error'); return; }
 
   const score = parseFloat(row.score);
   const scoreColor = misScoreColor(score);
@@ -11446,6 +11463,7 @@ async function openMISDetail(userId, userName) {
         : `<td></td>`}
     </tr>`).join('');
 
+  if (stale()) return;
   document.getElementById('misDetailTitle').textContent = `${row.name} — ${misType === 'delegation' ? 'Delegation' : 'Checklist'} Tasks`;
   document.getElementById('misDetailScore').innerHTML = `
     <div style="font-size:28px;font-weight:800;color:${scoreColor}">${score.toFixed(1)}%</div>
@@ -11783,7 +11801,14 @@ function renderAllMIS(data, fmsData) {
   const tableRows = filtered.map(emp => {
     const score = emp.overallScore;
     const scoreClass = misScoreClass(score);
+    // Jiske saare task aage ki date ke hain uska minus '—' hota hai (abhi
+    // kuch due hi nahi hua). Wajah saaf likh dete hain, warna lagta hai data
+    // hi nahi aaya. Harsh: "jinki date nahi aa rahi unki kyu show ho rahi hai".
+    const upcoming = emp.upcomingAll || 0;
     const scoreDisplay = score === null ? '—' : `${score.toFixed(1)}%`;
+    const upcomingHtml = upcoming > 0
+      ? `<div style="font-size:10px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:1px 7px;display:inline-block;margin-top:3px" title="In task ki due date abhi aayi nahi hai, isliye minus me nahi gine gaye">🔜 ${upcoming} aane wale</div>`
+      : '';
     const barColor = misScoreBar(score);
     const barWidth = misScoreWidth(score);
     const scoreLabel = misScoreLabel(score);
@@ -11847,7 +11872,8 @@ function renderAllMIS(data, fmsData) {
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">${delBadge}${chlBadge}${fmsBadge}</div>
         <div class="${scoreClass}" style="font-size:15px;font-weight:800">${scoreDisplay}</div>
-        <div style="font-size:10px;color:#94a3b8">${scoreLabel}</div>
+        <div style="font-size:10px;color:#94a3b8">${score === null && upcoming > 0 ? 'Abhi kuch due nahi' : scoreLabel}</div>
+        ${upcomingHtml}
         <div class="mis-score-bar" style="margin-top:3px">
           <div class="mis-score-fill" style="width:${barWidth}%;background:${barColor}"></div>
         </div>
@@ -12004,23 +12030,53 @@ function misRangeFor(rangeType) {
 // me likh deta tha — nateeja: Arjun ke naam par Vipul ke task dikhte the.
 // Ab har click ko ek number milta hai; sirf SABSE NAYA click screen par likhta
 // hai, purane chup-chaap ruk jaate hain.
-let _misDetailSeq = 0;
 async function openAllMISDetail(userId, userName, rangeType) {
-  rangeType = rangeType || 'week';   // pehle 'report' tha — ab This Week default
+  // 'report' = jo range table me chuni hai. Ye default isliye hai ki table
+  // ka data (misAllData) pehle se browser me hai — modal turant khulta hai.
+  // Pehle default 'week' tha aur har click par /api/mis/all dobara chalta
+  // tha; wo 6-15 sec leta hai (FMS ki Google Sheet padhni padti hai) aur
+  // Vercel par timeout ho jaata tha, isliye "Loading…" par atak jaata tha.
+  rangeType = rangeType || 'report';
   const myTurn = ++_misDetailSeq;
   const stale = () => myTurn !== _misDetailSeq;
   const { start, end } = misRangeFor(rangeType);
   window._misDetailCtx = { userId, userName, rangeType };
 
-  let emp;
-  if (rangeType === 'report') {
-    emp = (misAllData || []).find(e => String(e.userId) === String(userId));
-  } else {
-    // Week/Month ke liye fresh data (aggregate us range ke hisaab se chahiye)
-    document.getElementById('misDetailTitle').textContent = `${userName} — Loading…`;
-    document.getElementById('misDetailModal').classList.add('open');
-    const all = await api(`/api/mis/all?start=${start}&end=${end}`);
+  // Kuch bhi galat ho to modal "Loading…" par NA atke — saaf wajah + dobara
+  // koshish ka button dikhao.
+  const showErr = msg => {
     if (stale()) return;
+    document.getElementById('misDetailTitle').textContent = `${userName} — All Tasks`;
+    document.getElementById('misDetailScore').innerHTML =
+      `<div style="padding:20px;text-align:center">
+         <div style="font-size:13px;color:#dc2626;font-weight:600;margin-bottom:4px">Detail nahi aa payi</div>
+         <div style="font-size:12px;color:#64748b;margin-bottom:12px">${escapeHtml(String(msg || 'Server ne jawab nahi diya'))}</div>
+         <button class="btn btn-sm" onclick="openAllMISDetail('${String(userId).replace(/'/g,"\\'")}','${String(userName).replace(/'/g,"\\'")}','${rangeType}')">🔄 Dobara koshish karein</button>
+       </div>`;
+    document.getElementById('misDetailBody').innerHTML = '';
+    document.getElementById('misDetailModal').classList.add('open');
+  };
+
+  // Modal har haal me PEHLE khulta hai. Pehle cached raaste par wo tabhi
+  // khulta tha jab detail aa jaati — server dheema ho to click par kuch hota
+  // hi nahi dikhta tha.
+  document.getElementById('misDetailTitle').textContent = `${userName} — Loading…`;
+  document.getElementById('misDetailScore').innerHTML =
+    '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">⏳ Load ho raha hai…</div>';
+  document.getElementById('misDetailBody').innerHTML = '';
+  document.getElementById('misDetailModal').classList.add('open');
+
+  let emp;
+  const cached = (misAllData || []).find(e => String(e.userId) === String(userId));
+  if (rangeType === 'report' && cached) {
+    emp = cached;                       // pehle se load — koi fetch nahi
+  } else {
+    // Week/Month (ya report ka data abhi load hi nahi hua) — tabhi fetch
+    let all;
+    try { all = await api(`/api/mis/all?start=${start}&end=${end}`); }
+    catch (e) { return showErr(e && e.message); }
+    if (stale()) return;
+    if (all && all.error) return showErr(all.error);
     const rows2 = Array.isArray(all) ? all : (all && all.rows) || [];
     emp = rows2.find(e => String(e.userId) === String(userId));
   }
@@ -12029,20 +12085,33 @@ async function openAllMISDetail(userId, userName, rangeType) {
     // Is range me is doer ka kuch hai hi nahi — khaali modal dikha do,
     // taaki pichhle doer ka data screen par pada na rahe.
     document.getElementById('misDetailTitle').textContent = `${userName} — All Tasks`;
-    document.getElementById('misDetailScore').innerHTML =
-      '<div style="padding:18px;text-align:center;color:#64748b;font-size:13px">' +
-      'Is date range me is doer ka koi task nahi</div>';
+    // Ho sakta hai task hain hi, bas unki date abhi aayi nahi — to wahi
+    // likho, warna row par "🔜 2 aane wale" aur popup me "koi task nahi"
+    // ek doosre ko jhutlate hain.
+    const upN = (cached && cached.upcomingAll) || 0;
+    document.getElementById('misDetailScore').innerHTML = upN > 0
+      ? `<div style="padding:18px;text-align:center;color:#9a3412;font-size:13px">
+           Is range me <b>${upN}</b> task hain, par unki due date abhi aayi nahi —
+           isliye abhi ginti me nahi hain.</div>`
+      : '<div style="padding:18px;text-align:center;color:#64748b;font-size:13px">' +
+        'Is date range me is doer ka koi task nahi</div>';
     document.getElementById('misDetailBody').innerHTML = '';
     document.getElementById('misDetailModal').classList.add('open');
     return;
   }
 
   // Fetch task details for both types
-  const [delDetail, chlDetail] = await Promise.all([
-    emp.delegation.total > 0 ? api(`/api/mis/detail?userId=${userId}&type=delegation&start=${start}&end=${end}`) : Promise.resolve({ tasks: [] }),
-    emp.checklist.total > 0  ? api(`/api/mis/detail?userId=${userId}&type=checklist&start=${start}&end=${end}`)  : Promise.resolve({ tasks: [] })
-  ]);
+  let delDetail, chlDetail;
+  try {
+    [delDetail, chlDetail] = await Promise.all([
+      emp.delegation.total > 0 ? api(`/api/mis/detail?userId=${userId}&type=delegation&start=${start}&end=${end}`) : Promise.resolve({ tasks: [] }),
+      emp.checklist.total > 0  ? api(`/api/mis/detail?userId=${userId}&type=checklist&start=${start}&end=${end}`)  : Promise.resolve({ tasks: [] })
+    ]);
+  } catch (e) { return showErr(e && e.message); }
   if (stale()) return;
+  if ((delDetail && delDetail.error) || (chlDetail && chlDetail.error)) {
+    return showErr((delDetail && delDetail.error) || (chlDetail && chlDetail.error));
+  }
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -12073,6 +12142,12 @@ async function openAllMISDetail(userId, userName, rangeType) {
   const fms = emp.fms || { total: 0, pending: 0, done: 0, overdue: 0, target: 0, due: 0, score: null };
   const completedTotal = (emp.delegation.completed||0) + (emp.checklist.completed||0) + (fms.done||0);
 
+  // Ginti sirf aaj tak hoti hai (server par misEndCap), isliye header par bhi
+  // wahi date likho jahan tak sach me gina gaya — warna "27 Sep tak" likha
+  // dikhta tha aur andar 22 Sep tak ka data hota tha.
+  const _today = new Date().toISOString().slice(0, 10);
+  const endShown = end > _today ? _today : end;
+
   // Range filter buttons — Weekly / Monthly / Report Range
   const uidJs = String(userId).replace(/'/g,"\\'");
   const unmJs = String(userName).replace(/'/g,"\\'");
@@ -12084,8 +12159,30 @@ async function openAllMISDetail(userId, userName, rangeType) {
   const rangeBar = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
     <span style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase">Range:</span>
     ${rbtn('📅 This Week', 'week')}${rbtn('🗓️ This Month', 'month')}${rbtn('Report Range', 'report')}
-    <span style="font-size:11px;color:#94a3b8">${fmtDate(start)} → ${fmtDate(end)}</span>
+    <span style="font-size:11px;color:#94a3b8">${fmtDate(start)} → ${fmtDate(endShown)}${endShown !== end ? ' <span style="color:#9a3412">(aaj tak)</span>' : ''}</span>
   </div>`;
+
+  // Harsh (22 Sep 2026): "FMS me koi pending hai to kaun sa hai wo bhi show
+  // karwao." Pehle sirf ginti dikhti thi (Pending: 1) aur kaun sa step hai
+  // ye jaanne ke liye table me dhoondh kar click karna padta tha. Ab jis
+  // step par kaam baaki hai wo seedha upar naam se dikhta hai — chip par
+  // click karo to us step ke ASLI pending kaam khul jaate hain.
+  const pendSteps = (emp.fmsSteps || [])
+    .map((st, si) => ({ st, si, n: (st.pendingInRange !== undefined ? st.pendingInRange : st.pending) || 0 }))
+    .filter(x => x.n > 0)
+    .sort((a, b) => b.n - a.n);
+  const fmsPendingList = pendSteps.length ? `
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:9px 11px;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">⏳ Abhi ye FMS kaam baaki hai</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${pendSteps.map(x => `
+          <span onclick="openFmsStepDetail(${x.si})" style="cursor:pointer;font-size:11.5px;padding:3px 9px;border-radius:8px;background:#fff;border:1px solid #fdba74;color:#9a3412;font-weight:600"
+                title="Click karke is step ke pending kaam dekhein">
+            ${escapeHtml(x.st.fmsName)} · Step ${x.st.stepOrder}: ${escapeHtml(x.st.stepName)}
+            <strong style="color:#dc2626">${x.n}</strong>${(x.st.overdueInRange || 0) > 0 ? ` <span style="color:#dc2626">⚠️${x.st.overdueInRange}</span>` : ''}
+          </span>`).join('')}
+      </div>
+    </div>` : '';
 
   // Order (user request): (1) FMS report pehle, (2) uske baad FMS+Delegation+Checklist combined summary,
   // (3) Delegation detail, (4) Checklist detail
@@ -12100,6 +12197,7 @@ async function openAllMISDetail(userId, userName, rangeType) {
         <span>Overdue (this range): <strong style="color:#dc2626">${fms.overdue}</strong></span>
         <span style="color:#94a3b8">All-time pending: <strong>${fms.pendingAll !== undefined ? fms.pendingAll : fms.pending}</strong></span>
       </div>
+      ${fmsPendingList}
       ${(emp.fmsSteps && emp.fmsSteps.length) ? `
       <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px">Step-wise breakdown:</div>
       <div class="tbl-freeze" style="max-height:300px">
@@ -12129,6 +12227,8 @@ async function openAllMISDetail(userId, userName, rangeType) {
         <span style="color:#dc2626">⏰ Delayed: <strong>${emp.overdueAll}</strong></span>
         <span style="color:#f59e0b">🔄 Revised: <strong>${emp.revisedAll}</strong></span>
       </div>
+      ${(emp.upcomingAll || 0) > 0 ? `<div style="margin-top:8px;font-size:12px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:6px 10px">
+        🔜 <b>${emp.upcomingAll}</b> task aur hain jinki due date abhi aayi nahi — wo upar ki ginti me nahi hain.</div>` : ''}
     </div>`;
 
   // Section ab khaali hone par bhi dikhta hai. Pehle total 0 hone par poora
