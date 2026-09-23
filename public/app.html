@@ -5220,7 +5220,7 @@ function rlApplyEditAccess() {
   ['rlNewBtn'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = can ? '' : 'none'; });
   document.querySelectorAll('[data-rl-edit]').forEach(el => { el.style.display = can ? '' : 'none'; });
   // header ke input — dekhne ke liye khule, badalne ke liye band
-  ['rlCDate','rlCBuyer','rlCStyle','rlCFabric','rlCGsm','rlDate','rlBuyer','rlStyle','rlFromCost']
+  ['rlCDate','rlCBuyer','rlCStyle','rlCFabric','rlCGsm','rlDate','rlBuyer','rlStyle']
     .forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -5228,6 +5228,14 @@ function rlApplyEditAccess() {
       el.disabled = !can;
       el.style.background = can ? '' : '#f8fafc';
     });
+  // "From Cost Sheet" wala box SABKE liye khula rehta hai.
+  // Harsh (23 Sep 2026): "Edwin aur Rohit ko cost sheet wala tab dikh raha
+  // hai par dropdown se data select nahi kar pa rahe."
+  // Ye box kuch badalta nahi — sirf chuni hui cost sheet screen par le aata
+  // hai taaki print nikal sake. Save phir bhi sirf admin kar sakta hai
+  // (Save button chhupa hai aur server bhi admin ke bina mana kar deta hai).
+  const fc = document.getElementById('rlFromCost');
+  if (fc) { fc.readOnly = false; fc.disabled = false; fc.style.background = ''; }
   const fi = document.getElementById('rlFileInput');
   if (fi) fi.style.display = can ? '' : 'none';
 }
@@ -11094,14 +11102,7 @@ function misVal(emp, key) {
     case 'revised': return emp.revisedAll || 0;
     case 'overdue': return emp.overdueAll || 0;
     case 'fmsdone': return (emp.fms && emp.fms.done) || 0;
-    case 'score': {
-      // Red/Yellow/Green par sort — red sabse bhaari, phir yellow, aur
-      // aakhir me kitna kaam baaki hai (taaki barabar red walo me bhi kram rahe)
-      const k = empKpis(emp);
-      if (!k.length) return -Infinity;
-      const c = rygCounts(k);
-      return c.red * 10000 + c.yellow * 100 + (emp.overallScore == null ? 0 : emp.overallScore) / 100;
-    }
+    case 'score': return emp.overallScore == null ? -Infinity : emp.overallScore;
     default: return 0;
   }
 }
@@ -11492,8 +11493,6 @@ function renderMIS(data) {
     const scoreClass = misScoreClass(score);
     const barWidth = misScoreWidth(score);
     const barColor = misScoreBar(score);
-    // Rahul Jain wali scoring — is system ke do KRA/KPI
-    const k2 = sysKpis(misType === 'delegation' ? 'Delegation' : 'Checklist', r);
 
     return `<tr style="cursor:pointer" onclick="openMISDetail('${r.userId||r.id}','${titleName(r.name).replace(/'/g,"\\'")}')" title="Click to see task details">
       <td>
@@ -11505,10 +11504,10 @@ function renderMIS(data) {
       ${misType==='delegation' ? `<td style="color:#f59e0b;font-weight:600">${r.revised||0}</td>` : ''}
       <td style="color:#dc2626;font-weight:600">${r.delayed||0}</td>
       <td>
-        ${k2.length ? `<div style="font-size:11.5px;line-height:1.7">
-            <div>not done <b>${kpiPct(k2[0].pct, k2[0].ryg)}</b></div>
-            <div>not on time <b>${kpiPct(k2[1].pct, k2[1].ryg)}</b></div>
-          </div>` : '<span style="color:#cbd5e1">—</span>'}
+        <div class="${scoreClass}" style="font-size:14px;font-weight:700">${score.toFixed(1)}%</div>
+        <div class="mis-score-bar">
+          <div class="mis-score-fill" style="width:${barWidth}%;background:${barColor}"></div>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -11942,12 +11941,6 @@ function renderAllMIS(data, fmsData) {
     // hi nahi aaya. Harsh: "jinki date nahi aa rahi unki kyu show ho rahi hai".
     const upcoming = emp.upcomingAll || 0;
     const scoreDisplay = score === null ? '—' : `${score.toFixed(1)}%`;
-    // Rahul Jain wali scoring — 3 system x 2 KRA = 6 KPI, har ek ka R/Y/G
-    const kpis = empKpis(emp);
-    const ryg = rygCounts(kpis);
-    const _tA = emp.totalAll || 0;
-    const allNotDone   = _tA ? Math.round((((emp.pendingAll||0) + (emp.revisedAll||0)) / _tA) * 1000) / 10 : null;
-    const allNotOnTime = _tA ? Math.round(((emp.overdueAll||0) / _tA) * 1000) / 10 : null;
     const upcomingHtml = upcoming > 0
       ? `<div style="font-size:10px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:1px 7px;display:inline-block;margin-top:3px" title="These tasks' due dates have not arrived yet, so they are not counted in the minus">🔜 ${upcoming} upcoming</div>`
       : '';
@@ -11982,12 +11975,12 @@ function renderAllMIS(data, fmsData) {
       <td style="color:#f59e0b;font-weight:600">${emp.revisedAll}</td>
       <td style="color:#dc2626;font-weight:700">${emp.overdueAll}</td>
       <td>
-        ${kpis.length ? rygChips(ryg, 13) : '<div style="text-align:center;color:#cbd5e1">—</div>'}
-        ${kpis.length ? `<div style="font-size:10px;color:#64748b;margin-top:4px;text-align:center;line-height:1.5">
-            not done ${kpiPct(allNotDone, rygOf(allNotDone))}<br>
-            not on time ${kpiPct(allNotOnTime, rygOf(allNotOnTime))}</div>` : ''}
-        ${!kpis.length && upcoming > 0 ? '<div style="font-size:10px;color:#94a3b8;text-align:center">Nothing due yet</div>' : ''}
+        <div class="${scoreClass}" style="font-size:15px;font-weight:800">${scoreDisplay}</div>
+        ${score === null && upcoming > 0 ? '<div style="font-size:10px;color:#94a3b8">Nothing due yet</div>' : ''}
         ${upcomingHtml}
+        <div class="mis-score-bar" style="margin-top:3px">
+          <div class="mis-score-fill" style="width:${barWidth}%;background:${barColor}"></div>
+        </div>
       </td>
     </tr>`;
   }).join('');
