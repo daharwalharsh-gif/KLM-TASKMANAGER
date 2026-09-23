@@ -11970,33 +11970,6 @@ function renderAllMIS(data, fmsData) {
     const fmsBadge = (fmsObj.isDoer || (fmsObj.done||0) > 0 || fmsObj.total > 0)
       ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:600;border:1px solid #bfdbfe">FMS: ${fmsObj.done||0} done</span>` : '';
 
-    // FMS weekly DONE column — is hafte kitne FMS done kiye (target/due hataya gaya)
-    let fmsDueHtml = '<span style="color:#94a3b8;font-size:12px">—</span>';
-    if (fmsObj.isDoer || (fmsObj.done||0) > 0) {
-      fmsDueHtml = `<div style="color:#16a34a;font-weight:800;font-size:18px">${fmsObj.done||0}</div>
-        <div style="font-size:10px;color:#94a3b8">done this week</div>`;
-    }
-
-    // Next Week Plan column
-    let planHtml = '<span style="color:#94a3b8;font-size:12px">—</span>';
-    if (emp.plan) {
-      const weekDate = fmtDate(emp.plan.start_date);
-
-      let improvBadge = '<span style="font-size:11px;color:#94a3b8">No improvement goal set</span>';
-      if (emp.plan.improvement_pct !== null && emp.plan.improvement_pct !== undefined) {
-        const ip = emp.plan.improvement_pct;
-        const ipColor = ip < 0 ? '#dc2626' : '#16a34a';
-        const ipBg = ip < 0 ? '#fef2f2' : '#f0fdf4';
-        const ipBorder = ip < 0 ? '#fecaca' : '#bbf7d0';
-        const ipArrow = ip < 0 ? '📉' : '📈';
-        improvBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:8px;background:${ipBg};color:${ipColor};font-weight:700;border:1px solid ${ipBorder}">${ipArrow} ${ip > 0 ? '+' : ''}${ip}% improvement</span>`;
-      }
-
-      planHtml = `
-        <div style="font-size:11px;color:#64748b;margin-bottom:4px">📅 Week: <strong>${weekDate}</strong></div>
-        <div>${improvBadge}</div>`;
-    }
-
     const empDisp = (emp.title ? emp.title + ' ' : '') + titleName(emp.name);
     return `<tr style="cursor:pointer" onclick="openAllMISDetail('${emp.userId}','${empDisp.replace(/'/g,"\\'")}')">
       <td>
@@ -12008,8 +11981,6 @@ function renderAllMIS(data, fmsData) {
       <td style="color:#10b981;font-weight:600">${completedAll}</td>
       <td style="color:#f59e0b;font-weight:600">${emp.revisedAll}</td>
       <td style="color:#dc2626;font-weight:700">${emp.overdueAll}</td>
-      <td>${fmsDueHtml}</td>
-      <td>${planHtml}</td>
       <td>
         ${kpis.length ? rygChips(ryg, 13) : '<div style="text-align:center;color:#cbd5e1">—</div>'}
         ${kpis.length ? `<div style="font-size:10px;color:#64748b;margin-top:4px;text-align:center;line-height:1.5">
@@ -12027,8 +11998,7 @@ function renderAllMIS(data, fmsData) {
         <thead><tr>
           ${sh('Employee', 'name')}
           ${sh('Total', 'total')}${sh('Pending', 'pending')}${sh('Completed', 'completed')}${sh('Revised', 'revised')}${sh('⚠️ Overdue', 'overdue')}
-          ${sh('✅ FMS Done', 'fmsdone')}
-          <th>📅 Next Week Plan</th>${sh('Score', 'score')}
+          ${sh('Score', 'score')}
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
