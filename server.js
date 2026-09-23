@@ -669,6 +669,49 @@ function idxToCol(idx) {
   return s;
 }
 
+// ── Ek row ka doer kaun hai ──
+// Harsh (23 Sep 2026): "jiska jo naam hai usko usi ki details show hongi …
+// O to D me jaise Aarti hai to Aarti ki details … E col me jo hai".
+//
+// Step ka "doer_filter_col" ab EK se ZYADA column rakh sakta hai, "|" se alag.
+// Pehla column jisme kuch likha ho wahi chalta hai. Merchant O2D me "E|J" —
+// pehle E (Merchant name) kyunki Harsh ne wahi bataya, aur jahan E khaali hai
+// (51 rows) wahan J (Merchant) se kaam chal jaata hai, taaki koi row bina
+// doer ke na rahe.
+function parseDoerFilter(step) {
+  const idxs = String(step.doer_filter_col || '').split('|')
+    .map(c => colToIdx(c.trim())).filter(i => i >= 0);
+  let raw = {};
+  try { raw = JSON.parse(step.doer_filter_map || '{}') || {}; } catch (e) { raw = {}; }
+  const n2u = {};
+  for (const [nm, v] of Object.entries(raw)) {
+    const arr = Array.isArray(v) ? v : ((v !== '' && v !== null && v !== undefined) ? [v] : []);
+    if (arr.length) n2u[String(nm).trim().toLowerCase()] = arr.map(String);
+  }
+  return { idxs, n2u, on: idxs.length > 0 && Object.keys(n2u).length > 0 };
+}
+// stepDoerIds me se wahi lautata hai jo is row ke naam se match karein.
+// Naam mile hi nahi (ya cell khaali) to sab lauta dete hain — kaam kisi ke
+// khaate me na jaaye, isse to behtar hai ki sabko dikh jaye.
+function rowDoerUids(row, f, stepDoerIds) {
+  if (!f.on) return stepDoerIds;
+  let cell = '';
+  for (const ix of f.idxs) {
+    const v = String(row[ix] || '').trim().toLowerCase();
+    if (v) { cell = v; break; }
+  }
+  if (!cell) return stepDoerIds;
+  let mapped = f.n2u[cell];
+  if (mapped === undefined) {
+    const parts = cell.split(/[,/&+]/).map(x => x.trim()).filter(Boolean);
+    const hit = parts.filter(n => f.n2u[n] !== undefined);
+    if (!hit.length) return stepDoerIds;
+    mapped = [...new Set(hit.flatMap(n => f.n2u[n]))];
+  }
+  const here = stepDoerIds.filter(id => mapped.includes(id));
+  return here.length ? here : stepDoerIds;
+}
+
 // ══════════════════════════════════════════════════════
 // SHARED FMS STATS ENGINE  (single source of truth)
 // ══════════════════════════════════════════════════════
@@ -933,41 +976,15 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       // ko mapped hain — poore step ka total sabko de dena galat hai (ye hi bug tha: Aaradhna
       // ko Riya ki rows bhi count ho rahi thi). Row-level FMS Tasks page isi mapping ko already
       // follow karti hai (/api/fms-tasks/.../rows) — yahan wahi matching logic reuse karte hain.
-      const doerFilterIdx = colToIdx(step.doer_filter_col || '');
+      const stepFilter = parseDoerFilter(step);       // "E|J" jaisa bhi chalta hai
       const stepHoldIdx = await holdColIdx(step.id);   // Hold wala status column
-      let stepFilterMap = {};
-      try { stepFilterMap = JSON.parse(step.doer_filter_map || '{}') || {}; } catch (e) { stepFilterMap = {}; }
-      const nameToUids = {};
-      for (const [nm, u2] of Object.entries(stepFilterMap)) {
-        const arr = Array.isArray(u2) ? u2 : ((u2 !== '' && u2 !== null && u2 !== undefined) ? [u2] : []);
-        if (arr.length) nameToUids[String(nm).trim().toLowerCase()] = arr.map(String);
-      }
-      const hasFilterMap = doerFilterIdx >= 0 && Object.keys(nameToUids).length > 0;
 
       // Per-user attribution: HOD view me sirf dept-doers ko credit (consistency)
       const creditDoers = hodDept ? step.doers.filter(d => (d.department || '') === hodDept) : step.doers;
       const creditDoerIds = creditDoers.map(d => String(d.id));
 
-      // Ek row ke liye — kaun-kaun doer(s) credited honge (row-filter na ho ya cell
-      // khaali/unmapped ho to SAB doers, jaisa pehle se hota tha).
-      function doersForRow(row) {
-        if (!hasFilterMap) return creditDoerIds;
-        const rawCell = (row[doerFilterIdx] || '').trim().toLowerCase();
-        if (!rawCell) return creditDoerIds;
-        let mappedUids;
-        if (nameToUids[rawCell] !== undefined) {
-          mappedUids = nameToUids[rawCell];
-        } else {
-          const cellNames = rawCell.split(/[,/&+]/).map(x => x.trim()).filter(Boolean);
-          const mapped = cellNames.filter(n => nameToUids[n] !== undefined);
-          if (!mapped.length) return creditDoerIds; // unmapped naam — sabko
-          mappedUids = [...new Set(mapped.flatMap(n => nameToUids[n]))];
-        }
-        const here = creditDoerIds.filter(id => mappedUids.includes(id));
-        // Mapping me likhe log is step ke doer hain hi nahi (purani mapping) —
-        // aise me row kisi ko credit na ho ye galat hai; tab sab doers ko dete hain.
-        return here.length ? here : creditDoerIds;
-      }
+      // Ek row ke liye — kaun-kaun doer(s) credited honge
+      const doersForRow = row => rowDoerUids(row, stepFilter, creditDoerIds);
 
       let stepPending = 0, stepDone = 0, stepOverdue = 0, stepDoneInRange = 0, stepPendingInRange = 0, stepOverdueInRange = 0;
       const stepPendingRows = []; // collectPending ke liye — pending row ka detail (+ kis doer ko credited)
@@ -2342,6 +2359,8 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
           `SELECT u.id, u.name FROM fms_step_doers fsd JOIN users u ON fsd.user_id=u.id WHERE fsd.step_id=?`, [step.id]);
         step.doerNames = doers.map(d => d.name).join(', ');
         step.doerIds = doers.map(d => d.id);
+        step.doerNameById = {};
+        doers.forEach(d => { step.doerNameById[String(d.id)] = d.name; });
       }
 
       try {
@@ -2367,10 +2386,22 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
           const actualIdx = colToIdx(step.actual_col);
           if (planIdx < 0 || actualIdx < 0) continue;
 
+          // Harsh (23 Sep 2026): "jiska jo naam hai usko usi ki details show
+          // hongi". Ginti to per-doer ho gayi thi (computeFmsStats me), par ye
+          // LIST par filter lagta hi nahi tha — header "Pending: 9" kehta tha
+          // aur neeche 32 rows aati thi. Ab wahi row-doer hisaab yahan bhi.
+          const stepFilter = parseDoerFilter(step);
+          const stepDoerIds = (step.doerIds || []).map(String);
+
           dataRows.forEach((row, i) => {
             const planVal = (row[planIdx] || '').trim();
             const actualVal = (row[actualIdx] || '').trim();
             if (!planVal || actualVal) return; // skip if no plan or already done
+
+            // Is row ka apna doer kaun — aur kya wo un logon me hai jinki
+            // report maangi gayi hai
+            const mine = rowDoerUids(row, stepFilter, stepDoerIds);
+            if (targetUserIds && !mine.some(id => targetUserIds.includes(parseInt(id)))) return;
 
             // Parse plan date — try to extract date from value
             // planVal might be a date string like "2026-04-07" or "07/04/2026" or just text
@@ -2400,7 +2431,8 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
               fmsId: sheet.id,
               stepName: step.step_name,
               stepId: step.id,
-              doer: step.doerNames || '—',
+              // Poore step ke doers nahi — SIRF is row ka doer
+              doer: mine.map(id => step.doerNameById[id]).filter(Boolean).join(', ') || step.doerNames || '—',
               planValue: planVal,
               planDate: planDate || '',
               isLate,
@@ -4027,7 +4059,10 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     // Row filter column + mapping: admin ne column ke har naam pe doer map kiya hai
     // (e.g. "Kiran" -> Aaradhna). Jis naam pe jo doer mapped, us naam wali rows sirf usi ko.
     // Unmapped naam ya khaali cell = sab doers ko dikhe. Admin/PC ko sab rows dikhti hain.
-    const doerFilterIdx = colToIdx(step.doer_filter_col || '');
+    // doer_filter_col me ek se zyada column ho sakte hain ("E|J") — pehla
+    // jisme kuch likha ho wahi chalta hai.
+    const doerFilterIdxs = String(step.doer_filter_col || '').split('|')
+      .map(c => colToIdx(c.trim())).filter(i => i >= 0);
     // Full-view user ko bhi admin jaisa — is FMS ki saari rows (row-filter na lage)
     const _fvCfg = await fmsFullViewCfg(req.session.userId);
     const isAdminView = req.session.role === 'admin' || req.session.role === 'pc'
@@ -4062,7 +4097,7 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
 
     // Optimized: fetch only up to the furthest needed column
     // holdIdx bhi jodo — warna status column range se bahar reh jaata aur Hold pakda hi na jaata
-    const maxIdx = Math.max(planIdx, actualIdx, doerFilterIdx, holdIdx, ...(showCols.length ? showCols : [0]));
+    const maxIdx = Math.max(planIdx, actualIdx, ...doerFilterIdxs, holdIdx, ...(showCols.length ? showCols : [0]));
     const lastCol = maxIdx >= 0 ? idxToCol(maxIdx) : 'Z';
     const range = `${tabName}!A:${lastCol}`;
 
@@ -4077,8 +4112,12 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
       const planVal = planIdx >= 0 ? (row[planIdx]||'').trim() : '';
       const actualVal = actualIdx >= 0 ? (row[actualIdx]||'').trim() : '';
       // Doer row filter (mapping): cell ke naam jin doers ko ticked hain unme main nahi hoon to skip.
-      if (doerFilterIdx >= 0 && !isAdminView && Object.keys(nameToUids).length) {
-        const rawCell = (row[doerFilterIdx] || '').trim().toLowerCase();
+      if (doerFilterIdxs.length && !isAdminView && Object.keys(nameToUids).length) {
+        let rawCell = '';
+        for (const ix of doerFilterIdxs) {
+          const v = String(row[ix] || '').trim().toLowerCase();
+          if (v) { rawCell = v; break; }
+        }
         if (rawCell) {
           // 1) POORE cell value ka exact match — admin ne is poore naam pe jo ticks kiye wahi authoritative
           //    (e.g. "Arti+Riya" ko admin ne alag map kiya ho to wahi chale, split se nahi)

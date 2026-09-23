@@ -13320,7 +13320,7 @@ function buildStepBoxHTML(idx) {
         <option value="">-- None (sab doers ko saari rows dikhen) --</option>
         ${headers.map(h=>`<option value="${h.col}" ${(s.doerFilterCol||s.doer_filter_col||'')===h.col?'selected':''}>${h.name} (COL ${h.col})</option>`).join('')}
       </select>` : `
-      <input type="text" value="${s.doerFilterCol||s.doer_filter_col||''}" placeholder="e.g. M"
+      <input type="text" value="${s.doerFilterCol||s.doer_filter_col||''}" placeholder="e.g. M — ya E|J (pehle E, khaali ho to J)" title="Ek column likho (M), ya kai column | se alag karke (E|J) — pehla jisme naam likha ho wahi chalega"
         oninput="fmsSteps[${idx}].doerFilterCol=this.value"
         onchange="loadFMSDoerFilterNames(${idx})"
         style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"/>`}
@@ -13381,9 +13381,19 @@ async function loadFMSDoerFilterNames(idx) {
   const payload = window._fmsHdrPayload;
   if (!payload || !payload.sheetId) { setAll('<div style="font-size:11px;color:#94a3b8;margin-top:4px">Sheet info nahi mili — pehle sheet/headers load hone do</div>'); return; }
   setAll('<div style="font-size:12px;color:#64748b;margin-top:6px">⏳ Column ke naam load ho rahe hain...</div>');
-  const r = await api('/api/fms/col-values','POST',{ sheetId: payload.sheetId, sheetName: payload.sheetName, headerRow: payload.headerRow, col: s.doerFilterCol });
-  if (r.error) { setAll(`<div style="font-size:11px;color:#ef4444;margin-top:4px">${r.error}</div>`); return; }
-  const names = r.values || [];
+  // Column ek se zyada ho sakte hain ("E|J" — pehle E, khaali ho to J).
+  // Dono ke naam mila kar dikhate hain taaki mapping poori ho.
+  const cols = String(s.doerFilterCol).split('|').map(c => c.trim()).filter(Boolean);
+  const seen = new Set();
+  const names = [];
+  for (const col of cols) {
+    const r = await api('/api/fms/col-values','POST',{ sheetId: payload.sheetId, sheetName: payload.sheetName, headerRow: payload.headerRow, col });
+    if (r.error) { setAll(`<div style="font-size:11px;color:#ef4444;margin-top:4px">${r.error}</div>`); return; }
+    for (const v of (r.values || [])) {
+      const k = String(v).trim().toLowerCase();
+      if (k && !seen.has(k)) { seen.add(k); names.push(v); }
+    }
+  }
   if (!names.length) { setAll('<div style="font-size:11px;color:#94a3b8;margin-top:4px">Is column me koi naam nahi mila</div>'); return; }
   s.doerFilterMap = s.doerFilterMap || {};
   const doerIds = (s.doers||[]).map(d=>parseInt(d));
