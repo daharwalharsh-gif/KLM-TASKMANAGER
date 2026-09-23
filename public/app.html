@@ -6316,10 +6316,16 @@ function rlPDF(rec) {
     .foot{margin-top:10px;font-size:9px;color:#94a3b8;text-align:center}
     /* Harsh (23 Sep 2026): "PDF ek hi page par aaye".
        Poora chhapa hua hissa ek lifafe (#fit) me hai. Neeche wali script
-       naapti hai ki ye kitna lamba hua, aur utna hi chhota kar deti hai ki
-       ek A4 landscape page me sama jaye. Rows chahe 20 hon ya 60. */
-    #fit{transform-origin:top left}
-    table,thead,tbody,tfoot,tr,td,th{page-break-inside:avoid;break-inside:avoid}
+       naapti hai ki ye kitna lamba hua aur ZOOM se utna chhota kar deti hai
+       ki ek A4 landscape page me sama jaye. Rows chahe 20 hon ya 60.
+       zoom hi kyu, transform kyu nahi: transform sirf DIKHNE me chhota karta
+       hai — page kahan tootega ye browser bina-scale wale naap se tay karta
+       hai, isliye usse 3 page ban gaye the. zoom layout ko hi chhota karta
+       hai, to page bhi usi hisaab se bante hain.
+       Aur: "table" par page-break-inside:avoid mat lagana — poori table ek
+       page me na samaye to browser use agle page par dhakel deta hai aur
+       pehla page khaali reh jaata hai. Sirf row/cell par lagta hai. */
+    tr,td,th{page-break-inside:avoid;break-inside:avoid}
     thead{display:table-header-group}
   </style></head><body><div id="fit">
   <div class="head">
@@ -6381,16 +6387,17 @@ function rlPDF(rec) {
     // A4 landscape, 10mm hashiya charon taraf -> bachi hui jagah 277 x 190 mm
     var PX = 96 / 25.4;                 // 1mm me kitne px
     var maxH = 190 * PX, maxW = 277 * PX;
-    // Pehle chaudai poori page jitni fix kar do, taaki naap sahi mile
     el.style.width = maxW + 'px';
-    var h = el.scrollHeight;
-    if (h <= maxH) return;              // pehle se hi ek page me hai
-    var k = maxH / h;
-    // Lifafe ko 1/k guna CHAUDA karke phir k guna chhota karte hain —
-    // is tarah page ki poori chaudai bhi bhar jaati hai aur lambai bhi
-    // ek page me aa jaati hai.
-    el.style.width = (maxW / k) + 'px';
-    el.style.transform = 'scale(' + k + ')';
+    var z = 1;
+    // Naap -> chhota karo -> dobara naap. 6 baar me pakka baith jaata hai.
+    for (var i = 0; i < 6; i++) {
+      var h = el.getBoundingClientRect().height;   // zoom ke baad ka asli naap
+      if (h <= maxH) break;
+      z = z * (maxH / h) * 0.985;       // thoda kam, taaki border/rounding se na bighde
+      el.style.zoom = z;
+      // lifafa utna chauda ki zoom ke baad page ki poori chaudai bhare
+      el.style.width = (maxW / z) + 'px';
+    }
   })();
   <\/script>
   </body></html>`;
