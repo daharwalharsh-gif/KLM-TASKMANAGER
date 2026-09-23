@@ -11339,6 +11339,34 @@ function misScoreBar(s)   { return _misBad(s) ? '#94a3b8' : s > 0 ? '#ef4444' : 
 function misScoreClass(s) { return _misBad(s) ? 'score-zero' : s > 0 ? 'score-negative' : 'score-positive'; }
 function misScoreWidth(s) { return _misBad(s) ? 0 : Math.min(100, Math.abs(s)); }
 
+// Harsh (23 Sep 2026): "jaise 7.0% — ka mark laga do, aur Bad/Poor/Excellent
+// jo bhi likha ho." Minus hai to aage minus ka nishan, aur neeche ek shabd
+// me haal:
+//     0%          ->  Excellent   (kuch baaki hi nahi)
+//     10% tak     ->  Good
+//     10-25%      ->  Poor
+//     25% se upar ->  Bad
+function misScoreText(s) {
+  if (_misBad(s)) return '—';
+  return (s > 0 ? '-' : '') + Number(s).toFixed(1) + '%';   // 0 par nishan nahi
+}
+function misScoreLabel(s) {
+  if (_misBad(s)) return '';
+  return s <= 0 ? 'Excellent' : s <= 10 ? 'Good' : s <= 25 ? 'Poor' : 'Bad';
+}
+function misScoreLabelColor(s) {
+  if (_misBad(s)) return '#94a3b8';
+  return s <= 10 ? '#16a34a' : s <= 25 ? '#a16207' : '#dc2626';
+}
+// "-7.4%" ke neeche "Good" — ek hi jagah se banta hai taaki teeno MIS tab
+// me bilkul ek jaisa dikhe.
+function misScoreCell(s, big) {
+  const fs_ = big ? 15 : 14, fw = big ? 800 : 700;
+  if (_misBad(s)) return '<div class="score-zero" style="font-size:' + fs_ + 'px;font-weight:' + fw + '">—</div>';
+  return '<div class="' + misScoreClass(s) + '" style="font-size:' + fs_ + 'px;font-weight:' + fw + '">' + misScoreText(s) + '</div>'
+    + '<div style="font-size:10px;font-weight:700;color:' + misScoreLabelColor(s) + '">' + misScoreLabel(s) + '</div>';
+}
+
 // ══════════════════════════════════════════════════════
 // RED / YELLOW / GREEN SCORING  (Rahul Jain wala format)
 // Harsh (22 Sep 2026): "Rahul Jain ke accourding ye FMS checklist and
@@ -11498,7 +11526,7 @@ function renderMIS(data) {
       ${misType==='delegation' ? `<td style="color:#f59e0b;font-weight:600">${r.revised||0}</td>` : ''}
       <td style="color:#dc2626;font-weight:600">${r.delayed||0}</td>
       <td>
-        <div class="${scoreClass}" style="font-size:14px;font-weight:700">${score.toFixed(1)}%</div>
+        ${misScoreCell(score, false)}
         <div class="mis-score-bar">
           <div class="mis-score-fill" style="width:${barWidth}%;background:${barColor}"></div>
         </div>
@@ -11934,7 +11962,6 @@ function renderAllMIS(data, fmsData) {
     // kuch due hi nahi hua). Wajah saaf likh dete hain, warna lagta hai data
     // hi nahi aaya. Harsh: "jinki date nahi aa rahi unki kyu show ho rahi hai".
     const upcoming = emp.upcomingAll || 0;
-    const scoreDisplay = score === null ? '—' : `${score.toFixed(1)}%`;
     const upcomingHtml = upcoming > 0
       ? `<div style="font-size:10px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:1px 7px;display:inline-block;margin-top:3px" title="These tasks' due dates have not arrived yet, so they are not counted in the minus">🔜 ${upcoming} upcoming</div>`
       : '';
@@ -11969,7 +11996,7 @@ function renderAllMIS(data, fmsData) {
       <td style="color:#f59e0b;font-weight:600">${emp.revisedAll}</td>
       <td style="color:#dc2626;font-weight:700">${emp.overdueAll}</td>
       <td>
-        <div class="${scoreClass}" style="font-size:15px;font-weight:800">${scoreDisplay}</div>
+        ${misScoreCell(score, true)}
         ${score === null && upcoming > 0 ? '<div style="font-size:10px;color:#94a3b8">Nothing due yet</div>' : ''}
         ${upcomingHtml}
         <div class="mis-score-bar" style="margin-top:3px">
