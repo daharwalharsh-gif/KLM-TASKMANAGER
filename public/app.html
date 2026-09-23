@@ -6314,7 +6314,14 @@ function rlPDF(rec) {
     .imgs{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
     .imgs img{width:120px;height:120px;object-fit:cover;border:1px solid #cbd5e1;border-radius:4px}
     .foot{margin-top:10px;font-size:9px;color:#94a3b8;text-align:center}
-  </style></head><body>
+    /* Harsh (23 Sep 2026): "PDF ek hi page par aaye".
+       Poora chhapa hua hissa ek lifafe (#fit) me hai. Neeche wali script
+       naapti hai ki ye kitna lamba hua, aur utna hi chhota kar deti hai ki
+       ek A4 landscape page me sama jaye. Rows chahe 20 hon ya 60. */
+    #fit{transform-origin:top left}
+    table,thead,tbody,tfoot,tr,td,th{page-break-inside:avoid;break-inside:avoid}
+    thead{display:table-header-group}
+  </style></head><body><div id="fit">
   <div class="head">
     <div><h1>Master Rate List</h1>
       <div class="sub">Rate Approved Date: ${escapeHtml(rlDMY(c.sheet_date)) || '—'} &nbsp;·&nbsp; Buyer: ${escapeHtml(c.buyer) || '—'}
@@ -6366,11 +6373,32 @@ function rlPDF(rec) {
   ${imgs.length ? `<div class="imgs">${imgs.map(f => `<img src="${escapeHtml(f.link)}">`).join('')}</div>` : ''}
   ${pdfs.length ? `<div class="sub" style="margin-top:8px">Attached PDF: ${pdfs.map(f => escapeHtml(f.name)).join(', ')}</div>` : ''}
   <div class="foot">KLM Task Manager · ${stamp}</div>
+  </div>
+  <script>
+  (function fitOnePage(){
+    var el = document.getElementById('fit');
+    if (!el) return;
+    // A4 landscape, 10mm hashiya charon taraf -> bachi hui jagah 277 x 190 mm
+    var PX = 96 / 25.4;                 // 1mm me kitne px
+    var maxH = 190 * PX, maxW = 277 * PX;
+    // Pehle chaudai poori page jitni fix kar do, taaki naap sahi mile
+    el.style.width = maxW + 'px';
+    var h = el.scrollHeight;
+    if (h <= maxH) return;              // pehle se hi ek page me hai
+    var k = maxH / h;
+    // Lifafe ko 1/k guna CHAUDA karke phir k guna chhota karte hain —
+    // is tarah page ki poori chaudai bhi bhar jaati hai aur lambai bhi
+    // ek page me aa jaati hai.
+    el.style.width = (maxW / k) + 'px';
+    el.style.transform = 'scale(' + k + ')';
+  })();
+  <\/script>
   </body></html>`;
   const w = window.open('', '_blank');
   if (!w) return showToast('Popup blocked — please allow popups', 'error');
   w.document.open(); w.document.write(html); w.document.close();
-  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 600);
+  // script ko chalne ka waqt do, phir print
+  setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 700);
 }
 
 function legalTab(which, el) {
