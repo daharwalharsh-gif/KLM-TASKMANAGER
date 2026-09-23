@@ -11094,7 +11094,14 @@ function misVal(emp, key) {
     case 'revised': return emp.revisedAll || 0;
     case 'overdue': return emp.overdueAll || 0;
     case 'fmsdone': return (emp.fms && emp.fms.done) || 0;
-    case 'score': return emp.overallScore == null ? -Infinity : emp.overallScore;
+    case 'score': {
+      // Red/Yellow/Green par sort — red sabse bhaari, phir yellow, aur
+      // aakhir me kitna kaam baaki hai (taaki barabar red walo me bhi kram rahe)
+      const k = empKpis(emp);
+      if (!k.length) return -Infinity;
+      const c = rygCounts(k);
+      return c.red * 10000 + c.yellow * 100 + (emp.overallScore == null ? 0 : emp.overallScore) / 100;
+    }
     default: return 0;
   }
 }
@@ -11336,6 +11343,121 @@ function misScoreColor(s) { return _misBad(s) ? '#94a3b8' : s > 0 ? '#dc2626' : 
 function misScoreBar(s)   { return _misBad(s) ? '#94a3b8' : s > 0 ? '#ef4444' : '#10b981'; }
 function misScoreClass(s) { return _misBad(s) ? 'score-zero' : s > 0 ? 'score-negative' : 'score-positive'; }
 function misScoreWidth(s) { return _misBad(s) ? 0 : Math.min(100, Math.abs(s)); }
+
+// ══════════════════════════════════════════════════════
+// RED / YELLOW / GREEN SCORING  (Rahul Jain wala format)
+// Harsh (22 Sep 2026): "Rahul Jain ke accourding ye FMS checklist and
+// delegation ki scoring hai, esh type se bana do MIS scoring".
+//
+// Har system (Checklist / Delegation / FMS) ke do KRA hote hain, aur
+// har KRA ka ek KPI:
+//
+//   KRA "All work should be done"          -> KPI "% work not done"
+//   KRA "All work should be done on time"  -> KPI "% work not done on time"
+//
+// Benchmark 0% hai — KRA khud kehta hai "ALL work should be done", to
+// kuch bhi baaki rehna benchmark se neeche hai. Usi se rang:
+//
+//   0%            -> 🟢 Green   (benchmark poora)
+//   0% se 10% tak -> 🟡 Yellow  (thoda reh gaya)
+//   10% se upar   -> 🔴 Red
+//
+// Ek doer ke 6 KPI bante hain (3 system x 2 KRA). Jitne KPI jis rang me
+// gire, wahi uska Red/Yellow/Green score hai.
+const RYG_BENCHMARK = 0;     // % work not done — target
+const RYG_YELLOW_MAX = 10;   // yahan tak yellow, uske upar red
+function rygOf(pct) {
+  if (pct === null || pct === undefined || isNaN(pct)) return null;
+  if (pct <= RYG_BENCHMARK) return 'green';
+  if (pct <= RYG_YELLOW_MAX) return 'yellow';
+  return 'red';
+}
+const RYG_DOT   = { red: '🔴', yellow: '🟡', green: '🟢' };
+const RYG_TEXT  = { red: '#dc2626', yellow: '#a16207', green: '#16a34a' };
+const RYG_BG    = { red: '#fef2f2', yellow: '#fffbeb', green: '#f0fdf4' };
+const RYG_BORDER= { red: '#fecaca', yellow: '#fde68a', green: '#bbf7d0' };
+
+// Ek system ke do KPI. d me total/pending/revised ke saath overdue ya
+// delayed — dono naam chalte hain (alag-alag endpoint alag bhejte hain).
+function sysKpis(system, d) {
+  const total = parseInt(d && d.total) || 0;
+  if (!total) return [];
+  const pend = parseInt(d.pending) || 0;
+  const rev  = parseInt(d.revised) || 0;
+  const late = parseInt(d.overdue !== undefined ? d.overdue : d.delayed) || 0;
+  const r1 = Math.round(((pend + rev) / total) * 1000) / 10;
+  const r2 = Math.round((late / total) * 1000) / 10;
+  return [
+    { system, kra: 'All work should be done',         kpi: '% work not done',         pct: r1, ryg: rygOf(r1) },
+    { system, kra: 'All work should be done on time', kpi: '% work not done on time', pct: r2, ryg: rygOf(r2) },
+  ];
+}
+
+// Ek employee ke saare KPI (All MIS ke liye — teeno system)
+function empKpis(emp) {
+  return [].concat(
+    sysKpis('Checklist',  emp.checklist  || {}),
+    sysKpis('Delegation', emp.delegation || {}),
+    sysKpis('FMS',        emp.fms        || {})
+  );
+}
+
+function rygCounts(kpis) {
+  const c = { red: 0, yellow: 0, green: 0 };
+  (kpis || []).forEach(k => { if (k.ryg) c[k.ryg]++; });
+  return c;
+}
+
+// "🔴 4  🟡 2  🟢 0" — jis rang ka ek bhi nahi wo halka dikhta hai
+function rygChips(c, size) {
+  const fs_ = size || 13;
+  const one = k => `<span style="font-size:${fs_}px;font-weight:800;padding:1px 7px;border-radius:8px;` +
+    `background:${c[k] ? RYG_BG[k] : '#f8fafc'};color:${c[k] ? RYG_TEXT[k] : '#cbd5e1'};` +
+    `border:1px solid ${c[k] ? RYG_BORDER[k] : '#e2e8f0'}">${RYG_DOT[k]} ${c[k]}</span>`;
+  return `<div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">${one('red')}${one('yellow')}${one('green')}</div>`;
+}
+
+// Export ke liye — "R2 Y0 G0"
+function rygLabel(kpis) {
+  const c = rygCounts(kpis);
+  return `R${c.red} Y${c.yellow} G${c.green}`;
+}
+
+// Ek KPI ki line — "5.0% 🟡"
+function kpiPct(pct, ryg) {
+  if (ryg === null) return '<span style="color:#cbd5e1">—</span>';
+  return `<span style="color:${RYG_TEXT[ryg]};font-weight:700">${pct}% ${RYG_DOT[ryg]}</span>`;
+}
+
+// Image wali KRA/KPI table — detail popup me
+function kpiTableHtml(kpis) {
+  if (!kpis.length) return '';
+  const c = rygCounts(kpis);
+  return `
+    <div class="tbl-freeze" style="max-height:290px;margin-top:8px">
+      <table style="font-size:12px">
+        <thead><tr>
+          <th>Task/System</th><th>KRA</th><th>KPI</th>
+          <th style="text-align:center">Benchmark</th>
+          <th style="text-align:center">Actual %</th>
+          <th style="text-align:center">Score</th>
+        </tr></thead>
+        <tbody>${kpis.map(k => `
+          <tr>
+            <td style="font-weight:600;color:#475569">${k.system}</td>
+            <td style="color:#64748b">${k.kra}</td>
+            <td style="color:#64748b">${k.kpi}</td>
+            <td style="text-align:center;color:#94a3b8">${RYG_BENCHMARK}%</td>
+            <td style="text-align:center">${kpiPct(k.pct, k.ryg)}</td>
+            <td style="text-align:center;font-size:14px">${RYG_DOT[k.ryg]}</td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+      <span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.3px">Actual Score</span>
+      ${rygChips(c, 13)}
+    </div>`;
+}
 // Del: / CL: badge ka rang — wahi teen band jo bade score par lagte hain.
 // Pehle "score < 0" par laal hota tha; MINUS scale me score kabhi minus me
 // jaata hi nahi, isliye "CL: 100%" jaisa sabse bura badge bhi hara dikh
@@ -11370,6 +11492,8 @@ function renderMIS(data) {
     const scoreClass = misScoreClass(score);
     const barWidth = misScoreWidth(score);
     const barColor = misScoreBar(score);
+    // Rahul Jain wali scoring — is system ke do KRA/KPI
+    const k2 = sysKpis(misType === 'delegation' ? 'Delegation' : 'Checklist', r);
 
     return `<tr style="cursor:pointer" onclick="openMISDetail('${r.userId||r.id}','${titleName(r.name).replace(/'/g,"\\'")}')" title="Click to see task details">
       <td>
@@ -11381,10 +11505,10 @@ function renderMIS(data) {
       ${misType==='delegation' ? `<td style="color:#f59e0b;font-weight:600">${r.revised||0}</td>` : ''}
       <td style="color:#dc2626;font-weight:600">${r.delayed||0}</td>
       <td>
-        <div class="${scoreClass}" style="font-size:14px;font-weight:700">${score.toFixed(1)}%</div>
-        <div class="mis-score-bar">
-          <div class="mis-score-fill" style="width:${barWidth}%;background:${barColor}"></div>
-        </div>
+        ${k2.length ? `<div style="font-size:11.5px;line-height:1.7">
+            <div>not done <b>${kpiPct(k2[0].pct, k2[0].ryg)}</b></div>
+            <div>not on time <b>${kpiPct(k2[1].pct, k2[1].ryg)}</b></div>
+          </div>` : '<span style="color:#cbd5e1">—</span>'}
       </td>
     </tr>`;
   }).join('');
@@ -11394,15 +11518,17 @@ function renderMIS(data) {
       <table>
         <thead><tr>
           <th>Name <span style="font-weight:400;color:#94a3b8;font-size:10px">(click for details)</span></th>
-          <th>Total</th><th>Pending</th><th>Completed</th>${misType==='delegation'?'<th>Revised</th>':''}<th>Delayed</th><th>Minus %</th>
+          <th>Total</th><th>Pending</th><th>Completed</th>${misType==='delegation'?'<th>Revised</th>':''}<th>Delayed</th><th>Score</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
     </div>
     <div style="font-size:12px;color:#94a3b8;margin-top:10px;padding:0 4px">
-      * Minus % = (Pending + Revised) ÷ Total × 100. Lower is better —
-      0% means all the work is done, 100% means none of it is.
-      Done and Not Applicable carry no minus.
+      * Two KPIs per system, benchmark <b>0%</b>:
+      <b>% work not done</b> = (Pending + Revised) ÷ Total × 100 ·
+      <b>% work not done on time</b> = Delayed ÷ Total × 100.
+      Score: 🟢 0% · 🟡 up to 10% · 🔴 above 10%.
+      Done and Not Applicable count as done.
       <b>Only tasks whose due date has arrived are counted</b> — tasks dated
       later still have time left, so they are not counted yet.
     </div>`;
@@ -11436,6 +11562,8 @@ async function openMISDetail(userId, userName) {
 
   const score = parseFloat(row.score);
   const scoreColor = misScoreColor(score);
+  // Rahul Jain wala score — is system ke do KRA/KPI
+  const dKpis = sysKpis(misType === 'delegation' ? 'Delegation' : 'Checklist', row);
 
   let scoreReason = '';
   {
@@ -11466,8 +11594,8 @@ async function openMISDetail(userId, userName) {
   if (stale()) return;
   document.getElementById('misDetailTitle').textContent = `${row.name} — ${misType === 'delegation' ? 'Delegation' : 'Checklist'} Tasks`;
   document.getElementById('misDetailScore').innerHTML = `
-    <div style="font-size:28px;font-weight:800;color:${scoreColor}">${score.toFixed(1)}%</div>
-    <div style="font-size:13px;color:#64748b;margin-top:4px">${scoreReason}</div>
+    ${kpiTableHtml(dKpis)}
+    <div style="font-size:13px;color:#64748b;margin-top:10px">${scoreReason}</div>
     <div style="display:flex;gap:16px;margin-top:12px;font-size:13px;flex-wrap:wrap">
       <span>📋 Total: <strong>${row.total}</strong></span>
       <span style="color:#10b981">✅ Done: <strong>${row.completed}</strong></span>
@@ -11519,7 +11647,8 @@ function exportMIS() {
       'Del Total','Del Pending','Del Completed','Del Revised','Del Delayed','Del Score%',
       'Checklist Total','Checklist Pending','Checklist Completed','Checklist Delayed','Checklist Score%',
       'FMS Total','FMS Pending','FMS Done','FMS Score%',
-      'Total All','Pending All','Completed All','Revised All','Delayed All','Minus %'
+      'Total All','Pending All','Completed All','Revised All','Delayed All','Minus %',
+      'Red','Yellow','Green'
     ].join(',');
     const lines = [header];
     misAllData.forEach(emp => {
@@ -11536,7 +11665,8 @@ function exportMIS() {
         d.total||0, d.pending||0, d.completed||0, d.revised||0, d.overdue||0, delScore,
         c.total||0, c.pending||0, c.completed||0, c.overdue||0, chlScore,
         f.total||0, f.pending||0, f.done||0, fmsScore,
-        emp.totalAll||0, emp.pendingAll||0, emp.completedAll||0, emp.revisedAll||0, emp.overdueAll||0, overall
+        emp.totalAll||0, emp.pendingAll||0, emp.completedAll||0, emp.revisedAll||0, emp.overdueAll||0, overall,
+        ...(() => { const k = rygCounts(empKpis(emp)); return [k.red, k.yellow, k.green]; })()
       ].join(','));
     });
     downloadCSV(lines.join('\n'), `All_MIS_UserWise_${dateSuffix}.csv`);
@@ -11590,18 +11720,22 @@ async function exportMISToSheet() {
 
     // ── Delegation MIS ──
     rows.push(['DELEGATION MIS']);
-    rows.push(['Name','Total','Pending','Completed','Revised','Delayed','Minus %']);
+    rows.push(['Name','Total','Pending','Completed','Revised','Delayed','% work not done','% work not done on time','Score']);
     (del.delegation || []).forEach(r => {
-      rows.push([r.name, r.total||0, r.pending||0, r.completed||0, r.revised||0, r.delayed||0, sc(r.score)]);
+      const k = sysKpis('Delegation', r);
+      rows.push([r.name, r.total||0, r.pending||0, r.completed||0, r.revised||0, r.delayed||0,
+        k.length ? k[0].pct+'%' : '—', k.length ? k[1].pct+'%' : '—', k.length ? rygLabel(k) : '—']);
     });
     if (!(del.delegation || []).length) rows.push(['No data found for this date range']);
     rows.push([]);
 
     // ── Checklist MIS ──
     rows.push(['CHECKLIST MIS']);
-    rows.push(['Name','Total','Pending','Completed','Delayed','Minus %']);
+    rows.push(['Name','Total','Pending','Completed','Delayed','% work not done','% work not done on time','Score']);
     (del.checklist || []).forEach(r => {
-      rows.push([r.name, r.total||0, r.pending||0, r.completed||0, r.delayed||0, sc(r.score)]);
+      const k = sysKpis('Checklist', r);
+      rows.push([r.name, r.total||0, r.pending||0, r.completed||0, r.delayed||0,
+        k.length ? k[0].pct+'%' : '—', k.length ? k[1].pct+'%' : '—', k.length ? rygLabel(k) : '—']);
     });
     if (!(del.checklist || []).length) rows.push(['No data found for this date range']);
     rows.push([]);
@@ -11628,7 +11762,8 @@ async function exportMISToSheet() {
       'Del Total','Del Pending','Del Completed','Del Revised','Del Delayed','Del Minus %',
       'Checklist Total','Checklist Pending','Checklist Completed','Checklist Delayed','Checklist Minus %',
       'FMS Total','FMS Pending','FMS Done','FMS Target Done %',
-      'Total All','Pending All','Completed All','Revised All','Delayed All','Minus %'
+      'Total All','Pending All','Completed All','Revised All','Delayed All','Minus %',
+      '🔴 Red','🟡 Yellow','🟢 Green'
     ]);
     const allRows = Array.isArray(all) ? all : (all && Array.isArray(all.rows) ? all.rows : []);
     allRows.forEach(emp => {
@@ -11639,7 +11774,8 @@ async function exportMISToSheet() {
         c.total||0, c.pending||0, c.completed||0, c.overdue||0, c.total>0?sc(c.score):'—',
         f.total||0, f.pending||0, f.done||0, (f.total>0 && f.score!=null)?sc(f.score):'—',
         emp.totalAll||0, emp.pendingAll||0, emp.completedAll||0, emp.revisedAll||0, emp.overdueAll||0,
-        (emp.overallScore==null)?'—':`${emp.overallScore}%`
+        (emp.overallScore==null)?'—':`${emp.overallScore}%`,
+        ...(() => { const c = rygCounts(empKpis(emp)); return [c.red, c.yellow, c.green]; })()
       ]);
     });
     if (!allRows.length) rows.push(['No data found for this date range']);
@@ -11806,6 +11942,12 @@ function renderAllMIS(data, fmsData) {
     // hi nahi aaya. Harsh: "jinki date nahi aa rahi unki kyu show ho rahi hai".
     const upcoming = emp.upcomingAll || 0;
     const scoreDisplay = score === null ? '—' : `${score.toFixed(1)}%`;
+    // Rahul Jain wali scoring — 3 system x 2 KRA = 6 KPI, har ek ka R/Y/G
+    const kpis = empKpis(emp);
+    const ryg = rygCounts(kpis);
+    const _tA = emp.totalAll || 0;
+    const allNotDone   = _tA ? Math.round((((emp.pendingAll||0) + (emp.revisedAll||0)) / _tA) * 1000) / 10 : null;
+    const allNotOnTime = _tA ? Math.round(((emp.overdueAll||0) / _tA) * 1000) / 10 : null;
     const upcomingHtml = upcoming > 0
       ? `<div style="font-size:10px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:1px 7px;display:inline-block;margin-top:3px" title="These tasks' due dates have not arrived yet, so they are not counted in the minus">🔜 ${upcoming} upcoming</div>`
       : '';
@@ -11869,13 +12011,12 @@ function renderAllMIS(data, fmsData) {
       <td>${fmsDueHtml}</td>
       <td>${planHtml}</td>
       <td>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">${delBadge}${chlBadge}${fmsBadge}</div>
-        <div class="${scoreClass}" style="font-size:15px;font-weight:800">${scoreDisplay}</div>
-        ${score === null && upcoming > 0 ? '<div style="font-size:10px;color:#94a3b8">Nothing due yet</div>' : ''}
+        ${kpis.length ? rygChips(ryg, 13) : '<div style="text-align:center;color:#cbd5e1">—</div>'}
+        ${kpis.length ? `<div style="font-size:10px;color:#64748b;margin-top:4px;text-align:center;line-height:1.5">
+            not done ${kpiPct(allNotDone, rygOf(allNotDone))}<br>
+            not on time ${kpiPct(allNotOnTime, rygOf(allNotOnTime))}</div>` : ''}
+        ${!kpis.length && upcoming > 0 ? '<div style="font-size:10px;color:#94a3b8;text-align:center">Nothing due yet</div>' : ''}
         ${upcomingHtml}
-        <div class="mis-score-bar" style="margin-top:3px">
-          <div class="mis-score-fill" style="width:${barWidth}%;background:${barColor}"></div>
-        </div>
       </td>
     </tr>`;
   }).join('');
@@ -11887,7 +12028,7 @@ function renderAllMIS(data, fmsData) {
           ${sh('Employee', 'name')}
           ${sh('Total', 'total')}${sh('Pending', 'pending')}${sh('Completed', 'completed')}${sh('Revised', 'revised')}${sh('⚠️ Overdue', 'overdue')}
           ${sh('✅ FMS Done', 'fmsdone')}
-          <th>📅 Next Week Plan</th>${sh('Minus %', 'score')}
+          <th>📅 Next Week Plan</th>${sh('Score', 'score')}
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
@@ -12215,11 +12356,13 @@ async function openAllMISDetail(userId, userName, rangeType) {
       </div>` : ''}
     </div>` : '';
 
+  // Rahul Jain wala score — har system ke do KRA/KPI, benchmark 0%
+  const dKpis = empKpis(emp);
   const combinedSummaryHtml = `
     <div style="${fmsSectionHtml ? 'margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px;' : ''}">
-      <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.3px">📊 FMS + Delegation + Checklist — Combined Minus</div>
-      <div style="font-size:28px;font-weight:800;color:${scoreColor}">${score !== null ? score.toFixed(1)+'%' : '—'}</div>
-      <div style="display:flex;gap:16px;margin-top:10px;font-size:13px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.3px">📊 Score — Checklist + Delegation + FMS</div>
+      ${kpiTableHtml(dKpis)}
+      <div style="display:flex;gap:16px;margin-top:12px;font-size:13px;flex-wrap:wrap">
         <span>📋 Total: <strong>${emp.totalAll}</strong></span>
         <span style="color:#10b981">✅ Done: <strong>${completedTotal}</strong></span>
         <span style="color:#ef4444">⏳ Pending: <strong>${emp.pendingAll}</strong></span>
