@@ -12451,9 +12451,17 @@ async function openFmsStepDetail(stepIdx) {
         '<div style="padding:16px;text-align:center;color:#16a34a;font-size:13px">✅ Is step me koi pending kaam nahi</div>';
       return;
     }
+    // Sheet ke column B, C, D — inhi se pata chalta hai row kis order ki hai.
+    // Heading sheet se hi aati hai (Merchant O2D me Buyer name / Order date /
+    // Lead time), isliye har FMS me uska apna naam dikhega.
+    const h0 = mine[0] || {};
+    const hB = h0.headB || 'B', hC = h0.headC || 'C', hD = h0.headD || 'D';
     const rows = mine.map((r, i) => `
       <tr${r.isLate ? ' style="background:#fef2f2"' : ''}>
         <td style="text-align:center;color:#64748b">${i + 1}</td>
+        <td>${escapeHtml(r.colB || '—')}</td>
+        <td style="white-space:nowrap;color:#64748b">${escapeHtml(r.colC || '—')}</td>
+        <td style="white-space:nowrap;color:#64748b">${escapeHtml(r.colD || '—')}</td>
         <td>${escapeHtml(r.planValue || '—')}</td>
         <td style="white-space:nowrap">${fmtDate(r.planDate || '') || '—'}</td>
         <td style="white-space:nowrap">${r.isLate
@@ -12465,7 +12473,9 @@ async function openFmsStepDetail(stepIdx) {
       `<div style="font-size:12px;color:#64748b;margin-bottom:6px">${mine.length} pending kaam — late wale sabse upar</div>
        <div style="max-height:380px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px">
          <table style="font-size:12px">
-           <thead><tr><th style="width:40px">#</th><th>Plan value</th><th>Plan date</th><th>Status</th><th>Doer</th></tr></thead>
+           <thead><tr><th style="width:40px">#</th>
+             <th>${escapeHtml(hB)}</th><th>${escapeHtml(hC)}</th><th>${escapeHtml(hD)}</th>
+             <th>Plan value</th><th>Plan date</th><th>Status</th><th>Doer</th></tr></thead>
            <tbody>${rows}</tbody>
          </table>
        </div>`;

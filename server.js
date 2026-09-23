@@ -2390,6 +2390,11 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
             // isLate: plan date is in the past and still pending
             const isLate = planDate && planDate < today;
 
+            // Harsh (23 Sep 2026): "jo details popup hoti hai usme col B, C,
+            // D tak bhi ho, A chhodke". Sheet ki B/C/D column (Merchant O2D me
+            // Buyer name / Order date / Lead time) se pata chalta hai ki row
+            // kis order ki hai. Header bhi bhejte hain taaki popup me sheet
+            // wala hi naam dikhe, hardcode na karna pade.
             allRows.push({
               fmsName,
               fmsId: sheet.id,
@@ -2399,6 +2404,12 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
               planValue: planVal,
               planDate: planDate || '',
               isLate,
+              colB: (row[1] || '').toString().trim(),
+              colC: (row[2] || '').toString().trim(),
+              colD: (row[3] || '').toString().trim(),
+              headB: (headers[1] || '').toString().trim(),
+              headC: (headers[2] || '').toString().trim(),
+              headD: (headers[3] || '').toString().trim(),
               rowNumber: headerRowIdx + 1 + i + 1
             });
           });
