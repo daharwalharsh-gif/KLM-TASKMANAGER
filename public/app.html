@@ -12467,7 +12467,6 @@ async function openFmsStepDetail(stepIdx) {
         <td style="white-space:nowrap">${r.isLate
           ? '<span style="color:#dc2626;font-weight:700">⚠️ Overdue</span>'
           : '<span style="color:#f59e0b;font-weight:600">⏳ Pending</span>'}</td>
-        <td style="color:#64748b">${escapeHtml(r.doer || '')}</td>
       </tr>`).join('');
     document.getElementById('fmsStepBody').innerHTML =
       `<div style="font-size:12px;color:#64748b;margin-bottom:6px">${mine.length} pending kaam — late wale sabse upar</div>
@@ -12475,7 +12474,7 @@ async function openFmsStepDetail(stepIdx) {
          <table style="font-size:12px">
            <thead><tr><th style="width:40px">#</th>
              <th>${escapeHtml(hB)}</th><th>${escapeHtml(hC)}</th><th>${escapeHtml(hD)}</th>
-             <th>Plan value</th><th>Plan date</th><th>Status</th><th>Doer</th></tr></thead>
+             <th>Plan value</th><th>Plan date</th><th>Status</th></tr></thead>
            <tbody>${rows}</tbody>
          </table>
        </div>`;
