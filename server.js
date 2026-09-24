@@ -2381,6 +2381,21 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
         const headers = sheetData[headerRowIdx] || [];
         const dataRows = sheetData.slice(headerRowIdx + 1);
 
+        // Harsh (24 Sep 2026): "sab FMS ki PI number aani chahiye, plan value
+        // hata do." Har sheet me PI number alag column me hai — Merchant O2D
+        // me G, Export CRM me C, Boxing/Garments PMS me J, Purchase me I…
+        // Isliye column hardcode nahi kiya, HEADER ke naam se dhoondhte hain.
+        // "PI image" / "PI date" / "PI approval date" / "PI copy" nahi chahiye
+        // — sirf theek "PI number" (ya "PI no").
+        // Jin sheets me PI number hai hi nahi (Sampling, Sales NBD…) unme
+        // "Invoice no." dekh lete hain; wo bhi na ho to khaali chhod dete hain.
+        // Column ka naam bhi bhejte hain, taaki popup me sheet wala hi naam
+        // dikhe aur kabhi galat na lage.
+        const _hdrTxt = i => String(headers[i] == null ? '' : headers[i]).trim();
+        let piIdx = headers.findIndex((_, i) => /^p\.?\s*i\.?\s*(number|no\.?)$/i.test(_hdrTxt(i)));
+        if (piIdx < 0) piIdx = headers.findIndex((_, i) => /^invoice\s*(number|no\.?)$/i.test(_hdrTxt(i)));
+        const piHead = piIdx >= 0 ? _hdrTxt(piIdx) : 'PI number';
+
         for (const step of steps) {
           const planIdx = colToIdx(step.plan_col);
           const actualIdx = colToIdx(step.actual_col);
@@ -2442,6 +2457,8 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
               headB: (headers[1] || '').toString().trim(),
               headC: (headers[2] || '').toString().trim(),
               headD: (headers[3] || '').toString().trim(),
+              piNo: piIdx >= 0 ? (row[piIdx] || '').toString().trim() : '',
+              headPi: piHead,
               rowNumber: headerRowIdx + 1 + i + 1
             });
           });

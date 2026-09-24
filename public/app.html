@@ -12472,13 +12472,14 @@ async function openFmsStepDetail(stepIdx) {
     // Lead time), isliye har FMS me uska apna naam dikhega.
     const h0 = mine[0] || {};
     const hB = h0.headB || 'B', hC = h0.headC || 'C', hD = h0.headD || 'D';
+    const hPi = h0.headPi || 'PI number';   // sheet ka apna naam
     const rows = mine.map((r, i) => `
       <tr${r.isLate ? ' style="background:#fef2f2"' : ''}>
         <td style="text-align:center;color:#64748b">${i + 1}</td>
         <td>${escapeHtml(r.colB || '—')}</td>
         <td style="white-space:nowrap;color:#64748b">${escapeHtml(r.colC || '—')}</td>
         <td style="white-space:nowrap;color:#64748b">${escapeHtml(r.colD || '—')}</td>
-        <td>${escapeHtml(r.planValue || '—')}</td>
+        <td style="white-space:nowrap">${escapeHtml(r.piNo || '—')}</td>
         <td style="white-space:nowrap">${fmtDate(r.planDate || '') || '—'}</td>
         <td style="white-space:nowrap">${r.isLate
           ? '<span style="color:#dc2626;font-weight:700">⚠️ Overdue</span>'
@@ -12490,7 +12491,7 @@ async function openFmsStepDetail(stepIdx) {
          <table style="font-size:12px">
            <thead><tr><th style="width:40px">#</th>
              <th>${escapeHtml(hB)}</th><th>${escapeHtml(hC)}</th><th>${escapeHtml(hD)}</th>
-             <th>Plan value</th><th>Plan date</th><th>Status</th></tr></thead>
+             <th>${escapeHtml(hPi)}</th><th>Plan date</th><th>Status</th></tr></thead>
            <tbody>${rows}</tbody>
          </table>
        </div>`;
