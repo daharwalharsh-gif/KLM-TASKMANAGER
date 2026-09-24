@@ -4409,7 +4409,7 @@ function otodSources() {
     invincible: {
       label: 'Invincible O to D Offline',
       sheetId: '1u0aO1WR6BgcSOGNlTxH8p73J9w5r6U2FGepqmZu1Pfw',
-      tab: 'FMS', headerRow: 6, range: 'A:AT'
+      tab: 'FMS', headerRow: 6, range: 'A:DZ'
     },
     // Sampling FMS — dispatch STEP 6 "Dispatch AWB": BB=Planned, BC=Actual,
     // BD=Status, BF=Doer. Is sheet me koi amount nahi hai.
@@ -4430,14 +4430,43 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
     const r = await sheetsApi.spreadsheets.values.get({
       spreadsheetId: cfg.sheetId, range: `${cfg.tab}!${cfg.range}`
     });
-    const all = (r.data.values || []).slice(cfg.headerRow);
+    const raw = r.data.values || [];
+    const all = raw.slice(cfg.headerRow);
+
+    // Invincible sheet me column ginti se nahi, NAAM se dhoondhte hain.
+    // Harsh (24 Sep 2026): "sheets wali proper data nahi aa rahi". Sheet me
+    // beech me naye column jud gaye the, isliye purane AE/AF par ab Step 4 ka
+    // "Status" / "Time Delay" aa raha tha aur AT par "Packing slip" — report
+    // me galat Planned/Actual/Dispatch dikh rahe the.
+    // Ab: row 2 me jis step ke naam me "dispatch" hai (Step 6 "Invoice
+    // generate to dispatch") uske block ka "Planned" aur "Actual", aur
+    // "Dispatch Status" naam wala column. Aage column jude-hatein to bhi
+    // sahi jagah milegi. Na mile to aaj ki jagah (AK / AL / L).
+    let invPlan = 36, invAct = 37, invDisp = 11;
+    if (src === 'invincible') {
+      const nameRow = raw[1] || [], head = raw[cfg.headerRow - 1] || [];
+      const H = c => String(head[c] || '').trim().toLowerCase();
+      const N = c => String(nameRow[c] || '').trim();
+      const width = Math.max(nameRow.length, head.length);
+      const start = [...Array(width).keys()].find(c => /dispatch/i.test(N(c)));
+      if (start !== undefined) {
+        let end = start + 1;
+        while (end < width && !N(end)) end++;
+        for (let c = start; c < end; c++) {
+          if (H(c) === 'planned') invPlan = c;
+          else if (/^actual/.test(H(c))) invAct = c;
+        }
+      }
+      const d = [...Array(head.length).keys()].find(c => H(c) === 'dispatch status');
+      if (d !== undefined) invDisp = d;
+    }
 
     const rows = [];
     for (const row of all) {
       if (src === 'invincible') {
         const party = String(row[1] || '').trim();          // B
-        const planned = prodIsoDate(row[30]);               // AE
-        const actual = String(row[31] || '').trim();        // AF
+        const planned = prodIsoDate(row[invPlan]);          // dispatch step ka Planned
+        const actual = String(row[invAct] || '').trim();    // dispatch step ka Actual
         // Actual aane tak row pending — Planned date bhari ho ya na ho
         if (!party) continue;
         rows.push({
@@ -4449,8 +4478,8 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
           mrp: String(row[5] || '').trim(),                 // F
           orderDate: prodIsoDate(row[9]),                   // J
           planned,
-          actualDate: prodIsoDate(row[31]),                 // AF
-          dispatchStatus: String(row[45] || '').trim(),     // AT
+          actualDate: prodIsoDate(row[invAct]),
+          dispatchStatus: String(row[invDisp] || '').trim(),
           dispatched: !!actual
         });
       } else if (src === 'sampling') {
