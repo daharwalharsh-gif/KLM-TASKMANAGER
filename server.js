@@ -348,10 +348,10 @@ async function runDelegationReminders() {
              COALESCE(t.approval,'no') AS approval, t.remarks,
              DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,
              u1.name AS assigneeName, u1.notification_email AS assigneeEmail,
-             u2.name AS assignerName
+             COALESCE(u2.name,'—') AS assignerName
       FROM delegation_tasks t
       JOIN users u1 ON t.assigned_to = u1.id
-      JOIN users u2 ON t.assigned_by = u2.id
+      LEFT JOIN users u2 ON t.assigned_by = u2.id
       WHERE t.status = 'pending'
         AND t.due_date <= ?
         AND (t.last_reminder_date IS NULL OR t.last_reminder_date < ?)
@@ -1257,11 +1257,11 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
 
     let delegationPending = [], checklistPending = [];
     if (taskType === 'delegation' || taskType === 'both') {
-      const [rows] = await db.query(`SELECT t.id,'delegation' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail,u2.role AS assignedByRole FROM delegation_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${delegDateClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
+      const [rows] = await db.query(`SELECT t.id,'delegation' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,COALESCE(u2.name,'—') AS assignedByName,COALESCE(u2.email,'') AS assignedByEmail,COALESCE(u2.role,'') AS assignedByRole FROM delegation_tasks t JOIN users u1 ON t.assigned_to=u1.id LEFT JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${delegDateClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
       delegationPending = rows;
     }
     if (taskType === 'checklist' || taskType === 'both') {
-      const [rows] = await db.query(`SELECT t.id,'checklist' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,'no' AS approval,0 AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail,u2.role AS assignedByRole FROM checklist_tasks t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${chkDateClause}${chkFyClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
+      const [rows] = await db.query(`SELECT t.id,'checklist' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,'no' AS approval,0 AS waiting_approval,t.remarks,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u1.name AS assignedToName,COALESCE(u2.name,'—') AS assignedByName,COALESCE(u2.email,'') AS assignedByEmail,COALESCE(u2.role,'') AS assignedByRole FROM checklist_tasks t JOIN users u1 ON t.assigned_to=u1.id LEFT JOIN users u2 ON t.assigned_by=u2.id WHERE t.status='pending' ${chkDateClause}${chkFyClause} ${userFilter} ORDER BY t.due_date ASC LIMIT 500`, params);
       checklistPending = rows;
     }
     // Transfer info — jis task ka transfer approval pending hai wo dashboard par
@@ -1400,7 +1400,7 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
       where += ` AND t.due_date >= '${ownerFyStart()}'`;
     }
 
-    const [tasks] = await db.query(`SELECT t.id,'${type||'delegation'}' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,${isDeleg?"'' AS frequency,":"COALESCE(t.frequency,'') AS frequency,"}${isDeleg?"COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,":"'no' AS approval,0 AS waiting_approval,t.remarks,"}DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,DATE_FORMAT(t.created_at,'%Y-%m-%d') AS assigned_on,u1.name AS assignedToName,u2.name AS assignedByName,u2.email AS assignedByEmail,u2.role AS assignedByRole,t.completed_at,t.completed_by FROM ${table} t JOIN users u1 ON t.assigned_to=u1.id JOIN users u2 ON t.assigned_by=u2.id ${where} ORDER BY t.due_date ASC`, params);
+    const [tasks] = await db.query(`SELECT t.id,'${type||'delegation'}' AS type,t.description,t.status,t.assigned_to,t.assigned_by,COALESCE(t.priority,'low') AS priority,${isDeleg?"'' AS frequency,":"COALESCE(t.frequency,'') AS frequency,"}${isDeleg?"COALESCE(t.approval,'no') AS approval,COALESCE(t.waiting_approval,0) AS waiting_approval,t.remarks,":"'no' AS approval,0 AS waiting_approval,t.remarks,"}DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,DATE_FORMAT(t.created_at,'%Y-%m-%d') AS assigned_on,u1.name AS assignedToName,COALESCE(u2.name,'—') AS assignedByName,COALESCE(u2.email,'') AS assignedByEmail,COALESCE(u2.role,'') AS assignedByRole,t.completed_at,t.completed_by FROM ${table} t JOIN users u1 ON t.assigned_to=u1.id LEFT JOIN users u2 ON t.assigned_by=u2.id ${where} ORDER BY t.due_date ASC`, params);
 
     // "Done kisne kiya" — id se naam. (alasql ka LEFT JOIN bharosemand nahi,
     // isliye yahan ek hi users query se map bana kar bhar dete hain.)
@@ -2478,7 +2478,7 @@ app.get('/api/mis/detail', requireAuth, requireMisView, async (req, res) => {
     if (!userId || !start || !end) return res.status(400).json({ error: 'Missing params' });
     const endT = misEndCap(end);   // aage ki date wale task list me nahi aate
     const table = type === 'delegation' ? 'delegation_tasks' : 'checklist_tasks';
-    const [tasks] = await db.query(`SELECT t.id,t.description,t.status,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,u2.name AS assigned_by_name FROM ${table} t JOIN users u2 ON t.assigned_by=u2.id WHERE t.assigned_to=? AND t.due_date BETWEEN ? AND ? ORDER BY t.due_date ASC`, [userId, start, endT]);
+    const [tasks] = await db.query(`SELECT t.id,t.description,t.status,DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date,COALESCE(u2.name,'—') AS assigned_by_name FROM ${table} t LEFT JOIN users u2 ON t.assigned_by=u2.id WHERE t.assigned_to=? AND t.due_date BETWEEN ? AND ? ORDER BY t.due_date ASC`, [userId, start, endT]);
     res.json({ tasks });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
