@@ -11998,9 +11998,6 @@ function renderAllMIS(data, fmsData) {
     // kuch due hi nahi hua). Wajah saaf likh dete hain, warna lagta hai data
     // hi nahi aaya. Harsh: "jinki date nahi aa rahi unki kyu show ho rahi hai".
     const upcoming = emp.upcomingAll || 0;
-    const upcomingHtml = upcoming > 0
-      ? `<div style="font-size:10px;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:1px 7px;display:inline-block;margin-top:3px" title="These tasks' due dates have not arrived yet, so they are not counted in the minus">🔜 ${upcoming} upcoming</div>`
-      : '';
     const barColor = misScoreBar(score);
     const barWidth = misScoreWidth(score);
 
@@ -12034,7 +12031,6 @@ function renderAllMIS(data, fmsData) {
       <td>
         ${misScoreCell(score, true)}
         ${score === null && upcoming > 0 ? '<div style="font-size:10px;color:#94a3b8">Nothing due yet</div>' : ''}
-        ${upcomingHtml}
         <div class="mis-score-bar" style="margin-top:3px">
           <div class="mis-score-fill" style="width:${barWidth}%;background:${barColor}"></div>
         </div>
