@@ -3737,7 +3737,13 @@ app.delete('/api/comments/:id', requireAuth, async (req, res) => {
 
 app.get('/api/fms', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const [sheets] = await db.query(`SELECT f.*,u.name AS createdByName FROM fms_sheets f JOIN users u ON f.created_by=u.id ORDER BY f.created_at DESC`);
+    // LEFT JOIN hi hona chahiye. Pehle seedha JOIN tha, to jis FMS ko banane
+    // wala user baad me delete ho gaya wo FMS Admin ki list se hi GAYAB ho
+    // jaata tha — 16 me se sirf 6 dikh rahe the (baaki 10 ka created_by=1 tha
+    // aur wo user ab hai hi nahi). FMS ka data poora salamat tha, sirf yahan
+    // nahi aa raha tha. Banane wale ka naam na mile to bhi FMS to dikhna hi
+    // chahiye. — Harsh (24 Sep 2026): "baki ke FMS kaha chale gaye bhai"
+    const [sheets] = await db.query(`SELECT f.*,u.name AS createdByName FROM fms_sheets f LEFT JOIN users u ON f.created_by=u.id ORDER BY f.created_at DESC`);
     res.json(sheets);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
