@@ -11376,22 +11376,23 @@ function misScoreWidth(s) { return _misBad(s) ? 0 : Math.min(100, Math.abs(s)); 
 
 // Harsh (23 Sep 2026): "jaise 7.0% — ka mark laga do, aur Bad/Poor/Excellent
 // jo bhi likha ho." Minus hai to aage minus ka nishan, aur neeche ek shabd
-// me haal:
-//     0%          ->  Excellent   (kuch baaki hi nahi)
-//     10% tak     ->  Good
-//     10-25%      ->  Poor
-//     25% se upar ->  Bad
+// me haal. Harsh (24 Sep 2026): "jo minus me aa raha hai usko Poor likh do,
+// aur jab koi data green ho tabhi Excellent likhna."
+//     0% (hara)   ->  Excellent   (kuch baaki hi nahi)
+//     kitna bhi minus ->  Poor
+// Pehle beech me "Good" aur "Bad" bhi the — -3.9% par "Good" likha aa raha
+// tha jo minus hote hue bhi theek lagta tha. Ab do hi haal hain.
 function misScoreText(s) {
   if (_misBad(s)) return '—';
   return (s > 0 ? '-' : '') + Number(s).toFixed(1) + '%';   // 0 par nishan nahi
 }
 function misScoreLabel(s) {
   if (_misBad(s)) return '';
-  return s <= 0 ? 'Excellent' : s <= 10 ? 'Good' : s <= 25 ? 'Poor' : 'Bad';
+  return s > 0 ? 'Poor' : 'Excellent';
 }
 function misScoreLabelColor(s) {
   if (_misBad(s)) return '#94a3b8';
-  return s <= 10 ? '#16a34a' : s <= 25 ? '#a16207' : '#dc2626';
+  return s > 0 ? '#dc2626' : '#16a34a';
 }
 // "-7.4%" ke neeche "Good" — ek hi jagah se banta hai taaki teeno MIS tab
 // me bilkul ek jaisa dikhe.
