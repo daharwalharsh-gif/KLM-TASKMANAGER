@@ -4404,7 +4404,7 @@ function otodSources() {
   return {
     merchant: {
       label: 'O to D Report',
-      sheetId: PROD_SHEET_ID, tab: PROD_TAB, headerRow: PROD_HEADER_ROW, range: 'A:CU'
+      sheetId: PROD_SHEET_ID, tab: PROD_TAB, headerRow: PROD_HEADER_ROW, range: 'A:DZ'
     },
     invincible: {
       label: 'Invincible O to D Offline',
@@ -4461,6 +4461,34 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
       if (d !== undefined) invDisp = d;
     }
 
+    // Export (Merchant O2D) sheet — wahi tareeka.
+    // Harsh (25 Sep 2026): "dispatch wale ke pehle 5 col add kiye google sheet
+    // me, report theek kar do". Naya step "Packing list handover to anij ji"
+    // (CT-CX) jud gaya, to "Dispatch the goods" CT/CU se khisak kar CY/CZ par
+    // aa gaya. Purani ginti se report CT ("TAT", khaali) ko Planned aur CU
+    // (Packing list ka Planned) ko Actual samajh rahi thi — Planned khaali aur
+    // dispatch galat dikh raha tha.
+    // Ab: row 2 me "Dispatch" naam wale step ka "Planned" / "Actual", aur
+    // "Order value" naam wala column. Na mile to aaj ki jagah (CY / CZ / CS).
+    let merPlan = 102, merAct = 103, merVal = 96;
+    if (src === 'merchant') {
+      const nameRow = raw[1] || [], head = raw[cfg.headerRow - 1] || [];
+      const H = c => String(head[c] || '').trim().toLowerCase();
+      const N = c => String(nameRow[c] || '').trim();
+      const width = Math.max(nameRow.length, head.length);
+      const start = [...Array(width).keys()].find(c => /dispatch/i.test(N(c)));
+      if (start !== undefined) {
+        let end = start + 1;
+        while (end < width && !N(end)) end++;
+        for (let c = start; c < end; c++) {
+          if (H(c) === 'planned') merPlan = c;
+          else if (/^actual/.test(H(c))) merAct = c;
+        }
+      }
+      const v = [...Array(head.length).keys()].find(c => H(c) === 'order value');
+      if (v !== undefined) merVal = v;
+    }
+
     const rows = [];
     for (const row of all) {
       if (src === 'invincible') {
@@ -4515,8 +4543,8 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
         });
       } else {
         const piNo = String(row[6] || '').trim();
-        const planned = prodIsoDate(row[97]);              // CT
-        const actual = String(row[98] || '').trim();       // CU
+        const planned = prodIsoDate(row[merPlan]);         // Dispatch ka Planned
+        const actual = String(row[merAct] || '').trim();   // Dispatch ka Actual
         // Actual aane tak row pending — Planned date bhari ho ya na ho
         if (!piNo) continue;
         const orderDate = prodIsoDate(row[2]);             // C
@@ -4525,9 +4553,9 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
           buyer: String(row[1] || '').trim(),               // B
           leadTime: String(row[3] || '').trim(),            // D
           merchant: String(row[4] || '').trim() || String(row[9] || '').trim(),   // E, warna J
-          orderValue: String(row[96] || '').trim(),         // CS
+          orderValue: String(row[merVal] || '').trim(),     // "Order value"
           planned,
-          actualDate: prodIsoDate(row[98]),                 // CU
+          actualDate: prodIsoDate(row[merAct]),
           dispatched: !!actual
         });
       }
