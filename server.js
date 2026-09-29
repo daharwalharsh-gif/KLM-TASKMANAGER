@@ -3722,7 +3722,18 @@ app.put('/api/profile', requireAuth, async (req, res) => {
 
 app.post('/api/profile/image', requireAuth, async (req, res) => {
   try {
-    await db.query('UPDATE users SET profile_image=? WHERE id=?', [req.body.image||null, req.session.userId]);
+    // 45,000 akshar se lambi photo database server ki disk par file bana deta
+    // hai, jo Vercel par tik nahi paati — photo save hi nahi hoti thi. Naya page
+    // photo ko pehle hi chhota karke bhejta hai; purana (cache wala) page badi
+    // bheje to yahin saaf mana kar do.
+    const img = req.body.image || null;
+    if (img && String(img).length > 45000) {
+      return res.status(413).json({ error: 'Photo bahut badi hai — page refresh (Ctrl+F5) karke dobara lagao' });
+    }
+    if (img && !/^data:image\/(jpeg|png|webp|gif);base64,/i.test(String(img))) {
+      return res.status(400).json({ error: 'Ye photo nahi lag sakti — JPG ya PNG chuno' });
+    }
+    await db.query('UPDATE users SET profile_image=? WHERE id=?', [img, req.session.userId]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

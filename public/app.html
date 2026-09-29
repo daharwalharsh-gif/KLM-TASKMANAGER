@@ -4186,24 +4186,58 @@ function setAvatarDisplay(imageData, initials) {
   }
 }
 
-// Handle image file selection
-function handleProfileImage(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  if (file.size > 2 * 1024 * 1024) { showToast('Image size must be under 2MB','error'); return; }
+// Profile photo browser me hi chhoti karke bhejte hain.
+// Harsh (29 Sep 2026): "profile photo nahi lag rahi". Database 45,000 akshar se
+// lambi cheez ko server ki disk par file bana kar rakhta hai (pg-db blobStore),
+// aur Vercel par wo disk read-only / temporary hai — isliye phone ki badi photo
+// kabhi save hi nahi hoti thi. 44 me se ek bhi user ki photo nahi lagi thi.
+// Ab beech se square kaat kar 256px ka JPEG banate hain (~20-30 KB), jo seedha
+// database me jaata hai. Kisi bhi size ki photo chalegi.
+const PROFILE_IMG_MAX_CHARS = 40000;
+function shrinkProfileImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      if (!side) return reject(new Error('Photo khul nahi rahi — JPG ya PNG try karo'));
+      const sx = (img.naturalWidth - side) / 2, sy = (img.naturalHeight - side) / 2;
+      const cv = document.createElement('canvas');
+      const ctx = cv.getContext('2d');
+      for (const size of [256, 200, 160, 128, 96]) {
+        cv.width = cv.height = Math.min(size, side);
+        ctx.fillStyle = '#fff';                       // transparent PNG ka background safed
+        ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, cv.width, cv.height);
+        for (const q of [0.85, 0.75, 0.65, 0.5]) {
+          const d = cv.toDataURL('image/jpeg', q);
+          if (d.length <= PROFILE_IMG_MAX_CHARS) return resolve(d);
+        }
+      }
+      reject(new Error('Photo chhoti nahi ho payi — koi aur photo try karo'));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Ye photo khul nahi rahi — JPG ya PNG try karo')); };
+    img.src = url;
+  });
+}
 
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const imageData = e.target.result; // base64
-    // Save to DB immediately
-    const r = await api('/api/profile/image','POST',{image: imageData});
-    if (r.error) { showToast(r.error,'error'); return; }
-    ME.profile_image = imageData;
-    const initials = ME.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-    setAvatarDisplay(imageData, initials);
-    showToast('Profile photo updated!');
-  };
-  reader.readAsDataURL(file);
+// Handle image file selection
+async function handleProfileImage(event) {
+  const file = event.target.files[0];
+  event.target.value = '';                           // wahi photo dobara chune to bhi chale
+  if (!file) return;
+  if (file.size > 25 * 1024 * 1024) { showToast('Photo 25 MB se chhoti honi chahiye', 'error'); return; }
+  let imageData;
+  try { imageData = await shrinkProfileImage(file); }
+  catch (e) { showToast(e.message, 'error'); return; }
+  // Save to DB immediately
+  const r = await api('/api/profile/image','POST',{image: imageData});
+  if (r.error) { showToast(r.error,'error'); return; }
+  ME.profile_image = imageData;
+  const initials = ME.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+  setAvatarDisplay(imageData, initials);
+  showToast('Profile photo updated!');
 }
 
 // Remove profile image
