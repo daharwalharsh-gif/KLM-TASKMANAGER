@@ -2570,6 +2570,9 @@ const PCR_SOURCES = {
     label: 'PMS Garments',
     id: '1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg', tab: 'PMS', headerRow: 6, range: 'A:DZ',
     keyCol: 1, idCol: 16,
+    // Harsh (29 Sep 2026): All PC Report me O (Line) me "Outsource" ya
+    // P (Process) me "Cancel" likha ho to wo row nahi aati.
+    skipRows: [{ c: 14, re: /outsource/i }, { c: 15, re: /cancel/i }],
     cols: [
       { k: 'buyer',    h: 'Buyer',        c: 1 },
       { k: 'product',  h: 'Product',      c: 6 },
@@ -2589,6 +2592,9 @@ const PCR_SOURCES = {
     label: 'PMS Boxing',
     id: '1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM', tab: 'PMS', headerRow: 6, range: 'A:DZ',
     keyCol: 1, idCol: 16,
+    // Harsh (29 Sep 2026): All PC Report me O (Line) me "Outsource" ya
+    // P (Process) me "Cancel" likha ho to wo row nahi aati.
+    skipRows: [{ c: 14, re: /outsource/i }, { c: 15, re: /cancel/i }],
     cols: [
       { k: 'buyer',    h: 'Buyer',        c: 1 },
       { k: 'product',  h: 'Product',      c: 6 },
@@ -2814,6 +2820,11 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
       // sach me koi order hai hi nahi) — warna sheet jaisa hi ginte hain.
       const hasInfo = keyVal || (CFG.cols || []).some(c => String(row[c.c] || '').trim());
       if (!hasInfo) continue;
+      // Sheet ki apni rok (PMS Garments / Boxing: Outsource ya Cancel wali row nahi).
+      // Yahin "continue" nahi karte — neeche rowKey banne tak chalne dete hain, taaki
+      // ye row apni key "gher" le. Warna isi naam ki agli row ki key badal jaati
+      // (#rowNo hat jaata) aur hati hui row ka remark us par dikhne lagta.
+      const skipThis = !!(CFG.skipRows && CFG.skipRows.some(sk => sk.re.test(String(row[sk.c] || ''))));
       // Ek order sirf apne PEHLE atke step par dikhta hai — yaani wo step jiski
       // Planned date ban chuki hai par Actual abhi khaali hai. Aage wale step par
       // uska delay nahi ginte, kyunki pehla step hue bina wo ho hi nahi sakta
@@ -2846,6 +2857,7 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
       // Pehli row ki key waisi hi rehti hai, isliye purane remarks nahi tootte.
       if (usedKeys.has(rowKey)) rowKey = rowKey + '#' + rowNo;
       usedKeys.add(rowKey);
+      if (skipThis) continue;       // key le li, par report me nahi aati
       rows.push({
         rowKey,
         vals,
