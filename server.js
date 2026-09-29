@@ -678,6 +678,17 @@ function idxToCol(idx) {
 // pehle E (Merchant name) kyunki Harsh ne wahi bataya, aur jahan E khaali hai
 // (51 rows) wahan J (Merchant) se kaam chal jaata hai, taaki koi row bina
 // doer ke na rahe.
+// Khaali row — na Timestamp (A) na naam (B). Asli order nahi, sheet me bacha
+// hua kachra hai. Harsh (29 Sep 2026): Invincible CRM FMS ke "Delivery
+// confirmation" me 131 pending dikh rahe the, jinme 129 aisi rows thi (sheet
+// row 565-895) — order ka data hat chuka tha par column N me purani Actual
+// date reh gayi thi, usi se Planned (Q) apne aap ban jaata tha. List me sirf
+// Planned aata tha, baaki sab "—". Aisi row na pending ginti hai, na done.
+// (Jaancha: 16 me se baaki 15 FMS me ek bhi aisi row nahi hai.)
+function isBlankFmsRow(row) {
+  return !String((row && row[0]) || '').trim() && !String((row && row[1]) || '').trim();
+}
+
 function parseDoerFilter(step) {
   const idxs = String(step.doer_filter_col || '').split('|')
     .map(c => colToIdx(c.trim())).filter(i => i >= 0);
@@ -992,6 +1003,7 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       for (const id of creditDoerIds) perDoerStep[id] = { pending: 0, done: 0, overdue: 0, doneInRange: 0, pendingInRange: 0, overdueInRange: 0 };
 
       for (const row of rows) {
+        if (isBlankFmsRow(row)) continue;              // bina order wali kachra row
         const planVal = (row[planIdx] || '').trim();
         const actualVal = (row[actualIdx] || '').trim();
         // Hold — MIS me na pending, na done. Poori tarah chhoda.
@@ -2409,6 +2421,7 @@ app.get('/api/fms-dashboard', requireAuth, async (req, res) => {
           const stepDoerIds = (step.doerIds || []).map(String);
 
           dataRows.forEach((row, i) => {
+            if (isBlankFmsRow(row)) return;          // bina order wali kachra row
             const planVal = (row[planIdx] || '').trim();
             const actualVal = (row[actualIdx] || '').trim();
             if (!planVal || actualVal) return; // skip if no plan or already done
@@ -4132,6 +4145,7 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
 
     const matchedRows = [];
     dataRows.forEach((row, i) => {
+      if (isBlankFmsRow(row)) return;              // bina order wali kachra row
       const planVal = planIdx >= 0 ? (row[planIdx]||'').trim() : '';
       const actualVal = actualIdx >= 0 ? (row[actualIdx]||'').trim() : '';
       // Doer row filter (mapping): cell ke naam jin doers ko ticked hain unme main nahi hoon to skip.
