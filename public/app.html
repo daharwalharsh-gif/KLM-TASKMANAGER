@@ -2213,6 +2213,8 @@ tbody tr:last-child td{border-bottom:none;}
     .otod-total{background:#fff;text-align:right;font-weight:800;color:#0f172a;white-space:nowrap;font-size:14px}
     .otod-sr{font-weight:700;color:#64748b;width:52px}
     .otod-late{color:#dc2626;font-weight:800}
+    .otod-click{cursor:pointer}
+    .otod-click:hover td{background:#eff6ff !important}
     .otod-ok{color:#16a34a;font-weight:800}
     .otod-gap td{border:none;height:12px;background:#f1f5f9}
     .otod-tbl tbody tr:not(.otod-gap):hover td{background:#f6f9ff}
@@ -3476,6 +3478,18 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <div id="fmsStepSummary" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px"></div>
     <div id="fmsStepBody"></div>
+  </div>
+</div>
+
+<!-- O to D report me kisi row par click — us order ki poori detail -->
+<div class="modal-overlay" id="otodDetailModal" style="z-index:1100">
+  <div class="modal" style="width:760px;max-width:95vw">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;position:sticky;top:0;background:#fff;padding-bottom:10px;margin-bottom:10px;z-index:20;border-bottom:1px solid #f1f5f9">
+      <div><h3 id="otodDetailTitle" style="margin:0;font-size:15px">Order detail</h3>
+        <div id="otodDetailSub" style="font-size:11.5px;color:#64748b;margin-top:3px"></div></div>
+      <button class="btn btn-outline" onclick="closeModal('otodDetailModal')" style="flex-shrink:0">✕ Close</button>
+    </div>
+    <div id="otodDetailBody"></div>
   </div>
 </div>
 
@@ -15715,6 +15729,45 @@ function otodGroups(rows) {
   return out;
 }
 
+// Harsh (29 Sep 2026): "koi bhi data par click karo to uski details popup ho".
+// Row par click -> us order ki poori sheet row, step-wise (server FMS Admin ke
+// steps se block banata hai).
+let _otodShown = [];
+async function otodOpenDetail(i) {
+  const x = _otodShown[i];
+  if (!x || !x.sheetRow) return;
+  const key = _otodSrc === 'merchant' ? x.piNo : _otodSrc === 'invincible' ? x.party : x.buyer;
+  const name = _otodSrc === 'merchant' ? [x.buyer, x.piNo].filter(Boolean).join(' · ')
+    : _otodSrc === 'invincible' ? x.party : [x.buyer, x.style].filter(Boolean).join(' · ');
+  document.getElementById('otodDetailTitle').textContent = name || 'Order detail';
+  document.getElementById('otodDetailSub').textContent = `Sheet row ${x.sheetRow}` +
+    (x.planned ? ` · Planned ${otodDate(x.planned)}` : '') + (x.actualDate ? ` · Actual ${otodDate(x.actualDate)}` : ' · Pending');
+  const body = document.getElementById('otodDetailBody');
+  body.innerHTML = '<div style="padding:18px;text-align:center;color:#94a3b8;font-size:12px">⏳ Loading…</div>';
+  document.getElementById('otodDetailModal').classList.add('open');
+  let d;
+  try {
+    d = await api(`/api/otod/detail?src=${encodeURIComponent(_otodSrc)}&row=${x.sheetRow}&key=${encodeURIComponent(key || '')}`);
+  } catch (e) { d = { error: e.message }; }
+  if (!d || d.error) {
+    body.innerHTML = `<div style="padding:18px;text-align:center;color:#dc2626;font-size:13px">${escapeHtml((d && d.error) || 'Detail nahi aa payi')}</div>`;
+    return;
+  }
+  const cell = v => /^https?:\/\//i.test(v)
+    ? `<a href="${escapeHtml(v)}" target="_blank" rel="noopener" style="color:#1a56db;word-break:break-all">${escapeHtml(v)}</a>`
+    : escapeHtml(v);
+  body.innerHTML = (d.sections || []).map(sec => `
+    <div style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;overflow:hidden">
+      <div style="background:#f1f5f9;padding:7px 12px;font-size:12px;font-weight:700;color:#334155">${escapeHtml(sec.title)}</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        ${sec.fields.map(f => `<tr>
+          <td style="width:38%;padding:6px 12px;color:#64748b;border-top:1px solid #f1f5f9;vertical-align:top">${escapeHtml(f.h)}
+            <span style="color:#cbd5e1;font-size:10px">${escapeHtml(f.col)}</span></td>
+          <td style="padding:6px 12px;color:#0f172a;border-top:1px solid #f1f5f9">${cell(f.v)}</td></tr>`).join('')}
+      </table>
+    </div>`).join('') || '<div style="padding:18px;text-align:center;color:#94a3b8">Is row me kuch bhara nahi hai</div>';
+}
+
 // Report ke columns — Pending me Actual/Days khaali rehte hain
 function otodCols() {
   if (_otodSrc === 'invincible') {
@@ -15755,6 +15808,9 @@ function otodCols() {
     { k: 'leadTime',   h: 'Plan Lead Time',cls: 'otod-c' },
     { k: 'merchant',   h: 'Merchant name' },
     { k: 'piNo',       h: 'PI number',     cls: 'otod-pi' },
+    // Harsh (29 Sep 2026): sheet ka N aur DC bhi, Order value se pehle
+    { k: 'qty',         h: 'Quantity',                             cls: 'otod-r', num: true },
+    { k: 'prodPlanned', h: 'Planned Date as per production team',  cls: 'otod-c', date: true },
     { k: 'orderValue', h: 'Order value',   cls: 'otod-r', money: true },
     { k: 'planned',    h: 'Planned',       cls: 'otod-c', date: true },
     { k: 'actualDate', h: 'Actual',        cls: 'otod-c', date: true },
@@ -15886,10 +15942,12 @@ function renderOtod() {
   }
 
   let sr = 0, body = '';
+  _otodShown = [];                       // click par kaun si row — isi list se
   groups.forEach((g, gi) => {
     g.rows.forEach((x, i) => {
       sr++;
-      body += `<tr>${cols.map(c => {
+      _otodShown.push(x);
+      body += `<tr class="otod-click" onclick="otodOpenDetail(${_otodShown.length - 1})" title="Click karke poori detail dekho">${cols.map(c => {
         const v = otodVal(x, c, sr);
         const cls = (c.cls || '') + (c.days && v !== '' ? (Number(v) > 0 ? ' otod-late' : ' otod-ok') : '');
         return `<td class="${cls}">${escapeHtml(v || (c.days || c.k === 'actualDate' ? '' : v))}</td>`;

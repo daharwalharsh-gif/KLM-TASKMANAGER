@@ -4484,7 +4484,10 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
     // dispatch galat dikh raha tha.
     // Ab: row 2 me "Dispatch" naam wale step ka "Planned" / "Actual", aur
     // "Order value" naam wala column. Na mile to aaj ki jagah (CY / CZ / CS).
-    let merPlan = 102, merAct = 103, merVal = 96;
+    // Harsh (29 Sep 2026): report me sheet ka N (Quantity) aur DC ("Planned
+    // Date as per production team") bhi chahiye, Order value se pehle. Ye bhi
+    // naam se dhoondhte hain; na mile to aaj ki jagah (N / DC).
+    let merPlan = 102, merAct = 103, merVal = 96, merQty = 13, merProd = 106;
     if (src === 'merchant') {
       const nameRow = raw[1] || [], head = raw[cfg.headerRow - 1] || [];
       const H = c => String(head[c] || '').trim().toLowerCase();
@@ -4501,10 +4504,16 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
       }
       const v = [...Array(head.length).keys()].find(c => H(c) === 'order value');
       if (v !== undefined) merVal = v;
+      const q = [...Array(head.length).keys()].find(c => H(c) === 'quantity');
+      if (q !== undefined) merQty = q;
+      const pp = [...Array(head.length).keys()].find(c => /planned date as per production/.test(H(c).replace(/\s+/g, ' ')));
+      if (pp !== undefined) merProd = pp;
     }
 
     const rows = [];
+    let sheetRow = cfg.headerRow;          // sheet ki asli row number (detail popup ke liye)
     for (const row of all) {
+      sheetRow++;
       if (src === 'invincible') {
         const party = String(row[1] || '').trim();          // B
         const planned = prodIsoDate(row[invPlan]);          // dispatch step ka Planned
@@ -4512,6 +4521,7 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
         // Actual aane tak row pending — Planned date bhari ho ya na ho
         if (!party) continue;
         rows.push({
+          sheetRow,
           rowKey: party + '|' + (row[12] || '') + '|' + planned,
           party,
           qty: String(row[2] || '').trim(),                 // C
@@ -4533,6 +4543,7 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
         if (!buyer) continue;
         const orderDate = prodIsoDate(row[6]);              // G — Enquiry Date
         rows.push({
+          sheetRow,
           rowKey: buyer + '|' + (row[2] || '') + '|' + planned,
           buyer,
           style: String(row[2] || '').trim(),               // C
@@ -4563,10 +4574,13 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
         if (!piNo) continue;
         const orderDate = prodIsoDate(row[2]);             // C
         rows.push({
+          sheetRow,
           rowKey: piNo + '|' + orderDate, piNo, orderDate,
           buyer: String(row[1] || '').trim(),               // B
           leadTime: String(row[3] || '').trim(),            // D
           merchant: String(row[4] || '').trim() || String(row[9] || '').trim(),   // E, warna J
+          qty: String(row[merQty] || '').trim(),            // N — Quantity
+          prodPlanned: prodIsoDate(row[merProd]),           // DC — Planned Date as per production team
           orderValue: String(row[merVal] || '').trim(),     // "Order value"
           planned,
           actualDate: prodIsoDate(row[merAct]),
@@ -4584,6 +4598,71 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
     res.json({ src, label: cfg.label, rows, total: rows.length });
   } catch (err) {
     console.error('O to D report FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// O to D report me kisi row par click — us order ki POORI sheet row, step-wise.
+// Harsh (29 Sep 2026): "koi bhi data par click karo to uski details popup ho".
+// Step ke naam aur block FMS Admin ki config se (Planned column kis step ka hai),
+// taaki sheet me row 2 ke idhar-udhar pade label se galat naam na aaye.
+app.get('/api/otod/detail', requireAuth, requireOtodView, async (req, res) => {
+  try {
+    const SRC = otodSources();
+    const src = SRC[String(req.query.src || '')] ? String(req.query.src) : 'merchant';
+    const cfg = SRC[src];
+    const rowNo = parseInt(req.query.row, 10);
+    if (!(rowNo > cfg.headerRow)) return res.status(400).json({ error: 'Row number galat hai' });
+    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    const [top, one] = await Promise.all([
+      sheetsApi.spreadsheets.values.get({ spreadsheetId: cfg.sheetId, range: `${cfg.tab}!A1:DZ${cfg.headerRow}` }),
+      sheetsApi.spreadsheets.values.get({ spreadsheetId: cfg.sheetId, range: `${cfg.tab}!A${rowNo}:DZ${rowNo}` })
+    ]);
+    const head = (top.data.values || [])[cfg.headerRow - 1] || [];
+    const row = (one.data.values || [])[0] || [];
+    // List aur click ke beech kisi ne sheet badal di ho to galat order na dikhe
+    const keyCol = src === 'merchant' ? 6 : 1;
+    const want = String(req.query.key || '').trim();
+    if (want && String(row[keyCol] || '').trim() !== want) {
+      return res.status(409).json({ error: 'Sheet me ye row badal gayi hai — Refresh dabakar dobara kholo' });
+    }
+    // FMS Admin se steps (isi sheet + tab wale FMS ke)
+    let steps = [];
+    try {
+      const [fl] = await db.query('SELECT * FROM fms_sheets');
+      const f = (fl || []).find(x => extractSpreadsheetId(x.sheet_id) === cfg.sheetId && String(x.sheet_name || '').trim() === cfg.tab);
+      if (f) [steps] = await db.query('SELECT step_order, step_name, plan_col FROM fms_steps WHERE fms_id=? ORDER BY step_order', [f.id]);
+    } catch (e) { steps = []; }
+    const H = c => String(head[c] || '').trim().replace(/\s+/g, ' ');
+    // Step ka block wahan se shuru jahan "Planned" ke theek baad "Actual" ho (uske
+    // pehle "TAT" ho to wahan se). Sirf "Planned" se shuru hona kaafi nahi —
+    // Dispatch ke andar "Planned Date as per production team" bhi hai, wo naya
+    // step nahi.
+    const starts = [];
+    for (let c = 0; c < head.length; c++) {
+      if (!/^planned/i.test(H(c)) || !/^actual/i.test(H(c + 1))) continue;
+      let st = c;
+      while (st > 0 && /^tat$/i.test(H(st - 1))) st--;
+      if (starts.length && starts[starts.length - 1].plan >= st) continue;
+      const cfgStep = steps.find(x => colToIdx(x.plan_col) === c);
+      starts.push({ start: st, plan: c, title: cfgStep ? cfgStep.step_name : '' });
+    }
+    const width = Math.max(head.length, row.length);
+    const sections = [];
+    const add = (title, from, to) => {
+      const fields = [];
+      for (let c = from; c < to; c++) {
+        const v = String(row[c] == null ? '' : row[c]).trim();
+        if (!v) continue;
+        fields.push({ col: idxToCol(c), h: H(c) || ('Column ' + idxToCol(c)), v });
+      }
+      if (fields.length) sections.push({ title, fields });
+    };
+    add('Order details', 0, starts.length ? starts[0].start : width);
+    starts.forEach((b, i) => add(b.title || ('Step ' + (i + 1)), b.start, i + 1 < starts.length ? starts[i + 1].start : width));
+    res.json({ src, label: cfg.label, row: rowNo, sections });
+  } catch (err) {
+    console.error('O to D detail FAILED:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
