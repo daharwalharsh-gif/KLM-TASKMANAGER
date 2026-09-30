@@ -1889,6 +1889,18 @@ app.get('/api/holidays', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Login page par tyohaar ki badhai ("Happy Dussehra") — bina login ke sirf
+// AAJ (India ki tareekh) ki chhutti ka naam. Aur kuch nahi bhejte.
+app.get('/api/holiday-today', async (req, res) => {
+  try {
+    const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);   // IST
+    const [rows] = await db.query('SELECT holiday_date, name FROM holidays');
+    const names = rows.filter(r => holIso(r.holiday_date) === today)
+                      .map(r => String(r.name || '').trim()).filter(Boolean);
+    res.json({ date: today, names });
+  } catch (err) { res.json({ date: '', names: [] }); }
+});
+
 // Add — sirf admin. { from, to, name } — range ki har date ek row banti hai.
 app.post('/api/holidays', requireAuth, requireAdmin, async (req, res) => {
   try {

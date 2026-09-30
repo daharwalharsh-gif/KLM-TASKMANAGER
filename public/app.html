@@ -622,7 +622,8 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
       <span class="nav-label-text">Invincible Catalog</span>
     </div>
-    <div class="nav-item" id="nav-scheduler" onclick="navigate('scheduler',this)">
+    <!-- Harsh (30 Sep 2026): Time Scheduler sidebar se chhupa diya (page/data jaise the waise hain) -->
+    <div class="nav-item" id="nav-scheduler" style="display:none" onclick="navigate('scheduler',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       <span class="nav-label-text">Time Scheduler</span>
     </div>
@@ -663,6 +664,7 @@ tbody tr:last-child td{border-bottom:none;}
     <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Menu">☰</button>
     <div class="topbar-title" id="topbarTitle">Dashboard</div>
     <div class="topbar-right" id="topbarActions">
+      <span id="festChip"></span>
       <div style="position:relative" id="notifBellWrap">
         <button id="notifBell" onclick="toggleNotifPanel(event)" aria-label="Notifications"
           style="position:relative;background:none;border:none;font-size:22px;cursor:pointer;padding:6px 8px;line-height:1;border-radius:8px">
@@ -3979,6 +3981,7 @@ tbody tr:last-child td{border-bottom:none;}
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
+<script src="/festival.js"></script>
 <script>
 // ══════════════════════════════════════════════════════
 // DELEGATE BY ME — modal jisme login user ne jo tasks doosron ko delegate kiye un ki list dikhti hai
@@ -10408,10 +10411,21 @@ function renderHolidayPoster() {
     </div>`;
 }
 
+// Tyohaar ke din top bar me "Happy …" + us tyohaar ka logo (festival.js)
+function showFestivalChip(list) {
+  const el = document.getElementById('festChip');
+  if (!el || !window.KLMFestival) return;
+  const pre = KLMFestival.preview();
+  const today = holToday();
+  const names = pre ? [pre] : (list || []).filter(x => x.date === today).map(x => x.name);
+  el.innerHTML = KLMFestival.html(names, 'chip');
+}
+
 // ── App khulte hi holiday notice — sabko (user + admin) ──
 async function checkHolidayNotice() {
   try {
     const list = await loadHolidays();
+    showFestivalChip(list);
     if (!list.length) return;
     const today = holToday(), tomorrow = holPlusDays(1);
     let seen = {};

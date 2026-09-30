@@ -11,7 +11,7 @@
 
   body{
     font-family:'Inter',sans-serif;
-    background: linear-gradient(135deg,#fff8ef 0%,#f2f8f1 50%,#fffdf6 100%);
+    background: linear-gradient(135deg,#eaf1ff 0%,#f1f5f9 50%,#f3f8ff 100%);
     min-height:100vh;
     display:flex;align-items:center;justify-content:center;
   }
@@ -27,13 +27,13 @@
   body::before {
     width:400px;height:400px;
     top:-100px;left:-100px;
-    background:radial-gradient(circle, #f57c0022, transparent 70%);
+    background:radial-gradient(circle, #3b82f626, transparent 70%);
     animation: bgFloat1 8s ease-in-out infinite;
   }
   body::after {
     width:300px;height:300px;
     bottom:-80px;right:-80px;
-    background:radial-gradient(circle, #2e7d3222, transparent 70%);
+    background:radial-gradient(circle, #1a56db1f, transparent 70%);
     animation: bgFloat2 10s ease-in-out infinite;
   }
 
@@ -47,7 +47,7 @@
     padding:48px 40px 44px;
     width:420px;
     max-width:92vw;
-    box-shadow:0 20px 60px rgba(245,124,0,.12), 0 4px 20px rgba(0,0,0,.08);
+    box-shadow:0 20px 60px rgba(26,86,219,.12), 0 4px 20px rgba(0,0,0,.08);
     position:relative;
     z-index:1;
     overflow:hidden;
@@ -57,7 +57,7 @@
   .login-wrap::before{
     content:'';
     position:absolute;top:0;left:0;right:0;height:6px;
-    background:linear-gradient(90deg,#f57c00 0%,#ffb74d 42%,#ffffff 50%,#66bb6a 58%,#2e7d32 100%);
+    background:linear-gradient(90deg,#1a56db 0%,#3b82f6 55%,#60a5fa 100%);
   }
   /* Mobile: card padding kam taaki chhoti screen par theek dikhe */
   @media (max-width:480px){
@@ -90,12 +90,12 @@
   .logo-img-wrap img {
     width:230px;
     display:block;
-    filter: drop-shadow(0 4px 14px rgba(245,124,0,.22));
+    filter: drop-shadow(0 4px 14px rgba(26,86,219,.18));
     animation: logoFloat 3.5s ease-in-out 1s infinite;
   }
   @keyframes logoFloat {
-    0%,100% { transform:translateY(0px);   filter:drop-shadow(0 4px 14px rgba(245,124,0,.22)); }
-    50%      { transform:translateY(-7px); filter:drop-shadow(0 12px 22px rgba(46,125,50,.30));  }
+    0%,100% { transform:translateY(0px);   filter:drop-shadow(0 4px 14px rgba(26,86,219,.18)); }
+    50%      { transform:translateY(-7px); filter:drop-shadow(0 12px 22px rgba(59,130,246,.28));  }
   }
 
   /* Shimmer sweep over logo */
@@ -118,7 +118,7 @@
     font-size:12px;
     font-weight:700;
     letter-spacing:3px;
-    color:#f57c00;
+    color:#1a56db;
     text-transform:uppercase;
     animation: tagIn .5s ease .9s both;
   }
@@ -171,15 +171,15 @@
     background:#fafafa;
   }
   input:focus{
-    border-color:#f57c00;
-    box-shadow:0 0 0 3px rgba(245,124,0,.12);
+    border-color:#3b82f6;
+    box-shadow:0 0 0 3px rgba(59,130,246,.15);
     background:#fff;
   }
 
   .btn-login{
     width:100%;
     padding:13px;
-    background:linear-gradient(135deg,#f7871e,#ef6c00);
+    background:linear-gradient(135deg,#3b82f6,#1a56db);
     color:#fff;
     border:none;
     border-radius:10px;
@@ -190,12 +190,12 @@
     transition:all .2s;
     margin-top:6px;
     letter-spacing:.3px;
-    box-shadow:0 4px 16px rgba(245,124,0,.32);
+    box-shadow:0 4px 16px rgba(26,86,219,.30);
   }
   .btn-login:hover{
     transform:translateY(-2px);
-    background:linear-gradient(135deg,#2e7d32,#43a047);
-    box-shadow:0 8px 24px rgba(46,125,50,.38);
+    background:linear-gradient(135deg,#1a56db,#1648c0);
+    box-shadow:0 8px 24px rgba(26,86,219,.38);
   }
   .btn-login:active{ transform:translateY(0); }
 
@@ -223,10 +223,118 @@
     color:#94a3b8;
     margin-top:20px;
   }
-  .footer-text strong { color:#f57c00; }
+  .footer-text strong { color:#1a56db; }
+
+  /* ══════════════════════════════════════════════════════
+     BOXING — card ke dono taraf ki khaali jagah me.
+     Invincible boxing ka saaman banata hai: uske gloves, T-shirt
+     aur punching bag dono taraf ghoomte-tairte hain, peeche halke
+     icons. Card ko chhuta nahi.
+     ══════════════════════════════════════════════════════ */
+  .equip{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+  .equip svg{
+    position:absolute;bottom:-70px;fill:none;stroke:#1a56db;stroke-width:1.5;
+    stroke-linecap:round;stroke-linejoin:round;
+    animation:equipUp var(--dur) linear var(--delay) infinite;
+  }
+  @keyframes equipUp{
+    from{transform:translateY(0) rotate(0deg);}
+    to  {transform:translateY(calc(-100vh - 140px)) rotate(var(--rot));}
+  }
+
+  /* Ghoomte hue Invincible gloves, T-shirt, punching bag (card ke dono taraf) */
+  .floaters{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+  .fl{position:absolute;bottom:-190px;animation:flRise var(--dur) linear var(--delay) infinite;}
+  .fl-sway{animation:flSway var(--sway) ease-in-out infinite alternate;}
+  .fl-spin{animation:flSpin var(--spin) linear infinite;animation-direction:var(--dir);}
+  .fl svg{display:block;overflow:visible;filter:drop-shadow(0 10px 16px rgba(15,23,42,.18));}
+  @keyframes flRise{from{transform:translateY(0)}to{transform:translateY(calc(-100vh - 380px))}}
+  @keyframes flSway{from{transform:translateX(-28px)}to{transform:translateX(28px)}}
+  @keyframes flSpin{to{transform:rotate(360deg)}}
+
+  @media (prefers-reduced-motion:reduce){
+    .equip,.floaters{display:none;}
+  }
 </style>
 </head>
 <body>
+<!-- ══ Boxing ka saaman (sirf sajawat, click nahi pakadta) ══ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="bxBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/><stop offset=".5" stop-color="#2563eb"/><stop offset="1" stop-color="#1e3a8a"/>
+    </linearGradient>
+    <linearGradient id="bxNavy" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#475569"/><stop offset=".5" stop-color="#1e293b"/><stop offset="1" stop-color="#0b1220"/>
+    </linearGradient>
+    <linearGradient id="bxBag" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1e293b"/><stop offset=".35" stop-color="#334155"/><stop offset="1" stop-color="#0b1220"/>
+    </linearGradient>
+    <!-- Glove (daayein taraf mukka) — cuff par INVINCIBLE -->
+    <symbol id="gloveBlue" viewBox="0 0 130 96" overflow="visible">
+      <rect x="2" y="24" width="36" height="50" rx="10" fill="#0f172a"/>
+      <text x="20" y="49" transform="rotate(-90 20 49)" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="6.6" font-weight="800" letter-spacing="1" fill="#fff">INVINCIBLE</text>
+      <path d="M34 22 C44 6 78 0 102 10 C122 18 128 42 120 60 C112 78 88 86 62 82 L36 76 Z" fill="url(#bxBlue)"/>
+      <path d="M50 66 C66 60 90 62 99 71 C92 80 70 83 52 78 Z" fill="#1d4ed8"/>
+      <path d="M50 66 C66 60 90 62 99 71" stroke="#0f172a" stroke-opacity=".3" stroke-width="2" fill="none"/>
+      <path d="M52 16 C70 8 92 10 106 20" stroke="#fff" stroke-opacity=".45" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <image href="/invincible-mark-white.svg" x="64" y="26" width="30" height="30"/>
+    </symbol>
+    <symbol id="gloveNavy" viewBox="0 0 130 96" overflow="visible">
+      <rect x="2" y="24" width="36" height="50" rx="10" fill="#1a56db"/>
+      <text x="20" y="49" transform="rotate(-90 20 49)" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="6.6" font-weight="800" letter-spacing="1" fill="#fff">INVINCIBLE</text>
+      <path d="M34 22 C44 6 78 0 102 10 C122 18 128 42 120 60 C112 78 88 86 62 82 L36 76 Z" fill="url(#bxNavy)"/>
+      <path d="M50 66 C66 60 90 62 99 71 C92 80 70 83 52 78 Z" fill="#0f172a"/>
+      <path d="M52 16 C70 8 92 10 106 20" stroke="#fff" stroke-opacity=".25" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <image href="/invincible-mark-white.svg" x="64" y="26" width="30" height="30"/>
+    </symbol>
+    <!-- Invincible T-shirt — seene par logo aur INVINCIBLE -->
+    <linearGradient id="bxTeeNavy" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#334155"/><stop offset=".55" stop-color="#1e293b"/><stop offset="1" stop-color="#0b1220"/>
+    </linearGradient>
+    <linearGradient id="bxTeeBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#1e40af"/>
+    </linearGradient>
+    <symbol id="teeNavy" viewBox="0 0 120 110" overflow="visible">
+      <path d="M38 6 L16 16 L2 40 L20 50 L28 42 L28 104 L92 104 L92 42 L100 50 L118 40 L104 16 L82 6 C78 16 70 22 60 22 C50 22 42 16 38 6 Z" fill="url(#bxTeeNavy)"/>
+      <path d="M38 6 C42 16 50 22 60 22 C70 22 78 16 82 6" stroke="#475569" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M6 33 L22 43 M114 33 L98 43" stroke="#fff" stroke-opacity=".15" stroke-width="2"/>
+      <image href="/invincible-mark-white.svg" x="49" y="27" width="22" height="22"/>
+      <text x="60" y="64" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="900" textLength="60" lengthAdjust="spacingAndGlyphs" fill="#fff">INVINCIBLE</text>
+      <rect x="44" y="69" width="15" height="2.5" rx="1" fill="#f57c00"/><rect x="61" y="69" width="15" height="2.5" rx="1" fill="#22c55e"/>
+    </symbol>
+    <symbol id="teeBlue" viewBox="0 0 120 110" overflow="visible">
+      <path d="M38 6 L16 16 L2 40 L20 50 L28 42 L28 104 L92 104 L92 42 L100 50 L118 40 L104 16 L82 6 C78 16 70 22 60 22 C50 22 42 16 38 6 Z" fill="url(#bxTeeBlue)"/>
+      <path d="M38 6 C42 16 50 22 60 22 C70 22 78 16 82 6" stroke="#1e3a8a" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M6 33 L22 43 M114 33 L98 43" stroke="#fff" stroke-opacity=".2" stroke-width="2"/>
+      <image href="/invincible-mark-white.svg" x="49" y="27" width="22" height="22"/>
+      <text x="60" y="64" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="900" textLength="60" lengthAdjust="spacingAndGlyphs" fill="#fff">INVINCIBLE</text>
+      <rect x="44" y="69" width="15" height="2.5" rx="1" fill="#f57c00"/><rect x="61" y="69" width="15" height="2.5" rx="1" fill="#22c55e"/>
+    </symbol>
+    <symbol id="teeWhite" viewBox="0 0 120 110" overflow="visible">
+      <path d="M38 6 L16 16 L2 40 L20 50 L28 42 L28 104 L92 104 L92 42 L100 50 L118 40 L104 16 L82 6 C78 16 70 22 60 22 C50 22 42 16 38 6 Z" fill="#fff" stroke="#94a3b8" stroke-width="2.2" stroke-linejoin="round"/>
+      <path d="M38 6 C42 16 50 22 60 22 C70 22 78 16 82 6" stroke="#1a56db" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <text x="60" y="52" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="900" textLength="60" lengthAdjust="spacingAndGlyphs" fill="#0f172a">INVINCIBLE</text>
+      <rect x="44" y="57" width="15" height="2.5" rx="1" fill="#f57c00"/><rect x="61" y="57" width="15" height="2.5" rx="1" fill="#2e7d32"/>
+    </symbol>
+    <!-- Punching bag (chain ke bina) -->
+    <symbol id="bagItem" viewBox="0 0 100 280" overflow="visible">
+      <circle cx="50" cy="5" r="6" fill="none" stroke="#64748b" stroke-width="2.6"/>
+      <path d="M50 11 L12 30 M50 11 L88 30 M50 11 L50 30" stroke="#475569" stroke-width="2.6" stroke-linecap="round"/>
+      <rect x="10" y="26" width="80" height="18" rx="9" fill="#1e40af"/>
+      <rect x="6" y="36" width="88" height="230" rx="30" fill="url(#bxBag)"/>
+      <rect x="16" y="50" width="8" height="200" rx="4" fill="#fff" opacity=".08"/>
+      <path d="M6 74 H94 M6 230 H94" stroke="#fff" stroke-opacity=".12" stroke-width="1.5"/>
+      <image href="/invincible-mark-white.svg" x="33" y="48" width="34" height="34"/>
+      <text x="50" y="172" transform="rotate(-90 50 172)" text-anchor="middle" dominant-baseline="middle" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="900" letter-spacing="3" fill="#fff">INVINCIBLE</text>
+      <rect x="10" y="256" width="80" height="16" rx="8" fill="#1e40af"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="equip" id="equip" aria-hidden="true"></div>
+<div class="floaters" id="floaters" aria-hidden="true"></div>
+
 
 <div class="login-wrap">
 
@@ -248,6 +356,9 @@
       <span></span><span></span><span></span>
     </div>
   </div>
+
+  <!-- Tyohaar ke din "Happy …" + us tyohaar ka logo (festival.js) -->
+  <div id="festBanner"></div>
 
   <!-- Form -->
   <h2>Welcome back 👋</h2>
@@ -279,6 +390,7 @@
   </div>
 </div>
 
+<script src="/festival.js"></script>
 <script>
 // Agar already logged in hai toh seedha /app pe bhejo
 (async function checkExistingSession() {
@@ -303,6 +415,95 @@ async function login(){
     window.location.replace('/app');
   }catch(e){err.textContent='Server error. Try again.';err.style.display='block';}
 }
+
+// ── Ghoomte-tairte Invincible gloves, T-shirt aur punching bag (dono taraf ki khaali jagah me) ──
+(function floaters() {
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const KINDS = [
+    { id: 'teeNavy',   vb: '0 0 120 110', w: [100, 128] },
+    { id: 'gloveBlue', vb: '0 0 130 96',  w: [76, 98] },
+    { id: 'teeBlue',   vb: '0 0 120 110', w: [100, 128] },
+    { id: 'gloveNavy', vb: '0 0 130 96',  w: [76, 98] },
+    { id: 'teeWhite',  vb: '0 0 120 110', w: [100, 128] },
+    { id: 'bagItem',   vb: '0 0 100 280', w: [46, 58] }
+  ];
+  const wide = window.innerWidth >= 1000;
+  const n = wide ? 14 : 6;
+  const box = document.getElementById('floaters');
+  for (let i = 0; i < n; i++) {
+    const k = KINDS[i % KINDS.length];
+    // Badi screen par sirf dono kinaaron ki patti me, card ke peeche nahi
+    const x = !wide ? Math.random() * 88
+      : (Math.floor(i / 2) % 2 ? 72 + Math.random() * 22 : 2 + Math.random() * 22);
+    const w = k.w[0] + Math.random() * (k.w[1] - k.w[0]);
+    const dur = 30 + Math.random() * 16;
+    const el = document.createElement('div');
+    el.className = 'fl';
+    el.style.left = x + 'vw';
+    el.style.setProperty('--dur', dur + 's');
+    el.style.setProperty('--delay', (-(i / n) * dur - Math.random() * 3) + 's');
+    el.innerHTML =
+      `<div class="fl-sway" style="--sway:${(3 + Math.random() * 2.5).toFixed(1)}s">` +
+      `<div class="fl-spin" style="--spin:${(24 + Math.random() * 14).toFixed(1)}s;--dir:${i % 3 ? 'normal' : 'reverse'}">` +
+      `<svg viewBox="${k.vb}" width="${w.toFixed(0)}" style="opacity:${wide ? .9 : .35}"><use href="#${k.id}"/></svg>` +
+      `</div></div>`;
+    box.appendChild(el);
+  }
+})();
+// ── Peeche halke se tairta boxing ka saaman (Invincible = boxing equipment) ──
+(function equip() {
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const ICONS = [
+    // Boxing glove
+    'M7 21v-3.2C5 16.6 4 14.5 4 12V8.5A4.5 4.5 0 0 1 8.5 4h4.2A5.3 5.3 0 0 1 18 9.3v2.2c0 2.6-1.3 4.6-3 5.7V21H7z M4.3 11.2c2 .4 4-.3 5.2-2.2 M7 18h8',
+    // Headgear
+    'M12 3C7.6 3 4 6.6 4 11v5c0 1.7 1.3 3 3 3h1.5v-6H6.5V11a5.5 5.5 0 0 1 11 0v2h-2v6H17c1.7 0 3-1.3 3-3v-5c0-4.4-3.6-8-8-8z M9 8.5h6',
+    // Mouthguard
+    'M4 9c0 5 3.5 8 8 8s8-3 8-8c-2.5 1.2-5.2 1.8-8 1.8S6.5 10.2 4 9z M8 12.5v1 M12 13v1 M16 12.5v1',
+    // Skipping rope
+    'M4 3h2v6H4z M18 3h2v6h-2z M5 9c0 8 3 11 7 11s7-3 7-11',
+    // Focus mitt
+    'M6 20V9a6 6 0 0 1 12 0v11H6z M9 9.5a3 3 0 0 1 6 0 M6 16h12',
+    // Punching bag
+    'M12 2v3 M8 5h8 M8 5c-1.7 0-3 1.3-3 3v10c0 1.7 1.3 3 3 3h8c1.7 0 3-1.3 3-3V8c0-1.7-1.3-3-3-3 M5 9h14 M5 17h14',
+    // Shorts
+    'M5 4h14l1.2 15H14l-2-7.5L10 19H3.8L5 4z M5.2 7h13.6',
+    // Trophy
+    'M8 4h8v5a4 4 0 0 1-8 0V4z M8 6H5a3 3 0 0 0 3 4 M16 6h3a3 3 0 0 1-3 4 M12 13v4 M9 20h6 M10 17h4v3h-4z'
+  ];
+  const box = document.getElementById('equip');
+  const n = window.innerWidth < 700 ? 8 : 16;
+  for (let i = 0; i < n; i++) {
+    const size = 24 + Math.random() * 28;
+    const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.style.width = s.style.height = size + 'px';
+    s.style.left = (Math.random() * 96) + 'vw';
+    s.style.opacity = (.08 + Math.random() * .08).toFixed(2);
+    const dur = 22 + Math.random() * 18;
+    s.style.setProperty('--dur', dur + 's');
+    s.style.setProperty('--delay', (-Math.random() * dur) + 's');
+    s.style.setProperty('--rot', ((Math.random() - .5) * 120) + 'deg');
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', ICONS[i % ICONS.length]);
+    s.appendChild(p);
+    box.appendChild(s);
+  }
+})();
+
+// Tyohaar ke din (Holidays list me aaj ki chhutti) — "Happy …" + logo
+(async function festival() {
+  try {
+    if (!window.KLMFestival) return;
+    const pre = KLMFestival.preview();
+    let names = pre ? [pre] : [];
+    if (!pre) {
+      const d = await (await fetch('/api/holiday-today')).json();
+      names = (d && d.names) || [];
+    }
+    if (names.length) document.getElementById('festBanner').innerHTML = KLMFestival.html(names, 'block');
+  } catch (e) {}
+})();
 </script>
 </body>
 </html>
