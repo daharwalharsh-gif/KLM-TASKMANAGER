@@ -2183,6 +2183,7 @@ tbody tr:last-child td{border-bottom:none;}
     .otod-pct{font-size:12px;font-weight:800;padding:4px 11px;border-radius:20px;white-space:nowrap}
     .otod-pct-p{background:#fef3c7;color:#b45309;border:1px solid #fde68a}
     .otod-pct-d{background:#dcfce7;color:#15803d;border:1px solid #bbf7d0}
+    .otod-pct-l{background:#fee2e2;color:#b91c1c;border:1px solid #fecaca}
     .otod-tbl{width:100%;border-collapse:separate;border-spacing:0;background:#fff;font-size:13px;
       border:2px solid #1e3a8a;border-top:none}
     .otod-tbl th,.otod-tbl td{border:1px solid #94a3b8;padding:8px 11px;vertical-align:middle}
@@ -15619,8 +15620,36 @@ function otodPct() {
   const all = otodDateFiltered();
   const pend = all.filter(x => !x.dispatched).length;
   const p = n => all.length ? Math.round((n / all.length) * 1000) / 10 : 0;
-  return { total: all.length, pending: pend, dispatched: all.length - pend,
-           pendingPct: p(pend), dispatchedPct: p(all.length - pend) };
+  const out = { total: all.length, pending: pend, dispatched: all.length - pend,
+                pendingPct: p(pend), dispatchedPct: p(all.length - pend) };
+  // Harsh (30 Sep 2026): Export O to D ka % Order date (C) + Lead time (D)
+  // aur dispatch (CZ) kab hua, uske hisaab se. Target = Order date + Lead
+  // time din. Target tak dispatch = on time. Target ke baad dispatch, ya
+  // target nikal gaya aur abhi tak dispatch nahi = late (minus me). Jinka
+  // target abhi aaya hi nahi wo ginti me nahi.
+  if (_otodSrc === 'merchant') {
+    const n = new Date();
+    const today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+    const o = { onTime: 0, lateDisp: 0, lateOpen: 0, notDue: 0 };
+    all.forEach(x => {
+      const lead = parseInt(x.leadTime, 10);
+      if (!(lead >= 0)) return;
+      const took = otodDays(x.orderDate, x.dispatched ? x.actualDate : today);
+      if (took === '') return;
+      if (x.dispatched) { if (took <= lead) o.onTime++; else o.lateDisp++; }
+      else if (took > lead) o.lateOpen++;
+      else o.notDue++;
+    });
+    o.judged = o.onTime + o.lateDisp + o.lateOpen;
+    const q = k => o.judged ? Math.round((k / o.judged) * 1000) / 10 : 0;
+    o.onTimePct = q(o.onTime);
+    o.latePct = q(o.lateDisp + o.lateOpen);
+    o.lateText = (o.latePct > 0 ? '-' : '') + o.latePct + '%';
+    o.tip = `Target = Order date + Lead time. On time: ${o.onTime} · Dispatched late: ${o.lateDisp}` +
+      ` · Not dispatched, target passed: ${o.lateOpen} · Target not reached yet (not counted): ${o.notDue}`;
+    out.otd = o;
+  }
+  return out;
 }
 const OTOD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function otodMonthLabel(k) {
@@ -15968,7 +15997,9 @@ function renderOtod() {
   if (cnt) {
     const pc = otodPct();
     cnt.innerHTML = `${rows.length} ${otodItemWord()}(s)` + (otodHasAmount() ? ` · ₹ ${otodMoney(grand)}` : '') +
-      (pc.total ? `<span class="otod-pct otod-pct-p">⏳ ${pc.pendingPct}% pending</span>` +
+      (pc.otd ? (pc.otd.judged ? `<span class="otod-pct otod-pct-l" title="${escapeHtml(pc.otd.tip)}">⏳ ${pc.otd.lateText} late</span>` +
+                  `<span class="otod-pct otod-pct-d" title="${escapeHtml(pc.otd.tip)}">✅ ${pc.otd.onTimePct}% on time</span>` : '') :
+       pc.total ? `<span class="otod-pct otod-pct-p">⏳ ${pc.pendingPct}% pending</span>` +
                   `<span class="otod-pct otod-pct-d">✅ ${pc.dispatchedPct}% dispatched</span>` : '');
   }
 
@@ -16154,7 +16185,8 @@ function otodPDF() {
   <div class="head">
     <div><h1>${escapeHtml(OTOD_TITLE[_otodSrc])} Report</h1>
       <div class="sub">${_otodTab === 'pending' ? 'Pending — Planned date filled, Actual pending' : 'Dispatched — Planned and Actual both filled'}${range ? ' · ' + escapeHtml(range) : ''}</div></div>
-    <div class="sub">${stamp}<br>${rows.length} ${otodItemWord()}(s)<br>⏳ ${otodPct().pendingPct}% pending · ✅ ${otodPct().dispatchedPct}% dispatched</div>
+    <div class="sub">${stamp}<br>${rows.length} ${otodItemWord()}(s)<br>${(pc => pc.otd ? (pc.otd.judged ? `⏳ ${pc.otd.lateText} late · ✅ ${pc.otd.onTimePct}% on time` : '')
+      : `⏳ ${pc.pendingPct}% pending · ✅ ${pc.dispatchedPct}% dispatched`)(otodPct())}</div>
   </div>
   <table>
     <thead>
