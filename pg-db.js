@@ -382,7 +382,22 @@ function qIdent(name) { return '"' + String(name).replace(/"/g, '""') + '"'; }
 // ══════════════════════════════════════════════════════════════════
 // LOAD — read every table from PG and (re)populate alasql.
 // ══════════════════════════════════════════════════════════════════
+// ══ LOAD vs WRITE race ══
+// Harsh (30 Sep 2026): "23 tarikh tak ke saare task done kiye, phir se pending me aa gaye".
+// Load (saari tables ka SELECT) me aadha-ek second lagta hai. Isi beech is
+// instance par kisi aur request ne task Done likha, to load khatam hote hi
+// Done se PEHLE ki copy memory par chipak jaati thi — aur flush wahi purani
+// (pending) row DB me likh deta tha. Done kho jaata tha, ya screen par wapas
+// pending dikhta tha. Ab: load ke beech is instance par kuch bhi likha gaya ho
+// (ya flush chal raha ho, ya baad me shuru hua load pehle lag chuka ho), to ye
+// load chhod dete hain — memory me jo taaza likha hai wahi rehta hai. Agli
+// request phir se load karti hai.
+let _writeGen = 0;                 // har write par +1 (markDirty)
+let _loadSeq = 0, _appliedLoadSeq = 0;
+
 async function loadAllTables(pool) {
+  const mySeq = ++_loadSeq;
+  const genAtStart = _writeGen;
   // PARALLEL load — saari managed tables ka SELECT ek saath. Serverless pe
   // har request se pehle reload hota hai, isliye 8 sequential round-trips ki
   // jagah ~1 round-trip = har request bahut fast.
@@ -407,6 +422,10 @@ async function loadAllTables(pool) {
     }
     return { table, inserts, maxId };
   }));
+  if (_writeGen !== genAtStart || _dirtyTables.size > 0 || _flushInProgress || mySeq < _appliedLoadSeq) {
+    return null;                   // purani copy — mat lagao
+  }
+  _appliedLoadSeq = mySeq;
   let totalRows = 0;
   for (const { table, inserts, maxId } of results) {
     if (alasql.tables[table]) alasql.tables[table].data = inserts;
@@ -444,7 +463,13 @@ async function reload(force) {
     if (ttl > 0 && (Date.now() - _lastReloadTs) < ttl) return;
   }
   const pool = getPool();
-  await loadAllTables(pool);
+  const loaded = await loadAllTables(pool);
+  // Mutation se pehle wala load beech ke write ki wajah se chhoot gaya — apna
+  // likha DB me bhejo aur ek baar aur taaza lao.
+  if (loaded === null && force) {
+    if (_dirtyTables.size > 0) { try { await flushNow(); } catch (e) { return; } }
+    if (!_flushInProgress && _dirtyTables.size === 0) await loadAllTables(pool);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -500,7 +525,7 @@ async function init() {
       await ensureSchema(pool);
 
       // 3. Load managed tables into alasql
-      const totalRows = await loadAllTables(pool);
+      const totalRows = (await loadAllTables(pool)) || 0;
       console.log(`  ✅ PostgreSQL DB loaded: ${totalRows} rows across ${_managed.length} tables (${_managed.join(', ')})`);
 
       // 4. Seed default admin if users table is empty (PLAIN TEXT password)
@@ -881,6 +906,7 @@ function getConnection() {
 // FLUSH — debounced snapshot write to PostgreSQL
 // ══════════════════════════════════════════════════════════════════
 function markDirty(table) {
+  _writeGen++;
   _dirtyTables.add(table);
   scheduleFlush();
 }
