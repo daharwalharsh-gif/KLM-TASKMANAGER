@@ -15842,8 +15842,9 @@ function otodCols() {
     { k: 'leadTime',   h: 'Plan Lead Time',cls: 'otod-c' },
     { k: 'merchant',   h: 'Merchant name' },
     { k: 'piNo',       h: 'PI number',     cls: 'otod-pi' },
-    // Harsh (29 Sep 2026): sheet ka N aur DC bhi, Order value se pehle
-    { k: 'qty',         h: 'Quantity',                             cls: 'otod-r', num: true },
+    // Harsh (29 Sep 2026): Quantity aur sheet ka DC bhi, Order value se pehle.
+    // Quantity PMS Garments + Boxing ka total (30 Sep) — PI na mile to khaali.
+    { k: 'qty',         h: 'Quantity',                             cls: 'otod-r', num: true, blankIfEmpty: true },
     { k: 'prodPlanned', h: 'Planned Date as per production team',  cls: 'otod-c', date: true },
     { k: 'orderValue', h: 'Order value',   cls: 'otod-r', money: true },
     { k: 'planned',    h: 'Planned',       cls: 'otod-c', date: true },
@@ -15866,7 +15867,10 @@ function otodVal(x, c, sr) {
   }
   if (c.days) { const d = otodDays(x.planned, x.actualDate); return d === '' ? '' : String(d); }
   if (c.money) return otodMoney(x[c.k]);
-  if (c.num) { const n = otodNum(x[c.k]); return n === null ? '' : n.toLocaleString('en-IN'); }
+  if (c.num) {
+    if (c.blankIfEmpty && String(x[c.k] ?? '').trim() === '') return '';
+    const n = otodNum(x[c.k]); return n === null ? '' : n.toLocaleString('en-IN');
+  }
   if (c.date) return otodDate(x[c.k]);
   return String(x[c.k] ?? '');
 }

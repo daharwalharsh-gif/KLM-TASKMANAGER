@@ -4507,10 +4507,10 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
     // dispatch galat dikh raha tha.
     // Ab: row 2 me "Dispatch" naam wale step ka "Planned" / "Actual", aur
     // "Order value" naam wala column. Na mile to aaj ki jagah (CY / CZ / CS).
-    // Harsh (29 Sep 2026): report me sheet ka N (Quantity) aur DC ("Planned
-    // Date as per production team") bhi chahiye, Order value se pehle. Ye bhi
-    // naam se dhoondhte hain; na mile to aaj ki jagah (N / DC).
-    let merPlan = 102, merAct = 103, merVal = 96, merQty = 13, merProd = 106;
+    // Harsh (29 Sep 2026): report me DC ("Planned Date as per production
+    // team") bhi chahiye, Order value se pehle. Ye bhi naam se dhoondhte hain;
+    // na mile to aaj ki jagah (DC).
+    let merPlan = 102, merAct = 103, merVal = 96, merProd = 106;
     if (src === 'merchant') {
       const nameRow = raw[1] || [], head = raw[cfg.headerRow - 1] || [];
       const H = c => String(head[c] || '').trim().toLowerCase();
@@ -4527,10 +4527,37 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
       }
       const v = [...Array(head.length).keys()].find(c => H(c) === 'order value');
       if (v !== undefined) merVal = v;
-      const q = [...Array(head.length).keys()].find(c => H(c) === 'quantity');
-      if (q !== undefined) merQty = q;
       const pp = [...Array(head.length).keys()].find(c => /planned date as per production/.test(H(c).replace(/\s+/g, ' ')));
       if (pp !== undefined) merProd = pp;
+    }
+
+    // Harsh (30 Sep 2026): merchant report ki Quantity O to D sheet ke N se
+    // nahi, PMS Garments + PMS Boxing se — dono me PI number (J) match karke
+    // Quantity (F) ka total. PI number me "/" "-" ya space ka farak ho
+    // ("U2/975-25-26", "u2/973/25-26") to bhi milta hai. Kisi PMS me PI na
+    // mile to Quantity khaali.
+    const pmsQty = new Map();
+    const piKey = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (src === 'merchant') {
+      const pms = [PCR_SOURCES.pmsgarments, PCR_SOURCES.pmsboxing];
+      const got = await Promise.all(pms.map(p => sheetsApi.spreadsheets.values.get({
+        spreadsheetId: p.id, range: `${p.tab}!A:J`
+      })));
+      got.forEach((g, i) => {
+        const vals = g.data.values || [];
+        const head = vals[pms[i].headerRow - 1] || [];
+        const H = c => String(head[c] || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        let qc = [...Array(head.length).keys()].find(c => H(c) === 'quantity');
+        let pc = [...Array(head.length).keys()].find(c => H(c) === 'pi number');
+        if (qc === undefined) qc = 5;    // F
+        if (pc === undefined) pc = 9;    // J
+        for (const row of vals.slice(pms[i].headerRow)) {
+          const k = piKey(row[pc]);
+          const q = Number(String(row[qc] || '').replace(/,/g, '').trim());
+          if (!k || !Number.isFinite(q)) continue;
+          pmsQty.set(k, (pmsQty.get(k) || 0) + q);
+        }
+      });
     }
 
     const rows = [];
@@ -4602,7 +4629,7 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
           buyer: String(row[1] || '').trim(),               // B
           leadTime: String(row[3] || '').trim(),            // D
           merchant: String(row[4] || '').trim() || String(row[9] || '').trim(),   // E, warna J
-          qty: String(row[merQty] || '').trim(),            // N — Quantity
+          qty: pmsQty.has(piKey(piNo)) ? String(pmsQty.get(piKey(piNo))) : '',   // PMS Garments + Boxing
           prodPlanned: prodIsoDate(row[merProd]),           // DC — Planned Date as per production team
           orderValue: String(row[merVal] || '').trim(),     // "Order value"
           planned,
