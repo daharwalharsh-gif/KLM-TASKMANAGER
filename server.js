@@ -2559,12 +2559,15 @@ const PCR_SOURCES = {
   },
   otod: {
     label: 'O to D — Merchant FMS',
-    id: '1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY', tab: 'FMS3', headerRow: 6, range: 'A:DZ',
+    // Harsh (1 Oct 2026): "All PC Report me O to D chal nahi raha". FMS3 me sabse
+    // upar ek extra row (=now()) hai, isliye yahan heading ROW 7 par hai (baaki
+    // sheets me 6). Row 6 ko heading maanne se ek bhi step nahi milta tha — 0 pending.
+    id: '1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY', tab: 'FMS3', headerRow: 7, range: 'A:DZ',
     keyCol: 6, idCol: -1,
     cols: [
       { k: 'piNo',      h: 'PI number',     c: 6 },
       { k: 'buyer',     h: 'Buyer name',    c: 1 },
-      { k: 'merchant',  h: 'Merchant name', c: 4 },
+      { k: 'merchant',  h: 'Merchant name', c: 4, alt: 9 },   // E khaali ho to J (Merchant)
       { k: 'poNo',      h: 'PO no.',        c: 11 },
       { k: 'qty',       h: 'Quantity',      c: 13 },
       { k: 'amount',    h: 'Order amount',  c: 14 },
@@ -2767,8 +2770,10 @@ async function requirePcSampling(req, res, next) {
   next();
 }
 
-function pcrSteps(rows) {
-  const nameRow = rows[1] || [], whoRow = rows[2] || [], head = rows[5] || [];
+// headerRow = sheet me heading kis row par hai (aam taur par 6). Step ka naam
+// usse 4 row upar ("What") aur doer 3 row upar ("Who") hota hai.
+function pcrSteps(rows, headerRow = 6) {
+  const nameRow = rows[headerRow - 5] || [], whoRow = rows[headerRow - 4] || [], head = rows[headerRow - 1] || [];
   const H = c => String(head[c] || '').trim().toLowerCase();
   const steps = [];
   for (let c = 0; c < head.length; c++) {
@@ -2814,7 +2819,7 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
       spreadsheetId: CFG.id, range: `${CFG.tab}!${CFG.range}`
     });
     const all = r.data.values || [];
-    const steps = pcrSteps(all);
+    const steps = pcrSteps(all, CFG.headerRow);
     const data = all.slice(CFG.headerRow);
     const today = new Date();
     const T = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -2856,7 +2861,8 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
       const vals = {};
       let keyBits = [keyVal];
       for (const c of CFG.cols) {
-        vals[c.k] = c.date ? prodIsoDate(row[c.c]) : String(row[c.c] || '').trim();
+        vals[c.k] = c.date ? prodIsoDate(row[c.c])
+          : (String(row[c.c] || '').trim() || (c.alt != null ? String(row[c.alt] || '').trim() : ''));
         if (c.k !== CFG.cols[0].k) keyBits.push(vals[c.k]);
       }
       const uid = CFG.idCol >= 0 ? String(row[CFG.idCol] || '').trim() : '';
