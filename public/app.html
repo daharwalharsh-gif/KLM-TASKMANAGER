@@ -17699,6 +17699,9 @@ function downloadPcrPdf() {
 // Sirf ek dropdown — form chunte hi wahi form khulta hai. Jis form ki
 // permission nahi, wo dropdown me aata hi nahi.
 const SHORT_OPT = '__shortdetails__';
+// Harsh (1 Oct 2026): do aur link — naye tab me khulte hain
+const PMSL2_OPT = '__pmslevel2__';
+const PPCDASH_OPT = '__ppcdashboard__';
 function formsCatalogue() {
   return [
     { key: PCR_OPT,   icon: '🗂️', name: 'Daily PC Report',                 show: canSeePcReport() },
@@ -17706,7 +17709,11 @@ function formsCatalogue() {
     { key: LEGAL_OPT, icon: '⚖️', name: 'Legal Case Form',                 show: canSeeLegal() },
     { key: FB_OPT,    icon: '💬', name: 'Employee Feedback Form',          show: true },
     { key: SHORT_OPT, icon: '📋', name: 'Invincible Short Details Form',   show: true,
-      url: 'https://sites.google.com/e-marketing.io/invincible-short-details-forms' }
+      url: 'https://sites.google.com/e-marketing.io/invincible-short-details-forms' },
+    { key: PMSL2_OPT, icon: '📊', name: 'All PMS Level 2 KLM',             show: true,
+      url: 'https://docs.google.com/spreadsheets/d/1jlknTV4aSBMHSkMbVH9OXgI5FiQH01_cxzxR6OG0ztU/edit?gid=432659505#gid=432659505' },
+    { key: PPCDASH_OPT, icon: '📈', name: 'Dashboard PPC vs Actual',       show: true,
+      url: 'https://sites.google.com/e-marketing.io/all--pms-level-2-klm--sheet-2/all-pms-level-2-klm-sheet-2' }
   ].filter(f => f.show);
 }
 
