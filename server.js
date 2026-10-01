@@ -4009,9 +4009,17 @@ const FULL_VIEW_GM = {
   names: ['merchant o2d fms', 'garments pms', 'boxing pms',
           'inhouse quality fms boxing', 'inhouse quality fms garments', 'sampling fms']
 };
+// Ms. Kajal (marketing@) — upar wale do + dono Invincible Sales NBD (Incoming /
+// Outgoing, domestic offline). Harsh (1 Oct 2026). Amit ki list alag hai, usme NBD nahi.
+const FULL_VIEW_KAJAL = {
+  ids: [...FULL_VIEW_FMS.ids, 13, 14],
+  names: [...FULL_VIEW_FMS.names,
+          'invincible sales nbd fms- incoming(domestic offline)',
+          'invincible sales nbd fms- outgoing(domestic offline)']
+};
 const FMS_FULL_VIEW = {
   'amit@invincible.in': FULL_VIEW_FMS,
-  'marketing@klmahajan.com': FULL_VIEW_FMS,
+  'marketing@klmahajan.com': FULL_VIEW_KAJAL,
   'kiran@klmahajan.com': FULL_VIEW_PMS,
   'gm@klmahajan.com': FULL_VIEW_GM,
 };
