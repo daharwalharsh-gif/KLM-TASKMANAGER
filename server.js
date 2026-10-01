@@ -2651,6 +2651,7 @@ const PCR_SOURCES = {
       { k: 'qty',      h: 'Total quantity',   c: 3 },
       { k: 'sku',      h: 'Total SKU',        c: 4 },
       { k: 'buyer',    h: 'Buyer name',       c: 7 },
+      { k: 'piNo',     h: 'PI number',        c: 8 },    // I — Harsh (1 Oct 2026)
       { k: 'leadTime', h: 'Lead time',        c: 10 },
       { k: 'delivery', h: 'Planned delivery', c: 6, date: true },
       { k: 'poDate',   h: 'PO date',          c: 5, date: true }
