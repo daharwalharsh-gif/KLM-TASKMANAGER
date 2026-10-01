@@ -4074,6 +4074,11 @@ function renderDbmTable() {
 // STATE
 // ══════════════════════════════════════════════════════
 let ME = null;
+// ME aa gaya (init) — jo page user ke role par tika hai wo pehle iska intezaar kare.
+// Harsh (1 Oct 2026): app khulte hi Forms dabaya to ME khaali tha, isliye Daily PC
+// Report / Challenges / Legal dropdown se gayab ho jaate the.
+let _meReadyResolve;
+const _meReady = new Promise(r => { _meReadyResolve = r; });
 let dashType = 'all';
 let tasksType = 'delegation';
 let dashChartInst = null;
@@ -4099,6 +4104,7 @@ async function init() {
     }
     ME = await r.json();
     if (!ME || !ME.id) { window.location.replace('/'); return; }
+    _meReadyResolve();
     const initials = ME.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
     document.getElementById('sidebarName').textContent = (ME.title ? ME.title + ' ' : '') + titleName(ME.name);
     const roleLabel = ME.role==='admin' ? '👑 Admin' : ME.role==='hod' ? '🏢 HOD' : ME.role==='pc' ? '🖥️ PC' : '👤 Employee';
@@ -17720,7 +17726,8 @@ function formsCatalogue() {
 // Kaunsa form kis wrapper me hai
 const FORM_WRAPS = {};
 
-function loadFormsPage() {
+async function loadFormsPage() {
+  if (!ME) await _meReady;     // pehle pata chale kaun hai — warna permission wale form chhup jaate
   const forms = formsCatalogue();
   FORM_WRAPS[CHAL_OPT] = 'fmsChalWrap';
   FORM_WRAPS[LEGAL_OPT] = 'fmsLegalWrap';
