@@ -313,13 +313,27 @@ function getSpreadsheetId() {
 // avoid stale in-memory state across function instances. Returns the
 // total row count loaded.
 // ══════════════════════════════════════════════════════════════════
+// ══ LOAD vs WRITE race (pg-db.js jaisa) ══
+// Harsh (2 Oct 2026): FMS ka refresh ab peeche chalta hai. Load (Google Sheets)
+// ke beech is instance par FMS me kuch likha gaya (ya flush chal raha ho, ya baad
+// me shuru hua load pehle lag chuka ho), to ye load apni purani copy memory par
+// nahi chipkata — warna abhi-abhi kiya save purane data se dhak jaata.
+let _writeGen = 0;                 // har write par +1 (markDirty)
+let _loadSeq = 0, _appliedLoadSeq = 0;
+
 async function loadAllTables(api) {
+  const mySeq = ++_loadSeq;
+  const genAtStart = _writeGen;
   const ranges = _managed.map(t => `${t}!A:ZZ`);
   const batchResp = await api.spreadsheets.values.batchGet({
     spreadsheetId: _spreadsheetId,
     ranges
   });
   const valueRanges = batchResp.data.valueRanges || [];
+  if (_writeGen !== genAtStart || _dirtyTables.size > 0 || _flushInProgress || mySeq < _appliedLoadSeq) {
+    return null;                   // purani copy — mat lagao
+  }
+  _appliedLoadSeq = mySeq;
 
   let totalRows = 0;
   for (let i = 0; i < _managed.length; i++) {
@@ -370,8 +384,7 @@ async function reload() {
   if (_testMode) return false;
   if (_flushInProgress || _dirtyTables.size > 0) return false;
   const api = await getApiClient();
-  await loadAllTables(api);
-  return true;
+  return (await loadAllTables(api)) !== null;   // null = beech me write hua, purani copy chhodi
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -436,7 +449,7 @@ async function init() {
       }
 
       // 4 + 5. Bulk load all tabs in ONE API call and populate alasql
-      const totalRows = await loadAllTables(api);
+      const totalRows = (await loadAllTables(api)) || 0;
       console.log(`  ✅ Sheets DB loaded: ${totalRows} rows across ${_managed.length} tables`);
 
       // 6. Seed default admin if users table is empty (PLAIN TEXT password)
@@ -855,6 +868,7 @@ function getConnection() {
 // FLUSH — debounced batch write to Sheets
 // ══════════════════════════════════════════════════════════════════
 function markDirty(table) {
+  _writeGen++;
   _dirtyTables.add(table);
   scheduleFlush();
 }

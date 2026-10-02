@@ -681,6 +681,8 @@ tbody tr:last-child td{border-bottom:none;}
 
   <!-- ── DASHBOARD ── -->
   <div id="page-dashboard" class="page active">
+    <!-- Tyohaar / chhutti ke din chalti patti (festival.js) -->
+    <div id="festRibbon"></div>
     <div class="dash-topbar">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <h2>Dashboard</h2>
@@ -10425,6 +10427,9 @@ function showFestivalChip(list) {
   const today = holToday();
   const names = pre ? [pre] : (list || []).filter(x => x.date === today).map(x => x.name);
   el.innerHTML = KLMFestival.html(names, 'chip');
+  // Dashboard ke upar chalti patti — Harsh (2 Oct 2026)
+  const rb = document.getElementById('festRibbon');
+  if (rb) rb.innerHTML = KLMFestival.html(names, 'ribbon');
 }
 
 // ── App khulte hi holiday notice — sabko (user + admin) ──

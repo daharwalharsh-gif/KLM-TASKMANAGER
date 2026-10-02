@@ -395,13 +395,65 @@ function qIdent(name) { return '"' + String(name).replace(/"/g, '""') + '"'; }
 let _writeGen = 0;                 // har write par +1 (markDirty)
 let _loadSeq = 0, _appliedLoadSeq = 0;
 
-async function loadAllTables(pool) {
+// ══ TEZ RELOAD — sirf badli hui tables ══
+// Harsh (2 Oct 2026): "loading hi dikhta hai bahut der tak". Har request se
+// pehle saari tables (~20k rows) dobara padhi jaati thin — 1-2 second har baar,
+// jabki dashboard ki apni query 60 ms ki hai. Ab har flush jis table me likhta
+// hai uska version (_pg_versions) +1 karta hai; reload pehle EK chhoti query se
+// versions dekhta hai aur sirf badli hui tables padhta hai. App ke bahar se
+// (script / SQL) badla data bhi pakka aaye, isliye har 60 sec me ek baar poora load.
+const VERSIONS_TABLE = '_pg_versions';
+const FULL_RELOAD_MS = parseInt(process.env.PG_FULL_RELOAD_MS || '60000', 10);
+let _versionsReady = false;
+const _loadedVer = {};             // table -> version jo is memory me hai
+let _lastFullLoadTs = 0;
+
+async function ensureVersions(pool) {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS ${qIdent(VERSIONS_TABLE)} (tbl TEXT PRIMARY KEY, ver BIGINT NOT NULL DEFAULT 0)`);
+    _versionsReady = true;
+  } catch (e) {
+    _versionsReady = false;        // na bani to pehle jaisa — har baar poora load
+    console.error('  ⚠️ versions table nahi bani — poora load chalega:', e.message);
+  }
+}
+async function readVersions(pool) {
+  if (!_versionsReady) return null;
+  try {
+    const { rows } = await pool.query(`SELECT tbl, ver FROM ${qIdent(VERSIONS_TABLE)}`);
+    const v = {};
+    for (const r of rows) v[r.tbl] = String(r.ver);
+    return v;
+  } catch (e) { return null; }
+}
+// Flush ke baad — jin tables me likha unka version +1 (doosre instance jaan jaayein)
+async function bumpVersions(client, tables) {
+  if (!_versionsReady || !tables.length) return;
+  try {
+    await client.query(
+      `INSERT INTO ${qIdent(VERSIONS_TABLE)} (tbl, ver) SELECT unnest($1::text[]), 1
+       ON CONFLICT (tbl) DO UPDATE SET ver = ${qIdent(VERSIONS_TABLE)}.ver + 1`, [tables]);
+  } catch (e) {
+    // Data likh chuka hai; version na badla to doosre instance 60 sec ke poore load me dekh lenge
+    console.error('  ⚠️ version bump failed:', e.message);
+  }
+}
+
+// onlyChanged=true (padhne wali requests): sirf wo tables jinka version badla.
+// Warna (init / save se pehle) — poora load, pehle jaisa.
+async function loadAllTables(pool, onlyChanged) {
   const mySeq = ++_loadSeq;
   const genAtStart = _writeGen;
-  // PARALLEL load — saari managed tables ka SELECT ek saath. Serverless pe
-  // har request se pehle reload hota hai, isliye 8 sequential round-trips ki
-  // jagah ~1 round-trip = har request bahut fast.
-  const results = await Promise.all(_managed.map(async (table) => {
+  const vers = await readVersions(pool);           // data padhne se PEHLE
+  const full = !onlyChanged || !vers || (Date.now() - _lastFullLoadTs) > FULL_RELOAD_MS;
+  const tables = full ? _managed
+    : _managed.filter(t => (vers[t] || '0') !== _loadedVer[t]);
+  if (!tables.length) {            // kuch nahi badla — DB padhne ki zaroorat hi nahi
+    _lastReloadTs = Date.now();
+    return 0;
+  }
+  // PARALLEL load — chuni hui tables ka SELECT ek saath.
+  const results = await Promise.all(tables.map(async (table) => {
     const cols = SCHEMA[table].cols;
     const colList = cols.map(qIdent).join(', ');
     let rows = [];
@@ -431,14 +483,18 @@ async function loadAllTables(pool) {
     if (alasql.tables[table]) alasql.tables[table].data = inserts;
     _nextId[table] = maxId + 1;
     totalRows += inserts.length;
+    // Is table ka kaunsa version memory me hai (versions na mile to agli baar phir padho)
+    if (vers) _loadedVer[table] = vers[table] || '0'; else delete _loadedVer[table];
   }
+  if (full) _lastFullLoadTs = Date.now();
   _lastReloadTs = Date.now();
   return totalRows;
 }
 
-// Per-request reload ko throttle karne ke liye — warm instance pe 3 sec ke
-// andar aayi requests dobara DB load nahi karti (PG_RELOAD_TTL_MS se tunable).
+// Per-request reload ko throttle karne ke liye — warm instance pe TTL ke
+// andar aayi requests dobara DB nahi dekhti (PG_RELOAD_TTL_MS se tunable).
 let _lastReloadTs = 0;
+let _inflightRead = null;          // chal raha padhne wala load (saath wali requests isi par)
 
 // Force a fresh reload from PG. Skips while a flush is mid-flight or there
 // are unsaved writes, so we don't clobber pending changes.
@@ -459,8 +515,14 @@ async function reload(force) {
     if (_dirtyTables.size > 0) return;
   }
   if (!force) {
-    const ttl = parseInt(process.env.PG_RELOAD_TTL_MS || '3000', 10);
+    // Padhne wali request: versions ki ek chhoti query — ab sasta hai, isliye 1 sec
+    const ttl = parseInt(process.env.PG_RELOAD_TTL_MS || '1000', 10);
     if (ttl > 0 && (Date.now() - _lastReloadTs) < ttl) return;
+    // Ek saath aayi requests (dashboard ek saath 5-6 bhejta hai) ek hi load ka intezaar
+    // karti hain — pehle har request apna alag poora load chalati thi.
+    if (_inflightRead) return _inflightRead;
+    _inflightRead = loadAllTables(getPool(), true).finally(() => { _inflightRead = null; });
+    return _inflightRead;
   }
   const pool = getPool();
   const loaded = await loadAllTables(pool);
@@ -523,6 +585,7 @@ async function init() {
 
       // 2. Ensure PG tables + columns exist
       await ensureSchema(pool);
+      await ensureVersions(pool);   // tez reload ke liye table-versions
 
       // 3. Load managed tables into alasql
       const totalRows = (await loadAllTables(pool)) || 0;
@@ -1052,6 +1115,8 @@ async function writeTablesToPg(plan) {
       }
     }
     await client.query('COMMIT');
+    // Data pakka ho gaya — ab in tables ka version +1, taaki doosre instance dobara padhein
+    await bumpVersions(client, plan.map(p => p.table));
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (_) {}
     throw err;

@@ -46,6 +46,7 @@ function ensureAlasqlTables(tables) {
 let _initPromise = null;
 let _sheetsReady = null;
 let _sheetsLoadedAt = 0;
+let _sheetsRefresh = null;   // peeche chal raha FMS refresh (ek waqt me ek hi)
 // FMS/Sheets memory kitni der "fresh" maani jaye (SIRF reads ke liye).
 // Mutations pe hamesha reload hota hai (TTL ignore) — data-loss se bachne ko.
 const SHEETS_TTL_MS = parseInt(process.env.SHEETS_RELOAD_TTL_MS || '15000', 10);
@@ -100,14 +101,19 @@ async function reload(force) {
   await _sheetsReady; // resolved promise = turant; pehli baar hi wait hota hai
 
   const stale = (Date.now() - _sheetsLoadedAt) > SHEETS_TTL_MS;
-  if (stale) {
-    try {
-      // reload() true tabhi deta hai jab wo sach me fresh load kar paya
-      // (pending writes ke waqt skip karta hai — unhe clobber nahi karna).
-      if (await sheets.reload()) _sheetsLoadedAt = Date.now();
-    } catch (e) {
-      console.error('  ⚠️ Sheets (FMS) reload failed:', e.message);
-    }
+  // Harsh (2 Oct 2026): "loading hi dikhta hai bahut der". Pehle har 15 sec me
+  // koi bhi request (dashboard ki bhi, jise FMS chahiye hi nahi) ~0.75 sec ka
+  // Google Sheets reload KHUD karti thi aur uska intezaar karti thi — aur ek saath
+  // aayi requests sab apna alag reload chalati thin. Ab ek hi refresh peeche chalta
+  // hai, request turant aage badhti hai. (FMS-table me likhne se theek pehle query()
+  // khud taaza padhta hai — neeche — isliye data-loss guard waisa hi hai.)
+  if (stale && !_sheetsRefresh) {
+    // reload() true tabhi deta hai jab wo sach me fresh load kar paya
+    // (pending writes ke waqt skip karta hai — unhe clobber nahi karna).
+    _sheetsRefresh = sheets.reload()
+      .then(ok => { if (ok) _sheetsLoadedAt = Date.now(); })
+      .catch(e => console.error('  ⚠️ Sheets (FMS) reload failed:', e.message))
+      .finally(() => { _sheetsRefresh = null; });
   }
 }
 

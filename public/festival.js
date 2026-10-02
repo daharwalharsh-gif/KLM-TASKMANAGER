@@ -154,6 +154,25 @@
     .fe-glow{animation:feGlow 1.6s ease-in-out infinite alternate}
     .fe-wave{transform-box:fill-box;transform-origin:0 50%;animation:feWave 2s ease-in-out infinite alternate}
     .fe-pop{transform-box:fill-box;transform-origin:center;animation:fePop 2.4s ease-in-out infinite}
+    /* Dashboard ke upar chalti patti (ribbon) */
+    .fest-ribbon{position:relative;overflow:hidden;display:flex;align-items:center;height:46px;margin:0 0 16px;
+      border-radius:12px;border:1px solid #fde68a;background:linear-gradient(90deg,#fff7ed,#eff6ff);
+      box-shadow:0 4px 14px rgba(15,23,42,.06);animation:festIn .6s ease both;
+      -webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);
+              mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
+    .fest-ribbon.t-flag{background:linear-gradient(90deg,#ffedd5 0%,#ffffff 50%,#dcfce7 100%);border-color:#fed7aa}
+    .fest-ribbon.t-diwali{background:linear-gradient(90deg,#fff7ed,#fef3c7,#fff7ed);border-color:#fcd34d}
+    .fest-ribbon.t-holi{background:linear-gradient(90deg,#fce7f3,#fef9c3,#dcfce7,#dbeafe);border-color:#f9a8d4}
+    .fest-track{display:flex;width:max-content;animation:festMarquee 32s linear infinite}
+    .fest-ribbon:hover .fest-track{animation-play-state:paused}
+    .fest-half{display:flex;align-items:center;gap:48px;padding-right:48px}
+    .fest-item{display:inline-flex;align-items:center;gap:10px;white-space:nowrap;font-size:15px;font-weight:800;color:#1e293b}
+    .fest-ribbon.t-flag .fest-item{color:#1e3a8a}
+    .fest-item .fest-emb{width:30px;height:30px;animation:none}
+    .fest-item .fest-wish{font-weight:600;color:#64748b}
+    .fest-item .fest-dot{color:#f59e0b}
+    @keyframes festMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+    @media (max-width:640px){ .fest-ribbon{height:40px} .fest-item{font-size:13px} .fest-item .fest-emb{width:24px;height:24px} }
     @keyframes festIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
     @keyframes festFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
     @keyframes feFlick{from{transform:scale(1,1) rotate(-3deg)}to{transform:scale(.9,1.1) rotate(3deg)}}
@@ -162,7 +181,7 @@
     @keyframes feWave{from{transform:skewY(-3deg)}to{transform:skewY(3deg)}}
     @keyframes fePop{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
     @media (prefers-reduced-motion:reduce){
-      .fest,.fest-chip,.fest-emb,.fe-flame,.fe-spin,.fe-glow,.fe-wave,.fe-pop{animation:none !important}
+      .fest,.fest-chip,.fest-emb,.fe-flame,.fe-spin,.fe-glow,.fe-wave,.fe-pop,.fest-ribbon,.fest-track{animation:none !important}
     }`;
 
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -174,7 +193,8 @@
     preview() {
       try { return new URLSearchParams(location.search).get('festival') || null; } catch (e) { return null; }
     },
-    // names = aaj ki chhuttiyon ke naam; mode = 'block' (login) ya 'chip' (app ka top bar)
+    // names = aaj ki chhuttiyon ke naam; mode = 'block' (login), 'chip' (app ka top bar)
+    // ya 'ribbon' (Dashboard ke upar chalti patti)
     html(names, mode) {
       names = (names || []).map(n => String(n || '').trim()).filter(Boolean);
       if (!names.length) return '';
@@ -185,7 +205,18 @@
         styled = true;
       }
       const label = names.map(n => /^happy\b/i.test(n) ? n : 'Happy ' + n).join(' & ');
-      const emb = `<svg class="fest-emb" viewBox="0 0 64 64" aria-hidden="true">${LOGO[themeOf(names[0])]}</svg>`;
+      const theme = themeOf(names[0]);
+      const emb = `<svg class="fest-emb" viewBox="0 0 64 64" aria-hidden="true">${LOGO[theme]}</svg>`;
+      if (mode === 'ribbon') {
+        // Ek hi baat baar-baar; do barabar hisse, taaki -50% par patti bina jhatke dobara shuru ho
+        const item = `<span class="fest-item">${emb}<span>${esc(label)}</span>` +
+          `<span class="fest-wish">· Warm wishes from Team KLM</span><span class="fest-dot">✦</span></span>`;
+        const half = `<div class="fest-half">${item.repeat(4)}</div>`;
+        const cls = theme === 'gandhi' || theme === 'flag' ? 't-flag'
+          : theme === 'diwali' ? 't-diwali' : theme === 'holi' ? 't-holi' : '';
+        return `<div class="fest-ribbon ${cls}" role="marquee" aria-label="${esc(label)}">` +
+          `<div class="fest-track">${half}${half}</div></div>`;
+      }
       return mode === 'chip'
         ? `<span class="fest-chip" title="${esc(label)}">${emb}<span class="fest-txt">${esc(label)}</span></span>`
         : `<div class="fest" role="status">${emb}<div><div class="fest-txt">${esc(label)}</div>` +
