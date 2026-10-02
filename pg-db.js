@@ -445,7 +445,8 @@ async function loadAllTables(pool, onlyChanged) {
   const mySeq = ++_loadSeq;
   const genAtStart = _writeGen;
   const vers = await readVersions(pool);           // data padhne se PEHLE
-  const full = !onlyChanged || !vers || (Date.now() - _lastFullLoadTs) > FULL_RELOAD_MS;
+  // (60 sec wala poora load reload() peeche se alag chalata hai — yahan nahi)
+  const full = !onlyChanged || !vers;
   const tables = full ? _managed
     : _managed.filter(t => (vers[t] || '0') !== _loadedVer[t]);
   if (!tables.length) {            // kuch nahi badla — DB padhne ki zaroorat hi nahi
@@ -495,6 +496,7 @@ async function loadAllTables(pool, onlyChanged) {
 // andar aayi requests dobara DB nahi dekhti (PG_RELOAD_TTL_MS se tunable).
 let _lastReloadTs = 0;
 let _inflightRead = null;          // chal raha padhne wala load (saath wali requests isi par)
+let _bgFullLoad = null;            // peeche chal raha 60-sec wala poora load
 
 // Force a fresh reload from PG. Skips while a flush is mid-flight or there
 // are unsaved writes, so we don't clobber pending changes.
@@ -521,7 +523,17 @@ async function reload(force) {
     // Ek saath aayi requests (dashboard ek saath 5-6 bhejta hai) ek hi load ka intezaar
     // karti hain — pehle har request apna alag poora load chalati thi.
     if (_inflightRead) return _inflightRead;
-    _inflightRead = loadAllTables(getPool(), true).finally(() => { _inflightRead = null; });
+    const pool = getPool();
+    // 60 sec wala poora load (sirf app ke bahar se badla data pakadne ke liye)
+    // PEECHE chalta hai — koi request uska intezaar nahi karti. Live par isi se
+    // har minute kuch requests 2-2.5 sec ki ho jaati thin.
+    if ((Date.now() - _lastFullLoadTs) > FULL_RELOAD_MS && !_bgFullLoad) {
+      _bgFullLoad = loadAllTables(pool)
+        .catch(e => console.error('  ⚠️ background full load failed:', e.message))
+        .finally(() => { _bgFullLoad = null; });
+    }
+    // Jo tables sach me badli hain wo abhi (request se pehle) padhi jaati hain
+    _inflightRead = loadAllTables(pool, true).finally(() => { _inflightRead = null; });
     return _inflightRead;
   }
   const pool = getPool();
