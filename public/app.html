@@ -10370,6 +10370,7 @@ async function addHoliday() {
   const bits = [`${r.added} holiday(s) added`];
   if (r.skipped) bits.push(`${r.skipped} already in the list`);
   if (r.deleted) bits.push(`${r.deleted} checklist task(s) removed`);
+  if (r.tasksSkipped) bits.push(`${r.tasksSkipped} checklist task(s) skipped for the holiday`);
   showToast(bits.join(' · '));
 }
 
@@ -10379,7 +10380,7 @@ async function deleteHoliday(id) {
   await loadHolidays();
   renderHolidayList();
   renderHolidayPoster();
-  showToast('Holiday removed');
+  showToast('Holiday removed' + (r.tasksRestored ? ` · ${r.tasksRestored} checklist task(s) back to pending` : ''));
 }
 
 function renderHolidayList() {
@@ -10425,7 +10426,8 @@ function showFestivalChip(list) {
   if (!el || !window.KLMFestival) return;
   const pre = KLMFestival.preview();
   const today = holToday();
-  const names = pre ? [pre] : (list || []).filter(x => x.date === today).map(x => x.name);
+  // Holidays list ke saath apna tyohaar calendar bhi (list me na ho tab bhi badhai)
+  const names = pre ? [pre] : KLMFestival.todayNames((list || []).filter(x => x.date === today).map(x => x.name), today);
   el.innerHTML = KLMFestival.html(names, 'chip');
   // Dashboard ke upar chalti patti — Harsh (2 Oct 2026)
   const rb = document.getElementById('festRibbon');

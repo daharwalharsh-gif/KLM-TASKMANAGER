@@ -1901,6 +1901,40 @@ app.get('/api/holiday-today', async (req, res) => {
   } catch (err) { res.json({ date: '', names: [] }); }
 });
 
+// ══ Chhutti ke din ke CHECKLIST task — skip ══
+// Harsh (3 Oct 2026): "jo din holiday list me hai, us din ke sirf checklist task
+// skip kar do" (2 Oct ke dikh rahe the — wo task chhutti jodne se pehle bane the).
+// Delete NAHI karte (pehle delete karne se 19-27 Aug ki poori checklist ud gayi
+// thi) — sirf pending ko 'not_applicable' aur remark me nishaan. Done kiye hue
+// waise hi rehte hain. Chhutti hatao to sirf nishaan wale wapas pending.
+const HOL_SKIP_TAG = 'Holiday — auto skip';
+async function holSkipChecklist(dates, name) {
+  let n = 0;
+  for (const d of dates) {
+    const [rows] = await db.query("SELECT id, remarks FROM checklist_tasks WHERE due_date=? AND status='pending'", [d]);
+    for (const r of rows) {
+      const prev = String(r.remarks || '').trim();
+      const tag = `${HOL_SKIP_TAG}: ${name}`;
+      await db.query("UPDATE checklist_tasks SET status='not_applicable', remarks=? WHERE id=? AND status='pending'",
+        [prev ? `${prev} | ${tag}` : tag, r.id]);
+      n++;
+    }
+  }
+  return n;
+}
+async function holUnskipChecklist(date) {
+  const [rows] = await db.query("SELECT id, remarks FROM checklist_tasks WHERE due_date=? AND status='not_applicable'", [date]);
+  let n = 0;
+  for (const r of rows) {
+    const rem = String(r.remarks || '');
+    if (!rem.includes(HOL_SKIP_TAG)) continue;          // kisi ne khud N/A kiya — mat chhedo
+    const cleaned = rem.split(' | ').filter(p => !p.startsWith(HOL_SKIP_TAG)).join(' | ');
+    await db.query("UPDATE checklist_tasks SET status='pending', remarks=? WHERE id=? AND status='not_applicable'", [cleaned, r.id]);
+    n++;
+  }
+  return n;
+}
+
 // Add — sirf admin. { from, to, name } — range ki har date ek row banti hai.
 app.post('/api/holidays', requireAuth, requireAdmin, async (req, res) => {
   try {
@@ -1923,14 +1957,25 @@ app.post('/api/holidays', requireAuth, requireAdmin, async (req, res) => {
       await db.query('INSERT INTO holidays (holiday_date, name, created_by) VALUES (?,?,?)',
         [d, name, req.session.userId]);
     }
-    res.json({ success: true, added: fresh.length, skipped: dates.length - fresh.length, deleted: 0 });
+    // In dino ke pending checklist task skip (Not Applicable) — delete nahi
+    const tasksSkipped = await holSkipChecklist(dates, name);
+    res.json({ success: true, added: fresh.length, skipped: dates.length - fresh.length, deleted: 0, tasksSkipped });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/holidays/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
+    const [hr] = await db.query('SELECT holiday_date FROM holidays WHERE id=?', [parseInt(req.params.id)]);
     const [r] = await db.query('DELETE FROM holidays WHERE id=?', [parseInt(req.params.id)]);
-    res.json({ success: true, deleted: r.affectedRows || 0 });
+    // Chhutti hati — us din ke auto-skip wale checklist task wapas pending
+    // (agar usi din koi aur chhutti abhi bhi list me nahi hai)
+    let tasksRestored = 0;
+    const d = hr[0] ? holIso(hr[0].holiday_date) : '';
+    if (d && (r.affectedRows || 0) > 0) {
+      const [still] = await db.query('SELECT id FROM holidays WHERE holiday_date=?', [d]);
+      if (!still.length) tasksRestored = await holUnskipChecklist(d);
+    }
+    res.json({ success: true, deleted: r.affectedRows || 0, tasksRestored });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -498,8 +498,14 @@ async function login(){
     const pre = KLMFestival.preview();
     let names = pre ? [pre] : [];
     if (!pre) {
-      const d = await (await fetch('/api/holiday-today')).json();
-      names = (d && d.names) || [];
+      // Holidays list ke saath apna tyohaar calendar bhi (list me na ho tab bhi badhai)
+      let listNames = [], date = '';
+      try {
+        const d = await (await fetch('/api/holiday-today')).json();
+        listNames = (d && d.names) || [];
+        date = (d && d.date) || '';
+      } catch (e) {}
+      names = KLMFestival.todayNames(listNames, date);
     }
     if (names.length) document.getElementById('festBanner').innerHTML = KLMFestival.html(names, 'block');
   } catch (e) {}

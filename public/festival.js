@@ -9,6 +9,7 @@
     [/gandhi/i, 'gandhi'],
     [/dussehra|dussera|dasara|dashera|dasehra|vijaya ?dashami/i, 'dussehra'],
     [/diwali|deepawali|deepavali|dipawali|deepotsav/i, 'diwali'],
+    [/dhanteras|dhantrayodashi|guru nanak|gurpurab|prakash (parv|purab)/i, 'diwali'],
     [/\bholi\b|holika|dhulandi|dhuleti/i, 'holi'],
     [/republic|independence|swatantrata|gantantra/i, 'flag'],
     [/raksha|rakhi/i, 'rakhi'],
@@ -184,11 +185,52 @@
       .fest,.fest-chip,.fest-emb,.fe-flame,.fe-spin,.fe-glow,.fe-wave,.fe-pop,.fest-ribbon,.fest-track{animation:none !important}
     }`;
 
+  // ══ Apna tyohaar calendar ══
+  // Harsh (2 Oct 2026): "list par nahi bhi ho to show hona chahiye". Ye sirf
+  // BADHAI ke liye hai — chhutti nahi banti (na "Today is a Holiday" popup, na
+  // working days kam). Holidays list wala naam bhi aata hai; dono me ek hi
+  // tyohaar ho to ek hi baar dikhta hai.
+  //   md   = har saal isi tareekh (MM-DD)
+  //   date / from-to = panchang wale tyohaar — har saal nayi tareekh daalni hogi
+  const CAL = [
+    { md: '01-01', name: 'New Year' },
+    { md: '01-26', name: 'Republic Day' },
+    { md: '08-15', name: 'Independence Day' },
+    { md: '10-02', name: 'Mahatma Gandhi Jayanti' },
+    { md: '12-25', name: 'Christmas' },
+    // 2026
+    { from: '2026-10-11', to: '2026-10-19', name: 'Navratri' },
+    { date: '2026-10-20', name: 'Dussehra' },
+    { date: '2026-11-06', name: 'Dhanteras' },
+    { date: '2026-11-08', name: 'Deepawali' },
+    { date: '2026-11-09', name: 'Govardhan Puja' },
+    { date: '2026-11-11', name: 'Bhaiya Dooj' },
+    { date: '2026-11-24', name: 'Guru Nanak Jayanti' }
+  ];
+  const istToday = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+  const calNames = iso => CAL.filter(f =>
+    (f.md && iso.slice(5) === f.md) || (f.date && iso === f.date) || (f.from && iso >= f.from && iso <= f.to)
+  ).map(f => f.name);
+
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const themeOf = name => (THEMES.find(([re]) => re.test(name)) || [0, 'gift'])[1];
   let styled = false;
 
   window.KLMFestival = {
+    // Aaj ke tyohaar: Holidays list ke naam + apna calendar. Ek hi tyohaar do
+    // baar na aaye (naam ya logo ek jaisa ho to list wala naam rakho).
+    todayNames(listNames, iso) {
+      const day = /^\d{4}-\d{2}-\d{2}$/.test(String(iso || '')) ? iso : istToday();
+      const out = [];
+      for (const n of [...(listNames || []), ...calNames(day)]) {
+        const name = String(n || '').trim();
+        if (!name) continue;
+        const th = themeOf(name);
+        const dup = out.some(o => o.toLowerCase() === name.toLowerCase() || (th !== 'gift' && themeOf(o) === th));
+        if (!dup) out.push(name);
+      }
+      return out;
+    },
     // URL me ?festival=Naam ho to wahi (dekhne ke liye)
     preview() {
       try { return new URLSearchParams(location.search).get('festival') || null; } catch (e) { return null; }
