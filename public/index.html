@@ -70,15 +70,19 @@
     overflow:hidden;
     animation: cardIn .75s cubic-bezier(.34,1.56,.64,1) .15s both;
   }
-  /* Card ke upar patli sunehri patti — chalti chamak */
+  /* Card ke upar patli sunehri patti — us par chalti chamak (sirf transform, halki) */
   .login-wrap::before{
     content:'';
     position:absolute;top:0;left:7%;right:7%;height:3px;border-radius:0 0 3px 3px;
     background:linear-gradient(90deg,rgba(111,108,55,0),#6f6c37 22%,#d6bf7a 50%,#6f6c37 78%,rgba(111,108,55,0));
-    background-size:200% 100%;
-    animation:barFlow 5s linear infinite;
   }
-  @keyframes barFlow{to{background-position:-200% 0}}
+  .login-wrap::after{
+    content:'';
+    position:absolute;top:0;left:7%;width:26%;height:3px;z-index:2;pointer-events:none;
+    background:linear-gradient(90deg,rgba(255,246,214,0),rgba(255,246,214,.95),rgba(255,246,214,0));
+    animation:barShine 4s ease-in-out infinite;
+  }
+  @keyframes barShine{from{transform:translateX(-100%)}to{transform:translateX(330%)}}
   @media (max-width:480px){
     .login-wrap{ padding:30px 22px 24px; }
     .logo-img-wrap img{ width:160px; }
@@ -334,12 +338,15 @@
     animation:hubPulse 3s ease-out infinite}
   .hub::after{animation-delay:1.5s}
   @keyframes hubPulse{from{transform:scale(1);opacity:.85}to{transform:scale(1.9);opacity:0}}
-  .hub-mark{width:66%;height:66%;
-    background:linear-gradient(110deg,#7d6c2c 20%,#e3cc85 40%,#fff3cf 48%,#d6bc72 56%,#7d6c2c 80%);background-size:300% 100%;
+  .hub-mark{position:relative;overflow:hidden;width:66%;height:66%;
+    background:linear-gradient(135deg,#7d6c2c 10%,#d6bc72 45%,#a88a3a 70%,#6f5f26 100%);
     -webkit-mask:url(/invincible-mark-white.svg) center/contain no-repeat;
-            mask:url(/invincible-mark-white.svg) center/contain no-repeat;
-    animation:goldShine 4.5s ease-in-out infinite}
-  @keyframes goldShine{0%{background-position:100% 0}55%,100%{background-position:0 0}}
+            mask:url(/invincible-mark-white.svg) center/contain no-repeat}
+  /* nishaan par chamak — sirf transform, halki */
+  .hub-mark::after{content:'';position:absolute;top:0;bottom:0;left:0;width:45%;
+    background:linear-gradient(100deg,rgba(255,243,207,0),rgba(255,243,207,.95),rgba(255,243,207,0));
+    animation:markShine 4.5s ease-in-out infinite}
+  @keyframes markShine{0%{transform:translateX(-120%)}55%,100%{transform:translateX(260%)}}
   .show-pill{font-size:13px;font-weight:600;color:#4f4b2e;padding:9px 18px;border:1px solid #ddd3b5;border-radius:999px;
     background:rgba(255,253,246,.75);letter-spacing:.2px;white-space:nowrap;animation:riseIn .6s ease 1.1s both}
 
@@ -396,7 +403,8 @@
   @media (prefers-reduced-motion:reduce){
     .equip{display:none;}
     .tilt-stage,.wheel-stage{transform:none !important}
-    .login-wrap > *,.wheel,.wheel *,.show-pill{animation:none !important}
+    .login-wrap > *,.wheel,.wheel *,.wheel *::before,.wheel *::after,.show-pill{animation:none !important}
+    .login-wrap::after,.hub-mark::after,.hub::before,.hub::after{display:none}
   }
 </style>
 </head>
@@ -599,6 +607,8 @@
 
 const REDUCED_MOTION = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 let _loginBusy = false;
+// Browser "Back" se purana (BOOM ke baad wala khaali) page cache se laute to taaza khol do
+window.addEventListener('pageshow', e => { if (e.persisted) window.location.reload(); });
 
 function loginFail(msg, badFields) {
   const err = document.getElementById('err');
