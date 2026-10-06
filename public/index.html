@@ -255,6 +255,91 @@
   @media (prefers-reduced-motion:reduce){
     .equip,.floaters{display:none;}
   }
+
+  /* ══════════════════════════════════════════════════════
+     LOGIN ANIMATION — Harsh (7 Oct 2026): "login karte hi BOOM, maja aa jaye"
+     Sirf login page. Card mouse ke saath 3D jhukta hai, peeche ka saaman
+     depth me khiskta hai, sahi login par glove ka mukka + BOOM + confetti.
+     ══════════════════════════════════════════════════════ */
+  .tilt-stage{position:relative;z-index:1;width:420px;max-width:92vw;
+    transform:perspective(1100px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));
+    transition:transform .18s ease-out;will-change:transform}
+  .tilt-stage .login-wrap{width:100%;max-width:100%}
+  .card-glare{position:absolute;inset:0;pointer-events:none;z-index:0;border-radius:inherit;
+    background:radial-gradient(420px circle at var(--gx,50%) var(--gy,-20%),rgba(59,130,246,.12),transparent 55%);
+    transition:opacity .3s}
+  .login-wrap > *:not(.card-glare){position:relative;z-index:1}
+  /* upar ki patti me chalti chamak */
+  .login-wrap::before{background:linear-gradient(90deg,#1a56db,#60a5fa,#1a56db,#3b82f6,#1a56db) !important;
+    background-size:300% 100% !important;animation:barFlow 4s linear infinite}
+  @keyframes barFlow{to{background-position:-300% 0}}
+  /* form ek-ek karke */
+  .login-wrap > h2{animation:riseIn .55s cubic-bezier(.2,.8,.2,1) .35s both}
+  .login-wrap > p.sub{animation:riseIn .55s cubic-bezier(.2,.8,.2,1) .45s both}
+  .login-wrap > .fg1{animation:riseIn .55s cubic-bezier(.2,.8,.2,1) .55s both}
+  .login-wrap > .fg2{animation:riseIn .55s cubic-bezier(.2,.8,.2,1) .65s both}
+  .login-wrap > .btn-login{animation:riseIn .55s cubic-bezier(.2,.8,.2,1) .78s both}
+  .login-wrap > .footer-text{animation:riseIn .55s cubic-bezier(.2,.8,.2,1) .9s both}
+  @keyframes riseIn{from{opacity:0;translate:0 16px}to{opacity:1;translate:0 0}}
+  /* input focus par icon jaage */
+  .input-wrap .icon{transition:transform .25s cubic-bezier(.34,1.56,.64,1),color .2s}
+  .input-wrap:focus-within .icon{transform:translateY(-50%) scale(1.25);color:#1a56db}
+  .input-wrap.bad input{border-color:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.15);background:#fff7f7}
+  /* Sign In button: chamak, glove, ripple, loading, success */
+  .btn-login{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:10px}
+  .btn-login::after{content:'';position:absolute;top:0;left:-70%;width:45%;height:100%;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);transform:skewX(-20deg);transition:left .65s ease}
+  .btn-login:hover::after{left:130%}
+  .btn-glove{width:22px;height:18px;flex-shrink:0;transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
+  .btn-login:hover .btn-glove{animation:jab .5s cubic-bezier(.3,.7,.2,1) infinite}
+  @keyframes jab{0%,100%{transform:translateX(0)}35%{transform:translateX(-4px)}60%{transform:translateX(6px) scale(1.12)}}
+  .btn-arrow{transition:transform .25s}
+  .btn-login:hover .btn-arrow{transform:translateX(4px)}
+  .btn-ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.45);transform:scale(0);
+    animation:ripple .6s ease-out forwards;pointer-events:none}
+  @keyframes ripple{to{transform:scale(4);opacity:0}}
+  .btn-login.loading{pointer-events:none;background:linear-gradient(135deg,#1a56db,#1648c0)}
+  .btn-login.loading .btn-glove{animation:jab .35s cubic-bezier(.3,.7,.2,1) infinite}
+  .btn-login.success{pointer-events:none;background:linear-gradient(135deg,#16a34a,#15803d) !important;
+    box-shadow:0 8px 26px rgba(22,163,74,.45) !important}
+  /* galat password: card hile */
+  .login-wrap.shake{animation:shakeX .5s cubic-bezier(.36,.07,.19,.97) both}
+  @keyframes shakeX{10%,90%{translate:-2px 0}20%,80%{translate:4px 0}30%,50%,70%{translate:-9px 0}40%,60%{translate:9px 0}}
+  .error.show{display:block !important;animation:errIn .3s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes errIn{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
+  /* peeche ka saaman — mouse ke ulta thoda khiske (depth) */
+  .floaters,.equip{transition:transform .5s ease-out, opacity .8s ease}
+  .floaters{transform:translate(var(--px,0px),var(--py,0px))}
+  .equip{transform:translate(calc(var(--px,0px) * -.5),calc(var(--py,0px) * -.5))}
+
+  /* ── BOOM (sahi login) ── */
+  .boom-layer{position:fixed;inset:0;z-index:9999;pointer-events:none;overflow:hidden}
+  .boom-flash{position:absolute;inset:0;background:#fff;opacity:0}
+  .boom-canvas{position:absolute;inset:0;width:100%;height:100%}
+  .boom-ring{position:absolute;border-radius:50%;border:6px solid #3b82f6;opacity:0;transform:translate(-50%,-50%) scale(.1)}
+  .boom-glove{position:absolute;will-change:transform,opacity;filter:drop-shadow(0 14px 22px rgba(15,23,42,.38))}
+  .boom-burst{position:absolute;transform:translate(-50%,-50%) scale(0)}
+  .boom-text{position:absolute;transform:translate(-50%,-50%) scale(0);font:900 clamp(64px,13vw,170px)/1 Inter,Arial,sans-serif;
+    letter-spacing:-2px;white-space:nowrap;color:#facc15;-webkit-text-stroke:5px #0f172a;paint-order:stroke fill;
+    text-shadow:7px 7px 0 #1a56db,14px 14px 0 rgba(15,23,42,.25)}
+  .boom-welcome{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:min(92vw,900px)}
+  .boom-welcome .w1{font:800 clamp(13px,1.6vw,18px) Inter,Arial,sans-serif;letter-spacing:6px;color:#3b82f6;opacity:0}
+  .boom-welcome .w2{font:900 clamp(44px,8.5vw,110px)/1.05 Inter,Arial,sans-serif;letter-spacing:-2px;color:#0f172a;margin:10px 0 12px}
+  .boom-welcome .w2 span{display:inline-block;opacity:0}
+  .boom-welcome .w2 .nm{background:linear-gradient(90deg,#1a56db,#3b82f6,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .boom-welcome .w3{font:600 clamp(15px,1.8vw,21px) Inter,Arial,sans-serif;color:#475569;opacity:0}
+  .boom-iris{position:absolute;left:50%;top:50%;border-radius:50%;background:#f1f5f9;transform:translate(-50%,-50%) scale(0);
+    box-shadow:0 0 0 14px rgba(59,130,246,.45),0 0 0 34px rgba(59,130,246,.18),0 0 90px 40px rgba(26,86,219,.25)}
+  body.ko .floaters,body.ko .equip{transform:scale(1.5) !important;opacity:0}
+  .login-wrap.ko{animation:koOut .75s cubic-bezier(.55,.05,.6,.4) forwards}
+  @keyframes koOut{0%{transform:none}18%{transform:translateX(26px) rotate(4deg) scale(1.02)}
+    100%{transform:translate(120vw,-26vh) rotate(38deg) scale(.55);opacity:0}}
+  body.shaking .tilt-stage,body.shaking .floaters,body.shaking .equip{animation:screenShake .45s cubic-bezier(.36,.07,.19,.97)}
+  @keyframes screenShake{10%,90%{translate:-3px 2px}20%,80%{translate:6px -4px}30%,50%,70%{translate:-10px 6px}40%,60%{translate:10px -6px}}
+  @media (prefers-reduced-motion:reduce){
+    .tilt-stage{transform:none !important}
+    .login-wrap > *{animation:none !important}
+  }
 </style>
 </head>
 <body>
@@ -336,7 +421,9 @@
 <div class="floaters" id="floaters" aria-hidden="true"></div>
 
 
-<div class="login-wrap">
+<div class="tilt-stage" id="tiltStage">
+<div class="login-wrap" id="loginCard">
+  <div class="card-glare" aria-hidden="true"></div>
 
   <!-- Logo -->
   <div class="logo-section">
@@ -366,7 +453,7 @@
 
   <div class="error" id="err"></div>
 
-  <div class="form-group">
+  <div class="form-group fg1">
     <label>Email Address</label>
     <div class="input-wrap">
       <span class="icon">✉</span>
@@ -374,7 +461,7 @@
     </div>
   </div>
 
-  <div class="form-group">
+  <div class="form-group fg2">
     <label>Password</label>
     <div class="input-wrap">
       <span class="icon">🔒</span>
@@ -383,11 +470,19 @@
     </div>
   </div>
 
-  <button class="btn-login" onclick="login()">Sign In →</button>
+  <button class="btn-login" id="btnLogin" onclick="login(event)">
+    <svg class="btn-glove" viewBox="0 0 130 96" aria-hidden="true">
+      <rect x="2" y="24" width="36" height="50" rx="10" fill="#0f172a"/>
+      <path d="M34 22 C44 6 78 0 102 10 C122 18 128 42 120 60 C112 78 88 86 62 82 L36 76 Z" fill="#fff"/>
+      <path d="M50 66 C66 60 90 62 99 71" stroke="#1a56db" stroke-width="7" fill="none" stroke-linecap="round"/>
+    </svg>
+    <span class="btn-label">Sign In</span><span class="btn-arrow">→</span>
+  </button>
 
   <div class="footer-text">
     <strong>KLM Task Manager</strong> &nbsp;·&nbsp; Invincible
   </div>
+</div>
 </div>
 
 <script src="/festival.js"></script>
@@ -400,21 +495,259 @@
   } catch(e) {}
 })();
 
-async function login(){
+const REDUCED_MOTION = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+let _loginBusy = false;
+
+function loginFail(msg, badFields) {
+  const err = document.getElementById('err');
+  const card = document.getElementById('loginCard');
+  const btn = document.getElementById('btnLogin');
+  btn.classList.remove('loading');
+  btn.querySelector('.btn-label').textContent = 'Sign In';
+  err.textContent = msg;
+  err.classList.remove('show'); void err.offsetWidth; err.classList.add('show');
+  card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+  (badFields || []).forEach(id => {
+    const w = document.getElementById(id).closest('.input-wrap');
+    w.classList.add('bad');
+    document.getElementById(id).addEventListener('input', () => w.classList.remove('bad'), { once: true });
+  });
+  _loginBusy = false;
+}
+
+async function login(ev){
+  if (_loginBusy) return;
   const email=document.getElementById('email').value.trim();
   const password=document.getElementById('password').value;
   const err=document.getElementById('err');
-  err.style.display='none';
-  if(!email||!password){err.textContent='Please fill all fields';err.style.display='block';return;}
+  const btn=document.getElementById('btnLogin');
+  err.classList.remove('show'); err.style.display='none';
+  // button par ripple (click ki jagah se)
+  if (ev && ev.clientX && !REDUCED_MOTION) {
+    const r0 = btn.getBoundingClientRect(), s = Math.max(r0.width, r0.height);
+    const rp = document.createElement('span'); rp.className = 'btn-ripple';
+    rp.style.cssText = `width:${s}px;height:${s}px;left:${ev.clientX - r0.left - s / 2}px;top:${ev.clientY - r0.top - s / 2}px`;
+    btn.appendChild(rp); setTimeout(() => rp.remove(), 650);
+  }
+  if(!email||!password){ loginFail('Please fill all fields', [!email && 'email', !password && 'password'].filter(Boolean)); return; }
+  _loginBusy = true;
+  btn.classList.add('loading');
+  btn.querySelector('.btn-label').textContent = 'Checking…';
   try{
     const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({email,password})});
     const d=await r.json();
-    if(!r.ok){err.textContent=d.error||'Login failed';err.style.display='block';return;}
+    if(!r.ok){ loginFail(d.error||'Login failed', ['password']); return; }
     // Token ko localStorage mein bhi save karo as backup (cookie block hone ki condition mein)
     if(d.token) localStorage.setItem('authToken', d.token);
-    window.location.replace('/app');
-  }catch(e){err.textContent='Server error. Try again.';err.style.display='block';}
+    btn.classList.remove('loading'); btn.classList.add('success');
+    btn.querySelector('.btn-label').textContent = 'Welcome!';
+    // App pehle se laana shuru — BOOM ke beech download ho jaata hai
+    try { const l = document.createElement('link'); l.rel = 'prefetch'; l.href = '/app'; document.head.appendChild(l); } catch (e) {}
+    loginBoom(String(d.name || '').trim().split(/\s+/)[0] || '');
+  }catch(e){ loginFail('Server error. Try again.'); }
 }
+
+// ══ BOOM — sahi login par glove ka mukka, BOOM!, confetti, phir app ══
+function loginBoom(firstName) {
+  const go = () => window.location.replace('/app');
+  // Kuch bhi atke — app 3 second me zaroor khule
+  const safety = setTimeout(go, 3200);
+  if (REDUCED_MOTION) { setTimeout(go, 250); return; }
+  try {
+    const card = document.getElementById('loginCard');
+    const rc = card.getBoundingClientRect();
+    const cx = rc.left + rc.width / 2, cy = rc.top + rc.height / 2;
+    const W = innerWidth, H = innerHeight;
+    document.getElementById('tiltStage').style.setProperty('--rx', '0deg');
+    document.getElementById('tiltStage').style.setProperty('--ry', '0deg');
+    _tiltOff = true;
+
+    const layer = document.createElement('div'); layer.className = 'boom-layer';
+    // phone par fixed layer kabhi screen se bada ban jaata hai — naap pakka screen jitna
+    layer.style.cssText = `right:auto;bottom:auto;width:${W}px;height:${H}px`;
+    layer.innerHTML = '<canvas class="boom-canvas"></canvas><div class="boom-flash"></div>';
+    document.body.appendChild(layer);
+    const flash = layer.querySelector('.boom-flash');
+    const canvas = layer.querySelector('.boom-canvas');
+
+    // 1. Glove baayein se udta hua card par
+    const gw = Math.min(W * 0.42, 420), gh = gw * 96 / 130;
+    const glove = document.createElement('div'); glove.className = 'boom-glove';
+    glove.style.cssText = `width:${gw}px;height:${gh}px;left:0;top:0`;
+    glove.innerHTML = `<svg viewBox="0 0 130 96" width="${gw}" height="${gh}" style="overflow:visible"><use href="#gloveBlue"/></svg>`;
+    layer.appendChild(glove);
+    const hitX = cx - gw * 0.92, hitY = cy - gh / 2;
+    glove.animate([
+      { transform: `translate(${-gw - 60}px, ${hitY + 40}px) rotate(-14deg) scale(.85)`, opacity: .6 },
+      { transform: `translate(${hitX - 40}px, ${hitY}px) rotate(-4deg) scale(1.05)`, opacity: 1, offset: .8 },
+      { transform: `translate(${hitX}px, ${hitY}px) rotate(0deg) scale(1.18)`, opacity: 1 }
+    ], { duration: 330, easing: 'cubic-bezier(.55,0,.9,.45)', fill: 'forwards' });
+
+    // 2. TAKKAR — awaaz, flash, screen hile, lehrein, BOOM!, confetti
+    setTimeout(() => {
+      punchSound();
+      flash.animate([{ opacity: .95 }, { opacity: 0 }], { duration: 260, easing: 'ease-out', fill: 'forwards' });
+      document.body.classList.add('shaking');
+      setTimeout(() => document.body.classList.remove('shaking'), 460);
+      // glove peeche jhatka khaaye aur gayab
+      glove.animate([
+        { transform: `translate(${hitX}px, ${hitY}px) scale(1.18)`, opacity: 1 },
+        { transform: `translate(${hitX - gw * 0.35}px, ${hitY + 10}px) rotate(-8deg) scale(1.05)`, opacity: 1, offset: .35 },
+        { transform: `translate(${-gw - 80}px, ${hitY + 60}px) rotate(-20deg) scale(.8)`, opacity: 0 }
+      ], { duration: 700, delay: 60, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'forwards' });
+      // lehrein
+      [0, 90, 190].forEach((dl, i) => {
+        const ring = document.createElement('div'); ring.className = 'boom-ring';
+        const s = Math.max(W, H) * (0.55 + i * 0.25);
+        ring.style.cssText = `width:${s}px;height:${s}px;left:${cx}px;top:${cy}px;border-color:${['#3b82f6', '#f59e0b', '#22c55e'][i]}`;
+        layer.appendChild(ring);
+        ring.animate([{ transform: 'translate(-50%,-50%) scale(.05)', opacity: .9 }, { transform: 'translate(-50%,-50%) scale(1)', opacity: 0 }],
+          { duration: 750, delay: dl, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' });
+      });
+      // comic tara + BOOM!
+      const bs = Math.min(W, H) * 0.62;
+      const burst = document.createElement('div'); burst.className = 'boom-burst';
+      burst.style.cssText = `left:${cx}px;top:${cy}px;width:${bs}px;height:${bs}px`;
+      const pts = []; for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2, rr = i % 2 ? 0.62 : 1; pts.push((50 + Math.cos(a) * 50 * rr).toFixed(1) + ',' + (50 + Math.sin(a) * 50 * rr).toFixed(1)); }
+      burst.innerHTML = `<svg viewBox="0 0 100 100" width="${bs}" height="${bs}"><polygon points="${pts.join(' ')}" fill="#fde047" stroke="#0f172a" stroke-width="2.2" stroke-linejoin="round"/>` +
+        `<polygon points="${pts.join(' ')}" fill="#f97316" transform="translate(50 50) scale(.72) translate(-50 -50)"/></svg>`;
+      layer.appendChild(burst);
+      burst.animate([
+        { transform: 'translate(-50%,-50%) scale(0) rotate(-30deg)', opacity: 1 },
+        { transform: 'translate(-50%,-50%) scale(1.15) rotate(6deg)', opacity: 1, offset: .25 },
+        { transform: 'translate(-50%,-50%) scale(1) rotate(0deg)', opacity: 1, offset: .55 },
+        { transform: 'translate(-50%,-50%) scale(1.3) rotate(10deg)', opacity: 0 }
+      ], { duration: 950, easing: 'cubic-bezier(.34,1.56,.64,1)', fill: 'forwards' });
+      const txt = document.createElement('div'); txt.className = 'boom-text'; txt.textContent = 'BOOM!';
+      txt.style.cssText = `left:${cx}px;top:${cy}px`;
+      layer.appendChild(txt);
+      txt.animate([
+        { transform: 'translate(-50%,-50%) scale(0) rotate(-18deg)', opacity: 1 },
+        { transform: 'translate(-50%,-50%) scale(1.35) rotate(-6deg)', opacity: 1, offset: .25 },
+        { transform: 'translate(-50%,-50%) scale(1) rotate(-8deg)', opacity: 1, offset: .5 },
+        { transform: 'translate(-50%,-50%) scale(1.08) rotate(-8deg)', opacity: 1, offset: .78 },
+        { transform: 'translate(-50%,-50%) scale(1.6) rotate(-8deg)', opacity: 0 }
+      ], { duration: 1000, easing: 'cubic-bezier(.34,1.56,.64,1)', fill: 'forwards' });
+      confettiBurst(canvas, cx, cy);
+      // card knock-out, peeche ka saaman bikhre
+      card.classList.add('ko');
+      document.body.classList.add('ko');
+    }, 330);
+
+    // 3. WELCOME, NAAM!
+    setTimeout(() => {
+      const wel = document.createElement('div'); wel.className = 'boom-welcome';
+      const name = (firstName || 'Champ').toUpperCase() + '!';
+      wel.innerHTML = '<div class="w1">WELCOME BACK</div><div class="w2"></div><div class="w3">Let\'s crush today\'s tasks 🥊</div>';
+      const w2 = wel.querySelector('.w2');
+      [...name].forEach((ch, i) => {
+        const s = document.createElement('span');
+        s.className = 'nm'; s.textContent = ch === ' ' ? ' ' : ch;
+        w2.appendChild(s);
+        s.animate([{ opacity: 0, transform: 'translateY(-60px) rotate(-12deg) scale(.6)' },
+                   { opacity: 1, transform: 'translateY(6px) rotate(2deg) scale(1.08)', offset: .7 },
+                   { opacity: 1, transform: 'none' }],
+          { duration: 420, delay: 60 + i * 45, easing: 'cubic-bezier(.34,1.56,.64,1)', fill: 'forwards' });
+      });
+      layer.appendChild(wel);
+      wel.querySelector('.w1').animate([{ opacity: 0, letterSpacing: '18px' }, { opacity: 1, letterSpacing: '6px' }], { duration: 450, fill: 'forwards', easing: 'ease-out' });
+      wel.querySelector('.w3').animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 450, delay: 380, fill: 'forwards', easing: 'ease-out' });
+    }, 1050);
+
+    // 4. App ki taraf — gol pardah failta hai, phir /app
+    setTimeout(() => {
+      const wel = layer.querySelector('.boom-welcome');
+      if (wel) wel.animate([{ transform: 'translate(-50%,-50%) scale(1)', opacity: 1 }, { transform: 'translate(-50%,-50%) scale(.9)', opacity: 0 }], { duration: 320, fill: 'forwards', easing: 'ease-in' });
+      const iris = document.createElement('div'); iris.className = 'boom-iris';
+      const d = Math.hypot(W, H) * 1.15;
+      iris.style.width = iris.style.height = d + 'px';
+      layer.appendChild(iris);
+      const a = iris.animate([{ transform: 'translate(-50%,-50%) scale(0)' }, { transform: 'translate(-50%,-50%) scale(1)' }],
+        { duration: 460, easing: 'cubic-bezier(.6,0,.35,1)', fill: 'forwards' });
+      a.onfinish = () => { clearTimeout(safety); go(); };
+    }, 2050);
+  } catch (e) { clearTimeout(safety); go(); }
+}
+
+// Confetti — brand ke rang, takkar ki jagah se phatta hai
+function confettiBurst(canvas, x0, y0) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
+  const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+  const COLORS = ['#1a56db', '#3b82f6', '#60a5fa', '#f57c00', '#facc15', '#22c55e', '#ffffff', '#ef4444'];
+  const N = innerWidth < 700 ? 110 : 190;
+  const P = [];
+  for (let i = 0; i < N; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 6 + Math.random() * 15;
+    P.push({ x: x0, y: y0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 5, g: .32 + Math.random() * .18,
+      w: 6 + Math.random() * 8, h: 4 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - .5) * .5,
+      c: COLORS[i % COLORS.length], shape: i % 7 === 0 ? 'star' : (i % 3 === 0 ? 'circle' : 'rect'), life: 1 });
+  }
+  const t0 = performance.now();
+  (function frame(t) {
+    const el = (t - t0) / 1000;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const p of P) {
+      p.vx *= .985; p.vy = p.vy * .985 + p.g; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      p.life = Math.max(0, 1 - Math.max(0, el - 1.1) / .7);
+      ctx.save(); ctx.globalAlpha = p.life; ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c;
+      if (p.c === '#ffffff') { ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; }
+      if (p.shape === 'circle') { ctx.beginPath(); ctx.arc(0, 0, p.h * .6, 0, 7); ctx.fill(); }
+      else if (p.shape === 'star') {
+        ctx.beginPath(); for (let k = 0; k < 10; k++) { const rr = k % 2 ? 3.5 : 8.5, aa = k * Math.PI / 5; ctx.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr); }
+        ctx.closePath(); ctx.fill();
+      } else { ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); if (p.c === '#ffffff') ctx.strokeRect(-p.w / 2, -p.h / 2, p.w, p.h); }
+      ctx.restore();
+    }
+    if (el < 1.9) requestAnimationFrame(frame); else ctx.clearRect(0, 0, innerWidth, innerHeight);
+  })(t0);
+}
+
+// "Dhamm" — chhoti si mukke ki awaaz (browser me hi bani, koi file nahi)
+function punchSound() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    const ac = new AC(), now = ac.currentTime;
+    const master = ac.createGain(); master.gain.value = 0.38; master.connect(ac.destination);
+    const o = ac.createOscillator(), og = ac.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(150, now); o.frequency.exponentialRampToValueAtTime(42, now + 0.32);
+    og.gain.setValueAtTime(1, now); og.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    o.connect(og); og.connect(master); o.start(now); o.stop(now + 0.42);
+    const len = Math.floor(ac.sampleRate * 0.18), buf = ac.createBuffer(1, len, ac.sampleRate), ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    const ns = ac.createBufferSource(); ns.buffer = buf;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400;
+    const ng = ac.createGain(); ng.gain.value = 0.55;
+    ns.connect(lp); lp.connect(ng); ng.connect(master); ns.start(now);
+    setTimeout(() => { try { ac.close(); } catch (e) {} }, 800);
+  } catch (e) {}
+}
+
+// ── Card mouse ke saath 3D jhukta hai + chamak + peeche ka saaman depth me ──
+let _tiltOff = false;
+(function tilt() {
+  if (REDUCED_MOTION || !window.matchMedia || !matchMedia('(pointer:fine)').matches) return;
+  const stage = document.getElementById('tiltStage'), card = document.getElementById('loginCard');
+  const fl = document.getElementById('floaters'), eq = document.getElementById('equip');
+  let raf = 0, mx = 0, my = 0;
+  window.addEventListener('pointermove', e => {
+    mx = e.clientX; my = e.clientY;
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      if (_tiltOff) return;
+      const r = card.getBoundingClientRect();
+      const dx = (mx - (r.left + r.width / 2)) / (innerWidth / 2), dy = (my - (r.top + r.height / 2)) / (innerHeight / 2);
+      stage.style.setProperty('--ry', (dx * 6).toFixed(2) + 'deg');
+      stage.style.setProperty('--rx', (-dy * 5).toFixed(2) + 'deg');
+      card.style.setProperty('--gx', ((mx - r.left) / r.width * 100).toFixed(1) + '%');
+      card.style.setProperty('--gy', ((my - r.top) / r.height * 100).toFixed(1) + '%');
+      fl.style.setProperty('--px', (-dx * 22).toFixed(1) + 'px'); fl.style.setProperty('--py', (-dy * 16).toFixed(1) + 'px');
+      eq.style.setProperty('--px', (-dx * 22).toFixed(1) + 'px'); eq.style.setProperty('--py', (-dy * 16).toFixed(1) + 'px');
+    });
+  });
+  document.addEventListener('pointerleave', () => { stage.style.setProperty('--rx', '0deg'); stage.style.setProperty('--ry', '0deg'); });
+})();
 
 // ── Ghoomte-tairte Invincible gloves, T-shirt aur punching bag (dono taraf ki khaali jagah me) ──
 (function floaters() {
