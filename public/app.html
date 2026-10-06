@@ -14781,8 +14781,11 @@ async function saveFMSDone() {
     if (value !== '') extraInputs.push({ colLetter: r.col_letter, value });
   }
 
+  // Row ki pehchaan (A + B) — server likhne se pehle milata hai ki row aage-peeche na hui ho
+  const doneRow = (window._fmsCurrentRows || []).find(x => x.sheetRowNumber === parseInt(rowNum));
   const r = await api(`/api/fms-tasks/${fmsId}/steps/${stepId}/done`, 'POST', {
     rowNumber: parseInt(rowNum),
+    rowKey: doneRow && doneRow.rowKey !== undefined ? doneRow.rowKey : undefined,
     actualValue,
     delayReason,
     extraInputs
@@ -16461,8 +16464,14 @@ async function fmsBulkDoneGo() {
   for (let i = 0; i < rows.length; i += FMS_BULK_CHUNK) {
     const chunk = rows.slice(i, i + FMS_BULK_CHUNK);
     txt.textContent = `Saving ${done + 1}–${done + chunk.length} of ${rows.length}…`;
+    // Har row ki pehchaan bhi bhejo — sheet badal gayi ho to server kuch nahi likhta
+    const rowKeys = {};
+    for (const rn of chunk) {
+      const rr = (window._fmsCurrentRows || []).find(x => x.sheetRowNumber === Number(rn));   // _fmsSel me text hai
+      if (rr && rr.rowKey !== undefined) rowKeys[rn] = rr.rowKey;
+    }
     const r = await api(`/api/fms-tasks/${fmsTasksActiveFmsId}/steps/${fmsTasksActiveStepId}/bulk-done`,
-      'POST', { rowNumbers: chunk, actualValue });
+      'POST', { rowNumbers: chunk, rowKeys, actualValue });
     if (r && r.error) {
       go.disabled = false; cancel.disabled = false;
       prog.style.display = 'none';

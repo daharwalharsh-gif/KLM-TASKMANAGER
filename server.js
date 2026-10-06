@@ -688,6 +688,13 @@ function idxToCol(idx) {
 function isBlankFmsRow(row) {
   return !String((row && row[0]) || '').trim() && !String((row && row[1]) || '').trim();
 }
+// Row ki pehchaan — column A (timestamp) + B (naam). Ye kabhi nahi badalte.
+// Done likhne se theek pehle isse milate hain: list khulne ke baad kisi ne sheet
+// me row jodi/hatai/sort ki ho to row number par ab doosra order hota hai —
+// tab likhte nahi, warna data galat row me chala jaata. (Harsh, 6 Oct 2026)
+function fmsRowKey(row) {
+  return [row && row[0], row && row[1]].map(v => String(v == null ? '' : v).trim()).join('|');
+}
 
 function parseDoerFilter(step) {
   const idxs = String(step.doer_filter_col || '').split('|')
@@ -4289,6 +4296,7 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
         });
         matchedRows.push({
           sheetRowNumber: headerRowIdx + 1 + i + 1,
+          rowKey: fmsRowKey(row),          // Done ke waqt isi se row pakki karte hain
           planValue: planVal,
           actualValue: actualVal,
           data: rowData
@@ -5999,6 +6007,30 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/bulk-done', requireAuth, async (re
     }
 
     const tabName = sheet.sheet_name || 'Sheet1';
+    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets']);
+
+    // Likhne se pehle har row pakki karo (rowKeys screen ne bheje hon to) — ek bhi
+    // row aage-peeche ya pehle se Done mili to is batch me kuch nahi likhte.
+    const rowKeys = req.body.rowKeys && typeof req.body.rowKeys === 'object' ? req.body.rowKeys : null;
+    if (rowKeys) {
+      const aIdx = colToIdx(actualCol);
+      const hIdx = await holdColIdx(step.id);
+      const lastC = idxToCol(Math.max(1, aIdx, hIdx));
+      const grid = (await sheetsApi.spreadsheets.values.get({ spreadsheetId, range: `${tabName}!A:${lastC}` })).data.values || [];
+      const moved = [], already = [];
+      for (const rn of rows) {
+        const cur = grid[rn - 1] || [];
+        if (rowKeys[rn] !== undefined && fmsRowKey(cur) !== String(rowKeys[rn])) { moved.push(rn); continue; }
+        if (String(cur[aIdx] || '').trim() && !(hIdx >= 0 && isHold(cur[hIdx]))) already.push(rn);
+      }
+      if (moved.length || already.length) {
+        const bits = [];
+        if (moved.length) bits.push(`${moved.length} row aage-peeche ho gayi (sheet row ${moved.slice(0, 5).join(', ')})`);
+        if (already.length) bits.push(`${already.length} row pehle hi Done (sheet row ${already.slice(0, 5).join(', ')})`);
+        return res.status(409).json({ error: `Sheet badal gayi hai — ${bits.join('; ')}. Is batch me kuch nahi likha. Refresh karke dobara chuno.` });
+      }
+    }
+
     const batchData = [];
     for (const rowNumber of rows) {
       batchData.push({ range: `${tabName}!${actualCol}${rowNumber}`, values: [[actualValue]] });
@@ -6008,7 +6040,6 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/bulk-done', requireAuth, async (re
       }
     }
 
-    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets']);
     const writeResp = await sheetsApi.spreadsheets.values.batchUpdate({
       spreadsheetId,
       requestBody: { valueInputOption: 'USER_ENTERED', data: batchData }
@@ -6047,6 +6078,23 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets']);
     const spreadsheetId = extractSpreadsheetId(sheet.sheet_id);
     const tabName = sheet.sheet_name || 'Sheet1';
+
+    // ── Likhne se pehle row pakki karo (rowKey screen ne bheja ho to) ──
+    // Purana (cache wala) page rowKey nahi bhejta — uske liye pehle jaisa hi chalta hai.
+    if (req.body.rowKey !== undefined && req.body.rowKey !== null) {
+      const aIdx = colToIdx(actualCol);
+      const hIdx = await holdColIdx(step.id);
+      const lastC = idxToCol(Math.max(1, aIdx, hIdx));
+      const chk = await sheetsApi.spreadsheets.values.get({ spreadsheetId, range: `${tabName}!A${rowNumber}:${lastC}${rowNumber}` });
+      const cur = (chk.data.values || [[]])[0] || [];
+      if (fmsRowKey(cur) !== String(req.body.rowKey)) {
+        return res.status(409).json({ error: 'Sheet me rows aage-peeche ho gayi hain — is row par ab koi aur order hai. Kuch nahi likha. Refresh karke dobara Done karo.' });
+      }
+      const curActual = String(cur[aIdx] || '').trim();
+      if (curActual && !(hIdx >= 0 && isHold(cur[hIdx]))) {
+        return res.status(409).json({ error: `Ye row pehle hi Done ho chuki hai (Actual: ${curActual}). Kuch nahi likha. Refresh karo.` });
+      }
+    }
 
     // ── BATCH WRITE: sab columns ek hi API call mein likhte hain ──
     // Pehle doer name fetch karo (DB call) taaki sheet call sirf ek ho
