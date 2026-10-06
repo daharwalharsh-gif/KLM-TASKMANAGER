@@ -3979,14 +3979,23 @@ app.post('/api/fms/fetch-headers', requireAuth, async (req, res) => {
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
     const spreadsheetId = extractSpreadsheetId(sheetId);
     const hRow = parseInt(headerRow) || 1;
-    // Fetch ONLY the header row — very fast even for 10000-row sheets
-    const range = sheetName ? `${sheetName}!${hRow}:${hRow}` : `${hRow}:${hRow}`;
+    // Header row + uske neeche ki kuch rows — abhi bhi bahut tez (poori sheet nahi).
+    // Harsh (6 Oct 2026): "DG ke baad jo col add karne hain wo dikh hi nahi rahe".
+    // Google Sheets row ke aakhri bhare cell ke baad ke khaali cells bhejta hi nahi —
+    // pehle sirf header row padhte the, to jahan header row khatam (O to D me row 6
+    // DG par), list wahin ruk jaati thi, chahe DH, DI, DJ... me data ho. Ab sheet
+    // jitni chaudi asal me bhari hai, list utni lambi (khaali heading = COL_XX).
+    const lastRow = hRow + 60;
+    const range = sheetName ? `${sheetName}!1:${lastRow}` : `1:${lastRow}`;
     const response = await sheetsApi.spreadsheets.values.get({
       spreadsheetId, range,
       majorDimension: 'ROWS',
       valueRenderOption: 'UNFORMATTED_VALUE'
     });
-    const rawHeaders = (response.data.values || [[]])[0] || [];
+    const rows = response.data.values || [];
+    const rawHeaders = (rows[hRow - 1] || []).slice();
+    const width = rows.reduce((m, r) => Math.max(m, (r || []).length), rawHeaders.length);
+    while (rawHeaders.length < width) rawHeaders.push('');
     const headers = rawHeaders
       .map((h, i) => ({
         name: String(h ?? '').trim() || `COL_${idxToCol(i)}`,
