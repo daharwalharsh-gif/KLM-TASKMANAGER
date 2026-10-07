@@ -403,10 +403,16 @@ let _loadSeq = 0, _appliedLoadSeq = 0;
 // versions dekhta hai aur sirf badli hui tables padhta hai. App ke bahar se
 // (script / SQL) badla data bhi pakka aaye, isliye har 60 sec me ek baar poora load.
 const VERSIONS_TABLE = '_pg_versions';
-const FULL_RELOAD_MS = parseInt(process.env.PG_FULL_RELOAD_MS || '60000', 10);
+// Harsh (8 Oct 2026): "fast working nahi". Ye poora load har baar ~19,000
+// checklist rows khinchta hai; har minute chalne par usi waqt ki requests
+// connection ke liye line me lagti thin (aur kabhi padhna fail ho jaata tha).
+// App ke saare likhe badlav version se turant aate hain — ye sirf app ke BAHAR
+// (script / SQL) se badla data pakadne ke liye hai, isliye 5 minute kaafi hai.
+const FULL_RELOAD_MS = parseInt(process.env.PG_FULL_RELOAD_MS || '300000', 10);
 let _versionsReady = false;
 const _loadedVer = {};             // table -> version jo is memory me hai
 let _lastFullLoadTs = 0;
+let _lastLoadFailed = [];          // pichhle load me jo tables padh nahi paaye
 
 async function ensureVersions(pool) {
   try {
@@ -454,16 +460,31 @@ async function loadAllTables(pool, onlyChanged) {
     return 0;
   }
   // PARALLEL load — chuni hui tables ka SELECT ek saath.
+  // ══ PADHNA FAIL = PURANI COPY RAKHO (Harsh, 8 Oct 2026) ══
+  // "Checklist ka data show kyu nahi ho raha": pehle SELECT me koi bhi error
+  // (network ki chhoti gadbad, connection ka intezaar lamba) aata to table ko
+  // KHAALI maan kar memory me laga dete the — dashboard par checklist 0 ho
+  // jaati thi (sirf delegation ki ginti dikhti), aur version likh dene ki wajah
+  // se agle 60 sec tak dobara padhi bhi nahi jaati thi. Ab: 2 baar aur koshish;
+  // phir bhi na mile to us table ki purani copy hi rehti hai aur agli request
+  // use dobara padhti hai. Khaali sirf tab maante hain jab table bani hi na ho.
   const results = await Promise.all(tables.map(async (table) => {
     const cols = SCHEMA[table].cols;
     const colList = cols.map(qIdent).join(', ');
     let rows = [];
-    try {
-      const res = await pool.query(`SELECT ${colList} FROM ${qIdent(table)}`);
-      rows = res.rows || [];
-    } catch (err) {
-      // Table might not exist yet on a fresh DB — treat as empty.
-      rows = [];
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const res = await pool.query(`SELECT ${colList} FROM ${qIdent(table)}`);
+        rows = res.rows || [];
+        break;
+      } catch (err) {
+        if (err && err.code === '42P01') { rows = []; break; }   // naya DB — table abhi bani nahi
+        if (attempt >= 2) {
+          console.error(`  ⚠️ ${table} padh nahi paaye (${err && err.message}) — purani copy rakhi`);
+          return { table, failed: true };
+        }
+        await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+      }
     }
     const inserts = [];
     let maxId = 0;
@@ -480,14 +501,19 @@ async function loadAllTables(pool, onlyChanged) {
   }
   _appliedLoadSeq = mySeq;
   let totalRows = 0;
-  for (const { table, inserts, maxId } of results) {
+  const failed = [];
+  for (const { table, inserts, maxId, failed: bad } of results) {
+    // padh nahi paaye — memory me jo hai wahi rahe, version bhi purana rahe
+    // taaki agli request ise phir se padhe
+    if (bad) { failed.push(table); delete _loadedVer[table]; continue; }
     if (alasql.tables[table]) alasql.tables[table].data = inserts;
     _nextId[table] = maxId + 1;
     totalRows += inserts.length;
     // Is table ka kaunsa version memory me hai (versions na mile to agli baar phir padho)
     if (vers) _loadedVer[table] = vers[table] || '0'; else delete _loadedVer[table];
   }
-  if (full) _lastFullLoadTs = Date.now();
+  _lastLoadFailed = failed;
+  if (full && !failed.length) _lastFullLoadTs = Date.now();
   _lastReloadTs = Date.now();
   return totalRows;
 }
@@ -601,6 +627,12 @@ async function init() {
 
       // 3. Load managed tables into alasql
       const totalRows = (await loadAllTables(pool)) || 0;
+      // Koi table padh nahi paaye to shuruaat yahin rok do (agli request phir
+      // koshish karegi). Aage badhte to khaali users dekh kar neeche wala
+      // "default admin" ban jaata — sabka login band aur admin/admin khula.
+      if (_lastLoadFailed.length) {
+        throw new Error('PG load adhoora — ye tables padh nahi paaye: ' + _lastLoadFailed.join(', '));
+      }
       console.log(`  ✅ PostgreSQL DB loaded: ${totalRows} rows across ${_managed.length} tables (${_managed.join(', ')})`);
 
       // 4. Seed default admin if users table is empty (PLAIN TEXT password)
