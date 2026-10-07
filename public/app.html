@@ -805,67 +805,7 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
 
-    <!-- FMS Dashboard Section -->
-    <div id="dashFMSSection" style="margin-top:18px;display:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div style="font-size:16px;font-weight:700;color:#1e293b">📊 FMS Pending Tasks</div>
-        <button class="btn btn-outline btn-sm" onclick="loadDashFMS()">🔄 Refresh</button>
-      </div>
-
-      <!-- v16: PC-only FMS step-detail panel — select FMS → step-wise pending counts -->
-      <div id="dashFMSStepDetailPanel" style="display:none;background:#fff;border-radius:12px;border:1.5px solid #c7d2fe;padding:14px 16px;margin-bottom:14px">
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
-          <span style="font-size:14px">🔎</span>
-          <div style="font-size:13px;font-weight:700;color:#1e293b">FMS Step-wise Breakdown:</div>
-          <select id="dashFMSStepDetailSelect" onchange="onDashFMSStepDetailChange()"
-            style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid #c7d2fe;border-radius:8px;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;outline:none;color:#1e293b;background:#fff">
-            <option value="">-- Select an FMS to see pending per step --</option>
-          </select>
-        </div>
-        <div id="dashFMSStepDetailBody" style="display:none">
-          <div id="dashFMSStepDetailLoading" style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;display:none">⏳ Loading step details...</div>
-          <div id="dashFMSStepDetailContent"></div>
-        </div>
-      </div>
-
-      <!-- FMS chart -->
-      <div style="display:grid;grid-template-columns:1fr 300px;gap:18px;margin-bottom:16px">
-        <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px">
-          <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:10px">FMS Summary by Sheet</div>
-          <div id="dashFMSSummary"></div>
-        </div>
-        <div class="chart-card">
-          <h3>FMS Overview</h3>
-          <div class="chart-wrap"><canvas id="dashFMSChart"></canvas></div>
-          <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;font-size:11px;color:#64748b">
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:#ef4444;display:inline-block"></span>Pending</span>
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;display:inline-block"></span>Late</span>
-          </div>
-        </div>
-      </div>
-      <!-- "Today's FMS Pending" ki lambi list dashboard par nahi chahiye.
-           Upar wali FMS Summary aur chart pehle jaise hi hain. Table ka dhancha
-           yahin chhoda hai (sirf chhupa hua) taaki baaki code jaisa tha waisa chale. -->
-      <div class="task-table-card" style="display:none">
-        <div class="card-head">
-          <div class="card-head-title">Today's FMS Pending <span id="dashFMSCount" style="font-size:12px;color:#ef4444;font-weight:600;margin-left:6px"></span></div>
-        </div>
-        <div style="overflow-x:auto">
-          <table>
-            <thead>
-              <tr>
-                <th>FMS Name</th>
-                <th>Step</th>
-                <th id="dashFMSDoerHead">Doer</th>
-                <th>Plan Date</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="dashFMSTbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+    <!-- "📊 FMS Pending Tasks" wala hissa dashboard se hata diya (Harsh, 8 Oct 2026) -->
 
     <!-- ── Performance & Activity (Checklist + Delegation) ── -->
     <div id="dashPerfWrap" class="task-table-card" style="display:none;margin-top:16px">
@@ -7793,7 +7733,7 @@ async function loadDashboard() {
   // Ginti dikh gayi — ab bhaari kaam shuru karo. Ye dono kisi aur call ka
   // intezaar nahi karte, par inhe pehle chhod dein to ye ginti ko hi rok
   // lete hain (server ek waqt me ek hi kaam karta hai).
-  loadDashFMS();
+  // FMS Pending Tasks dashboard se hata diya — uska data bhi nahi mangwate
   loadDashPerf();
 
   if (isAdmin || isHod || isPC) {
