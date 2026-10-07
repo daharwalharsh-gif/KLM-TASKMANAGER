@@ -1925,6 +1925,18 @@ tbody tr:last-child td{border-bottom:none;}
     .rl-bp{background:#fef3c7;color:#92400e}
     .rl-bc{background:#dcfce7;color:#166534}
     .rl-empty{padding:30px;text-align:center;color:#94a3b8;font-size:13px}
+    /* "From Cost Sheet" — search wala dropdown */
+    .rl-cs{position:relative;width:270px}
+    .rl-bar .rl-cs input.rl-cs-in{width:100%;padding-right:30px;cursor:text}
+    .rl-cs-caret{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#64748b;font-size:12px;
+      cursor:pointer;user-select:none;padding:4px}
+    .rl-cs-list{display:none;position:absolute;left:0;top:calc(100% + 4px);z-index:50;min-width:100%;width:max-content;
+      max-width:min(480px,90vw);max-height:300px;overflow:auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px;
+      box-shadow:0 12px 28px rgba(15,23,42,.14);padding:4px}
+    .rl-cs-opt{padding:8px 10px;border-radius:7px;font-size:13px;color:#1e293b;cursor:pointer;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .rl-cs-opt:hover,.rl-cs-opt.hi{background:#eef2ff;color:#3730a3}
+    .rl-cs-none{padding:10px;font-size:12.5px;color:#94a3b8;text-align:center}
   </style>
   <div id="page-ratelist" class="page">
     <div class="page-header">
@@ -1982,10 +1994,14 @@ tbody tr:last-child td{border-bottom:none;}
           border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;outline:none"
           onchange="rlSetHead('sheet_date',this.value)"></div>
         <div><label>From Cost Sheet</label>
-          <select id="rlFromCost" onchange="rlPickCostSheet(this)"
-            style="width:270px;padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;
-            font-family:'Inter',sans-serif;outline:none;background:#fff;color:#1e293b;cursor:pointer">
-            <option value="">Load from Cost Sheet…</option></select>
+          <!-- Dropdown + search: likho to list chhoti ho jaati hai, click/Enter se cost sheet aa jaati hai -->
+          <div class="rl-cs" id="rlCsBox">
+            <input type="text" id="rlFromCost" class="rl-cs-in" placeholder="🔍 Search / Load from Cost Sheet…"
+              autocomplete="off" onfocus="rlCsOpen()" onclick="rlCsOpen()" oninput="rlCsOpen(true)"
+              onkeydown="rlCsKey(event)" onblur="setTimeout(rlCsClose, 150)">
+            <span class="rl-cs-caret" onmousedown="event.preventDefault();rlCsToggle()">▾</span>
+            <div class="rl-cs-list" id="rlCsList"></div>
+          </div>
           <div id="rlFromCostHint" style="font-size:10.5px;color:#94a3b8;margin-top:3px"></div></div>
         <div><label>Buyer</label><input type="text" id="rlBuyer" style="width:190px" placeholder="Buyer"
           oninput="rlSetHead('buyer',this.value)"></div>
@@ -5098,33 +5114,97 @@ function rlStamp(v) {
   }
 }
 // Rate List me "From Cost Sheet" — sirf Completed cost sheets.
+// Harsh (7 Oct 2026): dropdown me search bhi ho. Box me likho to list sirf
+// milti-julti cost sheets dikhati hai; click ya Enter se wo cost sheet aa jaati hai.
+let _rlCsOpts = [];   // [{ id, label, lc }]
+let _rlCsHi = -1;     // keyboard se chuni hui line
 async function rlFillCostDrop() {
-  const box = document.getElementById('rlFromCost');
-  if (!box) return;
+  if (!document.getElementById('rlFromCost')) return;
   const all = await rlEnsure();
   if (!Array.isArray(all) || !document.getElementById('rlFromCost')) return;
   const cs = all.filter(x => x.kind === 'cost' && (x.status || 'pending') === 'completed')
     .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
   const seen = {};
-  box.innerHTML = '<option value="">Load from Cost Sheet…</option>' + cs.map(c => {
+  _rlCsOpts = cs.map(c => {
     let label = [c.buyer, c.style].filter(Boolean).join(' — ') || ('Cost Sheet #' + c.id);
     // ek jaisa naam do baar ho to id laga do, warna dono me farak nahi rahega
     if (seen[label.toLowerCase()]) label += '  (#' + c.id + ')';
     seen[label.toLowerCase()] = true;
-    return '<option value="' + c.id + '">' + escapeHtml(label) + '</option>';
-  }).join('');
+    return { id: String(c.id), label, lc: label.toLowerCase() };
+  });
   const hint = document.getElementById('rlFromCostHint');
   if (hint) hint.textContent = cs.length
     ? cs.length + ' completed cost sheet' + (cs.length > 1 ? 's' : '')
     : 'No completed cost sheet yet';
+  const list = document.getElementById('rlCsList');
+  if (list && list.style.display === 'block') rlCsRender();
 }
-// Dropdown se koi cost sheet chuni — uska data le aao
-function rlPickCostSheet(el) {
-  const id = String(el.value || '').trim();
-  if (!id) return;
-  el.value = '';               // wapas "Load from Cost Sheet…" par
-  rlLoadFromCost(id);
+// Likhe hue har shabd wali cost sheets (kisi bhi kram me) — "fighter bg1004" bhi chalega
+function rlCsMatches() {
+  const inp = document.getElementById('rlFromCost');
+  const words = String(inp ? inp.value : '').toLowerCase().split(/\s+/).filter(Boolean);
+  return words.length ? _rlCsOpts.filter(o => words.every(w => o.lc.includes(w))) : _rlCsOpts;
 }
+function rlCsRender() {
+  const list = document.getElementById('rlCsList');
+  if (!list) return;
+  const m = rlCsMatches();
+  if (_rlCsHi >= m.length) _rlCsHi = m.length - 1;
+  list.innerHTML = m.length
+    ? m.map((o, i) => '<div class="rl-cs-opt' + (i === _rlCsHi ? ' hi' : '') + '" data-id="' + escapeHtml(o.id) + '" title="' +
+        escapeHtml(o.label) + '">' + escapeHtml(o.label) + '</div>').join('')
+    : '<div class="rl-cs-none">' + (_rlCsOpts.length ? 'No cost sheet found' : 'No completed cost sheet yet') + '</div>';
+  const hi = list.querySelector('.rl-cs-opt.hi');
+  if (hi) hi.scrollIntoView({ block: 'nearest' });
+}
+function rlCsOpen(typed) {
+  const list = document.getElementById('rlCsList');
+  if (!list) return;
+  if (typed) _rlCsHi = 0;                    // likhte hi pehli milti line chuni hui
+  else if (list.style.display !== 'block') _rlCsHi = -1;
+  list.style.display = 'block';
+  rlCsRender();
+  if (!_rlCsOpts.length) rlFillCostDrop();   // list abhi aayi na ho to le aao
+}
+function rlCsClose() {
+  const list = document.getElementById('rlCsList');
+  if (list) list.style.display = 'none';
+}
+function rlCsToggle() {
+  const list = document.getElementById('rlCsList'), inp = document.getElementById('rlFromCost');
+  if (list && list.style.display === 'block') { rlCsClose(); return; }
+  if (inp) inp.focus();
+  rlCsOpen();
+}
+function rlCsKey(e) {
+  const list = document.getElementById('rlCsList');
+  const open = list && list.style.display === 'block';
+  const m = rlCsMatches();
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!open) { rlCsOpen(); return; }
+    if (!m.length) return;
+    _rlCsHi = e.key === 'ArrowDown' ? Math.min(m.length - 1, _rlCsHi + 1) : Math.max(0, _rlCsHi - 1);
+    rlCsRender();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const pick = m[_rlCsHi >= 0 ? _rlCsHi : 0];
+    if (open && pick) rlCsPick(pick.id);
+  } else if (e.key === 'Escape') {
+    rlCsClose();
+  }
+}
+// List me se cost sheet chuni — uska data le aao
+function rlCsPick(id) {
+  const inp = document.getElementById('rlFromCost');
+  if (inp) { inp.value = ''; inp.blur(); }
+  rlCsClose();
+  if (id) rlLoadFromCost(id);
+}
+document.addEventListener('mousedown', e => {
+  const o = e.target.closest && e.target.closest('#rlCsList .rl-cs-opt');
+  if (o) { e.preventDefault(); rlCsPick(o.dataset.id); }
+});
 // Cost Sheet chunne par uske operation aur rate yahan aa jaate hain
 async function rlLoadFromCost(id) {
   const box = document.getElementById('rlFromCost');
@@ -5295,7 +5375,8 @@ function rlApplyEditAccess() {
 }
 
 // "Cost Sheet Print out" tab sirf admin aur in logon ko dikhta hai
-const RL_PRINT_EMAILS = ['rohit@klmahajan.com', 'gm@klmahajan.com'];
+const RL_PRINT_EMAILS = ['rohit@klmahajan.com', 'gm@klmahajan.com',
+  'ttyagi@klmahajan.com'];   // Mr. Tribhuvan Tyagi (Harsh, 7 Oct 2026)
 function canSeeRlPrint() {
   // ME `let` se bana hai, isliye window.ME kabhi nahi milta — seedha ME hi dekho
   if (typeof ME === 'undefined' || !ME) return true;   // pata na ho to rok mat lagao
@@ -6371,6 +6452,8 @@ function rlPDF(rec) {
     td.op{text-align:left}
     tbody tr:nth-child(even){background:#f8fafc}
     tfoot td{background:#eef2ff;font-weight:bold}
+    /* beech wala TOTAL bhi neeche wale TOTAL jaisa bold (Harsh, 7 Oct 2026) */
+    tbody tr.tot td{background:#eef2ff;font-weight:bold}
     .imgs{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
     .imgs img{width:120px;height:120px;object-fit:cover;border:1px solid #cbd5e1;border-radius:4px}
     .foot{margin-top:10px;font-size:9px;color:#94a3b8;text-align:center}
