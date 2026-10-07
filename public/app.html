@@ -127,15 +127,55 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#1e293b;min-height:
 .dash-topbar-btns{display:flex;gap:8px;}
 
 .overview-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;}
-.ov-card{background:#fff;border-radius:12px;padding:20px 22px;border:1px solid #e2e8f0;}
-.ov-card .label{font-size:13px;color:#64748b;margin-bottom:6px;}
-.ov-card .number{font-size:34px;font-weight:700;}
-.ov-card.pending .number{color:#ef4444;}
-.ov-card.revised .number{color:#f59e0b;}
-.ov-card.completed .number{color:#10b981;}
+/* Stat cards — halka rangeen background, peeche rangeen shadow, aate waqt
+   upar uthte, number 0 se ginta hua (Harsh, 8 Oct 2026). Sirf transform /
+   opacity animate hote hain — app halki rehti hai. */
+.ov-card{--c:#64748b;--cs:100,116,139;--tint:#f8fafc;position:relative;overflow:hidden;
+  background:linear-gradient(125deg,var(--tint) 0%,#ffffff 78%);border-radius:18px;padding:20px 24px 18px;
+  border:1px solid rgba(var(--cs),.16);box-shadow:0 14px 34px -16px rgba(var(--cs),.45),0 2px 8px rgba(15,23,42,.04);
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s;animation:ovIn .6s cubic-bezier(.2,.8,.2,1) both;}
+.ov-card.pending{--c:#ef4444;--cd:#dc2626;--cs:239,68,68;--tint:#fff1f2;animation-delay:.05s}
+.ov-card.revised{--c:#f59e0b;--cd:#d97706;--cs:245,158,11;--tint:#fffbeb;animation-delay:.15s}
+.ov-card.completed{--c:#10b981;--cd:#059669;--cs:16,185,129;--tint:#ecfdf5;animation-delay:.25s}
+.ov-card:hover{transform:translateY(-4px);box-shadow:0 22px 44px -18px rgba(var(--cs),.55),0 4px 12px rgba(15,23,42,.05);}
+.ov-card .label{font-size:12.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--cd,#64748b);margin-bottom:6px;}
+.ov-card .number{font-size:40px;font-weight:800;letter-spacing:-1px;line-height:1.1;color:var(--c);font-variant-numeric:tabular-nums;}
+.ov-card .ov-sub{font-size:12px;color:#94a3b8;margin-top:5px;min-height:15px;}
+/* kone me gol nishaan — dheere tairta */
+.ov-card .ov-ico{position:absolute;right:20px;top:50%;width:52px;height:52px;margin-top:-26px;border-radius:16px;
+  background:rgba(var(--cs),.12);color:var(--c);display:grid;place-items:center;animation:ovFloat 4s ease-in-out infinite;}
+.ov-card .ov-ico svg{width:26px;height:26px}
+.ov-card.revised .ov-ico{animation-delay:-1.3s}
+.ov-card.completed .ov-ico{animation-delay:-2.6s}
+/* aate waqt ek baar chamak guzarti hai */
+.ov-card::after{content:'';position:absolute;top:0;bottom:0;left:0;width:40%;pointer-events:none;
+  background:linear-gradient(105deg,rgba(255,255,255,0),rgba(255,255,255,.75),rgba(255,255,255,0));
+  transform:translateX(-120%);animation:ovShine 1.1s ease-out .55s 1 both;}
+.ov-card.revised::after{animation-delay:.65s}
+.ov-card.completed::after{animation-delay:.75s}
+/* translate/scale alag property — taaki hover wala transform (upar uthna) bhi chale */
+@keyframes ovIn{from{opacity:0;translate:0 16px;scale:.98}to{opacity:1;translate:0 0;scale:1}}
+@keyframes ovFloat{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-6px) rotate(-4deg)}}
+@keyframes ovShine{to{transform:translateX(300%)}}
+/* Namaste — jo login hua uska naam */
+.dash-hello{display:flex;align-items:center;gap:14px;margin-bottom:16px;animation:ovIn .6s cubic-bezier(.2,.8,.2,1) both}
+.dash-hello .hl-wave{font-size:30px;line-height:1;display:inline-block;transform-origin:70% 75%;animation:hlWave 2.4s ease-in-out .4s 2}
+.dash-hello .hl-1{font-size:21px;font-weight:800;color:#0f172a;letter-spacing:-.3px}
+.dash-hello .hl-name{background:linear-gradient(90deg,#1a56db,#7c3aed,#db2777,#1a56db);background-size:300% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:hlName 3s linear 2}
+.dash-hello .hl-2{font-size:12.5px;color:#64748b;margin-top:2px}
+@keyframes hlWave{0%,60%,100%{transform:rotate(0)}10%,30%{transform:rotate(16deg)}20%,40%{transform:rotate(-8deg)}50%{transform:rotate(10deg)}}
+@keyframes hlName{to{background-position:-300% 0}}
+@media (prefers-reduced-motion:reduce){
+  .ov-card,.ov-card .ov-ico,.ov-card::after,.dash-hello,.dash-hello .hl-wave,.dash-hello .hl-name{animation:none!important}
+}
 
 .dash-bottom{display:grid;grid-template-columns:1fr 320px;gap:18px;}
 .task-table-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;}
+/* Dashboard ke bade card — peeche halki shadow, aate waqt upar uthte */
+#page-dashboard .task-table-card,#page-dashboard .chart-card{border-radius:16px;
+  box-shadow:0 14px 34px -18px rgba(15,23,42,.22),0 2px 8px rgba(15,23,42,.04);animation:ovIn .6s cubic-bezier(.2,.8,.2,1) .3s both}
+#page-dashboard .dash-bottom .chart-card{animation-delay:.4s}
 /* ── SCOT Sheet ke card ── */
 .scot-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
 .scot-card{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;
@@ -482,6 +522,14 @@ tbody tr:last-child td{border-bottom:none;}
   }
   .ov-card{background:linear-gradient(145deg,#ffffff,#eef2ff)!important;}
   .ov-card .number{text-shadow:0 1px 2px rgba(0,0,0,.06);}
+  /* Dashboard stat cards — mobile par bhi apna halka rang, kone ka nishaan chhupa */
+  .ov-card.pending,.ov-card.revised,.ov-card.completed{background:linear-gradient(125deg,var(--tint) 0%,#ffffff 80%)!important;}
+  .ov-card .ov-ico{display:none;}
+  .ov-card .ov-sub{font-size:9.5px;margin-top:2px;}
+  .dash-hello{gap:10px;margin-bottom:12px}
+  .dash-hello .hl-wave{font-size:24px}
+  .dash-hello .hl-1{font-size:17px}
+  .dash-hello .hl-2{font-size:11px}
   .btn{box-shadow:0 2px 6px rgba(15,23,42,.12);}
 
   /* ── MOBILE APP LOOK ──
@@ -683,6 +731,12 @@ tbody tr:last-child td{border-bottom:none;}
   <div id="page-dashboard" class="page active">
     <!-- Tyohaar / chhutti ke din chalti patti (festival.js) -->
     <div id="festRibbon"></div>
+    <!-- Jo login hua uske liye "Good Morning, Naam 👋" (dashHello() bharta hai) -->
+    <div class="dash-hello" id="dashHello" style="display:none">
+      <span class="hl-wave">👋</span>
+      <div><div class="hl-1"><span id="dashHelloGreet">Hello</span>, <span class="hl-name" id="dashHelloName"></span>!</div>
+        <div class="hl-2" id="dashHelloSub"></div></div>
+    </div>
     <div class="dash-topbar">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <h2>Dashboard</h2>
@@ -704,9 +758,15 @@ tbody tr:last-child td{border-bottom:none;}
       <div class="dash-topbar-btns" id="dashBtns"></div>
     </div>
     <div class="overview-cards">
-      <div class="ov-card pending"><div class="label">Pending</div><div class="number" id="dPending">—</div></div>
-      <div class="ov-card revised"><div class="label">Revised</div><div class="number" id="dRevised">—</div></div>
-      <div class="ov-card completed"><div class="label">Completed</div><div class="number" id="dCompleted">—</div></div>
+      <div class="ov-card pending"><div class="label">Pending</div><div class="number" id="dPending">—</div>
+        <div class="ov-sub" id="dPendingSub"></div>
+        <span class="ov-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span></div>
+      <div class="ov-card revised"><div class="label">Revised</div><div class="number" id="dRevised">—</div>
+        <div class="ov-sub" id="dRevisedSub"></div>
+        <span class="ov-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.6-4.5M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.6 4.5M20 20v-4h-4"/></svg></span></div>
+      <div class="ov-card completed"><div class="label">Completed</div><div class="number" id="dCompleted">—</div>
+        <div class="ov-sub" id="dCompletedSub"></div>
+        <span class="ov-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9.5"/></svg></span></div>
     </div>
     <div class="dash-bottom">
       <div class="task-table-card">
@@ -7628,9 +7688,70 @@ async function deleteLeave(id) {
 // ══════════════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════════════
+// Stat card ka number pichhli ginti se nayi ginti tak ginta hai (~0.9 sec).
+// Beech me koi aur number badal de (jaise Done dabane par -1/+1) to ginti
+// wahin ruk jaati hai — uska likha number hi rehta hai.
+function dashCountTo(el, target) {
+  if (!el) return;
+  const to = Math.max(0, parseInt(target, 10) || 0);
+  const from = parseInt(el.textContent, 10);
+  const start = isFinite(from) ? from : 0;
+  if (el._cnt) { cancelAnimationFrame(el._cnt); el._cnt = 0; }
+  const still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (start === to || still || document.hidden) { el.textContent = String(to); return; }
+  const t0 = performance.now(), dur = 900;
+  let last = String(start);
+  el.textContent = last;
+  const step = now => {
+    if (el.textContent !== last) { el._cnt = 0; return; }   // kisi aur ne badla — rok do
+    const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+    last = String(Math.round(start + (to - start) * e));
+    el.textContent = last;
+    el._cnt = p < 1 ? requestAnimationFrame(step) : 0;
+  };
+  el._cnt = requestAnimationFrame(step);
+}
+// Har card ke neeche "x% of all tasks" — number badalte hi (ginti ya Done) khud sudhar jaata hai
+function dashSubs() {
+  const ids = ['dPending', 'dRevised', 'dCompleted'];
+  const v = ids.map(id => parseInt((document.getElementById(id) || {}).textContent, 10) || 0);
+  const total = v[0] + v[1] + v[2];
+  ids.forEach((id, i) => {
+    const s = document.getElementById(id + 'Sub');
+    if (s) s.textContent = total ? Math.round(v[i] / total * 100) + '% of all tasks' : '';
+  });
+}
+(function watchDashNumbers() {
+  if (!window.MutationObserver) return;
+  const mo = new MutationObserver(dashSubs);
+  ['dPending', 'dRevised', 'dCompleted'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) mo.observe(el, { childList: true, characterData: true, subtree: true });
+  });
+})();
+// "Good Morning, Harsh 👋" — jo login hua uska naam, India ke time ke hisaab se
+function dashHello() {
+  const box = document.getElementById('dashHello');
+  if (!box || !ME) return;
+  const now = new Date();
+  let h = now.getHours();
+  try { h = parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false }).format(now), 10) % 24; } catch (e) {}
+  // raat 10 se subah 5 tak seedha "Hello"
+  const greet = h >= 5 && h < 12 ? 'Good Morning' : h >= 12 && h < 17 ? 'Good Afternoon' : h >= 17 && h < 22 ? 'Good Evening' : 'Hello';
+  // "Mr. Tribhuvan Tyagi" -> "Tribhuvan"
+  const words = titleName(ME.name || '').split(' ').filter(w => !/^(mr|mrs|ms|miss|dr|shri|smt)\.?$/i.test(w));
+  const first = words[0] || 'there';
+  let day = '';
+  try { day = now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) {}
+  document.getElementById('dashHelloGreet').textContent = greet;
+  document.getElementById('dashHelloName').textContent = first;
+  document.getElementById('dashHelloSub').textContent = (day ? day + ' · ' : '') + "Let's crush today's tasks 🥊";
+  box.style.display = 'flex';
+}
 let _dashSeq = 0;
 async function loadDashboard() {
   const seq = ++_dashSeq; // sequence guard — stale response render na ho (blink fix)
+  try { dashHello(); } catch (e) {}
   const empFilter = document.getElementById('dashEmployeeFilter');
   const empVal = empFilter ? empFilter.value : 'all';
   const isAdmin = ME.role === 'admin';
@@ -7664,9 +7785,10 @@ async function loadDashboard() {
     return;
   }
 
-  document.getElementById('dPending').textContent = (dDel.pending||0) + (dChl.pending||0);
-  document.getElementById('dRevised').textContent = (dDel.revised||0) + (dChl.revised||0);
-  document.getElementById('dCompleted').textContent = (dDel.completed||0) + (dChl.completed||0);
+  // number pichhli ginti se nayi tak gin kar aata hai (pehli baar 0 se)
+  dashCountTo(document.getElementById('dPending'), (dDel.pending||0) + (dChl.pending||0));
+  dashCountTo(document.getElementById('dRevised'), (dDel.revised||0) + (dChl.revised||0));
+  dashCountTo(document.getElementById('dCompleted'), (dDel.completed||0) + (dChl.completed||0));
 
   // Ginti dikh gayi — ab bhaari kaam shuru karo. Ye dono kisi aur call ka
   // intezaar nahi karte, par inhe pehle chhod dein to ye ginti ko hi rok
