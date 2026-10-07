@@ -7629,8 +7629,9 @@ async function deleteLeave(id) {
 // DASHBOARD
 // ══════════════════════════════════════════════════════
 // Stat card ka number pichhli ginti se nayi ginti tak ginta hai (~0.9 sec).
-// Beech me koi aur number badal de (jaise Done dabane par -1/+1) to ginti
-// wahin ruk jaati hai — uska likha number hi rehta hai.
+// Beech me koi aur number badal de (jaise Done dabane par -1/+1) to wo badlav
+// asli ginti par lagta hai — warna adhi gini hui ginti me -1 lag kar galat
+// number reh jaata (live test me 196 ki jagah 166 aaya tha).
 function dashCountTo(el, target) {
   if (!el) return;
   const to = Math.max(0, parseInt(target, 10) || 0);
@@ -7643,7 +7644,11 @@ function dashCountTo(el, target) {
   let last = String(start);
   el.textContent = last;
   const step = now => {
-    if (el.textContent !== last) { el._cnt = 0; return; }   // kisi aur ne badla — rok do
+    if (el.textContent !== last) {                          // kisi aur ne badla (Done -1/+1)
+      const ext = parseInt(el.textContent, 10);
+      el.textContent = String(isFinite(ext) ? Math.max(0, to + (ext - parseInt(last, 10))) : to);
+      el._cnt = 0; return;
+    }
     const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
     last = String(Math.round(start + (to - start) * e));
     el.textContent = last;
