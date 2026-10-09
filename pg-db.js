@@ -450,7 +450,7 @@ async function bumpVersions(client, tables) {
 async function loadAllTables(pool, onlyChanged) {
   const mySeq = ++_loadSeq;
   const genAtStart = _writeGen;
-  const startTs = Date.now();                       // versions isi pal ke baad padhe gaye
+  const startTs = performance.now();                // versions isi pal ke baad padhe gaye
   const vers = await readVersions(pool);           // data padhne se PEHLE
   // (60 sec wala poora load reload() peeche se alag chalata hai — yahan nahi)
   const full = !onlyChanged || !vers;
@@ -537,7 +537,10 @@ let _bgFullLoad = null;            // peeche chal raha 60-sec wala poora load
 // likha database me pakka ho chuka hota hai. Warna versions ki ek chhoti query
 // khud chalti hai. Bilkul ek saath aayi requests ab bhi ek hi load share karti
 // hain; thoda baad aayi request pehle wale ke baad ek chhoti versions query aur.
-const READ_SLACK_MS = 0;
+// Samay performance.now() se (millisecond se bareek). 5ms ki chhoot: ek saath aayi
+// requests ek load share karein. Surakshit hai — user ki agli request uske save ke
+// kam se kam ek network chakkar (10ms+) baad hi aati hai.
+const READ_SLACK_MS = 5;
 
 // Force a fresh reload from PG. Skips while a flush is mid-flight or there
 // are unsaved writes, so we don't clobber pending changes.
@@ -545,7 +548,7 @@ const READ_SLACK_MS = 0;
 //   hai, isliye stale memory se overwrite na ho — warna dusre instance ka data
 //   mit jaata hai). force=false (reads) → TTL throttle se fast.
 async function reload(force) {
-  const arrivedAt = Date.now();
+  const arrivedAt = performance.now();
   if (!_initialized) return init();
   if (_testMode) return;
   if (_flushInProgress) return;
@@ -581,7 +584,7 @@ async function reload(force) {
         .finally(() => { _bgFullLoad = null; });
     }
     // Jo tables sach me badli hain wo abhi (request se pehle) padhi jaati hain
-    _inflightStartTs = Date.now();
+    _inflightStartTs = performance.now();
     const p = loadAllTables(pool, true).finally(() => { if (_inflightRead === p) _inflightRead = null; });
     _inflightRead = p;
     return p;
@@ -648,6 +651,7 @@ async function init() {
       // 2. Ensure PG tables + columns exist
       await ensureSchema(pool);
       await ensureVersions(pool);   // tez reload ke liye table-versions
+      await ensureIds(pool);        // naye record ki id sab instance me alag
 
       // 3. Load managed tables into alasql
       const totalRows = (await loadAllTables(pool)) || 0;
@@ -821,12 +825,15 @@ async function query(sql, params = []) {
   const bulk = expandBulkInsert(sqlTrim, params);
   if (bulk) {
     const withDefaults = applyInsertDefaults(bulk.table, bulk.sql, bulk.params);
-    return executeMutation(withDefaults.sql, withDefaults.params, bulk.table);
+    return withReservedIds(bulk.table, withDefaults.sql,
+      () => executeMutation(withDefaults.sql, withDefaults.params, bulk.table));
   }
 
   const upsert = expandUpsert(sqlTrim, params);
   if (upsert) {
-    return executeUpsert(upsert);
+    // naya record bana to 1 id chahiye (pehle se ho to update — id bekaar, koi baat nahi)
+    return withReservedIds(upsert.table, `INSERT INTO ${upsert.table} (${upsert.cols.join(',')}) VALUES (?)`,
+      () => executeUpsert(upsert));
   }
 
   const mutationTable = detectMutationTable(sqlTrim);
@@ -837,6 +844,8 @@ async function query(sql, params = []) {
       const withDefaults = applyInsertDefaults(mutationTable, processedSql, processedParams);
       processedSql = withDefaults.sql;
       processedParams = withDefaults.params;
+      return withReservedIds(mutationTable, processedSql,
+        () => executeMutation(processedSql, processedParams, mutationTable));
     }
     return executeMutation(processedSql, processedParams, mutationTable);
   }
@@ -910,6 +919,70 @@ function executeMutation(sqlIn, params, table) {
   return [result, []];
 }
 
+// ══ NAYI ID — SAB INSTANCE ME ALAG (Harsh, 9 Oct 2026) ══
+// Pehle har instance apni memory dekh kar id deta tha (sabse badi + 1). Do
+// instance lagbhag ek saath (1-3 sec ke andar) usi table me naya record banate
+// to dono ek hi id dete — aur doosra save pehle wale ke UPAR likh deta: task,
+// approval request, transfer chupchaap gayab. Ab id Postgres ke ek chhote
+// counter (_pg_ids) se lock ke saath aati hai — do instance kabhi ek id nahi
+// paate. Counter hamesha table ki asli sabse badi id se aage rehta hai.
+const IDS_TABLE = '_pg_ids';
+let _idsReady = false;
+async function ensureIds(pool) {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS ${qIdent(IDS_TABLE)} (tbl TEXT PRIMARY KEY, next BIGINT NOT NULL DEFAULT 1)`);
+    _idsReady = true;
+  } catch (e) {
+    _idsReady = false;             // na bani to pehle jaisa (sirf memory se id)
+    console.error('  ⚠️ ids table nahi bani — id pehle jaise memory se:', e.message);
+  }
+}
+// INSERT me kitni nayi rows hain jinki id hume deni hai (id khud di ho to 0)
+function countAutoIdRows(table, sql) {
+  if (!SCHEMA[table] || !_managed.includes(table)) return 0;
+  const m = sql.match(/^(\s*INSERT\s+INTO\s+`?\w+`?\s*\()([^)]+)(\)\s*VALUES\s*)(.+)$/is);
+  if (!m) return 0;
+  if (m[2].split(',').map(c => c.trim().replace(/^`|`$/g, '')).includes('id')) return 0;
+  const valuesPart = m[4].trim().replace(/;$/, '');
+  let depth = 0, tuples = 0;
+  for (const ch of valuesPart) {
+    if (ch === '(') { if (depth === 0) tuples++; depth++; }
+    else if (ch === ')') depth--;
+  }
+  return tuples || 1;
+}
+// Insert se theek pehle: Postgres se n ids ka khaali hissa le lo. Jo hissa mila
+// wahi is insert ko milta hai (_reservedId) — ek hi instance par do insert ek
+// saath hon tab bhi har ek apne hisse ki id leta hai, kisi aur ka nahi.
+let _reservedId = null;            // { table, start } — agla injectAutoId isi se shuru
+async function withReservedIds(table, sql, fn) {
+  const start = await reserveIds(table, sql);
+  _reservedId = start ? { table, start } : null;
+  try { return fn(); } finally { _reservedId = null; }
+}
+async function reserveIds(table, sql) {
+  if (!_idsReady || _testMode) return null;
+  const n = countAutoIdRows(table, sql);
+  if (!n) return null;
+  let localMax = 0;
+  const rows = alasql.tables[table] && alasql.tables[table].data;
+  if (rows) for (const r of rows) { const v = parseInt(r.id, 10); if (v > localMax) localMax = v; }
+  const localNext = Math.max(_nextId[table] || 1, localMax + 1);
+  const t = qIdent(table), ids = qIdent(IDS_TABLE);
+  try {
+    const { rows: out } = await getPool().query(
+      `INSERT INTO ${ids} (tbl, next) VALUES ($1, GREATEST($2::bigint, (SELECT COALESCE(MAX(id), 0) + 1 FROM ${t})) + $3::bigint)
+       ON CONFLICT (tbl) DO UPDATE SET next = GREATEST(${ids}.next, $2::bigint, (SELECT COALESCE(MAX(id), 0) + 1 FROM ${t})) + $3::bigint
+       RETURNING next - $3::bigint AS start`, [table, localNext, n]);
+    const start = parseInt(out && out[0] && out[0].start, 10);
+    return Number.isFinite(start) && start > 0 ? start : null;
+  } catch (e) {
+    // counter tak na pahunche to pehle jaisa memory wala tareeka (save phir bhi DB me jaata hai)
+    console.error(`  ⚠️ ${table} ke liye id counter nahi mila:`, e.message);
+    return null;
+  }
+}
+
 function injectAutoId(table, sql, params) {
   if (!SCHEMA[table]) return null;
   const m = sql.match(/^(\s*INSERT\s+INTO\s+`?\w+`?\s*\()([^)]+)(\)\s*VALUES\s*)(.+)$/is);
@@ -932,7 +1005,9 @@ function injectAutoId(table, sql, params) {
   if (_rows && _rows.length) {
     for (const r of _rows) { const v = parseInt(r.id, 10); if (v > actualMax) actualMax = v; }
   }
-  const startId = Math.max(_nextId[table] || 1, actualMax + 1);
+  let startId = Math.max(_nextId[table] || 1, actualMax + 1);
+  // Postgres counter se mila hissa — wahi id (sab instance me alag)
+  if (_reservedId && _reservedId.table === table) { startId = _reservedId.start; _reservedId = null; }
   const newColsList = ['id', ...colsList];
 
   let newValues = valuesPart;
@@ -943,7 +1018,7 @@ function injectAutoId(table, sql, params) {
     return `(${thisId},`;
   });
 
-  _nextId[table] = startId + tuples;
+  _nextId[table] = Math.max(_nextId[table] || 1, startId + tuples);
   const newSql = `${m[1].replace(/\(\s*$/, '(')}${newColsList.join(',')}${m[3]}${newValues}`;
   return {
     sql: newSql,
