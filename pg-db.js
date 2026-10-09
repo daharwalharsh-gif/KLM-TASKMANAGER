@@ -450,6 +450,7 @@ async function bumpVersions(client, tables) {
 async function loadAllTables(pool, onlyChanged) {
   const mySeq = ++_loadSeq;
   const genAtStart = _writeGen;
+  const startTs = Date.now();                       // versions isi pal ke baad padhe gaye
   const vers = await readVersions(pool);           // data padhne se PEHLE
   // (60 sec wala poora load reload() peeche se alag chalata hai — yahan nahi)
   const full = !onlyChanged || !vers;
@@ -457,6 +458,7 @@ async function loadAllTables(pool, onlyChanged) {
     : _managed.filter(t => (vers[t] || '0') !== _loadedVer[t]);
   if (!tables.length) {            // kuch nahi badla — DB padhne ki zaroorat hi nahi
     _lastReloadTs = Date.now();
+    if (startTs > _lastFreshStartTs) _lastFreshStartTs = startTs;
     return 0;
   }
   // PARALLEL load — chuni hui tables ka SELECT ek saath.
@@ -515,6 +517,7 @@ async function loadAllTables(pool, onlyChanged) {
   _lastLoadFailed = failed;
   if (full && !failed.length) _lastFullLoadTs = Date.now();
   _lastReloadTs = Date.now();
+  if (!failed.length && startTs > _lastFreshStartTs) _lastFreshStartTs = startTs;
   return totalRows;
 }
 
@@ -522,7 +525,19 @@ async function loadAllTables(pool, onlyChanged) {
 // andar aayi requests dobara DB nahi dekhti (PG_RELOAD_TTL_MS se tunable).
 let _lastReloadTs = 0;
 let _inflightRead = null;          // chal raha padhne wala load (saath wali requests isi par)
+let _inflightStartTs = 0;          // wo load kab shuru hua
+let _lastFreshStartTs = 0;         // aakhri poore lage load ki shuruaat (versions isi ke baad padhe)
 let _bgFullLoad = null;            // peeche chal raha 60-sec wala poora load
+// ══ JO LIKHA WAHI DIKHE (Harsh, 9 Oct 2026) ══
+// "Task delete kiya fir bhi dikh raha, Done kiya fir Pending dikh raha" — database
+// sahi tha, par list doosre instance se aati thi jo (a) 1 sec ke andar taaza hua
+// tha to bina dekhe purani memory de deta, ya (b) pehle se chal rahe load ke saath
+// jud jaata jo user ke Delete/Done se PEHLE shuru hua tha. Ab request sirf usi
+// load ka bharosa karti hai jo uske aane ke baad shuru hua — tab tak user ka
+// likha database me pakka ho chuka hota hai. Warna versions ki ek chhoti query
+// khud chalti hai. Bilkul ek saath aayi requests ab bhi ek hi load share karti
+// hain; thoda baad aayi request pehle wale ke baad ek chhoti versions query aur.
+const READ_SLACK_MS = 0;
 
 // Force a fresh reload from PG. Skips while a flush is mid-flight or there
 // are unsaved writes, so we don't clobber pending changes.
@@ -530,6 +545,7 @@ let _bgFullLoad = null;            // peeche chal raha 60-sec wala poora load
 //   hai, isliye stale memory se overwrite na ho — warna dusre instance ka data
 //   mit jaata hai). force=false (reads) → TTL throttle se fast.
 async function reload(force) {
+  const arrivedAt = Date.now();
   if (!_initialized) return init();
   if (_testMode) return;
   if (_flushInProgress) return;
@@ -543,12 +559,18 @@ async function reload(force) {
     if (_dirtyTables.size > 0) return;
   }
   if (!force) {
-    // Padhne wali request: versions ki ek chhoti query — ab sasta hai, isliye 1 sec
-    const ttl = parseInt(process.env.PG_RELOAD_TTL_MS || '1000', 10);
-    if (ttl > 0 && (Date.now() - _lastReloadTs) < ttl) return;
+    const fresh = ts => ts >= arrivedAt - READ_SLACK_MS;   // ye load is request ke liye kaafi taaza hai?
+    // Is request ke aane ke baad shuru hua load pehle hi lag chuka — dobara mat dekho
+    if (fresh(_lastFreshStartTs)) return;
     // Ek saath aayi requests (dashboard ek saath 5-6 bhejta hai) ek hi load ka intezaar
-    // karti hain — pehle har request apna alag poora load chalati thi.
-    if (_inflightRead) return _inflightRead;
+    // karti hain — par sirf tab jab wo load is request ke aas-paas shuru hua ho.
+    if (_inflightRead) {
+      if (fresh(_inflightStartTs)) return _inflightRead;
+      try { await _inflightRead; } catch (e) {}       // purana load — khatam hone do, phir taaza dekho
+      if (fresh(_lastFreshStartTs)) return;
+      if (_inflightRead && fresh(_inflightStartTs)) return _inflightRead;
+      if (_flushInProgress || _dirtyTables.size > 0) return;
+    }
     const pool = getPool();
     // 60 sec wala poora load (sirf app ke bahar se badla data pakadne ke liye)
     // PEECHE chalta hai — koi request uska intezaar nahi karti. Live par isi se
@@ -559,8 +581,10 @@ async function reload(force) {
         .finally(() => { _bgFullLoad = null; });
     }
     // Jo tables sach me badli hain wo abhi (request se pehle) padhi jaati hain
-    _inflightRead = loadAllTables(pool, true).finally(() => { _inflightRead = null; });
-    return _inflightRead;
+    _inflightStartTs = Date.now();
+    const p = loadAllTables(pool, true).finally(() => { if (_inflightRead === p) _inflightRead = null; });
+    _inflightRead = p;
+    return p;
   }
   const pool = getPool();
   const loaded = await loadAllTables(pool);
