@@ -13156,6 +13156,7 @@ async function openEditFMS() {
     const hRes = await api('/api/fms/fetch-headers','POST', payload);
     console.log('Headers response:', hRes);
     fmsSheetHeaders = hRes.headers || [];
+    if (hRes.sheetName) payload.sheetName = hRes.sheetName;   // sheet ka asli tab naam
     if (fmsSheetHeaders.length) showToast(`✅ ${fmsSheetHeaders.length} headers loaded!`);
     else showToast(`⚠️ ${hRes.error || 'No headers found'}`, 'error');
   } catch(e) {
@@ -13362,8 +13363,13 @@ async function proceedToStepsConfig() {
       headerRow: fmsData.headerRow
     });
     fmsSheetHeaders = hRes.headers || [];
+    // Server ne sheet ka asli tab naam diya (jaise "NEW PMS " — aakhir me space) — wahi aage use ho
+    if (hRes.sheetName && hRes.sheetName !== fmsData.sheetName) {
+      fmsData.sheetName = hRes.sheetName;
+      window._fmsHdrPayload.sheetName = hRes.sheetName;
+    }
     if (fmsSheetHeaders.length) showToast(`✅ ${fmsSheetHeaders.length} headers loaded!`);
-    else showToast('⚠️ No headers found','error');
+    else showToast(`⚠️ ${hRes.error || 'No headers found'}`,'error');
   } catch(e) {
     showToast('⚠️ Headers fetch failed — using text input','error');
   }

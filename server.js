@@ -655,6 +655,39 @@ function extractSpreadsheetId(raw) {
   return m ? m[1] : s;
 }
 
+// Tab ka naam bilkul waisa jaisa sheet me hai.
+// Harsh (10 Oct 2026): "All PMS Level 2 KLM" add karte waqt "not found" — tab ka
+// asli naam "NEW PMS " hai (aakhir me space), likha gaya "NEW PMS". Google dono ko
+// alag maanta hai ("Unable to parse range"). Ab aage-peeche/beech ke space aur
+// chhote-bade akshar ka farak maaf — sheet ke asli tab ka naam use hota hai.
+// Na mile to likha hua hi lautta hai (aur tabs ki list error me dikhti hai).
+const _tabTitlesCache = new Map();   // spreadsheetId -> { at, titles }
+async function sheetTabTitles(sheetsApi, spreadsheetId) {
+  const c = _tabTitlesCache.get(spreadsheetId);
+  if (c && Date.now() - c.at < 60000) return c.titles;
+  const m = await sheetsApi.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.title' });
+  const titles = (m.data.sheets || []).map(x => x.properties.title);
+  _tabTitlesCache.set(spreadsheetId, { at: Date.now(), titles });
+  return titles;
+}
+async function resolveTabName(sheetsApi, spreadsheetId, name) {
+  const want = String(name == null ? '' : name);
+  if (!want.trim() || !spreadsheetId) return want;
+  const norm = s => String(s).replace(/\s+/g, ' ').trim().toLowerCase();
+  try {
+    const titles = await sheetTabTitles(sheetsApi, spreadsheetId);
+    if (titles.includes(want)) return want;
+    return titles.find(t => norm(t) === norm(want)) || want;
+  } catch (e) { return want; }   // sheet hi na khule to asli error aage wali call dikhayegi
+}
+// "Unable to parse range" ko samajhne layak error me badlo — sheet ke saare tabs ke saath
+async function tabNotFoundMsg(sheetsApi, spreadsheetId, name) {
+  try {
+    const titles = await sheetTabTitles(sheetsApi, spreadsheetId);
+    return `Tab "${name}" is sheet me nahi mila. Is sheet ke tabs: ${titles.map(t => `"${t}"`).join(', ')}`;
+  } catch (e) { return `Tab "${name}" is sheet me nahi mila`; }
+}
+
 function colToIdx(col) {
   if (!col) return -1;
   col = col.toUpperCase().trim();
@@ -3874,8 +3907,14 @@ app.get('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
 app.post('/api/fms', requireAuth, requireAdmin, async (req, res) => {
   const conn = await db.getConnection();
   try {
+    const { fmsName, sheetId, headerRow, totalSteps, steps } = req.body;
+    // Tab ka asli naam save ho (aakhri space waghera) — warna aage har padhai "not found"
+    let sheetName = req.body.sheetName;
+    try {
+      const api = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+      sheetName = await resolveTabName(api, extractSpreadsheetId(sheetId), sheetName);
+    } catch (e) { /* sheet na khule to jaisa likha waisa */ }
     await conn.beginTransaction();
-    const { fmsName, sheetName, sheetId, headerRow, totalSteps, steps } = req.body;
     // Double-click / double-submit se pehle 3-3 copy ban jaati thi. Same sheet +
     // same tab wali FMS dobara nahi banegi.
     const [dup] = await conn.query('SELECT id,fms_name FROM fms_sheets WHERE sheet_id=? AND sheet_name=?',
@@ -3907,8 +3946,14 @@ app.post('/api/fms', requireAuth, requireAdmin, async (req, res) => {
 app.put('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
   const conn = await db.getConnection();
   try {
+    const { fmsName, sheetId, headerRow, steps } = req.body;
+    // Tab ka asli naam save ho (aakhri space waghera) — warna aage har padhai "not found"
+    let sheetName = req.body.sheetName;
+    try {
+      const api = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+      sheetName = await resolveTabName(api, extractSpreadsheetId(sheetId), sheetName);
+    } catch (e) { /* sheet na khule to jaisa likha waisa */ }
     await conn.beginTransaction();
-    const { fmsName, sheetName, sheetId, headerRow, steps } = req.body;
     await conn.query(`UPDATE fms_sheets SET fms_name=?,sheet_name=?,sheet_id=?,header_row=?,total_steps=? WHERE id=?`, [fmsName||sheetName, sheetName, sheetId, headerRow||1, steps.length, req.params.id]);
     const [oldSteps] = await conn.query('SELECT id FROM fms_steps WHERE fms_id=?', [req.params.id]);
     for (const os of oldSteps) {
@@ -3950,10 +3995,11 @@ app.delete('/api/fms/:id', requireAuth, requireAdmin, async (req, res) => {
 // Ek column ke UNIQUE values (naam) — Row Filter mapping UI ke liye
 app.post('/api/fms/col-values', requireAuth, async (req, res) => {
   try {
-    const { sheetId, sheetName, headerRow, col } = req.body;
+    const { sheetId, headerRow, col } = req.body;
     if (!sheetId || !col) return res.status(400).json({ error: 'sheetId and col required' });
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
     const spreadsheetId = extractSpreadsheetId(sheetId);
+    const sheetName = await resolveTabName(sheetsApi, spreadsheetId, req.body.sheetName);
     const hRow = parseInt(headerRow) || 1;
     const c = String(col).toUpperCase().replace(/[^A-Z]/g, '');
     if (!c) return res.status(400).json({ error: 'Invalid column' });
@@ -3981,10 +4027,12 @@ app.post('/api/fms/col-values', requireAuth, async (req, res) => {
 
 app.post('/api/fms/fetch-headers', requireAuth, async (req, res) => {
   try {
-    const { sheetId, sheetName, headerRow } = req.body;
+    const { sheetId, headerRow } = req.body;
     if (!sheetId) return res.status(400).json({ error: 'sheetId required' });
-    const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
-    const spreadsheetId = extractSpreadsheetId(sheetId);
+    var sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    var spreadsheetId = extractSpreadsheetId(sheetId);
+    // likha hua tab naam -> sheet ka asli tab naam (aakhri space waghera)
+    var sheetName = await resolveTabName(sheetsApi, spreadsheetId, req.body.sheetName);
     const hRow = parseInt(headerRow) || 1;
     // Header row + uske neeche ki kuch rows — abhi bhi bahut tez (poori sheet nahi).
     // Harsh (6 Oct 2026): "DG ke baad jo col add karne hain wo dikh hi nahi rahe".
@@ -4010,10 +4058,13 @@ app.post('/api/fms/fetch-headers', requireAuth, async (req, res) => {
         index: i
       }))
       .filter(h => String(h.name).trim().length > 0);
-    res.json({ headers });
+    // sheetName = sheet ka asli tab naam — screen ise box me bhar deti hai taaki wahi save ho
+    res.json({ headers, sheetName });
   } catch (err) {
     if (err.code === 403) return res.status(400).json({ error: 'Access denied. Share sheet with service account.' });
     if (err.code === 404) return res.status(400).json({ error: 'Sheet not found. Check Sheet ID.' });
+    if (err.code === 400 && /Unable to parse range/i.test(err.message || '') && sheetsApi && sheetName)
+      return res.status(400).json({ error: await tabNotFoundMsg(sheetsApi, spreadsheetId, sheetName) });
     res.status(500).json({ error: err.message });
   }
 });
