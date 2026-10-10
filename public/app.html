@@ -10589,9 +10589,10 @@ function showFestivalChip(list) {
   const bar = document.getElementById('festBar');
   if (bar) { bar.innerHTML = KLMFestival.html(names, 'bar'); el.innerHTML = ''; }
   else el.innerHTML = KLMFestival.html(names, 'chip');
-  // Dashboard ke upar chalti patti — Harsh (2 Oct 2026)
+  // Dashboard ke upar wali badi patti — sirf tab jab top bar wali patti na ho.
+  // Harsh (11 Oct 2026): "do do kyu show ho rahi" — ab ek hi (top bar wali).
   const rb = document.getElementById('festRibbon');
-  if (rb) rb.innerHTML = KLMFestival.html(names, 'ribbon');
+  if (rb) rb.innerHTML = bar ? '' : KLMFestival.html(names, 'ribbon');
 }
 
 // ── App khulte hi holiday notice — sabko (user + admin) ──
