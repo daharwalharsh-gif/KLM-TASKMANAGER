@@ -172,6 +172,12 @@
     .fest-item .fest-emb{width:30px;height:30px;animation:none}
     .fest-item .fest-wish{font-weight:600;color:#64748b}
     .fest-item .fest-dot{color:#f59e0b}
+    /* Top bar me "Dashboard" ke bagal wali chhoti chalti patti — Harsh (10 Oct 2026) */
+    .fest-ribbon.fest-bar{height:36px;margin:0;border-radius:999px;box-shadow:none;width:100%}
+    .fest-bar .fest-track{animation-duration:26s}
+    .fest-bar .fest-half{gap:36px;padding-right:36px}
+    .fest-bar .fest-item{font-size:13.5px;gap:8px}
+    .fest-bar .fest-item .fest-emb{width:24px;height:24px}
     @keyframes festMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
     @media (max-width:640px){ .fest-ribbon{height:40px} .fest-item{font-size:13px} .fest-item .fest-emb{width:24px;height:24px} }
     @keyframes festIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
@@ -235,8 +241,8 @@
     preview() {
       try { return new URLSearchParams(location.search).get('festival') || null; } catch (e) { return null; }
     },
-    // names = aaj ki chhuttiyon ke naam; mode = 'block' (login), 'chip' (app ka top bar)
-    // ya 'ribbon' (Dashboard ke upar chalti patti)
+    // names = aaj ki chhuttiyon ke naam; mode = 'block' (login), 'chip' (chhota badge),
+    // 'ribbon' (Dashboard ke upar chalti patti) ya 'bar' (top bar me chhoti chalti patti)
     html(names, mode) {
       names = (names || []).map(n => String(n || '').trim()).filter(Boolean);
       if (!names.length) return '';
@@ -249,13 +255,14 @@
       const label = names.map(n => /^happy\b/i.test(n) ? n : 'Happy ' + n).join(' & ');
       const theme = themeOf(names[0]);
       const emb = `<svg class="fest-emb" viewBox="0 0 64 64" aria-hidden="true">${LOGO[theme]}</svg>`;
-      if (mode === 'ribbon') {
+      if (mode === 'ribbon' || mode === 'bar') {
         // Ek hi baat baar-baar; do barabar hisse, taaki -50% par patti bina jhatke dobara shuru ho
         const item = `<span class="fest-item">${emb}<span>${esc(label)}</span>` +
           `<span class="fest-wish">· Warm wishes from Team KLM</span><span class="fest-dot">✦</span></span>`;
         const half = `<div class="fest-half">${item.repeat(4)}</div>`;
-        const cls = theme === 'gandhi' || theme === 'flag' ? 't-flag'
-          : theme === 'diwali' ? 't-diwali' : theme === 'holi' ? 't-holi' : '';
+        const cls = (theme === 'gandhi' || theme === 'flag' ? 't-flag'
+          : theme === 'diwali' ? 't-diwali' : theme === 'holi' ? 't-holi' : '') +
+          (mode === 'bar' ? ' fest-bar' : '');   // 'bar' = top bar wali chhoti patti
         return `<div class="fest-ribbon ${cls}" role="marquee" aria-label="${esc(label)}">` +
           `<div class="fest-track">${half}${half}</div></div>`;
       }

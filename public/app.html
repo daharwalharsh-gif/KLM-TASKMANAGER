@@ -97,6 +97,10 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#1e293b;min-height:
 }
 .topbar-title{font-size:18px;font-weight:700;color:#1e293b;}
 .topbar-right{display:flex;align-items:center;gap:8px;}
+/* Tyohaar ki chalti patti — title aur ghanti ke beech ki khaali jagah */
+.topbar-fest{flex:1;min-width:0;margin:0 22px;display:flex;align-items:center}
+.topbar-fest:empty{display:none}
+@media (max-width:768px){ .topbar-fest{margin:0 8px} }
 /* Hamburger button — sirf mobile pe dikhta hai (media query me) */
 .mobile-menu-btn{display:none;background:none;border:none;font-size:22px;line-height:1;color:#1e293b;cursor:pointer;padding:4px 10px 4px 0;margin-right:4px;}
 /* Drawer backdrop — sirf mobile pe sidebar open hone par */
@@ -711,6 +715,8 @@ tbody tr:last-child td{border-bottom:none;}
   <div class="topbar">
     <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Menu">☰</button>
     <div class="topbar-title" id="topbarTitle">Dashboard</div>
+    <!-- Tyohaar ke din "Dashboard" ke bagal me chalti patti (festival.js 'bar') -->
+    <div class="topbar-fest" id="festBar"></div>
     <div class="topbar-right" id="topbarActions">
       <span id="festChip"></span>
       <div style="position:relative" id="notifBellWrap">
@@ -10578,7 +10584,11 @@ function showFestivalChip(list) {
   const today = holToday();
   // Holidays list ke saath apna tyohaar calendar bhi (list me na ho tab bhi badhai)
   const names = pre ? [pre] : KLMFestival.todayNames((list || []).filter(x => x.date === today).map(x => x.name), today);
-  el.innerHTML = KLMFestival.html(names, 'chip');
+  // Top bar me "Dashboard" ke bagal chalti patti — Harsh (10 Oct 2026). Patti hai
+  // to kone wala chhota badge nahi (ek hi baat do baar na dikhe).
+  const bar = document.getElementById('festBar');
+  if (bar) { bar.innerHTML = KLMFestival.html(names, 'bar'); el.innerHTML = ''; }
+  else el.innerHTML = KLMFestival.html(names, 'chip');
   // Dashboard ke upar chalti patti — Harsh (2 Oct 2026)
   const rb = document.getElementById('festRibbon');
   if (rb) rb.innerHTML = KLMFestival.html(names, 'ribbon');
