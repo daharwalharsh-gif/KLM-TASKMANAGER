@@ -1584,6 +1584,54 @@ app.post('/api/tasks', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ══ WEEKLY OFF PAR PADNE WALA TASK — AGLE WORKING DIN (Harsh, 12 Oct 2026) ══
+// "Sunday ke din task kyu dikh raha" — weekly off sirf DAILY task me chhoot-ta
+// tha; weekly/monthly/quarterly task Sunday (ya jo bhi off ho) par pad jaata
+// tha. Ab aisa task agle working din par aata hai — jo na us insaan ka weekly
+// off ho, na extra off, na chhutti (Holidays list). Kaam chhoot-ta nahi.
+function offDayChecker(weekOffStr, extraOffStr, holidaySet) {
+  const off = String(weekOffStr || '').split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+  let extra = [];
+  try { extra = extraOffStr ? JSON.parse(extraOffStr) : []; } catch (e) { extra = []; }
+  if (!Array.isArray(extra)) extra = [];
+  const hol = holidaySet || new Set();
+  // extra_off = [{ day: 0-6, weeks: [1..5] }] — "mahine ka 2nd/4th Saturday" jaisa
+  const isWeekOff = iso => {
+    const d = new Date(iso + 'T00:00:00Z');
+    if (isNaN(d)) return false;
+    const dow = d.getUTCDay(), nth = Math.ceil(d.getUTCDate() / 7);
+    return off.includes(dow) || extra.some(e => e && e.day === dow && Array.isArray(e.weeks) && e.weeks.includes(nth));
+  };
+  const nextWorking = iso => {
+    const d = new Date(iso + 'T00:00:00Z');
+    for (let i = 0; i < 21; i++) {
+      d.setUTCDate(d.getUTCDate() + 1);
+      const s = d.toISOString().slice(0, 10);
+      if (!isWeekOff(s) && !hol.has(s)) return s;
+    }
+    return iso;                      // 3 hafte tak koi working din nahi — jaisa tha waisa
+  };
+  return { isWeekOff, nextWorking };
+}
+async function loadHolidaySet() {
+  const [h] = await db.query('SELECT holiday_date FROM holidays');
+  return new Set((h || []).map(r => String(r.holiday_date || '').slice(0, 10)).filter(Boolean));
+}
+// Ek user ki tareekhein: weekly off wali agle working din par; ek din do baar na ho
+async function shiftOffDayDates(userId, dates) {
+  const [uRows] = await db.query('SELECT week_off, extra_off FROM users WHERE id=? LIMIT 1', [userId]);
+  const chk = offDayChecker(uRows[0]?.week_off, uRows[0]?.extra_off, await loadHolidaySet());
+  const seen = new Set(), out = [];
+  for (const raw of dates) {
+    const d = String(raw || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    const t = chk.isWeekOff(d) ? chk.nextWorking(d) : d;
+    if (seen.has(t)) continue;       // daily me Sunday->Monday pehle se hai — dobara nahi
+    seen.add(t); out.push(t);
+  }
+  return out.sort();
+}
+
 app.post('/api/tasks/bulk-checklist', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { desc, assignedTo, priority, remarks, dates, frequency } = req.body;
@@ -1630,9 +1678,14 @@ app.post('/api/tasks/bulk-checklist', requireAuth, requireAdmin, async (req, res
         });
       }
     }
-    const values = dates.map(date => [desc, parseInt(assignedTo), req.session.userId, date, 'pending', priority||'low', remarks||'', freq]);
+    // Weekly off par padne wali tareekhein agle working din par (upar dekho)
+    let finalDates = dates;
+    try { finalDates = await shiftOffDayDates(parseInt(assignedTo), dates); }
+    catch (e) { finalDates = dates; }  // user/holidays na padh paaye to jaisi aayi waisi
+    if (!finalDates.length) return res.status(400).json({ error: 'Koi working din nahi mila — weekly off / chhutti check karo' });
+    const values = finalDates.map(date => [desc, parseInt(assignedTo), req.session.userId, date, 'pending', priority||'low', remarks||'', freq]);
     await db.query(`INSERT INTO checklist_tasks (description,assigned_to,assigned_by,due_date,status,priority,remarks,frequency) VALUES ?`, [values]);
-    res.json({ success: true, count: dates.length });
+    res.json({ success: true, count: finalDates.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

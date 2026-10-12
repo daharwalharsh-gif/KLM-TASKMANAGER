@@ -9438,9 +9438,9 @@ async function saveChecklist() {
     return;
   }
 
-  suc.textContent = `✅ ${dates.length} tasks generated` +
+  suc.textContent = `✅ ${result.count || dates.length} tasks generated` +
     (!days.length ? '' : ` — every ${days.map(w => CL_DAYS[w]).join(' & ')}`) +
-    ` (${weekOff ? 'Week off days skipped' : 'No week off set'})`;
+    ` (${weekOff ? 'Week off par padne wale task agle working din par' : 'No week off set'})`;
   suc.style.display='block';
 
   setTimeout(()=>{ closeModal('checklistModal'); loadDashboard(); }, 2000);
@@ -10761,7 +10761,7 @@ async function uploadCSVC() {
       frequency
     });
 
-    if (!result.error) totalTasks += dates.length;
+    if (!result.error) totalTasks += (result.count || dates.length);   // server weekly-off wale din khiskaata hai
     else { skipped++; if (result.duplicate) dupes.push(description + ' → ' + (user.name || user.id)); }
   }
 
