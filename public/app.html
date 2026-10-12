@@ -1035,7 +1035,7 @@ tbody tr:last-child td{border-bottom:none;}
          neeche MIS ki 4 detailed reports (#misResults box yahin aata hai). -->
     <div class="own-hero">
       <div><div class="own-hero-t">Owner Dashboard</div>
-        <div class="own-hero-s">Pending kaam, overdue, aane wale risk, order delay, OTD aur escalation — ek screen par</div></div>
+        <div class="own-hero-s">Pending work, overdue tasks, upcoming risks, order delays, OTD and escalations — all on one screen</div></div>
       <div class="od-hero-r"><span class="od-upd" id="odUpdated"></span>
         <button class="btn btn-outline btn-sm" onclick="odRefresh()">🔄 Refresh</button></div>
     </div>
@@ -4612,7 +4612,7 @@ function ownerKpiPaint() {
     const pend = rows.filter(x => !x.dispatched).length;
     const word = src === 'sampling' ? 'sample' : 'order';
     set(src, `<b>${pend.toLocaleString('en-IN')}</b> pending · ${(rows.length - pend).toLocaleString('en-IN')} dispatched` +
-      (rows.length ? '' : ` (koi ${word} nahi)`));
+      (rows.length ? '' : ` (no ${word}s)`));
   }
   const d = _salesCache[_salesSrc];
   if (d && Array.isArray(d.rows) && d.amount) {
@@ -4687,7 +4687,7 @@ async function odLoad(force, skipSrc) {
     }),
     api('/api/owner-dashboard/attention' + (qs ? '?' + qs : '')).then(d => {
       if (d && !d.error && Array.isArray(d.tasks)) { _od.attn = d; _od.attnErr = ''; _od.at.fms = Date.now(); }
-      else _od.attnErr = (d && d.error) || 'Load nahi hua';
+      else _od.attnErr = (d && d.error) || 'Failed to load';
       odRender();
     }),
     api('/api/challenges').then(d => { if (Array.isArray(d)) { _od.chal = d; _od.at.chal = Date.now(); } odRender(); })
@@ -4738,7 +4738,7 @@ function odFillPeople() {
     if (sel.dataset.h !== html) { sel.innerHTML = html; sel.dataset.h = html; sel.value = arr.includes(cur) ? cur : ''; }
     sel.disabled = !arr.length;
   };
-  fill(hodSel, hods, 'All HODs', 'HOD set nahi (Users me role)');
+  fill(hodSel, hods, 'All HODs', 'No HOD set (assign in Users)');
   fill(doerSel, doers, 'All Employees', 'All Employees');
 }
 // Filter (HOD / Employee / type / planned tareekh) laga hua task list
@@ -4849,12 +4849,12 @@ function odRenderKpis() {
   const orders = exp && inv ? exp.pending + inv.pending : null;
   el.innerHTML =
     odCard('od-c-blue', 'Total Pending Tasks', odN(total),
-      `Delegation ${odN(del)} · Checklist ${odN(chl)}` + (today != null ? ` · aaj due ${odN(today)} · overdue ${odN(over)}` : ''), 'Detail', "odPop('total')") +
-    odCard('od-c-red', 'Overdue Tasks', odN(over), `Delegation ${odN(ovDel)} · Checklist ${odN(ovChl)} — due date nikal gayi`, 'Detail', "odPop('overdue')") +
+      `Delegation ${odN(del)} · Checklist ${odN(chl)}` + (today != null ? ` · today ${odN(today)} · overdue ${odN(over)}` : ''), 'Details', "odPop('total')") +
+    odCard('od-c-red', 'Overdue Tasks', odN(over), `Delegation ${odN(ovDel)} · Checklist ${odN(ovChl)} — past due date`, 'Details', "odPop('overdue')") +
     odCard('od-c-amber', 'Due in Next 2 Days', odN(sn && sn.length),
-      `Delegation ${odN(snDel)} · Checklist ${odN(sn && sn.length - snDel)} — aaj, kal, parso`, 'Detail', "odPop('soon')") +
+      `Delegation ${odN(snDel)} · Checklist ${odN(sn && sn.length - snDel)} — today + 2 days`, 'Details', "odPop('soon')") +
     odCard('od-c-violet', 'Pending Orders', odN(orders),
-      `Export ${odN(exp && exp.pending)} · Invincible ${odN(inv && inv.pending)}`, 'Detail', "odPop('orders')");
+      `Export ${odN(exp && exp.pending)} · Invincible ${odN(inv && inv.pending)}`, 'Details', "odPop('orders')");
 }
 // Neeche wali MIS detailed report kholo (popup band karke)
 function odGo(what) {
@@ -4868,7 +4868,7 @@ function odOtdCard(title, hint, o, color, src) {
   if (!o) return `<div class="od-otdc"><div class="od-ring" style="--p:0"><span class="od-skel">…</span></div><div><h4>${title}</h4><div class="hint">${hint}</div><div class="m od-skel">Loading…</div></div></div>`;
   const pct = o.pct == null ? '—' : o.pct + '%';
   const c = o.pct == null ? '#94a3b8' : o.pct >= 90 ? '#059669' : o.pct >= 70 ? '#d97706' : '#dc2626';
-  return `<div class="od-otdc click" onclick="odPop('${src === 'merchant' ? 'otdExp' : 'otdInv'}')" title="Detail dekho">` +
+  return `<div class="od-otdc click" onclick="odPop('${src === 'merchant' ? 'otdExp' : 'otdInv'}')" title="View details">` +
     `<div class="od-ring" style="--p:${o.pct || 0};--c:${c}"><span style="color:${c}">${pct}</span></div>` +
     `<div><h4>${title}</h4><div class="hint">${hint}</div><div class="m">` +
     `<span>On time <b>${odN(o.onTime)}</b></span><span>Delayed <b style="color:#dc2626">${odN(o.delayed)}</b></span>` +
@@ -4880,9 +4880,9 @@ function odRenderOtd() {
   const open = ch ? ch.filter(c => !/^(completed|done|resolved|closed)$/i.test(String(c.status || '').trim())) : null;
   const high = open ? open.filter(c => /high|urgent/i.test(c.priority || '')).length : null;
   el.innerHTML =
-    odOtdCard('Invincible OTD', 'Planned date tak dispatch', odOtd('invincible'), '', 'invincible') +
-    odOtdCard('Export OTD', 'Order date + lead time tak dispatch', odOtd('merchant'), '', 'merchant') +
-    `<div class="od-otdc click" onclick="odPop('chal')" title="Detail dekho"><div class="od-ring" style="--p:${open && ch.length ? Math.round(open.length / ch.length * 100) : 0};--c:#e11d48">` +
+    odOtdCard('Invincible OTD', 'Dispatch by planned date', odOtd('invincible'), '', 'invincible') +
+    odOtdCard('Export OTD', 'Dispatch by order date + lead time', odOtd('merchant'), '', 'merchant') +
+    `<div class="od-otdc click" onclick="odPop('chal')" title="View details"><div class="od-ring" style="--p:${open && ch.length ? Math.round(open.length / ch.length * 100) : 0};--c:#e11d48">` +
     `<span style="color:#e11d48">${odN(open && open.length)}</span></div><div><h4>Unresolved Challenges</h4>` +
     `<div class="hint">Escalation — HOD, EA, Manik Sir</div><div class="m"><span>High priority <b style="color:#e11d48">${odN(high)}</b></span>` +
     `<span>Total <b>${odN(ch && ch.length)}</b></span></div></div></div>`;
@@ -4890,8 +4890,8 @@ function odRenderOtd() {
 function odLi(t, x, cls) { return `<li><span class="t">${t}</span><span class="x ${cls || ''}">${x}</span></li>`; }
 // Section card — poora card dabane par uski detail popup (key = odPopView ka naam)
 function odSec(icon, title, sub, nums, list, key) {
-  return `<div class="od-sec click" onclick="odPop('${key}')" title="Poori detail dekho"><h4>${icon} ${title}</h4><div class="sub">${sub}</div>` +
-    (nums ? `<div class="od-nums">${nums}</div>` : '') + (list || '') + `<button type="button" class="od-more">Poori detail →</button></div>`;
+  return `<div class="od-sec click" onclick="odPop('${key}')" title="View full details"><h4>${icon} ${title}</h4><div class="sub">${sub}</div>` +
+    (nums ? `<div class="od-nums">${nums}</div>` : '') + (list || '') + `<button type="button" class="od-more">View details →</button></div>`;
 }
 function odNum(cls, v, l) { return `<div class="od-num ${cls}"><b>${typeof v === 'string' ? v : odN(v)}</b><span>${l}</span></div>`; }
 function odRenderSecs() {
@@ -4901,9 +4901,9 @@ function odRenderSecs() {
   const out = [];
   // 1. Delegation
   const dl = tasks.filter(t => t.kind === 'delegation' && t.status === 'overdue').sort((x, y) => y.delayDays - x.delayDays);
-  out.push(odSec('📋', 'Delegation FMS', 'Pending, overdue aur completed',
+  out.push(odSec('📋', 'Delegation FMS', 'Pending, overdue and completed',
     T ? odNum('b', T.delegation.pending + T.delegation.revised, 'Pending') + odNum('r', T.delegation.overdue, 'Overdue') + odNum('g', T.delegation.completed, 'Completed') : '',
-    !a ? loading : dl.length ? `<ul class="od-list">${dl.slice(0, 4).map(t => odLi(`${odEsc(t.task)}<small>${odEsc(t.doer)}</small>`, '+' + t.delayDays + 'd', 'r')).join('')}</ul>` : '<div class="od-empty">Koi overdue delegation nahi 🎉</div>',
+    !a ? loading : dl.length ? `<ul class="od-list">${dl.slice(0, 4).map(t => odLi(`${odEsc(t.task)}<small>${odEsc(t.doer)}</small>`, '+' + t.delayDays + 'd', 'r')).join('')}</ul>` : '<div class="od-empty">No overdue delegations 🎉</div>',
     'deleg'));
   // 2. Checklist — email ke hisaab se
   const byMail = {};
@@ -4912,9 +4912,9 @@ function odRenderSecs() {
     if (t.status === 'overdue') byMail[k].o++; else byMail[k].s++;
   });
   const mails = Object.values(byMail).sort((x, y) => (y.o - x.o) || (y.s - x.s));
-  out.push(odSec('✅', 'Checklist FMS', 'Pending aur overdue — email ke hisaab se',
+  out.push(odSec('✅', 'Checklist FMS', 'Pending and overdue — by email',
     T ? odNum('b', T.checklist.pending + T.checklist.revised, 'Pending') + odNum('r', T.checklist.overdue, 'Overdue') + odNum('a', tasks.filter(t => t.kind === 'checklist' && t.status === 'atrisk').length, 'Next 2 days') : '',
-    !a ? loading : mails.length ? `<ul class="od-list">${mails.slice(0, 5).map(m => odLi(`${odEsc(m.mail || m.name)}<small>${odEsc(m.mail ? m.name : '')}</small>`, (m.o ? m.o + ' overdue' : '') + (m.o && m.s ? ' · ' : '') + (m.s ? m.s + ' soon' : ''), m.o ? 'r' : 'a')).join('')}</ul>` : '<div class="od-empty">Sab time par 🎉</div>',
+    !a ? loading : mails.length ? `<ul class="od-list">${mails.slice(0, 5).map(m => odLi(`${odEsc(m.mail || m.name)}<small>${odEsc(m.mail ? m.name : '')}</small>`, (m.o ? m.o + ' overdue' : '') + (m.o && m.s ? ' · ' : '') + (m.s ? m.s + ' soon' : ''), m.o ? 'r' : 'a')).join('')}</ul>` : '<div class="od-empty">All on time 🎉</div>',
     'chl'));
   // 3. OTD Merchant — delayed orders
   const mer = _otodCache.merchant;
@@ -4922,24 +4922,24 @@ function odRenderSecs() {
   const exp = odOtd('merchant');
   out.push(odSec('📦', 'OTD Merchant FMS', 'Delayed orders — PI number, merchant (doer), planned date, delay',
     exp ? odNum('r', merLate.length, 'Delayed open') + odNum('b', exp.pending, 'Pending') + odNum(exp.pct >= 90 ? 'g' : exp.pct >= 70 ? 'a' : 'r', exp.pct == null ? '—' : exp.pct + '%', 'OTD') : '',
-    !Array.isArray(mer) ? loading : merLate.length ? `<ul class="od-list">${merLate.slice(0, 5).map(x => odLi(`${odEsc(x.piNo)}<small>${odEsc(x.merchant || x.buyer || '')} · ${odDM(x.planned)}</small>`, '+' + odOrderDelay('merchant', x) + 'd', 'r')).join('')}</ul>` : '<div class="od-empty">Koi delayed order nahi 🎉</div>',
+    !Array.isArray(mer) ? loading : merLate.length ? `<ul class="od-list">${merLate.slice(0, 5).map(x => odLi(`${odEsc(x.piNo)}<small>${odEsc(x.merchant || x.buyer || '')} · ${odDM(x.planned)}</small>`, '+' + odOrderDelay('merchant', x) + 'd', 'r')).join('')}</ul>` : '<div class="od-empty">No delayed orders 🎉</div>',
     'mer'));
   // 4. OTD Offline — pending orders + expected dispatch
   const inv = _otodCache.invincible;
   const invPend = Array.isArray(inv) ? inv.filter(x => !x.dispatched).sort((x, y) => String(x.planned || '9').localeCompare(String(y.planned || '9'))) : [];
   const today = odToday();
-  out.push(odSec('🏬', 'OTD Offline FMS', 'Pending orders aur expected dispatch date',
-    Array.isArray(inv) ? odNum('b', invPend.length, 'Pending') + odNum('r', invPend.filter(x => x.planned && x.planned < today).length, 'Date nikal gayi') + odNum('a', invPend.filter(x => x.planned && x.planned >= today).length, 'Aage') : '',
-    !Array.isArray(inv) ? loading : invPend.length ? `<ul class="od-list">${invPend.slice(0, 5).map(x => odLi(`${odEsc(x.party)}<small>${odEsc(x.qty ? x.qty + ' pcs' : '')}</small>`, x.planned ? odDM(x.planned) : 'date nahi', x.planned && x.planned < today ? 'r' : 'b')).join('')}</ul>` : '<div class="od-empty">Koi pending order nahi 🎉</div>',
+  out.push(odSec('🏬', 'OTD Offline FMS', 'Pending orders and expected dispatch date',
+    Array.isArray(inv) ? odNum('b', invPend.length, 'Pending') + odNum('r', invPend.filter(x => x.planned && x.planned < today).length, 'Past date') + odNum('a', invPend.filter(x => x.planned && x.planned >= today).length, 'Upcoming') : '',
+    !Array.isArray(inv) ? loading : invPend.length ? `<ul class="od-list">${invPend.slice(0, 5).map(x => odLi(`${odEsc(x.party)}<small>${odEsc(x.qty ? x.qty + ' pcs' : '')}</small>`, x.planned ? odDM(x.planned) : 'no date', x.planned && x.planned < today ? 'r' : 'b')).join('')}</ul>` : '<div class="od-empty">No pending orders 🎉</div>',
     'off'));
   // 5. Sampling — pending + doer
   const smp = _otodCache.sampling;
   const smpPend = Array.isArray(smp) ? smp.filter(x => !x.dispatched) : [];
   const byDoer = {};
   smpPend.forEach(x => { const k = x.merchant || x.doer || '(blank)'; byDoer[k] = (byDoer[k] || 0) + 1; });
-  out.push(odSec('🧵', 'Sampling FMS', 'Pending samples aur zimmedaar doer',
+  out.push(odSec('🧵', 'Sampling FMS', 'Pending samples and responsible doer',
     Array.isArray(smp) ? odNum('b', smpPend.length, 'Pending') + odNum('r', smpPend.filter(x => x.planned && x.planned < today).length, 'Late') + odNum('g', smp.length - smpPend.length, 'Dispatched') : '',
-    !Array.isArray(smp) ? loading : Object.keys(byDoer).length ? `<ul class="od-list">${Object.entries(byDoer).sort((x, y) => y[1] - x[1]).slice(0, 5).map(([k, n]) => odLi(odEsc(k), n + ' pending', 'b')).join('')}</ul>` : '<div class="od-empty">Koi pending sample nahi 🎉</div>',
+    !Array.isArray(smp) ? loading : Object.keys(byDoer).length ? `<ul class="od-list">${Object.entries(byDoer).sort((x, y) => y[1] - x[1]).slice(0, 5).map(([k, n]) => odLi(odEsc(k), n + ' pending', 'b')).join('')}</ul>` : '<div class="od-empty">No pending samples 🎉</div>',
     'smp'));
   // 6. PMS Garment & Boxing — step-wise
   const pms = a ? a.fms.filter(g => /pms|garment|boxing/i.test(g.fmsName)) : [];
@@ -4947,30 +4947,30 @@ function odRenderSecs() {
   out.push(odSec('🥊', 'PMS Garment & Boxing', 'Pending stages — full kitting, cutting, production',
     a ? odNum('r', pmsLate, 'Late') + odNum('a', pmsSoon, 'Next 2 days') + odNum('b', pms.length, 'Stages') : '',
     !a ? loading : pms.length ? `<table class="od-mini"><thead><tr><th>Stage</th><th style="text-align:right">Late</th><th style="text-align:right">Soon</th></tr></thead><tbody>` +
-      pms.slice(0, 6).map(g => `<tr><td>${odEsc(g.stepName)}<small style="display:block;color:#94a3b8">${odEsc(g.fmsName.replace(/\s+/g, ' '))}</small></td><td style="text-align:right;color:#dc2626;font-weight:800">${odN(g.overdue)}</td><td style="text-align:right;color:#d97706;font-weight:800">${odN(g.atrisk)}</td></tr>`).join('') + `</tbody></table>` : '<div class="od-empty">Koi pending stage nahi 🎉</div>', 'pms'));
+      pms.slice(0, 6).map(g => `<tr><td>${odEsc(g.stepName)}<small style="display:block;color:#94a3b8">${odEsc(g.fmsName.replace(/\s+/g, ' '))}</small></td><td style="text-align:right;color:#dc2626;font-weight:800">${odN(g.overdue)}</td><td style="text-align:right;color:#d97706;font-weight:800">${odN(g.atrisk)}</td></tr>`).join('') + `</tbody></table>` : '<div class="od-empty">No pending stages 🎉</div>', 'pms'));
   // 7. Employee Performance
   const dsel = (document.getElementById('odDoer') || {}).value || '';
   const emp = ((_od.main && _od.main.topUsers) || []).filter(u => !dsel || u.name === dsel)
     .map(u => ({ ...u, rate: u.total ? Math.round(u.completed / u.total * 100) : 0 }))
     .sort((x, y) => (y.overdue - x.overdue) || (y.total - x.total));
-  out.push(odSec('👥', 'Employee Performance', 'Total task, overdue aur completion rate',
+  out.push(odSec('👥', 'Employee Performance', 'Total tasks, overdue and completion rate',
     '', !_od.main ? loading : emp.length ? `<table class="od-mini"><thead><tr><th>Name</th><th style="text-align:right">Total</th><th style="text-align:right">Overdue</th><th style="text-align:right">Done %</th></tr></thead><tbody>` +
-      emp.slice(0, 7).map(u => `<tr><td>${odEsc(u.name)}<small style="display:block;color:#94a3b8">${odEsc(u.department)}</small></td><td style="text-align:right">${odN(u.total)}</td><td style="text-align:right;color:${u.overdue ? '#dc2626' : '#94a3b8'};font-weight:800">${odN(u.overdue)}</td><td style="text-align:right;font-weight:800;color:${u.rate >= 90 ? '#059669' : u.rate >= 70 ? '#d97706' : '#dc2626'}">${u.rate}%</td></tr>`).join('') + `</tbody></table>` : '<div class="od-empty">Data nahi</div>', 'emp'));
+      emp.slice(0, 7).map(u => `<tr><td>${odEsc(u.name)}<small style="display:block;color:#94a3b8">${odEsc(u.department)}</small></td><td style="text-align:right">${odN(u.total)}</td><td style="text-align:right;color:${u.overdue ? '#dc2626' : '#94a3b8'};font-weight:800">${odN(u.overdue)}</td><td style="text-align:right;font-weight:800;color:${u.rate >= 90 ? '#059669' : u.rate >= 70 ? '#d97706' : '#dc2626'}">${u.rate}%</td></tr>`).join('') + `</tbody></table>` : '<div class="od-empty">No data</div>', 'emp'));
   // 8. Escalation — challenges
   const ch = _od.chal;
   const open = ch ? ch.filter(c => !/^(completed|done|resolved|closed)$/i.test(String(c.status || '').trim())) : [];
   const age = c => { const d = String(c.created_at || c.received_date || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? Math.max(0, otodDays(d, odToday()) || 0) : ''; };
-  out.push(odSec('🚨', 'Escalation Dashboard', 'Challenges — HOD, EA aur Manik Sir tak',
+  out.push(odSec('🚨', 'Escalation Dashboard', 'Challenges — escalated to HOD, EA and Manik Sir',
     ch ? odNum('r', open.length, 'Unresolved') + odNum('a', open.filter(c => /high|urgent/i.test(c.priority || '')).length, 'High') + odNum('g', ch.length - open.length, 'Resolved') : '',
-    !ch ? loading : open.length ? `<ul class="od-list">${open.slice(0, 5).map(c => odLi(`${odEsc(c.party_name)}<small>${odEsc(c.responsibleName || '—')}</small>`, (age(c) !== '' ? age(c) + 'd purana' : ''), /high|urgent/i.test(c.priority || '') ? 'r' : 'a')).join('')}</ul>` : '<div class="od-empty">Koi unresolved challenge nahi 🎉</div>',
+    !ch ? loading : open.length ? `<ul class="od-list">${open.slice(0, 5).map(c => odLi(`${odEsc(c.party_name)}<small>${odEsc(c.responsibleName || '—')}</small>`, (age(c) !== '' ? age(c) + 'd old' : ''), /high|urgent/i.test(c.priority || '') ? 'r' : 'a')).join('')}</ul>` : '<div class="od-empty">No unresolved challenges 🎉</div>',
     'chal'));
   // 9. Har FMS ka pending + last refresh
   const byFms = {};
   (a ? a.fms : []).forEach(g => { const k = g.fmsName.replace(/\s+/g, ' '); byFms[k] = byFms[k] || { o: 0, s: 0 }; byFms[k].o += g.overdue; byFms[k].s += g.atrisk; });
   const fl = Object.entries(byFms).sort((x, y) => (y[1].o + y[1].s) - (x[1].o + x[1].s));
-  out.push(odSec('🔄', 'Har FMS ka pending', `Late + agle 2 din · last refresh ${_od.at.fms ? odTime(_od.at.fms) : '—'}` + (a && a.fmsError ? ' · ⚠️ ' + odEsc(a.fmsError) : ''),
+  out.push(odSec('🔄', 'Pending by FMS', `Late + next 2 days · last refresh ${_od.at.fms ? odTime(_od.at.fms) : '—'}` + (a && a.fmsError ? ' · ⚠️ ' + odEsc(a.fmsError) : ''),
     a && a.fmsTotals ? odNum('r', a.fmsTotals.overdue, 'Late') + odNum('a', a.fmsTotals.atrisk, 'Next 2 days') + odNum('b', fl.length, 'FMS') : '',
-    !a ? loading : fl.length ? `<ul class="od-list">${fl.slice(0, 8).map(([k, v]) => odLi(odEsc(k), (v.o ? v.o.toLocaleString('en-IN') + ' late' : '') + (v.o && v.s ? ' · ' : '') + (v.s ? v.s.toLocaleString('en-IN') + ' soon' : ''), v.o ? 'r' : 'a')).join('')}</ul>` : '<div class="od-empty">Koi pending nahi 🎉</div>', 'fms'));
+    !a ? loading : fl.length ? `<ul class="od-list">${fl.slice(0, 8).map(([k, v]) => odLi(odEsc(k), (v.o ? v.o.toLocaleString('en-IN') + ' late' : '') + (v.o && v.s ? ' · ' : '') + (v.s ? v.s.toLocaleString('en-IN') + ' soon' : ''), v.o ? 'r' : 'a')).join('')}</ul>` : '<div class="od-empty">Nothing pending 🎉</div>', 'fms'));
   el.innerHTML = out.join('');
 }
 // ══ Card ki detail popup (Harsh, 12 Oct 2026) — kisi bhi card par click ══
@@ -4978,6 +4978,7 @@ function odRenderSecs() {
 // column). Sirf padhna — jo data dashboard ke paas pehle se hai usi se.
 let _odPop = null;                       // { key, tab, q }
 const OD_POP_LIMIT = 500;
+const odUnit = (u, n) => (n === 1 || u === 'FMS') ? u : u + 's';
 const odDelayCell = d => `<b style="color:${d ? '#dc2626' : '#94a3b8'}">${d ? '+' + d + 'd' : '—'}</b>`;
 const odCnt = (n, c) => `<b style="color:${n ? c : '#94a3b8'}">${odN(n)}</b>`;
 const odAddDays = (iso, n) => {
@@ -4994,10 +4995,10 @@ const odTaskSort = (x, y) => (odRank[x.status] - odRank[y.status]) || (y.delayDa
 function odTaskState(t) {
   if (t.status === 'overdue') return ['overdue', 'OVERDUE'];
   if (t.status === 'done') return ['done', 'DONE'];
-  return ['atrisk', !(t.dueIn > 0) ? 'AAJ DUE' : t.dueIn === 1 ? 'KAL DUE' : t.dueIn + ' DIN ME'];
+  return ['atrisk', !(t.dueIn > 0) ? 'DUE TODAY' : t.dueIn === 1 ? 'DUE TOMORROW' : 'IN ' + t.dueIn + ' DAYS'];
 }
-const odTaskNext = t => t.status === 'overdue' ? (t.hod ? 'HOD (' + t.hod + ') se baat · escalate' : 'Doer se reason lo · EA ko escalate')
-  : t.status === 'atrisk' ? (!(t.dueIn > 0) ? 'Aaj due — doer se confirm karo' : 'Doer se planned date confirm karo') : '—';
+const odTaskNext = t => t.status === 'overdue' ? (t.hod ? 'Talk to HOD (' + t.hod + ') · escalate' : 'Get reason from doer · escalate to EA')
+  : t.status === 'atrisk' ? (!(t.dueIn > 0) ? 'Due today — confirm with doer' : 'Confirm planned date with doer') : '—';
 function odTaskCols(withDone) {
   return [
     { h: 'Status', v: t => { const [c, l] = odTaskState(t); return `<span class="od-badge ${c}">${l}</span>`; } },
@@ -5025,7 +5026,7 @@ function odByDoer(list) {
   return Object.values(m).sort((a, b) => (b.overdue - a.overdue) || (b.total - a.total) || String(a.doer).localeCompare(String(b.doer)));
 }
 function odDoerCols(show, mailFirst, oneKind) {
-  const lab = { overdue: ['Overdue', '#dc2626'], today: ['Aaj due', '#d97706'], soon: ['Agle 2 din', '#d97706'], done: ['Done (3 din)', '#059669'] };
+  const lab = { overdue: ['Overdue', '#dc2626'], today: ['Due today', '#d97706'], soon: ['Next 2 days', '#d97706'], done: ['Done (3 days)', '#059669'] };
   return [
     mailFirst ? { h: 'Email', v: g => `${odEsc(g.doerEmail || g.doer)}<small>${odEsc(g.doerEmail ? g.doer : '')}</small>` }
       : { h: 'Doer', v: g => `${odEsc(g.doer)}<small>${odEsc(g.doerEmail)}</small>` },
@@ -5042,10 +5043,10 @@ const odFmsCols = [
   { h: 'FMS', v: g => odEsc(odFmsName(g)) },
   { h: 'Step', c: 'w', v: g => odEsc(g.stepName) },
   { h: 'Late', c: 'n', v: g => odCnt(g.overdue, '#dc2626') },
-  { h: 'Agle 2 din', c: 'n', v: g => odCnt(g.atrisk, '#d97706') },
-  { h: 'Sabse purana planned', v: g => g.oldestPlanned ? odDM(g.oldestPlanned) : '—' },
+  { h: 'Next 2 days', c: 'n', v: g => odCnt(g.atrisk, '#d97706') },
+  { h: 'Oldest planned', v: g => g.oldestPlanned ? odDM(g.oldestPlanned) : '—' },
   { h: 'Delay', v: g => odDelayCell(g.delayDays) },
-  { h: 'Sabse zyada pending (doer)', c: 'w', v: g => (g.doers || []).map(d => `${odEsc(d.name)} <b>${odN(d.n)}</b>`).join(' · ') || '—' }
+  { h: 'Top pending doers', c: 'w', v: g => (g.doers || []).map(d => `${odEsc(d.name)} <b>${odN(d.n)}</b>`).join(' · ') || '—' }
 ];
 const odFmsRowCls = g => g.overdue ? 'od-r-overdue' : g.atrisk ? 'od-r-atrisk' : '';
 function odFmsWise(groups) {
@@ -5061,10 +5062,10 @@ function odFmsWise(groups) {
 const odFmsWiseCols = [
   { h: 'FMS', c: 'w', v: g => `<b>${odEsc(g.fmsName)}</b>` },
   { h: 'Late', c: 'n', v: g => odCnt(g.overdue, '#dc2626') },
-  { h: 'Agle 2 din', c: 'n', v: g => odCnt(g.atrisk, '#d97706') },
+  { h: 'Next 2 days', c: 'n', v: g => odCnt(g.atrisk, '#d97706') },
   { h: 'Steps', c: 'n', v: g => odN(g.steps) },
-  { h: 'Sabse purana planned', v: g => g.oldestPlanned ? odDM(g.oldestPlanned) : '—' },
-  { h: 'Sabse zyada delay', v: g => odDelayCell(g.delayDays) }
+  { h: 'Oldest planned', v: g => g.oldestPlanned ? odDM(g.oldestPlanned) : '—' },
+  { h: 'Max delay', v: g => odDelayCell(g.delayDays) }
 ];
 
 // ── Orders (Export / Invincible / Sampling) ──
@@ -5072,7 +5073,7 @@ function odOrdState(src, x) {
   const c = odOtdClass(src, x);
   if (c === 'delayed') return ['overdue', x.dispatched ? 'LATE DISPATCH' : 'DELAYED'];
   if (c === 'onTime') return ['done', 'ON TIME'];
-  if (c === 'notDue') return ['info', 'TIME HAI'];
+  if (c === 'notDue') return ['info', 'ON TRACK'];
   return x.dispatched ? ['done', 'DISPATCHED'] : ['info', 'PENDING'];
 }
 const odOrdBadge = src => ({ h: 'Status', v: x => { const [c, l] = odOrdState(src, x); return `<span class="od-badge ${c}">${l}</span>`; } });
@@ -5096,7 +5097,7 @@ const odInvCols = [
   { h: 'Party', c: 'w', v: x => `<b>${odEsc(x.party)}</b>` },
   { h: 'Qty', c: 'n', v: x => odEsc(x.qty || '—') },
   { h: 'Order date', v: x => odDM(x.orderDate) },
-  { h: 'Planned dispatch', v: x => x.planned ? odDM(x.planned) : 'date nahi' },
+  { h: 'Planned dispatch', v: x => x.planned ? odDM(x.planned) : 'no date' },
   { h: 'Dispatched on', v: x => x.dispatched ? odDM(x.actualDate) : '—' },
   { h: 'Delay', v: x => odDelayCell(odOrderDelay('invincible', x)) },
   { h: 'Dispatch status', v: x => odEsc(x.dispatchStatus || '—') },
@@ -5110,7 +5111,7 @@ const odSmpCols = [
   { h: 'Merchant', v: x => odEsc(x.merchant || '—') },
   { h: 'Doer', v: x => odEsc(x.doer || '—') },
   { h: 'Enquiry date', v: x => odDM(x.orderDate) },
-  { h: 'Planned', v: x => x.planned ? odDM(x.planned) : 'date nahi' },
+  { h: 'Planned', v: x => x.planned ? odDM(x.planned) : 'no date' },
   { h: 'Dispatched on', v: x => x.dispatched ? odDM(x.actualDate) : '—' },
   { h: 'Delay', v: x => odDelayCell(odOrderDelay('sampling', x)) },
   { h: 'Category', v: x => odEsc(x.category || '—') }
@@ -5127,9 +5128,9 @@ const odChalCols = [
   { h: 'Right person', v: c => odEsc(c.responsibleName || '—') },
   { h: 'Priority', v: c => `<span style="font-weight:800;color:${odChalHigh(c) ? '#dc2626' : '#475569'}">${odEsc(c.priority || '—')}</span>` },
   { h: 'Received', v: c => odDM(String(c.received_date || '').slice(0, 10) || String(c.created_at || '').slice(0, 10)) },
-  { h: 'Kitna purana', c: 'n', v: c => { const a = odChalAge(c); return a === '' ? '—' : `<b style="color:${odChalOpen(c) && a > 7 ? '#dc2626' : '#475569'}">${a}d</b>`; } },
+  { h: 'Age', c: 'n', v: c => { const a = odChalAge(c); return a === '' ? '—' : `<b style="color:${odChalOpen(c) && a > 7 ? '#dc2626' : '#475569'}">${a}d</b>`; } },
   { h: 'Proposed resolution', c: 'w', v: c => odEsc(c.proposed_resolution || '—') },
-  { h: 'Banaya', v: c => odEsc(c.createdByName || '—') }
+  { h: 'Created by', v: c => odEsc(c.createdByName || '—') }
 ];
 const odChalRowCls = c => odChalOpen(c) ? (odChalHigh(c) ? 'od-r-overdue' : 'od-r-atrisk') : 'od-r-done';
 
@@ -5140,18 +5141,18 @@ function odPopView(key) {
   const err = !a && _od.attnErr ? _od.attnErr : '';
   const by = (list, f) => list ? list.filter(f) : null;
   const sorted = list => list ? list.slice().sort(odTaskSort) : null;
-  const fmsNote = '1 April se pehle ka data aur Sales NBD FMS shaamil nahi.';
+  const fmsNote = 'Data before 1 April and Sales NBD FMS are excluded.';
   const exp = _otodCache.merchant, inv = _otodCache.invincible, smp = _otodCache.sampling;
   const ord = (rows, src, f) => Array.isArray(rows) ? rows.filter(f).sort(odOrdSort(src)) : null;
   const today = odToday();
   if (key === 'total') {
     const cur = sorted(by(tasks, odIsCurrent));
     return { icon: '📋', cls: 'od-c-blue', title: 'Total Pending Tasks', err,
-      sub: 'Delegation + Checklist — aaj due aur overdue. Aane wale (kal / parso) isme nahi.', big: cur ? cur.length : null,
+      sub: 'Delegation + Checklist — due today and overdue. Upcoming tasks (tomorrow / day after) are not included.', big: cur ? cur.length : null,
       tabs: [
-        odTab('all', 'Sab', cur, odTaskCols()),
+        odTab('all', 'All', cur, odTaskCols()),
         odTab('over', '🔴 Overdue', by(cur, t => t.status === 'overdue'), odTaskCols(), 'c-r'),
-        odTab('today', '🟠 Aaj due', by(cur, t => t.status !== 'overdue'), odTaskCols(), 'c-a'),
+        odTab('today', '🟠 Due today', by(cur, t => t.status !== 'overdue'), odTaskCols(), 'c-a'),
         odTab('del', 'Delegation', by(cur, t => t.kind === 'delegation'), odTaskCols()),
         odTab('chl', 'Checklist', by(cur, t => t.kind === 'checklist'), odTaskCols()),
         odTab('doer', '👤 Doer-wise', cur && odByDoer(cur), odDoerCols(['overdue', 'today']), '', { unit: 'doer' })
@@ -5160,9 +5161,9 @@ function odPopView(key) {
   if (key === 'overdue') {
     const ov = sorted(by(tasks, t => t.status === 'overdue'));
     return { icon: '⏰', cls: 'od-c-red', title: 'Overdue Tasks', err,
-      sub: 'Delegation + Checklist — due date nikal gayi, abhi tak pending', big: ov ? ov.length : null,
+      sub: 'Delegation + Checklist — past due date, still pending', big: ov ? ov.length : null,
       tabs: [
-        odTab('tasks', 'Sab', ov, odTaskCols(), 'c-r'),
+        odTab('tasks', 'All', ov, odTaskCols(), 'c-r'),
         odTab('del', 'Delegation', by(ov, t => t.kind === 'delegation'), odTaskCols()),
         odTab('chl', 'Checklist', by(ov, t => t.kind === 'checklist'), odTaskCols()),
         odTab('doer', '👤 Doer-wise', ov && odByDoer(ov), odDoerCols(['overdue']), '', { unit: 'doer' })
@@ -5172,12 +5173,12 @@ function odPopView(key) {
     const sn = by(tasks, t => t.status === 'atrisk');
     if (sn) sn.sort((x, y) => ((x.dueIn || 0) - (y.dueIn || 0)) || String(x.doer).localeCompare(String(y.doer)));
     return { icon: '⏳', cls: 'od-c-amber', title: 'Due in Next 2 Days', err,
-      sub: 'Delegation + Checklist — aaj, kal aur parso due. Advance me doer se confirm karo.', big: sn ? sn.length : null,
+      sub: 'Delegation + Checklist — due today, tomorrow and the day after. Confirm with the doer in advance.', big: sn ? sn.length : null,
       tabs: [
-        odTab('tasks', 'Sab', sn, odTaskCols(), 'c-a'),
-        odTab('d0', 'Aaj', by(sn, t => !(t.dueIn > 0)), odTaskCols()),
-        odTab('d1', 'Kal', by(sn, t => t.dueIn === 1), odTaskCols()),
-        odTab('d2', 'Parso', by(sn, t => t.dueIn === 2), odTaskCols()),
+        odTab('tasks', 'All', sn, odTaskCols(), 'c-a'),
+        odTab('d0', 'Today', by(sn, t => !(t.dueIn > 0)), odTaskCols()),
+        odTab('d1', 'Tomorrow', by(sn, t => t.dueIn === 1), odTaskCols()),
+        odTab('d2', 'Day after', by(sn, t => t.dueIn === 2), odTaskCols()),
         odTab('del', 'Delegation', by(sn, t => t.kind === 'delegation'), odTaskCols()),
         odTab('chl', 'Checklist', by(sn, t => t.kind === 'checklist'), odTaskCols()),
         odTab('doer', '👤 Doer-wise', sn && odByDoer(sn), odDoerCols(['today', 'soon']), '', { unit: 'doer' })
@@ -5185,7 +5186,7 @@ function odPopView(key) {
   }
   if (key === 'orders') {
     const e = ord(exp, 'merchant', x => !x.dispatched), i = ord(inv, 'invincible', x => !x.dispatched);
-    return { icon: '📦', cls: 'od-c-violet', title: 'Pending Orders', sub: 'Abhi dispatch nahi hue — sabse zyada late wale upar',
+    return { icon: '📦', cls: 'od-c-violet', title: 'Pending Orders', sub: 'Not dispatched yet — most delayed first',
       big: e && i ? e.length + i.length : null,
       tabs: [
         odTab('exp', 'Export (Merchant)', e, odExpCols, '', { unit: 'order', rowCls: odOrdRowCls('merchant'), report: 'orders' }),
@@ -5199,36 +5200,36 @@ function odPopView(key) {
     const cls = f => ord(rows, src, r => odOtdClass(src, r, today) === f);
     if (key === 'mer') {
       return { icon: '📦', cls: 'od-c-blue', title: 'OTD Merchant FMS', report: 'orders',
-        sub: 'Export orders — PI number, merchant (doer), planned date aur delay', big: o && o.pct != null ? o.pct + '% OTD' : null,
+        sub: 'Export orders — PI number, merchant (doer), planned date and delay', big: o && o.pct != null ? o.pct + '% OTD' : null,
         tabs: [
           odTab('late', '🔴 Delayed open', ord(rows, src, r => !r.dispatched && odOrderDelay(src, r) > 0), cols, 'c-r', x),
-          odTab('pend', '📦 Sab pending', ord(rows, src, r => !r.dispatched), cols, '', x),
+          odTab('pend', '📦 All pending', ord(rows, src, r => !r.dispatched), cols, '', x),
           odTab('disp', '✅ Dispatched', ord(rows, src, r => r.dispatched), cols, 'c-g', x)
         ] };
     }
     return { icon: '🎯', cls: o && o.pct != null ? (o.pct >= 90 ? 'od-c-green' : o.pct >= 70 ? 'od-c-amber' : 'od-c-red') : 'od-c-blue',
       title: src === 'merchant' ? 'Export OTD' : 'Invincible OTD', report: src === 'merchant' ? 'orders' : 'offline',
-      sub: (src === 'merchant' ? 'Target = order date + lead time.' : 'Target = dispatch step ki planned date.') +
-        ' Target tak dispatch = on time; baad me ya target nikal gaya aur abhi dispatch nahi = delayed.',
+      sub: (src === 'merchant' ? 'Target = order date + lead time.' : 'Target = planned date of the dispatch step.') +
+        ' Dispatched by target = on time; dispatched later, or target passed and not dispatched yet = delayed.',
       big: o ? (o.pct == null ? '—' : o.pct + '%') : null,
       tabs: [
         odTab('late', '🔴 Delayed', cls('delayed'), cols, 'c-r', x),
         odTab('ok', '🟢 On time', cls('onTime'), cols, 'c-g', x),
-        odTab('wait', '⏳ Abhi time hai', cls('notDue'), cols, '', Object.assign({ note: 'Inka target abhi aaya nahi — OTD % me nahi gine.' }, x)),
-        odTab('all', 'Sab orders', ord(rows, src, () => true), cols, '', x)
+        odTab('wait', '⏳ Not due yet', cls('notDue'), cols, '', Object.assign({ note: 'Target date not reached yet — not counted in OTD %.' }, x)),
+        odTab('all', 'All orders', ord(rows, src, () => true), cols, '', x)
       ] };
   }
   if (key === 'chal') {
     const ch = _od.chal;
     const op = ch ? ch.filter(odChalOpen).sort((p, q) => (odChalHigh(q) - odChalHigh(p)) || ((odChalAge(q) || 0) - (odChalAge(p) || 0))) : null;
     const x = { unit: 'challenge', rowCls: odChalRowCls };
-    return { icon: '🚨', cls: 'od-c-rose', title: 'Escalation — Unresolved Challenges', sub: 'HOD, EA aur Manik Sir tak — sabse purane / high priority upar',
+    return { icon: '🚨', cls: 'od-c-rose', title: 'Escalation — Unresolved Challenges', sub: 'Escalated to HOD, EA and Manik Sir — high priority and oldest first',
       big: op ? op.length : null,
       tabs: [
         odTab('open', '🔴 Unresolved', op, odChalCols, 'c-r', x),
         odTab('high', 'High priority', op && op.filter(odChalHigh), odChalCols, '', x),
         odTab('done', '🟢 Resolved', ch && ch.filter(c => !odChalOpen(c)), odChalCols, 'c-g', x),
-        odTab('all', 'Sab', ch, odChalCols, '', x)
+        odTab('all', 'All', ch, odChalCols, '', x)
       ] };
   }
   if (key === 'deleg' || key === 'chl') {
@@ -5237,25 +5238,25 @@ function odPopView(key) {
     const S = T && T[kind];
     const tabs = [
       odTab('over', '🔴 Overdue', sorted(by(mine, t => t.status === 'overdue')), odTaskCols(), 'c-r'),
-      odTab('soon', '🟠 Aaj + agle 2 din', sorted(by(mine, t => t.status === 'atrisk')), odTaskCols(), 'c-a'),
-      odTab('done', '🟢 Done (pichhle 3 din)', by(mine, t => t.status === 'done'), odTaskCols(true), 'c-g')
+      odTab('soon', '🟠 Today + next 2 days', sorted(by(mine, t => t.status === 'atrisk')), odTaskCols(), 'c-a'),
+      odTab('done', '🟢 Done (last 3 days)', by(mine, t => t.status === 'done'), odTaskCols(true), 'c-g')
     ];
     const pend = by(mine, t => t.status !== 'done');
     tabs[key === 'chl' ? 'unshift' : 'push'](odTab('doer', key === 'chl' ? '📧 Email-wise' : '👤 Doer-wise', pend && odByDoer(pend),
       odDoerCols(['overdue', 'today', 'soon'], key === 'chl', true), '', { unit: key === 'chl' ? 'email' : 'doer' }));
     return { icon: key === 'deleg' ? '📋' : '✅', cls: key === 'deleg' ? 'od-c-blue' : 'od-c-green', err,
       title: key === 'deleg' ? 'Delegation FMS' : 'Checklist FMS',
-      sub: S ? `1 April se aaj tak: pending ${odN(S.pending + S.revised)} · overdue ${odN(S.overdue)} · completed ${odN(S.completed)}` : 'Pending, overdue aur completed',
+      sub: S ? `Since 1 April: pending ${odN(S.pending + S.revised)} · overdue ${odN(S.overdue)} · completed ${odN(S.completed)}` : 'Pending, overdue and completed',
       big: S ? S.pending + S.revised : null, tabs };
   }
   if (key === 'off') {
     const x = { unit: 'order', rowCls: odOrdRowCls('invincible') };
-    return { icon: '🏬', cls: 'od-c-violet', title: 'OTD Offline FMS', report: 'offline', sub: 'Invincible — pending orders aur expected dispatch date',
+    return { icon: '🏬', cls: 'od-c-violet', title: 'OTD Offline FMS', report: 'offline', sub: 'Invincible — pending orders and expected dispatch date',
       big: Array.isArray(inv) ? inv.filter(r => !r.dispatched).length : null,
       tabs: [
-        odTab('late', '🔴 Date nikal gayi', ord(inv, 'invincible', r => !r.dispatched && r.planned && r.planned < today), odInvCols, 'c-r', x),
-        odTab('next', '🟠 Aage (expected dispatch)', Array.isArray(inv) ? inv.filter(r => !r.dispatched && r.planned && r.planned >= today).sort((p, q) => String(p.planned).localeCompare(String(q.planned))) : null, odInvCols, 'c-a', x),
-        odTab('nodate', 'Date nahi', ord(inv, 'invincible', r => !r.dispatched && !r.planned), odInvCols, '', x),
+        odTab('late', '🔴 Past date', ord(inv, 'invincible', r => !r.dispatched && r.planned && r.planned < today), odInvCols, 'c-r', x),
+        odTab('next', '🟠 Upcoming (expected dispatch)', Array.isArray(inv) ? inv.filter(r => !r.dispatched && r.planned && r.planned >= today).sort((p, q) => String(p.planned).localeCompare(String(q.planned))) : null, odInvCols, 'c-a', x),
+        odTab('nodate', 'No date', ord(inv, 'invincible', r => !r.dispatched && !r.planned), odInvCols, '', x),
         odTab('disp', '✅ Dispatched', ord(inv, 'invincible', r => r.dispatched), odInvCols, 'c-g', x)
       ] };
   }
@@ -5269,17 +5270,17 @@ function odPopView(key) {
       doers = Object.values(m).sort((p, q) => (q.pending - p.pending) || (q.late - p.late));
     }
     const x = { unit: 'sample', rowCls: odOrdRowCls('sampling') };
-    return { icon: '🧵', cls: 'od-c-amber', title: 'Sampling FMS', report: 'sampling', sub: 'Pending samples aur zimmedaar doer (merchant)',
+    return { icon: '🧵', cls: 'od-c-amber', title: 'Sampling FMS', report: 'sampling', sub: 'Pending samples and responsible doer (merchant)',
       big: pend ? pend.length : null,
       tabs: [
         odTab('doer', '👤 Doer-wise', doers, [
           { h: 'Doer / Merchant', v: g => `<b>${odEsc(g.doer)}</b>` },
           { h: 'Pending', c: 'n', v: g => odCnt(g.pending, '#2563eb') },
           { h: 'Late', c: 'n', v: g => odCnt(g.late, '#dc2626') },
-          { h: 'Sabse purana planned', v: g => g.oldest ? odDM(g.oldest) : '—' }
+          { h: 'Oldest planned', v: g => g.oldest ? odDM(g.oldest) : '—' }
         ], '', { unit: 'doer', rowCls: g => g.late ? 'od-r-overdue' : '' }),
         odTab('late', '🔴 Late', ord(smp, 'sampling', r => !r.dispatched && r.planned && r.planned < today), odSmpCols, 'c-r', x),
-        odTab('pend', '🧵 Sab pending', ord(smp, 'sampling', r => !r.dispatched), odSmpCols, '', x),
+        odTab('pend', '🧵 All pending', ord(smp, 'sampling', r => !r.dispatched), odSmpCols, '', x),
         odTab('disp', '✅ Dispatched', ord(smp, 'sampling', r => r.dispatched), odSmpCols, 'c-g', x)
       ] };
   }
@@ -5287,12 +5288,12 @@ function odPopView(key) {
     const pms = a ? a.fms.filter(g => /pms|garment|boxing/i.test(g.fmsName)) : null;
     const x = { unit: 'stage', rowCls: odFmsRowCls };
     return { icon: '🥊', cls: 'od-c-red', title: 'PMS Garment & Boxing', err, note: fmsNote,
-      sub: 'Har stage ke late aur agle 2 din wale — full kitting, cutting, production…',
+      sub: 'Late and next-2-days items per stage — full kitting, cutting, production…',
       big: pms ? odN(pms.reduce((n, g) => n + g.overdue, 0)) + ' late' : null,
       tabs: [
-        odTab('all', 'Sab stages', pms, odFmsCols, '', x),
-        odTab('late', '🔴 Late wale', pms && pms.filter(g => g.overdue > 0), odFmsCols, 'c-r', x),
-        odTab('soon', '🟠 Agle 2 din', pms && pms.filter(g => g.atrisk > 0).sort((p, q) => q.atrisk - p.atrisk), odFmsCols, 'c-a', x)
+        odTab('all', 'All stages', pms, odFmsCols, '', x),
+        odTab('late', '🔴 Late', pms && pms.filter(g => g.overdue > 0), odFmsCols, 'c-r', x),
+        odTab('soon', '🟠 Next 2 days', pms && pms.filter(g => g.atrisk > 0).sort((p, q) => q.atrisk - p.atrisk), odFmsCols, 'c-a', x)
       ] };
   }
   if (key === 'emp') {
@@ -5311,25 +5312,25 @@ function odPopView(key) {
       { h: 'Done %', c: 'n', v: u => `<b style="color:${rc(u.rate)}">${u.rate}%</b>` }
     ];
     const x = { unit: 'employee', rowCls: u => u.overdue ? 'od-r-overdue' : u.rate >= 90 ? 'od-r-done' : '',
-      note: 'Delegation + Checklist, 1 April se aaj tak. Sabse zyada task wale 20 log.' };
-    return { icon: '👥', cls: 'od-c-blue', title: 'Employee Performance', sub: 'Total task, pending, overdue aur completion rate',
-      big: emp ? emp.length + ' log' : null,
+      note: 'Delegation + Checklist, 1 April to today. Top 20 people by task count.' };
+    return { icon: '👥', cls: 'od-c-blue', title: 'Employee Performance', sub: 'Total tasks, pending, overdue and completion rate',
+      big: emp ? emp.length + ' people' : null,
       tabs: [
-        odTab('all', 'Sab', emp, cols, '', x),
-        odTab('over', '🔴 Overdue wale', emp && emp.filter(u => u.overdue > 0), cols, 'c-r', x),
-        odTab('low', 'Done % 70 se kam', emp && emp.filter(u => u.rate < 70).sort((p, q) => p.rate - q.rate), cols, 'c-a', x)
+        odTab('all', 'All', emp, cols, '', x),
+        odTab('over', '🔴 With overdue', emp && emp.filter(u => u.overdue > 0), cols, 'c-r', x),
+        odTab('low', 'Done % below 70', emp && emp.filter(u => u.rate < 70).sort((p, q) => p.rate - q.rate), cols, 'c-a', x)
       ] };
   }
   if (key === 'fms') {
     const all = a ? a.fms.slice() : null;
     const x = { unit: 'step', rowCls: odFmsRowCls };
-    return { icon: '🔄', cls: 'od-c-blue', title: 'Har FMS ka pending', err, note: fmsNote + (a && a.fmsError ? ' ⚠️ ' + a.fmsError : ''),
-      sub: `Late + agle 2 din · last refresh ${_od.at.fms ? odTime(_od.at.fms) : '—'}`,
+    return { icon: '🔄', cls: 'od-c-blue', title: 'Pending by FMS', err, note: fmsNote + (a && a.fmsError ? ' ⚠️ ' + a.fmsError : ''),
+      sub: `Late + next 2 days · last refresh ${_od.at.fms ? odTime(_od.at.fms) : '—'}`,
       big: F ? F.overdue + F.atrisk : null,
       tabs: [
         odTab('fmsw', 'FMS-wise', all && odFmsWise(all), odFmsWiseCols, '', { unit: 'FMS', rowCls: odFmsRowCls }),
         odTab('steps', 'Step-wise', all, odFmsCols, '', x),
-        odTab('late', '🔴 Sirf late steps', all && all.filter(g => g.overdue > 0), odFmsCols, 'c-r', x)
+        odTab('late', '🔴 Late steps only', all && all.filter(g => g.overdue > 0), odFmsCols, 'c-r', x)
       ] };
   }
   return null;
@@ -5346,9 +5347,9 @@ function odPop(key) {
   const v = odPopView(key);
   el.innerHTML = `<div class="od-pop-box ${v.cls || ''}" role="dialog" aria-modal="true" aria-label="${odEsc(v.title)}">` +
     `<div class="od-pop-hd"><div class="ic">${v.icon}</div><div class="tx"><h3>${odEsc(v.title)}</h3><p id="odPopSub"></p></div>` +
-    `<div class="big" id="odPopBig"></div><button type="button" class="od-pop-x" onclick="odPopClose()" aria-label="Band karo">✕</button></div>` +
+    `<div class="big" id="odPopBig"></div><button type="button" class="od-pop-x" onclick="odPopClose()" aria-label="Close">✕</button></div>` +
     `<div class="od-pop-bar"><div class="od-pop-tabs" id="odPopTabs"></div>` +
-    `<input class="od-search" id="odPopQ" placeholder="🔍 Search — naam, email, PI, party…" oninput="if(_odPop){_odPop.q=this.value;odPopPaint(true)}"></div>` +
+    `<input class="od-search" id="odPopQ" placeholder="🔍 Search — name, email, PI, party…" oninput="if(_odPop){_odPop.q=this.value;odPopPaint(true)}"></div>` +
     `<div class="od-pop-body" id="odPopBody"></div><div class="od-pop-ft" id="odPopFt"></div></div>`;
   el.classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -5385,22 +5386,22 @@ function odPopPaint(onlyBody) {
   }
   const q = String(_odPop.q || '').trim().toLowerCase();
   let body, foot = '';
-  if (!Array.isArray(t.rows)) body = `<div class="od-pop-empty">${v.err ? '⚠️ ' + odEsc(v.err) : '⏳ Data aa raha hai…'}</div>`;
+  if (!Array.isArray(t.rows)) body = `<div class="od-pop-empty">${v.err ? '⚠️ ' + odEsc(v.err) : '⏳ Loading data…'}</div>`;
   else {
     const list = q ? t.rows.filter(r => odRowText(r).includes(q)) : t.rows;
-    if (!list.length) body = `<div class="od-pop-empty">${q ? 'Search me kuch nahi mila' : 'Kuch nahi — sab theek 🎉'}</div>`;
+    if (!list.length) body = `<div class="od-pop-empty">${q ? 'No matches found' : 'Nothing here — all good 🎉'}</div>`;
     else {
       const rc = t.rowCls || (r => r.status ? 'od-r-' + r.status : '');
       body = `<table class="own-tbl od-tbl"><thead><tr>${t.cols.map(c => `<th class="${c.c === 'n' ? 'n' : ''}">${c.h}</th>`).join('')}</tr></thead><tbody>` +
         list.slice(0, OD_POP_LIMIT).map(r => `<tr class="${rc(r)}">${t.cols.map(c => `<td class="${c.c || ''}">${c.v(r)}</td>`).join('')}</tr>`).join('') +
         `</tbody></table>`;
     }
-    foot = (list.length > OD_POP_LIMIT ? `Pehle ${OD_POP_LIMIT} dikha rahe hain (kul ${odN(list.length)}) — search karo. `
-      : `${odN(list.length)} ${t.unit || 'task'}${q ? ' (search)' : ''}. `) + (t.note || v.note || '');
+    foot = (list.length > OD_POP_LIMIT ? `Showing first ${OD_POP_LIMIT} of ${odN(list.length)} — use search to narrow down. `
+      : `${odN(list.length)} ${odUnit(t.unit || 'task', list.length)}${q ? ' (filtered)' : ''}. `) + (t.note || v.note || '');
   }
   set('odPopBody', body);
   const rep = t.report || v.report;
-  set('odPopFt', `<span>${odEsc(foot)}</span>` + (rep ? `<button type="button" class="btn btn-outline btn-sm" onclick="odGo('${rep}')">📊 MIS report kholo</button>` : ''));
+  set('odPopFt', `<span>${odEsc(foot)}</span>` + (rep ? `<button type="button" class="btn btn-outline btn-sm" onclick="odGo('${rep}')">📊 Open MIS report</button>` : ''));
 }
 
 async function loadOwnerDashboardOld() {
