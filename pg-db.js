@@ -1111,8 +1111,11 @@ function getConnection() {
 // ══════════════════════════════════════════════════════════════════
 // FLUSH — debounced snapshot write to PostgreSQL
 // ══════════════════════════════════════════════════════════════════
+// Har table ki apni likhne-ginti — flush ke beech aaye naye likhe ko pehchaanne ke liye
+const _tableGen = {};
 function markDirty(table) {
   _writeGen++;
+  _tableGen[table] = (_tableGen[table] || 0) + 1;
   _dirtyTables.add(table);
   scheduleFlush();
 }
@@ -1130,12 +1133,21 @@ async function flushNow() {
   if (!_initialized) return;
   if (_testMode) { _dirtyTables.clear(); return; }
   if (_flushInProgress) {
-    return new Promise(resolve => _pendingFlushResolvers.push(resolve));
+    // Pehle se chal rahe flush ka intezaar. Wo fail hua ho ya hamara likha usme
+    // na gaya ho to khud dobara bhejo — error ho to upar tak jaaye (user ko
+    // "save nahi hua" dikhe, jhootha "ho gaya" nahi). Harsh (12 Oct 2026).
+    await new Promise(resolve => _pendingFlushResolvers.push(resolve));
+    if (_dirtyTables.size > 0) return flushNow();
+    return;
   }
   _flushInProgress = true;
   try {
     while (_dirtyTables.size > 0) {
       const snapshot = Array.from(_dirtyTables);
+      // Plan banate waqt har table ki likhne-ginti — save ke beech koi naya Done
+      // aaye to ye ginti badal jaati hai aur table "baaki hai" hi rehti hai
+      const gens = {};
+      snapshot.forEach(t => { gens[t] = _tableGen[t] || 0; });
       // Kya-kya likhna hai, wo ABHI (bina await ke) tay kar lo — warna IO ke
       // beech aayi nayi writes galti se "likh di gayi" maan li jaatin.
       const plan = snapshot.map(t => ({
@@ -1159,7 +1171,15 @@ async function flushNow() {
         }
         throw err;
       }
-      snapshot.forEach(t => _dirtyTables.delete(t));
+      // ══ JALDI-JALDI DONE KA GUM HONA (Harsh, 12 Oct 2026) ══
+      // "Done ke baad fir pending me aa jaate hain" — pehle yahan seedha
+      // _dirtyTables.delete(t) tha. Save chalte waqt koi doosra Done aata
+      // (jaldi-jaldi click), to uski row ka nishaan lag jaata, par table yahan
+      // "saaf" maan li jaati — wo Done kabhi DB tak nahi jaata, jabki user ko
+      // "ho gaya" mil jaata (12 Oct ko 11 me se 4 aise gum hue). Ab table tabhi
+      // saaf jab save ke beech us par kuch naya na likha gaya ho; warna loop
+      // agle chakkar me use bhi bhejta hai.
+      snapshot.forEach(t => { if ((_tableGen[t] || 0) === gens[t]) _dirtyTables.delete(t); });
     }
   } finally {
     _flushInProgress = false;
