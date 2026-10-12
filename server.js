@@ -1042,7 +1042,9 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
       const perDoerStep = {}; // uid -> {pending,done,overdue,doneInRange,pendingInRange} — SIRF is doer ki rows se
       for (const id of creditDoerIds) perDoerStep[id] = { pending: 0, done: 0, overdue: 0, doneInRange: 0, pendingInRange: 0, overdueInRange: 0 };
 
+      let _ri = 0;                                     // row ka number — ek row ek hi baar gini jaaye (owner dashboard)
       for (const row of rows) {
+        _ri++;
         if (isBlankFmsRow(row)) continue;              // bina order wali kachra row
         const planVal = (row[planIdx] || '').trim();
         const actualVal = (row[actualIdx] || '').trim();
@@ -1077,7 +1079,7 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
           if (collectPending && (!opts.range || inRange)) {
             stepPendingRows.push({
               fmsName, stepName: step.step_name, planValue: planVal,
-              planDate, isLate: isOverdue, creditUids: rowDoerIds
+              planDate, isLate: isOverdue, creditUids: rowDoerIds, rk: _ri
             });
           }
         }
@@ -1127,7 +1129,7 @@ async function computeFmsStats(hodDept = '', collectPending = false, opts = {}) 
           const mine = stepPendingRows.filter(pr => pr.creditUids.includes(String(d.id)));
           if (mine.length) {
             if (!result.perUserPending[d.id]) result.perUserPending[d.id] = [];
-            for (const pr of mine) result.perUserPending[d.id].push({ fmsName: pr.fmsName, stepName: pr.stepName, planValue: pr.planValue, planDate: pr.planDate, isLate: pr.isLate });
+            for (const pr of mine) result.perUserPending[d.id].push({ fmsName: pr.fmsName, stepName: pr.stepName, planValue: pr.planValue, planDate: pr.planDate, isLate: pr.isLate, rk: pr.rk });
           }
         }
       }
@@ -2448,6 +2450,101 @@ app.get('/api/owner-dashboard/details', requireAuth, async (req, res) => {
     }
 
     return res.status(400).json({ error: 'Unknown module' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ══ OWNER DASHBOARD — "Tasks Requiring Attention" (Harsh, 12 Oct 2026) ══
+// Owner_Dashboard_Suggested_Layout PDF: overdue (laal), agle 2 din me due (At risk,
+// peela) aur haal me Done (hara) — har task ke saath doer, email, department, HOD,
+// dene wala, planned, delay din, reason. Delegation + Checklist + FMS. Sirf padhna.
+app.get('/api/owner-dashboard/attention', requireAuth, async (req, res) => {
+  try {
+    if (!(await isOwnerUser(req))) return res.status(403).json({ error: 'Owner access only' });
+    const fyStart = ownerFyStart();
+    const { start, department } = req.query;
+    const s = (start && start > fyStart) ? start : fyStart;          // 1 April se pehle ka nahi
+    const istToday = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+    const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    const soon = addDays(istToday, 2), doneFrom = addDays(istToday, -3);
+    const dayDiff = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+    const useDept = department && department !== 'all';
+    const dC = useDept ? 'AND u.department = ?' : '';
+    const dP = useDept ? [department] : [];
+    // Department -> HOD ka naam
+    const [hods] = await db.query("SELECT name, department FROM users WHERE role='hod'");
+    const hodOf = {};
+    for (const h of hods) {
+      const d = String(h.department || '').trim(); if (!d) continue;
+      hodOf[d] = hodOf[d] ? hodOf[d] + ', ' + h.name : h.name;
+    }
+    // completed_at UTC me likha hota hai — India ki tareekh
+    const istDate = ts => { const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(String(ts || '')); if (!m) return String(ts || '').slice(0, 10);
+      return new Date(Date.parse(m[1] + 'T' + m[2] + ':' + m[3] + ':00Z') + 330 * 60000).toISOString().slice(0, 10); };
+    const tasks = [];
+    for (const kind of ['delegation', 'checklist']) {
+      const table = kind === 'delegation' ? 'delegation_tasks' : 'checklist_tasks';
+      const [rows] = await db.query(
+        `SELECT t.id, t.description, t.status, t.remarks, DATE_FORMAT(t.due_date,'%Y-%m-%d') AS due_date, t.completed_at,
+                u.name AS doer, u.email AS doerEmail, u.department AS dept, COALESCE(u2.name,'') AS owner
+         FROM ${table} t JOIN users u ON t.assigned_to=u.id LEFT JOIN users u2 ON t.assigned_by=u2.id
+         WHERE t.due_date >= ? AND ((t.status IN ('pending','revised') AND t.due_date <= ?) OR (t.status='completed' AND t.completed_at >= ?)) ${dC}`,
+        [s, soon, doneFrom + ' 00:00:00', ...dP]);
+      for (const r of rows) {
+        const due = String(r.due_date || '').slice(0, 10);
+        const base = { kind, id: r.id, task: r.description || '', doer: r.doer || '', doerEmail: r.doerEmail || '',
+          dept: r.dept || '', hod: hodOf[String(r.dept || '').trim()] || '', owner: r.owner || '', planned: due,
+          reason: String(r.remarks || '').trim() };
+        if (r.status === 'completed') {
+          const on = istDate(r.completed_at);
+          tasks.push({ ...base, status: 'done', completedOn: on, delayDays: Math.max(0, dayDiff(due, on)) });
+        } else if (due < istToday) {
+          tasks.push({ ...base, status: 'overdue', delayDays: dayDiff(due, istToday) });
+        } else {
+          tasks.push({ ...base, status: 'atrisk', delayDays: 0, dueIn: dayDiff(istToday, due) });
+        }
+      }
+    }
+    // FMS — late steps aur jinki plan date agle 2 din me (Sales NBD wali FMS bahar).
+    // FMS me hazaron rows hoti hain (PMS Level 2 akela ~9,000) — har row bhejne ki
+    // jagah FMS + step ke hisaab se ginti aur sabse zyada pending wale doer.
+    let fmsError = null;
+    const fmsMap = new Map();
+    const fmsTotals = { overdue: 0, atrisk: 0, pending: 0 };
+    try {
+      const stats = await computeFmsStats(useDept ? department : '', true,
+        { minPlanDate: s, maxPlanDate: soon, excludeSpreadsheetIds: OWNER_FMS_EXCLUDE_IDS });
+      const per = stats.perUserPending || {};
+      const uids = Object.keys(per).map(x => parseInt(x, 10)).filter(Boolean);
+      const um = {};
+      if (uids.length) {
+        const [us] = await db.query(`SELECT id,name,email,department FROM users WHERE id IN (${uids.map(() => '?').join(',')})`, uids);
+        us.forEach(u => { um[u.id] = u; });
+      }
+      const seenRow = new Set();       // ek row ke 3 doer hon to bhi row ek hi baar gini jaaye
+      for (const uid of Object.keys(per)) {
+        const u = um[uid] || { name: '(unknown)', email: '', department: '' };
+        for (const it of per[uid]) {
+          const pd = /^\d{4}-\d{2}-\d{2}/.test(String(it.planDate || '')) ? String(it.planDate).slice(0, 10) : '';
+          const status = it.isLate ? 'overdue' : (pd && pd <= soon ? 'atrisk' : 'pending');
+          const key = it.fmsName + '|' + it.stepName;
+          let g = fmsMap.get(key);
+          if (!g) { g = { fmsName: it.fmsName, stepName: it.stepName, overdue: 0, atrisk: 0, pending: 0, oldest: '', doers: {} }; fmsMap.set(key, g); }
+          const rowId = key + '|' + (it.rk != null ? it.rk : Math.random());
+          if (!seenRow.has(rowId)) { seenRow.add(rowId); fmsTotals[status]++; g[status]++; }
+          if (status === 'overdue' && pd && (!g.oldest || pd < g.oldest)) g.oldest = pd;
+          const dk = u.email || u.name;
+          g.doers[dk] = g.doers[dk] || { name: u.name, email: u.email || '', dept: u.department || '', n: 0 };
+          g.doers[dk].n++;
+        }
+      }
+      if (stats.errors && stats.errors.length) fmsError = stats.errors.join(', ');
+    } catch (e) { fmsError = 'FMS data unavailable'; }
+    const fms = [...fmsMap.values()].map(g => ({
+      fmsName: g.fmsName, stepName: g.stepName, overdue: g.overdue, atrisk: g.atrisk, pending: g.pending,
+      oldestPlanned: g.oldest, delayDays: g.oldest ? Math.max(0, dayDiff(g.oldest, istToday)) : 0,
+      doers: Object.values(g.doers).sort((a, b) => b.n - a.n).slice(0, 3)
+    })).sort((a, b) => (b.overdue - a.overdue) || (b.atrisk - a.atrisk));
+    res.json({ today: istToday, soon, tasks, fms, fmsTotals, fmsError, generatedAt: new Date().toISOString() });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

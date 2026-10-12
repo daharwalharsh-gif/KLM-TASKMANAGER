@@ -878,53 +878,197 @@ tbody tr:last-child td{border-bottom:none;}
       .own-tbl tr:hover td{background:#f5f9ff;}
       .own-pill{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:800;}
       @keyframes ownspin{to{transform:rotate(360deg);}}
+      /* ── Owner Dashboard: 4 report wale card (Harsh, 12 Oct 2026) ── */
+      .own-hero{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:2px 2px 16px;
+        animation:ovIn .5s cubic-bezier(.2,.8,.2,1) both}
+      .own-hero-t{font-size:23px;font-weight:900;color:#1e3a8a;letter-spacing:-.4px}
+      .own-hero-s{font-size:12.5px;color:#64748b;margin-top:2px}
+      .own-rtabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px}
+      .own-rtab{--a:#2563eb;--as:37,99,235;--tint:#eff6ff;position:relative;display:flex;align-items:center;gap:13px;text-align:left;
+        cursor:pointer;font-family:inherit;background:linear-gradient(125deg,var(--tint) 0%,#ffffff 72%);
+        border:1.5px solid rgba(var(--as),.18);border-radius:18px;padding:14px 16px;overflow:hidden;
+        box-shadow:0 12px 28px -18px rgba(var(--as),.55),0 2px 6px rgba(15,23,42,.04);
+        transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s,border-color .22s;
+        animation:ovIn .55s cubic-bezier(.2,.8,.2,1) both}
+      .own-rtab:nth-child(2){animation-delay:.06s} .own-rtab:nth-child(3){animation-delay:.12s} .own-rtab:nth-child(4){animation-delay:.18s}
+      .own-rtab:hover{transform:translateY(-3px);box-shadow:0 18px 34px -18px rgba(var(--as),.65),0 3px 8px rgba(15,23,42,.05)}
+      .own-rtab.active{border-color:var(--a);box-shadow:0 0 0 3px rgba(var(--as),.16),0 18px 36px -18px rgba(var(--as),.75)}
+      .own-rtab.active .own-rtab-ico{background:var(--a);color:#fff;transform:scale(1.06)}
+      .own-rtab.t-blue{--a:#2563eb;--as:37,99,235;--tint:#eff6ff}
+      .own-rtab.t-violet{--a:#7c3aed;--as:124,58,237;--tint:#f5f3ff}
+      .own-rtab.t-amber{--a:#d97706;--as:217,119,6;--tint:#fffbeb}
+      .own-rtab.t-green{--a:#059669;--as:5,150,105;--tint:#ecfdf5}
+      .own-rtab-ico{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:22px;flex-shrink:0;
+        background:rgba(var(--as),.13);transition:transform .22s,background .22s}
+      .own-rtab-tx{min-width:0}
+      .own-rtab-tx > b{display:block;font-size:15px;font-weight:800;color:#0f172a;letter-spacing:-.2px}
+      .own-rtab-tx small{display:block;font-size:11.5px;color:#64748b;margin-top:1px}
+      .own-rtab-kpi{display:block;font-size:12px;font-weight:600;color:var(--a);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .own-rtab-kpi b{font-weight:800}
+      #ownReportHost{animation:ovIn .45s cubic-bezier(.2,.8,.2,1) .15s both}
+      /* ── PDF layout: KPI, OTD, sections, attention table ── */
+      .od-hero-r{display:flex;align-items:center;gap:10px}
+      .od-upd{font-size:11.5px;color:#64748b}
+      .od-filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px}
+      .od-filters select,.od-filters input{min-width:150px}
+      .od-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:20px}
+      .od-kpi{--a:#2563eb;--as:37,99,235;--tint:#eff6ff;position:relative;cursor:pointer;text-align:left;font-family:inherit;
+        background:linear-gradient(125deg,var(--tint) 0%,#fff 72%);border:1.5px solid rgba(var(--as),.2);border-radius:18px;padding:16px 18px;
+        box-shadow:0 14px 30px -18px rgba(var(--as),.6),0 2px 6px rgba(15,23,42,.04);transition:transform .2s,box-shadow .2s;
+        animation:ovIn .5s cubic-bezier(.2,.8,.2,1) both}
+      .od-kpi:nth-child(2){animation-delay:.06s} .od-kpi:nth-child(3){animation-delay:.12s} .od-kpi:nth-child(4){animation-delay:.18s}
+      .od-kpi:hover{transform:translateY(-3px);box-shadow:0 20px 36px -18px rgba(var(--as),.7),0 3px 8px rgba(15,23,42,.05)}
+      .od-kpi .l{font-size:11.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--a)}
+      .od-kpi .v{font-size:36px;font-weight:900;color:var(--a);line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
+      .od-kpi .s{font-size:11.5px;color:#64748b;margin-top:4px}
+      .od-kpi .go{position:absolute;right:14px;top:14px;font-size:11px;font-weight:800;color:var(--a);opacity:0;transition:opacity .2s}
+      .od-kpi:hover .go{opacity:1}
+      .od-c-blue{--a:#2563eb;--as:37,99,235;--tint:#eff6ff} .od-c-red{--a:#dc2626;--as:220,38,38;--tint:#fef2f2}
+      .od-c-amber{--a:#d97706;--as:217,119,6;--tint:#fffbeb} .od-c-violet{--a:#7c3aed;--as:124,58,237;--tint:#f5f3ff}
+      .od-c-green{--a:#059669;--as:5,150,105;--tint:#ecfdf5} .od-c-rose{--a:#e11d48;--as:225,29,72;--tint:#fff1f2}
+      .od-otd{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:20px}
+      .od-otdc{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid #dbeafe;border-radius:18px;padding:16px 18px;
+        box-shadow:0 12px 28px -18px rgba(37,99,235,.45);animation:ovIn .5s cubic-bezier(.2,.8,.2,1) both}
+      .od-otdc.click{cursor:pointer}
+      .od-ring{--p:0;--c:#2563eb;width:98px;height:98px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+        background:conic-gradient(var(--c) calc(var(--p) * 1%),#e8eef7 0)}
+      .od-ring span{width:76px;height:76px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:20px;font-weight:900;color:#0f172a}
+      .od-otdc h4{margin:0;font-size:13px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#1e3a8a}
+      .od-otdc .hint{font-size:11px;color:#94a3b8;margin-top:2px}
+      .od-otdc .m{display:grid;grid-template-columns:1fr 1fr;gap:3px 16px;margin-top:8px;font-size:12px;color:#475569}
+      .od-otdc .m b{color:#0f172a}
+      .od-secs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:20px}
+      .od-sec{display:flex;flex-direction:column;background:#fff;border:1px solid #dbeafe;border-radius:18px;padding:14px 16px;
+        box-shadow:0 12px 26px -18px rgba(37,99,235,.4);animation:ovIn .5s cubic-bezier(.2,.8,.2,1) both}
+      .od-sec h4{margin:0;font-size:14px;font-weight:800;color:#1e3a8a;display:flex;align-items:center;gap:8px}
+      .od-sec .sub{font-size:11px;color:#94a3b8;margin:2px 0 10px}
+      .od-nums{display:flex;gap:8px;margin-bottom:10px}
+      .od-num{flex:1;min-width:0;border-radius:12px;padding:8px 10px;background:#f8fafc;border:1px solid #eef2f7}
+      .od-num b{display:block;font-size:20px;font-weight:900;color:#0f172a;font-variant-numeric:tabular-nums}
+      .od-num span{font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#64748b}
+      .od-num.r b{color:#dc2626} .od-num.a b{color:#d97706} .od-num.g b{color:#059669} .od-num.b b{color:#2563eb}
+      .od-list{list-style:none;margin:0;padding:0;font-size:12.5px}
+      .od-list li{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px dashed #e5eaf2}
+      .od-list li:last-child{border-bottom:none}
+      .od-list .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155}
+      .od-list .t small{color:#94a3b8;margin-left:4px}
+      .od-list .x{flex-shrink:0;font-weight:800;font-size:12px}
+      .od-list .x.r{color:#dc2626} .od-list .x.a{color:#d97706} .od-list .x.g{color:#059669} .od-list .x.b{color:#2563eb}
+      .od-empty{font-size:12px;color:#94a3b8;padding:6px 0}
+      .od-more{margin-top:auto;padding-top:10px;font-size:12px;font-weight:800;color:#2563eb;cursor:pointer;background:none;border:none;text-align:left;font-family:inherit}
+      .od-more:hover{text-decoration:underline}
+      .od-mini{width:100%;border-collapse:collapse;font-size:12px}
+      .od-mini th{text-align:left;font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:#64748b;padding:4px 6px;border-bottom:1px solid #e5eaf2}
+      .od-mini td{padding:5px 6px;border-bottom:1px dashed #eef2f7;color:#334155}
+      .od-attn-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+      .od-chip{border:1.5px solid #dbe3ef;background:#fff;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;color:#475569;cursor:pointer;font-family:inherit}
+      .od-chip .n{margin-left:6px;opacity:.75}
+      .od-chip.on{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
+      .od-chip.c-r.on{background:#dc2626;border-color:#dc2626} .od-chip.c-a.on{background:#d97706;border-color:#d97706} .od-chip.c-g.on{background:#059669;border-color:#059669}
+      .od-search{margin-left:auto;padding:7px 11px;border:1.5px solid #dbe3ef;border-radius:10px;font-size:12.5px;min-width:200px;font-family:inherit;outline:none}
+      .od-search:focus{border-color:#2563eb}
+      .od-attn-wrap{overflow:auto;max-height:580px;border-radius:12px}
+      .od-tbl td{vertical-align:top;font-size:12.5px}
+      .od-tbl td small{display:block;color:#94a3b8;font-size:11px}
+      .od-tbl tr.od-r-overdue td{background:#fff5f5} .od-tbl tr.od-r-atrisk td{background:#fffbeb} .od-tbl tr.od-r-done td{background:#f2fbf5}
+      .od-badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:10.5px;font-weight:800;letter-spacing:.3px;white-space:nowrap}
+      .od-badge.overdue{background:#fee2e2;color:#b91c1c} .od-badge.atrisk{background:#fef3c7;color:#92400e} .od-badge.done{background:#dcfce7;color:#166534} .od-badge.info{background:#dbeafe;color:#1e40af}
+      .od-foot{font-size:11.5px;color:#94a3b8;margin-top:8px}
+      .od-skel{color:#94a3b8}
+      .od-sec.click{cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s}
+      .od-sec.click:hover,.od-otdc.click:hover{transform:translateY(-3px);border-color:#93c5fd;box-shadow:0 20px 34px -18px rgba(37,99,235,.55)}
+      .od-otdc.click{transition:transform .2s,box-shadow .2s,border-color .2s}
+      /* ── Card ki detail popup ── */
+      .od-pop{position:fixed;inset:0;z-index:1050;display:none;align-items:center;justify-content:center;padding:24px;
+        background:rgba(15,23,42,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+      .od-pop.open{display:flex;animation:odPopFade .18s ease-out}
+      @keyframes odPopFade{from{opacity:0}to{opacity:1}}
+      @keyframes odPopIn{from{opacity:0;transform:translateY(18px) scale(.98)}to{opacity:1;transform:none}}
+      .od-pop-box{width:min(1180px,100%);max-height:calc(100vh - 48px);display:flex;flex-direction:column;background:#fff;border-radius:20px;
+        box-shadow:0 30px 70px -20px rgba(15,23,42,.45);overflow:hidden;animation:odPopIn .26s cubic-bezier(.2,.8,.2,1)}
+      .od-pop-hd{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 12px;border-bottom:1px solid #eef2f7;
+        background:linear-gradient(125deg,var(--tint,#eff6ff) 0%,#fff 70%)}
+      .od-pop-hd .ic{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:21px;flex-shrink:0;
+        background:#fff;box-shadow:0 6px 16px -8px rgba(var(--as,37,99,235),.6)}
+      .od-pop-hd .tx{flex:1;min-width:0}
+      .od-pop-hd h3{margin:0;font-size:18px;font-weight:900;color:var(--a,#1e3a8a)}
+      .od-pop-hd p{margin:3px 0 0;font-size:12px;color:#64748b}
+      .od-pop-hd .big{font-size:26px;font-weight:900;color:var(--a,#1e3a8a);line-height:1;align-self:center;font-variant-numeric:tabular-nums}
+      .od-pop-x{flex-shrink:0;width:34px;height:34px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;font-size:15px;color:#475569;cursor:pointer}
+      .od-pop-x:hover{background:#fef2f2;color:#dc2626;border-color:#fecaca}
+      .od-pop-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 20px;border-bottom:1px solid #eef2f7}
+      .od-pop-tabs{display:flex;gap:8px;flex-wrap:wrap}
+      .od-pop-body{flex:1;overflow:auto;min-height:120px}
+      .od-pop-body .own-tbl th{position:sticky;top:0;z-index:1}
+      .od-pop-body .own-tbl td,.od-pop-body .own-tbl th{white-space:nowrap}
+      .od-pop-body .own-tbl td.w{white-space:normal;min-width:220px;max-width:380px}
+      .od-pop-body .own-tbl td.n,.od-pop-body .own-tbl th.n{text-align:right;font-variant-numeric:tabular-nums}
+      .od-pop-ft{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 20px;border-top:1px solid #eef2f7;font-size:11.5px;color:#94a3b8}
+      .od-pop-ft .btn{margin-left:auto}
+      .od-pop-empty{text-align:center;color:#94a3b8;padding:40px 16px;font-size:13px}
+      @media (max-width:640px){
+        .od-kpis{grid-template-columns:1fr 1fr;gap:10px} .od-kpi{padding:12px 13px} .od-kpi .v{font-size:26px} .od-kpi .s{font-size:10.5px}
+        .od-filters select,.od-filters input{min-width:0;width:100%} .od-filters > div{flex:1 1 45%}
+        .od-search{margin-left:0;width:100%}
+        .od-pop{padding:0;align-items:flex-end}
+        .od-pop-box{max-height:94vh;border-radius:20px 20px 0 0}
+        .od-pop-hd{padding:14px 14px 10px} .od-pop-hd h3{font-size:16px} .od-pop-hd .big{font-size:21px}
+        .od-pop-bar,.od-pop-ft{padding:10px 14px}
+        .od-pop-tabs{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:2px} .od-pop-tabs .od-chip{flex-shrink:0}
+      }
+      @media (prefers-reduced-motion:reduce){ .od-kpi,.od-otdc,.od-sec,.od-pop.open,.od-pop-box{animation:none} }
+      /* Phone: chaaron card 2x2 chhote — report jaldi dikhe */
+      @media (max-width:640px){
+        .own-rtabs{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+        .own-rtab{flex-direction:column;align-items:flex-start;gap:8px;padding:11px 12px;border-radius:15px}
+        .own-rtab-ico{width:36px;height:36px;font-size:18px;border-radius:11px}
+        .own-rtab-tx > b{font-size:13.5px}
+        .own-rtab-tx small{display:none}
+        .own-rtab-kpi{white-space:normal;font-size:11px;margin-top:3px}
+        .own-hero-t{font-size:19px}
+      }
+      @media (prefers-reduced-motion:reduce){ .own-hero,.own-rtab,#ownReportHost{animation:none} }
     </style>
 
-    <!-- Filters -->
-    <div class="own-card own-flt" style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
-      <div><label>From (due date)</label><input type="date" id="ownFrom" onchange="loadOwnerDashboard()"></div>
-      <div><label>To</label><input type="date" id="ownTo" onchange="loadOwnerDashboard()"></div>
-      <div style="min-width:180px"><label>Department</label><select id="ownDept" style="width:100%" onchange="loadOwnerDashboard()"><option value="all">All Departments</option></select></div>
-      <div style="min-width:160px"><label>Frequency (checklist)</label><select id="ownFreq" style="width:100%" onchange="loadOwnerDashboard()">
-        <option value="all">All Frequencies</option>
-        <option value="daily">Daily</option>
-        <option value="weekly">Weekly</option>
-        <option value="monthly">Monthly</option>
-      </select></div>
-      <button class="btn btn-outline btn-sm" onclick="loadOwnerDashboard()">🔄 Refresh</button>
-      <button class="btn btn-outline btn-sm" onclick="resetOwnerFilters()">Reset</button>
-      <span id="ownUpdated" style="margin-left:auto;color:#94a3b8;font-size:12px"></span>
+    <!-- Owner Dashboard — Owner_Dashboard_Suggested_Layout PDF ke hisaab se (Harsh, 12 Oct 2026):
+         upar 4 card, OTD alag-alag, Important Sections (har card dabane par detail popup), aur
+         neeche MIS ki 4 detailed reports (#misResults box yahin aata hai). -->
+    <div class="own-hero">
+      <div><div class="own-hero-t">Owner Dashboard</div>
+        <div class="own-hero-s">Pending kaam, overdue, aane wale risk, order delay, OTD aur escalation — ek screen par</div></div>
+      <div class="od-hero-r"><span class="od-upd" id="odUpdated"></span>
+        <button class="btn btn-outline btn-sm" onclick="odRefresh()">🔄 Refresh</button></div>
     </div>
-
-    <div id="ownLoading" style="text-align:center;padding:40px;color:#94a3b8;font-size:14px;display:none">⏳ Loading company report…</div>
-    <div id="ownFmsWarn" style="display:none;background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px"></div>
-
-    <!-- KPI cards (company-wide totals = Delegation + Checklist + FMS) -->
-    <div class="own-sec">Company Totals (all modules)</div>
-    <div id="ownKPIs" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:18px"></div>
-
-    <!-- Per-module breakdown — saaf batata hai kiska kitna -->
-    <div class="own-sec">Breakdown by Module</div>
-    <div id="ownModuleCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-bottom:18px"></div>
-
-    <!-- Charts row 1 -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-bottom:16px">
-      <div class="own-card"><h3>📊 Overall Task Status</h3><div style="font-size:11px;color:#94a3b8;margin:-8px 0 10px">All modules combined (Delegation + Checklist + FMS)</div><div style="height:240px;position:relative"><canvas id="ownStatusChart"></canvas></div></div>
-      <div class="own-card"><h3>🧩 Pending vs Completed by Module</h3><div style="font-size:11px;color:#94a3b8;margin:-8px 0 10px">Har bar = ek module (Delegation / Checklist / FMS)</div><div style="height:240px;position:relative"><canvas id="ownModuleChart"></canvas></div></div>
-      <div class="own-card"><h3>🌴 Leaves by Type</h3><div style="font-size:11px;color:#94a3b8;margin:-8px 0 10px">Leave Tracker requests</div><div style="height:240px;position:relative"><canvas id="ownLeaveChart"></canvas></div></div>
+    <div class="own-card own-flt od-filters">
+      <div><label>Department</label><select id="odDept" onchange="odLoad(true)"><option value="all">All Departments</option></select></div>
+      <div><label>HOD</label><select id="odHod" onchange="odRender()"><option value="">All HODs</option></select></div>
+      <div><label>Employee</label><select id="odDoer" onchange="odRender()"><option value="">All Employees</option></select></div>
+      <div><label>Task type</label><select id="odType" onchange="odRender()"><option value="">All</option><option value="delegation">Delegation</option><option value="checklist">Checklist</option></select></div>
+      <div><label>Planned from</label><input type="date" id="odFrom" onchange="odRender()"></div>
+      <div><label>To</label><input type="date" id="odTo" onchange="odRender()"></div>
+      <button class="btn btn-outline btn-sm" onclick="odReset()">✕ Reset</button>
     </div>
-
-    <!-- Trend -->
-    <div class="own-card" style="margin-bottom:16px"><h3>📈 Monthly Trend — Completed vs Pending</h3><div style="font-size:11px;color:#94a3b8;margin:-8px 0 10px">Delegation + Checklist tasks, grouped by due-date month (FMS shamil nahi — wo sheet-based hai)</div><div style="height:300px;position:relative"><canvas id="ownTrendChart"></canvas></div></div>
-
-    <!-- Dept bar -->
-    <div class="own-card" style="margin-bottom:16px"><h3>🏢 Tasks by Department</h3><div style="font-size:11px;color:#94a3b8;margin:-8px 0 10px">Delegation + Checklist tasks per department</div><div style="height:320px;position:relative"><canvas id="ownDeptChart"></canvas></div></div>
-
-    <!-- Tables -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px">
-      <div class="own-card"><h3>🏆 Top Employees (by task volume)</h3><div style="font-size:11px;color:#94a3b8;margin:-8px 0 10px">Delegation + Checklist tasks per employee</div><div style="overflow-x:auto"><table class="own-tbl"><thead><tr><th>#</th><th>Name</th><th>Dept</th><th>Total</th><th>Pending</th><th>Done</th><th>Overdue</th><th>Score</th></tr></thead><tbody id="ownUsersTable"></tbody></table></div></div>
-      <div class="own-card"><h3>🏢 Department Breakdown</h3><div style="font-size:11px;color:#94a3b8;margin:-8px 0 10px">Delegation + Checklist tasks per department</div><div style="overflow-x:auto"><table class="own-tbl"><thead><tr><th>Department</th><th>Total</th><th>Pending</th><th>Done</th><th>Overdue</th></tr></thead><tbody id="ownDeptTable"></tbody></table></div></div>
+    <div class="od-kpis" id="odKpis"></div>
+    <div class="own-sec">OTD Performance — separate tracking</div>
+    <div class="od-otd" id="odOtd"></div>
+    <div class="own-sec" id="odSecsAnchor">Important Sections</div>
+    <div class="od-secs" id="odSecs"></div>
+    <div class="own-sec" id="odRepAnchor">Detailed Reports (MIS)</div>
+    <div class="own-rtabs" id="ownRTabs">
+      <button type="button" class="own-rtab t-blue" data-k="merchant" onclick="ownerReport('merchant')">
+        <span class="own-rtab-ico">📦</span><span class="own-rtab-tx"><b>Merchant O2D</b><small>Export O to D Report</small>
+        <span class="own-rtab-kpi" id="ownKpi-merchant">…</span></span></button>
+      <button type="button" class="own-rtab t-violet" data-k="invincible" onclick="ownerReport('invincible')">
+        <span class="own-rtab-ico">🏬</span><span class="own-rtab-tx"><b>Offline O2D</b><small>Invincible O to D Offline</small>
+        <span class="own-rtab-kpi" id="ownKpi-invincible">…</span></span></button>
+      <button type="button" class="own-rtab t-amber" data-k="sampling" onclick="ownerReport('sampling')">
+        <span class="own-rtab-ico">🧵</span><span class="own-rtab-tx"><b>Sampling</b><small>Sampling Report</small>
+        <span class="own-rtab-kpi" id="ownKpi-sampling">…</span></span></button>
+      <button type="button" class="own-rtab t-green" data-k="sales" onclick="ownerReport('sales')">
+        <span class="own-rtab-ico">💰</span><span class="own-rtab-tx"><b>Sales Booking</b><small>Sales Booking Report</small>
+        <span class="own-rtab-kpi" id="ownKpi-sales">…</span></span></button>
     </div>
+    <div id="ownReportHost"></div>
   </div>
 
   <div id="page-alltasks" class="page">
@@ -1747,11 +1891,13 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
     </div>
 
-    <!-- Results -->
+    <!-- Results (Owner Dashboard bhi isi box ko apne paas le jaata hai) -->
+    <div id="misResultsHome">
     <div id="misResults">
       <div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
         Select date range and click Generate
       </div>
+    </div>
     </div>
   </div>
 
@@ -4315,7 +4461,7 @@ function navigate(page, el) {
   if (page==='approvals') loadApprovals();
   if (page==='fms') loadFMSAdmin();
   if (page==='fms-tasks') loadFMSTasks();
-  if (page==='mis') initMISDeptFilter();
+  if (page==='mis') { misMountResults(); initMISDeptFilter(); }
   if (page==='records') loadRecords();
   if (page==='leaves') loadLeaves();
   if (page==='scheduler') openScheduler();
@@ -4420,7 +4566,844 @@ function ownBuildQS() {
   return qs.toString();
 }
 
+// ══ OWNER DASHBOARD = 4 MIS REPORTS (Harsh, 12 Oct 2026) ══
+// "Owner dashboard me checklist / delegation / normal FMS nahi chahiye — MIS tab
+// ki Merchant O2D, Offline O2D, Sampling aur Sales Booking report yahan dikhe."
+// Report ka code wahi hai jo MIS tab chalata hai — MIS ka #misResults box yahan
+// aa jaata hai (dono page kabhi ek saath nahi khulte), MIS kholne par wapas.
+let _ownerKind = 'merchant';
+function ownerMountResults() {
+  const box = document.getElementById('misResults'), host = document.getElementById('ownReportHost');
+  if (box && host && box.parentElement !== host) host.appendChild(box);
+}
+// MIS page khule to box wapas, aur MIS ka jo tab chuna tha wahi dobara dikhe
+function misMountResults() {
+  const box = document.getElementById('misResults'), home = document.getElementById('misResultsHome');
+  if (!box || !home || box.parentElement === home) return;
+  home.appendChild(box);
+  box.innerHTML = '<div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">Select date range and click Generate</div>';
+  const tab = document.querySelector('#page-mis .tab-group .tab.active');
+  const m = tab && (tab.getAttribute('onclick') || '').match(/switchMisTab\('([^']+)'/);
+  if (m) switchMisTab(m[1], tab);
+}
+function ownerReport(kind) {
+  _ownerKind = kind;
+  document.querySelectorAll('#ownRTabs .own-rtab').forEach(b => b.classList.toggle('active', b.dataset.k === kind));
+  ownerMountResults();
+  const box = document.getElementById('misResults');
+  if (!box) return;
+  if (kind === 'sales') {
+    misType = 'sales';
+    return loadSales().then(ownerKpiPaint, () => {});
+  }
+  // MIS ke switchMisTab jaisa hi
+  misType = kind === 'invincible' ? 'otodinv' : kind === 'sampling' ? 'otodsamp' : 'otod';
+  _otodSrc = kind;
+  _otodTab = 'pending';
+  box.innerHTML = otodShell();
+  return loadOtod().then(ownerKpiPaint, () => {});
+}
+// Card par chhota sa aankda — jo data pehle se aaya hai usi se (dobara API nahi)
+function ownerKpiPaint() {
+  const set = (k, html) => { const el = document.getElementById('ownKpi-' + k); if (el) el.innerHTML = html; };
+  for (const src of ['merchant', 'invincible', 'sampling']) {
+    const rows = _otodCache[src];
+    if (!Array.isArray(rows)) continue;
+    const pend = rows.filter(x => !x.dispatched).length;
+    const word = src === 'sampling' ? 'sample' : 'order';
+    set(src, `<b>${pend.toLocaleString('en-IN')}</b> pending · ${(rows.length - pend).toLocaleString('en-IN')} dispatched` +
+      (rows.length ? '' : ` (koi ${word} nahi)`));
+  }
+  const d = _salesCache[_salesSrc];
+  if (d && Array.isArray(d.rows) && d.amount) {
+    const AK = d.amount.k, sum = d.rows.reduce((a, r) => a + (r[AK] || 0), 0);
+    set('sales', `<b>${salesMoney(sum)}</b> · ${d.rows.length.toLocaleString('en-IN')} bookings`);
+  }
+}
+// Baaki reports ka data peeche se — sirf card ke aankde ke liye, ek-ek karke (Sheets quota)
+let _ownerKpiBusy = false;
+async function ownerKpis(force) {
+  if (_ownerKpiBusy) return;
+  _ownerKpiBusy = true;
+  try {
+    for (const src of ['merchant', 'invincible', 'sampling']) {
+      if (src === _ownerKind && !force) continue;           // khuli report apna data khud laati hai
+      if (_otodCache[src] && !force) continue;
+      const r = await api('/api/otod?src=' + src);
+      if (r && !r.error && Array.isArray(r.rows)) { _otodCache[src] = r.rows; _otodFetchedAt[src] = Date.now(); }
+      ownerKpiPaint();
+    }
+    if ((!_salesCache[_salesSrc] || force) && _ownerKind !== 'sales') {
+      const d = await api('/api/sales-report?src=' + encodeURIComponent(_salesSrc));
+      if (d && !d.error && Array.isArray(d.rows)) _salesCache[_salesSrc] = d;
+    }
+    ownerKpiPaint();
+  } finally { _ownerKpiBusy = false; }
+}
+function ownerRefreshAll() {
+  ['merchant', 'invincible', 'sampling'].forEach(s => { _otodCache[s] = null; _otodFetchedAt[s] = 0; });
+  delete _salesCache[_salesSrc];
+  document.querySelectorAll('#ownRTabs .own-rtab-kpi').forEach(el => { el.textContent = '…'; });
+  Promise.resolve(ownerReport(_ownerKind)).then(() => ownerKpis());
+}
 async function loadOwnerDashboard() {
+  ownerMountResults();
+  ownerKpiPaint();                                  // pehle se aaya data turant
+  odRender();                                       // jo data hai usse turant (warna "…")
+  // Neeche wali detailed report apna O to D data khud laati hai — upar wala
+  // hissa usi source ko dobara nahi mangta (Sheets quota).
+  const rep = Promise.resolve(ownerReport(_ownerKind)).then(() => odRender(), () => {});
+  await odLoad(false, _ownerKind === 'sales' ? '' : _ownerKind);
+  await rep;
+  ownerKpis();                                      // Sales card ka aankda
+}
+
+// ══════════════════════════════════════════════════════════════════
+// OWNER DASHBOARD — Owner_Dashboard_Suggested_Layout PDF (Harsh, 12 Oct 2026)
+// Upar 4 card (Total Pending / Overdue / Agle 2 din / Pending Orders), OTD
+// Invincible + Export alag-alag, Important Sections. Kisi bhi card par click =
+// uski poori detail popup me (odPop).
+// Data: /api/owner-dashboard (ginti), /api/owner-dashboard/attention (task list +
+// FMS ginti), /api/challenges, /api/otod (orders). Sirf padhna.
+// ══════════════════════════════════════════════════════════════════
+const _od = { main: null, attn: null, chal: null, at: {}, attnErr: '' };
+let _odLoading = false;
+const odEsc = v => escapeHtml(String(v == null ? '' : v));
+const odN = n => (n == null ? '…' : Number(n || 0).toLocaleString('en-IN'));
+const odToday = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);   // India ki tareekh
+const odDM = iso => (/^\d{4}-\d{2}-\d{2}/.test(String(iso || '')) ? String(iso).slice(8, 10) + '-' + String(iso).slice(5, 7) : String(iso || '—'));
+const odTime = ts => ts ? new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+
+async function odLoad(force, skipSrc) {
+  if (_odLoading) return;
+  _odLoading = true;
+  const dept = (document.getElementById('odDept') || {}).value || 'all';
+  const qs = dept !== 'all' ? 'department=' + encodeURIComponent(dept) : '';
+  if (force) { _od.main = null; _od.attn = null; odRender(); }
+  const jobs = [
+    api('/api/owner-dashboard' + (qs ? '?' + qs : '')).then(d => {
+      if (d && !d.error) { _od.main = d; _od.at.tasks = Date.now(); odFillDept(d.departments || []); }
+      odRender();
+    }),
+    api('/api/owner-dashboard/attention' + (qs ? '?' + qs : '')).then(d => {
+      if (d && !d.error && Array.isArray(d.tasks)) { _od.attn = d; _od.attnErr = ''; _od.at.fms = Date.now(); }
+      else _od.attnErr = (d && d.error) || 'Load nahi hua';
+      odRender();
+    }),
+    api('/api/challenges').then(d => { if (Array.isArray(d)) { _od.chal = d; _od.at.chal = Date.now(); } odRender(); })
+  ];
+  for (const src of ['merchant', 'invincible', 'sampling']) {
+    if (src === skipSrc && !force) continue;
+    if (_otodCache[src] && !force) continue;
+    jobs.push(api('/api/otod?src=' + src).then(r => {
+      if (r && !r.error && Array.isArray(r.rows)) { _otodCache[src] = r.rows; _otodFetchedAt[src] = Date.now(); }
+      odRender(); ownerKpiPaint();
+    }));
+  }
+  await Promise.allSettled(jobs);
+  _odLoading = false;
+  odRender();
+}
+function odRefresh() {
+  ['merchant', 'invincible', 'sampling'].forEach(s => { _otodCache[s] = null; _otodFetchedAt[s] = 0; });
+  delete _salesCache[_salesSrc];
+  document.querySelectorAll('#ownRTabs .own-rtab-kpi').forEach(el => { el.textContent = '…'; });
+  _od.chal = null;
+  const rep = Promise.resolve(ownerReport(_ownerKind)).then(() => odRender(), () => {});
+  odLoad(true, _ownerKind === 'sales' ? '' : _ownerKind).then(() => rep).then(() => ownerKpis());
+}
+function odReset() {
+  ['odHod', 'odDoer', 'odType', 'odFrom', 'odTo'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const d = document.getElementById('odDept');
+  if (d && d.value !== 'all') { d.value = 'all'; odLoad(true); } else odRender();
+}
+let _odDeptFilled = false;
+function odFillDept(list) {
+  if (_odDeptFilled || !list.length) return;
+  const sel = document.getElementById('odDept'); if (!sel) return;
+  sel.innerHTML = '<option value="all">All Departments</option>' + list.map(d => `<option value="${odEsc(d)}">${odEsc(d)}</option>`).join('');
+  _odDeptFilled = true;
+}
+// HOD / Employee ke dropdown — jo data aaya usi se (chuna hua bana rahe)
+function odFillPeople() {
+  const a = _od.attn, m = _od.main;
+  const hodSel = document.getElementById('odHod'), doerSel = document.getElementById('odDoer');
+  if (!hodSel || !doerSel) return;
+  const hods = new Set(), doers = new Set();
+  (a ? a.tasks : []).forEach(t => { (t.hod || '').split(',').map(x => x.trim()).filter(Boolean).forEach(h => hods.add(h)); if (t.doer) doers.add(t.doer); });
+  ((m && m.topUsers) || []).forEach(u => { if (u.name) doers.add(u.name); });
+  const fill = (sel, set, all, none) => {
+    const cur = sel.value, arr = [...set].sort((x, y) => x.localeCompare(y));
+    const html = `<option value="">${arr.length ? all : none}</option>` + arr.map(v => `<option value="${odEsc(v)}">${odEsc(v)}</option>`).join('');
+    if (sel.dataset.h !== html) { sel.innerHTML = html; sel.dataset.h = html; sel.value = arr.includes(cur) ? cur : ''; }
+    sel.disabled = !arr.length;
+  };
+  fill(hodSel, hods, 'All HODs', 'HOD set nahi (Users me role)');
+  fill(doerSel, doers, 'All Employees', 'All Employees');
+}
+// Filter (HOD / Employee / type / planned tareekh) laga hua task list
+function odTasks() {
+  const a = _od.attn; if (!a) return [];
+  const hod = (document.getElementById('odHod') || {}).value || '';
+  const doer = (document.getElementById('odDoer') || {}).value || '';
+  const type = (document.getElementById('odType') || {}).value || '';
+  const from = (document.getElementById('odFrom') || {}).value || '';
+  const to = (document.getElementById('odTo') || {}).value || '';
+  return a.tasks.filter(t => {
+    if (hod && !(t.hod || '').split(',').map(x => x.trim()).includes(hod)) return false;
+    if (doer && t.doer !== doer) return false;
+    if (type && t.kind !== type) return false;
+    if (from && (t.planned || '') < from) return false;
+    if (to && (t.planned || '') > to) return false;
+    return true;
+  });
+}
+// Aaj due + overdue (pending) — "Total Pending" card. Aane wale (kal/parso) nahi.
+const odIsCurrent = t => t.status === 'overdue' || (t.status === 'atrisk' && !(t.dueIn > 0));
+// OTD — MIS jaisa hi niyam. Export: target = order date + lead time. Invincible:
+// target = dispatch step ki Planned date. Target tak dispatch = on time; baad me
+// dispatch ya target nikal gaya aur abhi dispatch nahi = delayed. Jinka target
+// abhi aaya nahi wo ginti me nahi. Dono alag — kabhi jode nahi jaate.
+// Ek order: 'onTime' | 'delayed' | 'notDue' (target abhi aaya nahi) | '' (ginti me nahi)
+function odOtdClass(src, x, today) {
+  today = today || odToday();
+  if (src === 'merchant') {
+    const lead = parseInt(x.leadTime, 10);
+    if (!(lead >= 0)) return '';
+    const took = otodDays(x.orderDate, x.dispatched ? x.actualDate : today);
+    if (took === '') return '';
+    if (x.dispatched) return took <= lead ? 'onTime' : 'delayed';
+    return took > lead ? 'delayed' : 'notDue';
+  }
+  const target = String(x.planned || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) return '';
+  if (x.dispatched) {
+    const done = String(x.actualDate || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(done)) return '';
+    return done <= target ? 'onTime' : 'delayed';
+  }
+  return today > target ? 'delayed' : 'notDue';
+}
+function odOtd(src) {
+  const rows = _otodCache[src];
+  if (!Array.isArray(rows)) return null;
+  const today = odToday();
+  const o = { total: rows.length, completed: 0, onTime: 0, delayed: 0, notDue: 0, pending: 0 };
+  rows.forEach(x => {
+    if (x.dispatched) o.completed++; else o.pending++;
+    const c = odOtdClass(src, x, today);
+    if (c) o[c]++;
+  });
+  o.judged = o.onTime + o.delayed;
+  o.pct = o.judged ? Math.round(o.onTime / o.judged * 1000) / 10 : null;
+  return o;
+}
+function odOrderDelay(src, x) {         // kitne din late (0 = time par / abhi time hai)
+  const today = odToday();
+  if (src === 'merchant') {
+    const lead = parseInt(x.leadTime, 10); if (!(lead >= 0)) return 0;
+    const took = otodDays(x.orderDate, x.dispatched ? x.actualDate : today);
+    return took === '' ? 0 : Math.max(0, took - lead);
+  }
+  const target = String(x.planned || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) return 0;
+  const d = otodDays(target, x.dispatched ? x.actualDate : today);
+  return d === '' ? 0 : Math.max(0, d);
+}
+
+function odRender() {
+  if (!document.getElementById('odKpis')) return;
+  odFillPeople();
+  odRenderKpis(); odRenderOtd(); odRenderSecs();
+  if (_odPop) odPopPaint();                         // khuli popup me naya data
+  const at = _od.at, bits = [];
+  if (at.tasks) bits.push('Tasks ' + odTime(at.tasks));
+  if (at.fms) bits.push('FMS ' + odTime(at.fms));
+  const ord = Math.max(_otodFetchedAt.merchant || 0, _otodFetchedAt.invincible || 0);
+  if (ord) bits.push('Orders ' + odTime(ord));
+  const u = document.getElementById('odUpdated');
+  if (u) u.textContent = _odLoading ? '⏳ Loading…' : (bits.length ? 'Last refresh: ' + bits.join(' · ') : '');
+}
+function odCard(cls, label, val, sub, go, onclick) {
+  return `<button type="button" class="od-kpi ${cls}" onclick="${onclick}"><span class="go">${go} →</span>` +
+    `<div class="l">${label}</div><div class="v">${val}</div><div class="s">${sub}</div></button>`;
+}
+function odRenderKpis() {
+  const el = document.getElementById('odKpis'); if (!el) return;
+  const T = _od.main && _od.main.totals, a = _od.attn;
+  // Upar ke cards me sirf Delegation + Checklist — FMS nahi (FMS neeche sections me).
+  // Total Pending = aaj due + overdue (aane wale nahi). Task list aa gayi ho to usi
+  // se (filter lagte hain, popup me utni hi rows); warna /api/owner-dashboard ki ginti.
+  const tasks = a ? odTasks() : null;
+  const cur = tasks ? tasks.filter(odIsCurrent) : null;
+  const del = cur ? cur.filter(t => t.kind === 'delegation').length : T ? T.delegation.pending + T.delegation.revised : null;
+  const chl = cur ? cur.filter(t => t.kind === 'checklist').length : T ? T.checklist.pending + T.checklist.revised : null;
+  const total = del == null ? null : del + chl;
+  const ov = tasks ? tasks.filter(t => t.status === 'overdue') : null;
+  const ovDel = ov ? ov.filter(t => t.kind === 'delegation').length : T ? T.delegation.overdue : null;
+  const ovChl = ov ? ov.length - ovDel : T ? T.checklist.overdue : null;
+  const over = ovDel == null ? null : ovDel + ovChl;
+  const today = cur ? cur.length - over : null;
+  const sn = tasks ? tasks.filter(t => t.status === 'atrisk') : null;
+  const snDel = sn ? sn.filter(t => t.kind === 'delegation').length : null;
+  const exp = odOtd('merchant'), inv = odOtd('invincible');
+  const orders = exp && inv ? exp.pending + inv.pending : null;
+  el.innerHTML =
+    odCard('od-c-blue', 'Total Pending Tasks', odN(total),
+      `Delegation ${odN(del)} · Checklist ${odN(chl)}` + (today != null ? ` · aaj due ${odN(today)} · overdue ${odN(over)}` : ''), 'Detail', "odPop('total')") +
+    odCard('od-c-red', 'Overdue Tasks', odN(over), `Delegation ${odN(ovDel)} · Checklist ${odN(ovChl)} — due date nikal gayi`, 'Detail', "odPop('overdue')") +
+    odCard('od-c-amber', 'Due in Next 2 Days', odN(sn && sn.length),
+      `Delegation ${odN(snDel)} · Checklist ${odN(sn && sn.length - snDel)} — aaj, kal, parso`, 'Detail', "odPop('soon')") +
+    odCard('od-c-violet', 'Pending Orders', odN(orders),
+      `Export ${odN(exp && exp.pending)} · Invincible ${odN(inv && inv.pending)}`, 'Detail', "odPop('orders')");
+}
+// Neeche wali MIS detailed report kholo (popup band karke)
+function odGo(what) {
+  const to = id => { const e = document.getElementById(id); if (e) e.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  odPopClose();
+  if (what === 'orders') { ownerReport('merchant'); to('odRepAnchor'); }
+  else if (what === 'offline') { ownerReport('invincible'); to('odRepAnchor'); }
+  else if (what === 'sampling') { ownerReport('sampling'); to('odRepAnchor'); }
+}
+function odOtdCard(title, hint, o, color, src) {
+  if (!o) return `<div class="od-otdc"><div class="od-ring" style="--p:0"><span class="od-skel">…</span></div><div><h4>${title}</h4><div class="hint">${hint}</div><div class="m od-skel">Loading…</div></div></div>`;
+  const pct = o.pct == null ? '—' : o.pct + '%';
+  const c = o.pct == null ? '#94a3b8' : o.pct >= 90 ? '#059669' : o.pct >= 70 ? '#d97706' : '#dc2626';
+  return `<div class="od-otdc click" onclick="odPop('${src === 'merchant' ? 'otdExp' : 'otdInv'}')" title="Detail dekho">` +
+    `<div class="od-ring" style="--p:${o.pct || 0};--c:${c}"><span style="color:${c}">${pct}</span></div>` +
+    `<div><h4>${title}</h4><div class="hint">${hint}</div><div class="m">` +
+    `<span>On time <b>${odN(o.onTime)}</b></span><span>Delayed <b style="color:#dc2626">${odN(o.delayed)}</b></span>` +
+    `<span>Completed <b>${odN(o.completed)}</b></span><span>Total orders <b>${odN(o.total)}</b></span></div></div></div>`;
+}
+function odRenderOtd() {
+  const el = document.getElementById('odOtd'); if (!el) return;
+  const ch = _od.chal;
+  const open = ch ? ch.filter(c => !/^(completed|done|resolved|closed)$/i.test(String(c.status || '').trim())) : null;
+  const high = open ? open.filter(c => /high|urgent/i.test(c.priority || '')).length : null;
+  el.innerHTML =
+    odOtdCard('Invincible OTD', 'Planned date tak dispatch', odOtd('invincible'), '', 'invincible') +
+    odOtdCard('Export OTD', 'Order date + lead time tak dispatch', odOtd('merchant'), '', 'merchant') +
+    `<div class="od-otdc click" onclick="odPop('chal')" title="Detail dekho"><div class="od-ring" style="--p:${open && ch.length ? Math.round(open.length / ch.length * 100) : 0};--c:#e11d48">` +
+    `<span style="color:#e11d48">${odN(open && open.length)}</span></div><div><h4>Unresolved Challenges</h4>` +
+    `<div class="hint">Escalation — HOD, EA, Manik Sir</div><div class="m"><span>High priority <b style="color:#e11d48">${odN(high)}</b></span>` +
+    `<span>Total <b>${odN(ch && ch.length)}</b></span></div></div></div>`;
+}
+function odLi(t, x, cls) { return `<li><span class="t">${t}</span><span class="x ${cls || ''}">${x}</span></li>`; }
+// Section card — poora card dabane par uski detail popup (key = odPopView ka naam)
+function odSec(icon, title, sub, nums, list, key) {
+  return `<div class="od-sec click" onclick="odPop('${key}')" title="Poori detail dekho"><h4>${icon} ${title}</h4><div class="sub">${sub}</div>` +
+    (nums ? `<div class="od-nums">${nums}</div>` : '') + (list || '') + `<button type="button" class="od-more">Poori detail →</button></div>`;
+}
+function odNum(cls, v, l) { return `<div class="od-num ${cls}"><b>${typeof v === 'string' ? v : odN(v)}</b><span>${l}</span></div>`; }
+function odRenderSecs() {
+  const el = document.getElementById('odSecs'); if (!el) return;
+  const T = _od.main && _od.main.totals, a = _od.attn, tasks = odTasks(false);
+  const loading = '<div class="od-empty">Loading…</div>';
+  const out = [];
+  // 1. Delegation
+  const dl = tasks.filter(t => t.kind === 'delegation' && t.status === 'overdue').sort((x, y) => y.delayDays - x.delayDays);
+  out.push(odSec('📋', 'Delegation FMS', 'Pending, overdue aur completed',
+    T ? odNum('b', T.delegation.pending + T.delegation.revised, 'Pending') + odNum('r', T.delegation.overdue, 'Overdue') + odNum('g', T.delegation.completed, 'Completed') : '',
+    !a ? loading : dl.length ? `<ul class="od-list">${dl.slice(0, 4).map(t => odLi(`${odEsc(t.task)}<small>${odEsc(t.doer)}</small>`, '+' + t.delayDays + 'd', 'r')).join('')}</ul>` : '<div class="od-empty">Koi overdue delegation nahi 🎉</div>',
+    'deleg'));
+  // 2. Checklist — email ke hisaab se
+  const byMail = {};
+  tasks.filter(t => t.kind === 'checklist' && (t.status === 'overdue' || t.status === 'atrisk')).forEach(t => {
+    const k = t.doerEmail || t.doer; byMail[k] = byMail[k] || { name: t.doer, mail: t.doerEmail, o: 0, s: 0 };
+    if (t.status === 'overdue') byMail[k].o++; else byMail[k].s++;
+  });
+  const mails = Object.values(byMail).sort((x, y) => (y.o - x.o) || (y.s - x.s));
+  out.push(odSec('✅', 'Checklist FMS', 'Pending aur overdue — email ke hisaab se',
+    T ? odNum('b', T.checklist.pending + T.checklist.revised, 'Pending') + odNum('r', T.checklist.overdue, 'Overdue') + odNum('a', tasks.filter(t => t.kind === 'checklist' && t.status === 'atrisk').length, 'Next 2 days') : '',
+    !a ? loading : mails.length ? `<ul class="od-list">${mails.slice(0, 5).map(m => odLi(`${odEsc(m.mail || m.name)}<small>${odEsc(m.mail ? m.name : '')}</small>`, (m.o ? m.o + ' overdue' : '') + (m.o && m.s ? ' · ' : '') + (m.s ? m.s + ' soon' : ''), m.o ? 'r' : 'a')).join('')}</ul>` : '<div class="od-empty">Sab time par 🎉</div>',
+    'chl'));
+  // 3. OTD Merchant — delayed orders
+  const mer = _otodCache.merchant;
+  const merLate = Array.isArray(mer) ? mer.filter(x => odOrderDelay('merchant', x) > 0 && !x.dispatched).sort((x, y) => odOrderDelay('merchant', y) - odOrderDelay('merchant', x)) : [];
+  const exp = odOtd('merchant');
+  out.push(odSec('📦', 'OTD Merchant FMS', 'Delayed orders — PI number, merchant (doer), planned date, delay',
+    exp ? odNum('r', merLate.length, 'Delayed open') + odNum('b', exp.pending, 'Pending') + odNum(exp.pct >= 90 ? 'g' : exp.pct >= 70 ? 'a' : 'r', exp.pct == null ? '—' : exp.pct + '%', 'OTD') : '',
+    !Array.isArray(mer) ? loading : merLate.length ? `<ul class="od-list">${merLate.slice(0, 5).map(x => odLi(`${odEsc(x.piNo)}<small>${odEsc(x.merchant || x.buyer || '')} · ${odDM(x.planned)}</small>`, '+' + odOrderDelay('merchant', x) + 'd', 'r')).join('')}</ul>` : '<div class="od-empty">Koi delayed order nahi 🎉</div>',
+    'mer'));
+  // 4. OTD Offline — pending orders + expected dispatch
+  const inv = _otodCache.invincible;
+  const invPend = Array.isArray(inv) ? inv.filter(x => !x.dispatched).sort((x, y) => String(x.planned || '9').localeCompare(String(y.planned || '9'))) : [];
+  const today = odToday();
+  out.push(odSec('🏬', 'OTD Offline FMS', 'Pending orders aur expected dispatch date',
+    Array.isArray(inv) ? odNum('b', invPend.length, 'Pending') + odNum('r', invPend.filter(x => x.planned && x.planned < today).length, 'Date nikal gayi') + odNum('a', invPend.filter(x => x.planned && x.planned >= today).length, 'Aage') : '',
+    !Array.isArray(inv) ? loading : invPend.length ? `<ul class="od-list">${invPend.slice(0, 5).map(x => odLi(`${odEsc(x.party)}<small>${odEsc(x.qty ? x.qty + ' pcs' : '')}</small>`, x.planned ? odDM(x.planned) : 'date nahi', x.planned && x.planned < today ? 'r' : 'b')).join('')}</ul>` : '<div class="od-empty">Koi pending order nahi 🎉</div>',
+    'off'));
+  // 5. Sampling — pending + doer
+  const smp = _otodCache.sampling;
+  const smpPend = Array.isArray(smp) ? smp.filter(x => !x.dispatched) : [];
+  const byDoer = {};
+  smpPend.forEach(x => { const k = x.merchant || x.doer || '(blank)'; byDoer[k] = (byDoer[k] || 0) + 1; });
+  out.push(odSec('🧵', 'Sampling FMS', 'Pending samples aur zimmedaar doer',
+    Array.isArray(smp) ? odNum('b', smpPend.length, 'Pending') + odNum('r', smpPend.filter(x => x.planned && x.planned < today).length, 'Late') + odNum('g', smp.length - smpPend.length, 'Dispatched') : '',
+    !Array.isArray(smp) ? loading : Object.keys(byDoer).length ? `<ul class="od-list">${Object.entries(byDoer).sort((x, y) => y[1] - x[1]).slice(0, 5).map(([k, n]) => odLi(odEsc(k), n + ' pending', 'b')).join('')}</ul>` : '<div class="od-empty">Koi pending sample nahi 🎉</div>',
+    'smp'));
+  // 6. PMS Garment & Boxing — step-wise
+  const pms = a ? a.fms.filter(g => /pms|garment|boxing/i.test(g.fmsName)) : [];
+  const pmsLate = pms.reduce((n, g) => n + g.overdue, 0), pmsSoon = pms.reduce((n, g) => n + g.atrisk, 0);
+  out.push(odSec('🥊', 'PMS Garment & Boxing', 'Pending stages — full kitting, cutting, production',
+    a ? odNum('r', pmsLate, 'Late') + odNum('a', pmsSoon, 'Next 2 days') + odNum('b', pms.length, 'Stages') : '',
+    !a ? loading : pms.length ? `<table class="od-mini"><thead><tr><th>Stage</th><th style="text-align:right">Late</th><th style="text-align:right">Soon</th></tr></thead><tbody>` +
+      pms.slice(0, 6).map(g => `<tr><td>${odEsc(g.stepName)}<small style="display:block;color:#94a3b8">${odEsc(g.fmsName.replace(/\s+/g, ' '))}</small></td><td style="text-align:right;color:#dc2626;font-weight:800">${odN(g.overdue)}</td><td style="text-align:right;color:#d97706;font-weight:800">${odN(g.atrisk)}</td></tr>`).join('') + `</tbody></table>` : '<div class="od-empty">Koi pending stage nahi 🎉</div>', 'pms'));
+  // 7. Employee Performance
+  const dsel = (document.getElementById('odDoer') || {}).value || '';
+  const emp = ((_od.main && _od.main.topUsers) || []).filter(u => !dsel || u.name === dsel)
+    .map(u => ({ ...u, rate: u.total ? Math.round(u.completed / u.total * 100) : 0 }))
+    .sort((x, y) => (y.overdue - x.overdue) || (y.total - x.total));
+  out.push(odSec('👥', 'Employee Performance', 'Total task, overdue aur completion rate',
+    '', !_od.main ? loading : emp.length ? `<table class="od-mini"><thead><tr><th>Name</th><th style="text-align:right">Total</th><th style="text-align:right">Overdue</th><th style="text-align:right">Done %</th></tr></thead><tbody>` +
+      emp.slice(0, 7).map(u => `<tr><td>${odEsc(u.name)}<small style="display:block;color:#94a3b8">${odEsc(u.department)}</small></td><td style="text-align:right">${odN(u.total)}</td><td style="text-align:right;color:${u.overdue ? '#dc2626' : '#94a3b8'};font-weight:800">${odN(u.overdue)}</td><td style="text-align:right;font-weight:800;color:${u.rate >= 90 ? '#059669' : u.rate >= 70 ? '#d97706' : '#dc2626'}">${u.rate}%</td></tr>`).join('') + `</tbody></table>` : '<div class="od-empty">Data nahi</div>', 'emp'));
+  // 8. Escalation — challenges
+  const ch = _od.chal;
+  const open = ch ? ch.filter(c => !/^(completed|done|resolved|closed)$/i.test(String(c.status || '').trim())) : [];
+  const age = c => { const d = String(c.created_at || c.received_date || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? Math.max(0, otodDays(d, odToday()) || 0) : ''; };
+  out.push(odSec('🚨', 'Escalation Dashboard', 'Challenges — HOD, EA aur Manik Sir tak',
+    ch ? odNum('r', open.length, 'Unresolved') + odNum('a', open.filter(c => /high|urgent/i.test(c.priority || '')).length, 'High') + odNum('g', ch.length - open.length, 'Resolved') : '',
+    !ch ? loading : open.length ? `<ul class="od-list">${open.slice(0, 5).map(c => odLi(`${odEsc(c.party_name)}<small>${odEsc(c.responsibleName || '—')}</small>`, (age(c) !== '' ? age(c) + 'd purana' : ''), /high|urgent/i.test(c.priority || '') ? 'r' : 'a')).join('')}</ul>` : '<div class="od-empty">Koi unresolved challenge nahi 🎉</div>',
+    'chal'));
+  // 9. Har FMS ka pending + last refresh
+  const byFms = {};
+  (a ? a.fms : []).forEach(g => { const k = g.fmsName.replace(/\s+/g, ' '); byFms[k] = byFms[k] || { o: 0, s: 0 }; byFms[k].o += g.overdue; byFms[k].s += g.atrisk; });
+  const fl = Object.entries(byFms).sort((x, y) => (y[1].o + y[1].s) - (x[1].o + x[1].s));
+  out.push(odSec('🔄', 'Har FMS ka pending', `Late + agle 2 din · last refresh ${_od.at.fms ? odTime(_od.at.fms) : '—'}` + (a && a.fmsError ? ' · ⚠️ ' + odEsc(a.fmsError) : ''),
+    a && a.fmsTotals ? odNum('r', a.fmsTotals.overdue, 'Late') + odNum('a', a.fmsTotals.atrisk, 'Next 2 days') + odNum('b', fl.length, 'FMS') : '',
+    !a ? loading : fl.length ? `<ul class="od-list">${fl.slice(0, 8).map(([k, v]) => odLi(odEsc(k), (v.o ? v.o.toLocaleString('en-IN') + ' late' : '') + (v.o && v.s ? ' · ' : '') + (v.s ? v.s.toLocaleString('en-IN') + ' soon' : ''), v.o ? 'r' : 'a')).join('')}</ul>` : '<div class="od-empty">Koi pending nahi 🎉</div>', 'fms'));
+  el.innerHTML = out.join('');
+}
+// ══ Card ki detail popup (Harsh, 12 Oct 2026) — kisi bhi card par click ══
+// odPopView(key) batata hai popup me kya dikhe: tabs (har tab = ek list + uske
+// column). Sirf padhna — jo data dashboard ke paas pehle se hai usi se.
+let _odPop = null;                       // { key, tab, q }
+const OD_POP_LIMIT = 500;
+const odDelayCell = d => `<b style="color:${d ? '#dc2626' : '#94a3b8'}">${d ? '+' + d + 'd' : '—'}</b>`;
+const odCnt = (n, c) => `<b style="color:${n ? c : '#94a3b8'}">${odN(n)}</b>`;
+const odAddDays = (iso, n) => {
+  if (!/^\d{4}-\d{2}-\d{2}/.test(String(iso || '')) || !(n >= 0)) return '';
+  const d = new Date(String(iso).slice(0, 10) + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
+};
+const odRowText = r => Object.values(r).map(v => Array.isArray(v) ? v.map(d => d && typeof d === 'object' ? Object.values(d).join(' ') : d).join(' ')
+  : (v && typeof v === 'object' ? '' : v)).join(' ').toLowerCase();
+const odTab = (k, label, rows, cols, cls, extra) => Object.assign({ k, label, rows, cols, cls: cls || '' }, extra || {});
+const odRank = { overdue: 0, atrisk: 1, done: 2 };
+const odTaskSort = (x, y) => (odRank[x.status] - odRank[y.status]) || (y.delayDays - x.delayDays) || ((x.dueIn || 0) - (y.dueIn || 0)) || String(x.planned).localeCompare(String(y.planned));
+
+// ── Delegation / Checklist task ──
+function odTaskState(t) {
+  if (t.status === 'overdue') return ['overdue', 'OVERDUE'];
+  if (t.status === 'done') return ['done', 'DONE'];
+  return ['atrisk', !(t.dueIn > 0) ? 'AAJ DUE' : t.dueIn === 1 ? 'KAL DUE' : t.dueIn + ' DIN ME'];
+}
+const odTaskNext = t => t.status === 'overdue' ? (t.hod ? 'HOD (' + t.hod + ') se baat · escalate' : 'Doer se reason lo · EA ko escalate')
+  : t.status === 'atrisk' ? (!(t.dueIn > 0) ? 'Aaj due — doer se confirm karo' : 'Doer se planned date confirm karo') : '—';
+function odTaskCols(withDone) {
+  return [
+    { h: 'Status', v: t => { const [c, l] = odTaskState(t); return `<span class="od-badge ${c}">${l}</span>`; } },
+    { h: 'Task', c: 'w', v: t => odEsc(t.task) },
+    { h: 'Type', v: t => t.kind === 'delegation' ? 'Delegation' : 'Checklist' },
+    { h: 'Doer', v: t => `${odEsc(t.doer)}<small>${odEsc(t.doerEmail)}</small>` },
+    { h: 'Dept / HOD', v: t => `${odEsc(t.dept || '—')}<small>${odEsc(t.hod ? 'HOD: ' + t.hod : 'HOD —')}</small>` },
+    { h: 'Given by', v: t => odEsc(t.owner || '—') },
+    { h: 'Planned', v: t => odEsc(odDM(t.planned)) },
+    ...(withDone ? [{ h: 'Done on', v: t => t.completedOn ? odEsc(odDM(t.completedOn)) : '—' }] : []),
+    { h: 'Delay', v: t => odDelayCell(t.delayDays) },
+    { h: 'Reason', c: 'w', v: t => odEsc(t.reason || '—') },
+    { h: 'Next action', c: 'w', v: t => odEsc(odTaskNext(t)) }
+  ];
+}
+// Doer (email) ke hisaab se ginti
+function odByDoer(list) {
+  const m = {};
+  list.forEach(t => {
+    const k = t.doerEmail || t.doer;
+    const g = m[k] = m[k] || { doer: t.doer, doerEmail: t.doerEmail, dept: t.dept, del: 0, chl: 0, overdue: 0, today: 0, soon: 0, done: 0, total: 0 };
+    g.total++; if (t.kind === 'delegation') g.del++; else g.chl++;
+    if (t.status === 'overdue') g.overdue++; else if (t.status === 'done') g.done++; else if (!(t.dueIn > 0)) g.today++; else g.soon++;
+  });
+  return Object.values(m).sort((a, b) => (b.overdue - a.overdue) || (b.total - a.total) || String(a.doer).localeCompare(String(b.doer)));
+}
+function odDoerCols(show, mailFirst, oneKind) {
+  const lab = { overdue: ['Overdue', '#dc2626'], today: ['Aaj due', '#d97706'], soon: ['Agle 2 din', '#d97706'], done: ['Done (3 din)', '#059669'] };
+  return [
+    mailFirst ? { h: 'Email', v: g => `${odEsc(g.doerEmail || g.doer)}<small>${odEsc(g.doerEmail ? g.doer : '')}</small>` }
+      : { h: 'Doer', v: g => `${odEsc(g.doer)}<small>${odEsc(g.doerEmail)}</small>` },
+    { h: 'Department', v: g => odEsc(g.dept || '—') },
+    ...(oneKind ? [] : [{ h: 'Delegation', c: 'n', v: g => odN(g.del) }, { h: 'Checklist', c: 'n', v: g => odN(g.chl) }]),
+    ...show.map(s => ({ h: lab[s][0], c: 'n', v: g => odCnt(g[s], lab[s][1]) })),
+    { h: 'Total', c: 'n', v: g => `<b>${odN(g.total)}</b>` }
+  ];
+}
+
+// ── FMS (step ke hisaab se) ──
+const odFmsName = g => String(g.fmsName || '').replace(/\s+/g, ' ').trim();
+const odFmsCols = [
+  { h: 'FMS', v: g => odEsc(odFmsName(g)) },
+  { h: 'Step', c: 'w', v: g => odEsc(g.stepName) },
+  { h: 'Late', c: 'n', v: g => odCnt(g.overdue, '#dc2626') },
+  { h: 'Agle 2 din', c: 'n', v: g => odCnt(g.atrisk, '#d97706') },
+  { h: 'Sabse purana planned', v: g => g.oldestPlanned ? odDM(g.oldestPlanned) : '—' },
+  { h: 'Delay', v: g => odDelayCell(g.delayDays) },
+  { h: 'Sabse zyada pending (doer)', c: 'w', v: g => (g.doers || []).map(d => `${odEsc(d.name)} <b>${odN(d.n)}</b>`).join(' · ') || '—' }
+];
+const odFmsRowCls = g => g.overdue ? 'od-r-overdue' : g.atrisk ? 'od-r-atrisk' : '';
+function odFmsWise(groups) {
+  const m = {};
+  groups.forEach(g => {
+    const k = odFmsName(g);
+    const x = m[k] = m[k] || { fmsName: k, overdue: 0, atrisk: 0, steps: 0, delayDays: 0, oldestPlanned: '' };
+    x.overdue += g.overdue; x.atrisk += g.atrisk; x.steps++;
+    if (g.delayDays > x.delayDays) { x.delayDays = g.delayDays; x.oldestPlanned = g.oldestPlanned; }
+  });
+  return Object.values(m).sort((a, b) => (b.overdue + b.atrisk) - (a.overdue + a.atrisk));
+}
+const odFmsWiseCols = [
+  { h: 'FMS', c: 'w', v: g => `<b>${odEsc(g.fmsName)}</b>` },
+  { h: 'Late', c: 'n', v: g => odCnt(g.overdue, '#dc2626') },
+  { h: 'Agle 2 din', c: 'n', v: g => odCnt(g.atrisk, '#d97706') },
+  { h: 'Steps', c: 'n', v: g => odN(g.steps) },
+  { h: 'Sabse purana planned', v: g => g.oldestPlanned ? odDM(g.oldestPlanned) : '—' },
+  { h: 'Sabse zyada delay', v: g => odDelayCell(g.delayDays) }
+];
+
+// ── Orders (Export / Invincible / Sampling) ──
+function odOrdState(src, x) {
+  const c = odOtdClass(src, x);
+  if (c === 'delayed') return ['overdue', x.dispatched ? 'LATE DISPATCH' : 'DELAYED'];
+  if (c === 'onTime') return ['done', 'ON TIME'];
+  if (c === 'notDue') return ['info', 'TIME HAI'];
+  return x.dispatched ? ['done', 'DISPATCHED'] : ['info', 'PENDING'];
+}
+const odOrdBadge = src => ({ h: 'Status', v: x => { const [c, l] = odOrdState(src, x); return `<span class="od-badge ${c}">${l}</span>`; } });
+const odOrdRowCls = src => x => { const c = odOrdState(src, x)[0]; return c === 'overdue' ? 'od-r-overdue' : c === 'done' ? 'od-r-done' : ''; };
+const odOrdSort = src => (x, y) => (odOrderDelay(src, y) - odOrderDelay(src, x)) || String(x.planned || '9').localeCompare(String(y.planned || '9'));
+const odExpCols = [
+  odOrdBadge('merchant'),
+  { h: 'PI No', v: x => `<b>${odEsc(x.piNo)}</b>` },
+  { h: 'Buyer', c: 'w', v: x => odEsc(x.buyer || '—') },
+  { h: 'Merchant', v: x => odEsc(x.merchant || '—') },
+  { h: 'Order date', v: x => odDM(x.orderDate) },
+  { h: 'Lead time', c: 'n', v: x => x.leadTime ? odEsc(x.leadTime) + 'd' : '—' },
+  { h: 'Target (OTD)', v: x => { const t = odAddDays(x.orderDate, parseInt(x.leadTime, 10)); return t ? odDM(t) : '—'; } },
+  { h: 'Planned dispatch', v: x => x.planned ? odDM(x.planned) : '—' },
+  { h: 'Dispatched on', v: x => x.dispatched ? odDM(x.actualDate) : '—' },
+  { h: 'Delay', v: x => odDelayCell(odOrderDelay('merchant', x)) },
+  { h: 'Qty', c: 'n', v: x => odEsc(x.qty || '—') }
+];
+const odInvCols = [
+  odOrdBadge('invincible'),
+  { h: 'Party', c: 'w', v: x => `<b>${odEsc(x.party)}</b>` },
+  { h: 'Qty', c: 'n', v: x => odEsc(x.qty || '—') },
+  { h: 'Order date', v: x => odDM(x.orderDate) },
+  { h: 'Planned dispatch', v: x => x.planned ? odDM(x.planned) : 'date nahi' },
+  { h: 'Dispatched on', v: x => x.dispatched ? odDM(x.actualDate) : '—' },
+  { h: 'Delay', v: x => odDelayCell(odOrderDelay('invincible', x)) },
+  { h: 'Dispatch status', v: x => odEsc(x.dispatchStatus || '—') },
+  { h: 'Credit days', c: 'n', v: x => odEsc(x.creditDays || '—') }
+];
+const odSmpCols = [
+  odOrdBadge('sampling'),
+  { h: 'Buyer', c: 'w', v: x => `<b>${odEsc(x.buyer)}</b>` },
+  { h: 'Style', v: x => odEsc(x.style || '—') },
+  { h: 'Colour / Size', v: x => odEsc([x.colour, x.size].filter(Boolean).join(' · ') || '—') },
+  { h: 'Merchant', v: x => odEsc(x.merchant || '—') },
+  { h: 'Doer', v: x => odEsc(x.doer || '—') },
+  { h: 'Enquiry date', v: x => odDM(x.orderDate) },
+  { h: 'Planned', v: x => x.planned ? odDM(x.planned) : 'date nahi' },
+  { h: 'Dispatched on', v: x => x.dispatched ? odDM(x.actualDate) : '—' },
+  { h: 'Delay', v: x => odDelayCell(odOrderDelay('sampling', x)) },
+  { h: 'Category', v: x => odEsc(x.category || '—') }
+];
+
+// ── Challenges (Escalation) ──
+const odChalOpen = c => !/^(completed|done|resolved|closed)$/i.test(String(c.status || '').trim());
+const odChalHigh = c => /high|urgent/i.test(c.priority || '');
+const odChalAge = c => { const d = String(c.created_at || c.received_date || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? Math.max(0, otodDays(d, odToday()) || 0) : ''; };
+const odChalCols = [
+  { h: 'Status', v: c => odChalOpen(c) ? `<span class="od-badge ${odChalHigh(c) ? 'overdue' : 'atrisk'}">UNRESOLVED</span>` : '<span class="od-badge done">RESOLVED</span>' },
+  { h: 'Party', v: c => `<b>${odEsc(c.party_name || '—')}</b>` },
+  { h: 'Challenge', c: 'w', v: c => odEsc(c.description || '—') },
+  { h: 'Right person', v: c => odEsc(c.responsibleName || '—') },
+  { h: 'Priority', v: c => `<span style="font-weight:800;color:${odChalHigh(c) ? '#dc2626' : '#475569'}">${odEsc(c.priority || '—')}</span>` },
+  { h: 'Received', v: c => odDM(String(c.received_date || '').slice(0, 10) || String(c.created_at || '').slice(0, 10)) },
+  { h: 'Kitna purana', c: 'n', v: c => { const a = odChalAge(c); return a === '' ? '—' : `<b style="color:${odChalOpen(c) && a > 7 ? '#dc2626' : '#475569'}">${a}d</b>`; } },
+  { h: 'Proposed resolution', c: 'w', v: c => odEsc(c.proposed_resolution || '—') },
+  { h: 'Banaya', v: c => odEsc(c.createdByName || '—') }
+];
+const odChalRowCls = c => odChalOpen(c) ? (odChalHigh(c) ? 'od-r-overdue' : 'od-r-atrisk') : 'od-r-done';
+
+// ── Har card ki popup ──
+function odPopView(key) {
+  const a = _od.attn, tasks = a ? odTasks() : null, F = a && a.fmsTotals;
+  const T = _od.main && _od.main.totals;
+  const err = !a && _od.attnErr ? _od.attnErr : '';
+  const by = (list, f) => list ? list.filter(f) : null;
+  const sorted = list => list ? list.slice().sort(odTaskSort) : null;
+  const fmsNote = '1 April se pehle ka data aur Sales NBD FMS shaamil nahi.';
+  const exp = _otodCache.merchant, inv = _otodCache.invincible, smp = _otodCache.sampling;
+  const ord = (rows, src, f) => Array.isArray(rows) ? rows.filter(f).sort(odOrdSort(src)) : null;
+  const today = odToday();
+  if (key === 'total') {
+    const cur = sorted(by(tasks, odIsCurrent));
+    return { icon: '📋', cls: 'od-c-blue', title: 'Total Pending Tasks', err,
+      sub: 'Delegation + Checklist — aaj due aur overdue. Aane wale (kal / parso) isme nahi.', big: cur ? cur.length : null,
+      tabs: [
+        odTab('all', 'Sab', cur, odTaskCols()),
+        odTab('over', '🔴 Overdue', by(cur, t => t.status === 'overdue'), odTaskCols(), 'c-r'),
+        odTab('today', '🟠 Aaj due', by(cur, t => t.status !== 'overdue'), odTaskCols(), 'c-a'),
+        odTab('del', 'Delegation', by(cur, t => t.kind === 'delegation'), odTaskCols()),
+        odTab('chl', 'Checklist', by(cur, t => t.kind === 'checklist'), odTaskCols()),
+        odTab('doer', '👤 Doer-wise', cur && odByDoer(cur), odDoerCols(['overdue', 'today']), '', { unit: 'doer' })
+      ] };
+  }
+  if (key === 'overdue') {
+    const ov = sorted(by(tasks, t => t.status === 'overdue'));
+    return { icon: '⏰', cls: 'od-c-red', title: 'Overdue Tasks', err,
+      sub: 'Delegation + Checklist — due date nikal gayi, abhi tak pending', big: ov ? ov.length : null,
+      tabs: [
+        odTab('tasks', 'Sab', ov, odTaskCols(), 'c-r'),
+        odTab('del', 'Delegation', by(ov, t => t.kind === 'delegation'), odTaskCols()),
+        odTab('chl', 'Checklist', by(ov, t => t.kind === 'checklist'), odTaskCols()),
+        odTab('doer', '👤 Doer-wise', ov && odByDoer(ov), odDoerCols(['overdue']), '', { unit: 'doer' })
+      ] };
+  }
+  if (key === 'soon') {
+    const sn = by(tasks, t => t.status === 'atrisk');
+    if (sn) sn.sort((x, y) => ((x.dueIn || 0) - (y.dueIn || 0)) || String(x.doer).localeCompare(String(y.doer)));
+    return { icon: '⏳', cls: 'od-c-amber', title: 'Due in Next 2 Days', err,
+      sub: 'Delegation + Checklist — aaj, kal aur parso due. Advance me doer se confirm karo.', big: sn ? sn.length : null,
+      tabs: [
+        odTab('tasks', 'Sab', sn, odTaskCols(), 'c-a'),
+        odTab('d0', 'Aaj', by(sn, t => !(t.dueIn > 0)), odTaskCols()),
+        odTab('d1', 'Kal', by(sn, t => t.dueIn === 1), odTaskCols()),
+        odTab('d2', 'Parso', by(sn, t => t.dueIn === 2), odTaskCols()),
+        odTab('del', 'Delegation', by(sn, t => t.kind === 'delegation'), odTaskCols()),
+        odTab('chl', 'Checklist', by(sn, t => t.kind === 'checklist'), odTaskCols()),
+        odTab('doer', '👤 Doer-wise', sn && odByDoer(sn), odDoerCols(['today', 'soon']), '', { unit: 'doer' })
+      ] };
+  }
+  if (key === 'orders') {
+    const e = ord(exp, 'merchant', x => !x.dispatched), i = ord(inv, 'invincible', x => !x.dispatched);
+    return { icon: '📦', cls: 'od-c-violet', title: 'Pending Orders', sub: 'Abhi dispatch nahi hue — sabse zyada late wale upar',
+      big: e && i ? e.length + i.length : null,
+      tabs: [
+        odTab('exp', 'Export (Merchant)', e, odExpCols, '', { unit: 'order', rowCls: odOrdRowCls('merchant'), report: 'orders' }),
+        odTab('inv', 'Invincible (Offline)', i, odInvCols, '', { unit: 'order', rowCls: odOrdRowCls('invincible'), report: 'offline' })
+      ] };
+  }
+  if (key === 'otdInv' || key === 'otdExp' || key === 'mer') {
+    const src = key === 'otdInv' ? 'invincible' : 'merchant', rows = src === 'merchant' ? exp : inv;
+    const cols = src === 'merchant' ? odExpCols : odInvCols, o = odOtd(src);
+    const x = { unit: 'order', rowCls: odOrdRowCls(src) };
+    const cls = f => ord(rows, src, r => odOtdClass(src, r, today) === f);
+    if (key === 'mer') {
+      return { icon: '📦', cls: 'od-c-blue', title: 'OTD Merchant FMS', report: 'orders',
+        sub: 'Export orders — PI number, merchant (doer), planned date aur delay', big: o && o.pct != null ? o.pct + '% OTD' : null,
+        tabs: [
+          odTab('late', '🔴 Delayed open', ord(rows, src, r => !r.dispatched && odOrderDelay(src, r) > 0), cols, 'c-r', x),
+          odTab('pend', '📦 Sab pending', ord(rows, src, r => !r.dispatched), cols, '', x),
+          odTab('disp', '✅ Dispatched', ord(rows, src, r => r.dispatched), cols, 'c-g', x)
+        ] };
+    }
+    return { icon: '🎯', cls: o && o.pct != null ? (o.pct >= 90 ? 'od-c-green' : o.pct >= 70 ? 'od-c-amber' : 'od-c-red') : 'od-c-blue',
+      title: src === 'merchant' ? 'Export OTD' : 'Invincible OTD', report: src === 'merchant' ? 'orders' : 'offline',
+      sub: (src === 'merchant' ? 'Target = order date + lead time.' : 'Target = dispatch step ki planned date.') +
+        ' Target tak dispatch = on time; baad me ya target nikal gaya aur abhi dispatch nahi = delayed.',
+      big: o ? (o.pct == null ? '—' : o.pct + '%') : null,
+      tabs: [
+        odTab('late', '🔴 Delayed', cls('delayed'), cols, 'c-r', x),
+        odTab('ok', '🟢 On time', cls('onTime'), cols, 'c-g', x),
+        odTab('wait', '⏳ Abhi time hai', cls('notDue'), cols, '', Object.assign({ note: 'Inka target abhi aaya nahi — OTD % me nahi gine.' }, x)),
+        odTab('all', 'Sab orders', ord(rows, src, () => true), cols, '', x)
+      ] };
+  }
+  if (key === 'chal') {
+    const ch = _od.chal;
+    const op = ch ? ch.filter(odChalOpen).sort((p, q) => (odChalHigh(q) - odChalHigh(p)) || ((odChalAge(q) || 0) - (odChalAge(p) || 0))) : null;
+    const x = { unit: 'challenge', rowCls: odChalRowCls };
+    return { icon: '🚨', cls: 'od-c-rose', title: 'Escalation — Unresolved Challenges', sub: 'HOD, EA aur Manik Sir tak — sabse purane / high priority upar',
+      big: op ? op.length : null,
+      tabs: [
+        odTab('open', '🔴 Unresolved', op, odChalCols, 'c-r', x),
+        odTab('high', 'High priority', op && op.filter(odChalHigh), odChalCols, '', x),
+        odTab('done', '🟢 Resolved', ch && ch.filter(c => !odChalOpen(c)), odChalCols, 'c-g', x),
+        odTab('all', 'Sab', ch, odChalCols, '', x)
+      ] };
+  }
+  if (key === 'deleg' || key === 'chl') {
+    const kind = key === 'deleg' ? 'delegation' : 'checklist';
+    const mine = by(tasks, t => t.kind === kind);
+    const S = T && T[kind];
+    const tabs = [
+      odTab('over', '🔴 Overdue', sorted(by(mine, t => t.status === 'overdue')), odTaskCols(), 'c-r'),
+      odTab('soon', '🟠 Aaj + agle 2 din', sorted(by(mine, t => t.status === 'atrisk')), odTaskCols(), 'c-a'),
+      odTab('done', '🟢 Done (pichhle 3 din)', by(mine, t => t.status === 'done'), odTaskCols(true), 'c-g')
+    ];
+    const pend = by(mine, t => t.status !== 'done');
+    tabs[key === 'chl' ? 'unshift' : 'push'](odTab('doer', key === 'chl' ? '📧 Email-wise' : '👤 Doer-wise', pend && odByDoer(pend),
+      odDoerCols(['overdue', 'today', 'soon'], key === 'chl', true), '', { unit: key === 'chl' ? 'email' : 'doer' }));
+    return { icon: key === 'deleg' ? '📋' : '✅', cls: key === 'deleg' ? 'od-c-blue' : 'od-c-green', err,
+      title: key === 'deleg' ? 'Delegation FMS' : 'Checklist FMS',
+      sub: S ? `1 April se aaj tak: pending ${odN(S.pending + S.revised)} · overdue ${odN(S.overdue)} · completed ${odN(S.completed)}` : 'Pending, overdue aur completed',
+      big: S ? S.pending + S.revised : null, tabs };
+  }
+  if (key === 'off') {
+    const x = { unit: 'order', rowCls: odOrdRowCls('invincible') };
+    return { icon: '🏬', cls: 'od-c-violet', title: 'OTD Offline FMS', report: 'offline', sub: 'Invincible — pending orders aur expected dispatch date',
+      big: Array.isArray(inv) ? inv.filter(r => !r.dispatched).length : null,
+      tabs: [
+        odTab('late', '🔴 Date nikal gayi', ord(inv, 'invincible', r => !r.dispatched && r.planned && r.planned < today), odInvCols, 'c-r', x),
+        odTab('next', '🟠 Aage (expected dispatch)', Array.isArray(inv) ? inv.filter(r => !r.dispatched && r.planned && r.planned >= today).sort((p, q) => String(p.planned).localeCompare(String(q.planned))) : null, odInvCols, 'c-a', x),
+        odTab('nodate', 'Date nahi', ord(inv, 'invincible', r => !r.dispatched && !r.planned), odInvCols, '', x),
+        odTab('disp', '✅ Dispatched', ord(inv, 'invincible', r => r.dispatched), odInvCols, 'c-g', x)
+      ] };
+  }
+  if (key === 'smp') {
+    const pend = Array.isArray(smp) ? smp.filter(r => !r.dispatched) : null;
+    let doers = null;
+    if (pend) {
+      const m = {};
+      pend.forEach(r => { const k = r.merchant || r.doer || '(blank)'; const g = m[k] = m[k] || { doer: k, pending: 0, late: 0, oldest: '' };
+        g.pending++; if (r.planned && r.planned < today) { g.late++; if (!g.oldest || r.planned < g.oldest) g.oldest = r.planned; } });
+      doers = Object.values(m).sort((p, q) => (q.pending - p.pending) || (q.late - p.late));
+    }
+    const x = { unit: 'sample', rowCls: odOrdRowCls('sampling') };
+    return { icon: '🧵', cls: 'od-c-amber', title: 'Sampling FMS', report: 'sampling', sub: 'Pending samples aur zimmedaar doer (merchant)',
+      big: pend ? pend.length : null,
+      tabs: [
+        odTab('doer', '👤 Doer-wise', doers, [
+          { h: 'Doer / Merchant', v: g => `<b>${odEsc(g.doer)}</b>` },
+          { h: 'Pending', c: 'n', v: g => odCnt(g.pending, '#2563eb') },
+          { h: 'Late', c: 'n', v: g => odCnt(g.late, '#dc2626') },
+          { h: 'Sabse purana planned', v: g => g.oldest ? odDM(g.oldest) : '—' }
+        ], '', { unit: 'doer', rowCls: g => g.late ? 'od-r-overdue' : '' }),
+        odTab('late', '🔴 Late', ord(smp, 'sampling', r => !r.dispatched && r.planned && r.planned < today), odSmpCols, 'c-r', x),
+        odTab('pend', '🧵 Sab pending', ord(smp, 'sampling', r => !r.dispatched), odSmpCols, '', x),
+        odTab('disp', '✅ Dispatched', ord(smp, 'sampling', r => r.dispatched), odSmpCols, 'c-g', x)
+      ] };
+  }
+  if (key === 'pms') {
+    const pms = a ? a.fms.filter(g => /pms|garment|boxing/i.test(g.fmsName)) : null;
+    const x = { unit: 'stage', rowCls: odFmsRowCls };
+    return { icon: '🥊', cls: 'od-c-red', title: 'PMS Garment & Boxing', err, note: fmsNote,
+      sub: 'Har stage ke late aur agle 2 din wale — full kitting, cutting, production…',
+      big: pms ? odN(pms.reduce((n, g) => n + g.overdue, 0)) + ' late' : null,
+      tabs: [
+        odTab('all', 'Sab stages', pms, odFmsCols, '', x),
+        odTab('late', '🔴 Late wale', pms && pms.filter(g => g.overdue > 0), odFmsCols, 'c-r', x),
+        odTab('soon', '🟠 Agle 2 din', pms && pms.filter(g => g.atrisk > 0).sort((p, q) => q.atrisk - p.atrisk), odFmsCols, 'c-a', x)
+      ] };
+  }
+  if (key === 'emp') {
+    const dsel = (document.getElementById('odDoer') || {}).value || '';
+    const emp = _od.main ? (_od.main.topUsers || []).filter(u => !dsel || u.name === dsel)
+      .map(u => ({ ...u, rate: u.total ? Math.round(u.completed / u.total * 100) : 0 }))
+      .sort((p, q) => (q.overdue - p.overdue) || (q.total - p.total)) : null;
+    const rc = r => r >= 90 ? '#059669' : r >= 70 ? '#d97706' : '#dc2626';
+    const cols = [
+      { h: 'Name', v: u => `<b>${odEsc(u.name)}</b>` },
+      { h: 'Department', v: u => odEsc(u.department || '—') },
+      { h: 'Total', c: 'n', v: u => odN(u.total) },
+      { h: 'Pending', c: 'n', v: u => odCnt(u.pending, '#2563eb') },
+      { h: 'Completed', c: 'n', v: u => odCnt(u.completed, '#059669') },
+      { h: 'Overdue', c: 'n', v: u => odCnt(u.overdue, '#dc2626') },
+      { h: 'Done %', c: 'n', v: u => `<b style="color:${rc(u.rate)}">${u.rate}%</b>` }
+    ];
+    const x = { unit: 'employee', rowCls: u => u.overdue ? 'od-r-overdue' : u.rate >= 90 ? 'od-r-done' : '',
+      note: 'Delegation + Checklist, 1 April se aaj tak. Sabse zyada task wale 20 log.' };
+    return { icon: '👥', cls: 'od-c-blue', title: 'Employee Performance', sub: 'Total task, pending, overdue aur completion rate',
+      big: emp ? emp.length + ' log' : null,
+      tabs: [
+        odTab('all', 'Sab', emp, cols, '', x),
+        odTab('over', '🔴 Overdue wale', emp && emp.filter(u => u.overdue > 0), cols, 'c-r', x),
+        odTab('low', 'Done % 70 se kam', emp && emp.filter(u => u.rate < 70).sort((p, q) => p.rate - q.rate), cols, 'c-a', x)
+      ] };
+  }
+  if (key === 'fms') {
+    const all = a ? a.fms.slice() : null;
+    const x = { unit: 'step', rowCls: odFmsRowCls };
+    return { icon: '🔄', cls: 'od-c-blue', title: 'Har FMS ka pending', err, note: fmsNote + (a && a.fmsError ? ' ⚠️ ' + a.fmsError : ''),
+      sub: `Late + agle 2 din · last refresh ${_od.at.fms ? odTime(_od.at.fms) : '—'}`,
+      big: F ? F.overdue + F.atrisk : null,
+      tabs: [
+        odTab('fmsw', 'FMS-wise', all && odFmsWise(all), odFmsWiseCols, '', { unit: 'FMS', rowCls: odFmsRowCls }),
+        odTab('steps', 'Step-wise', all, odFmsCols, '', x),
+        odTab('late', '🔴 Sirf late steps', all && all.filter(g => g.overdue > 0), odFmsCols, 'c-r', x)
+      ] };
+  }
+  return null;
+}
+function odPop(key) {
+  if (!odPopView(key)) return;
+  _odPop = { key, tab: '', q: '' };
+  let el = document.getElementById('odPop');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'odPop'; el.className = 'od-pop';
+    el.addEventListener('click', e => { if (e.target === el) odPopClose(); });
+    document.body.appendChild(el);
+  }
+  const v = odPopView(key);
+  el.innerHTML = `<div class="od-pop-box ${v.cls || ''}" role="dialog" aria-modal="true" aria-label="${odEsc(v.title)}">` +
+    `<div class="od-pop-hd"><div class="ic">${v.icon}</div><div class="tx"><h3>${odEsc(v.title)}</h3><p id="odPopSub"></p></div>` +
+    `<div class="big" id="odPopBig"></div><button type="button" class="od-pop-x" onclick="odPopClose()" aria-label="Band karo">✕</button></div>` +
+    `<div class="od-pop-bar"><div class="od-pop-tabs" id="odPopTabs"></div>` +
+    `<input class="od-search" id="odPopQ" placeholder="🔍 Search — naam, email, PI, party…" oninput="if(_odPop){_odPop.q=this.value;odPopPaint(true)}"></div>` +
+    `<div class="od-pop-body" id="odPopBody"></div><div class="od-pop-ft" id="odPopFt"></div></div>`;
+  el.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  odPopPaint();
+}
+function odPopTab(k) {
+  if (!_odPop) return;
+  _odPop.tab = k; odPopPaint();
+  const b = document.getElementById('odPopBody'); if (b) b.scrollTop = 0;
+}
+function odPopClose() {
+  const el = document.getElementById('odPop');
+  if (el) { el.classList.remove('open'); el.innerHTML = ''; }
+  if (_odPop) document.body.style.overflow = '';
+  _odPop = null;
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && _odPop) odPopClose(); });
+function odPopPaint(onlyBody) {
+  if (!_odPop || !document.getElementById('odPopBody')) return;
+  const v = odPopView(_odPop.key); if (!v) return;
+  let t = v.tabs.find(x => x.k === _odPop.tab);
+  if (!t) {                             // pehli baar: pehla tab jisme kuch ho
+    t = v.tabs.find(x => Array.isArray(x.rows) && x.rows.length) || v.tabs[0];
+    if (v.tabs.every(x => Array.isArray(x.rows))) _odPop.tab = t.k;
+  }
+  const set = (id, html) => { const e = document.getElementById(id); if (e) e.innerHTML = html; };
+  if (!onlyBody) {
+    set('odPopBig', v.big == null ? '…' : typeof v.big === 'string' ? odEsc(v.big) : odN(v.big));
+    set('odPopSub', v.sub || '');
+    set('odPopTabs', v.tabs.map(x => {
+      const n = x.n != null ? x.n : Array.isArray(x.rows) ? x.rows.length : null;
+      return `<button type="button" class="od-chip ${x.cls} ${x === t ? 'on' : ''}" onclick="odPopTab('${x.k}')">${x.label}<span class="n">${n == null ? '…' : odN(n)}</span></button>`;
+    }).join(''));
+  }
+  const q = String(_odPop.q || '').trim().toLowerCase();
+  let body, foot = '';
+  if (!Array.isArray(t.rows)) body = `<div class="od-pop-empty">${v.err ? '⚠️ ' + odEsc(v.err) : '⏳ Data aa raha hai…'}</div>`;
+  else {
+    const list = q ? t.rows.filter(r => odRowText(r).includes(q)) : t.rows;
+    if (!list.length) body = `<div class="od-pop-empty">${q ? 'Search me kuch nahi mila' : 'Kuch nahi — sab theek 🎉'}</div>`;
+    else {
+      const rc = t.rowCls || (r => r.status ? 'od-r-' + r.status : '');
+      body = `<table class="own-tbl od-tbl"><thead><tr>${t.cols.map(c => `<th class="${c.c === 'n' ? 'n' : ''}">${c.h}</th>`).join('')}</tr></thead><tbody>` +
+        list.slice(0, OD_POP_LIMIT).map(r => `<tr class="${rc(r)}">${t.cols.map(c => `<td class="${c.c || ''}">${c.v(r)}</td>`).join('')}</tr>`).join('') +
+        `</tbody></table>`;
+    }
+    foot = (list.length > OD_POP_LIMIT ? `Pehle ${OD_POP_LIMIT} dikha rahe hain (kul ${odN(list.length)}) — search karo. `
+      : `${odN(list.length)} ${t.unit || 'task'}${q ? ' (search)' : ''}. `) + (t.note || v.note || '');
+  }
+  set('odPopBody', body);
+  const rep = t.report || v.report;
+  set('odPopFt', `<span>${odEsc(foot)}</span>` + (rep ? `<button type="button" class="btn btn-outline btn-sm" onclick="odGo('${rep}')">📊 MIS report kholo</button>` : ''));
+}
+
+async function loadOwnerDashboardOld() {
   const loading = document.getElementById('ownLoading');
   // Sirf PEHLI baar (jab koi data nahi) halka loading dikhao; filter change pe
   // purana data screen pe rehta hai aur naya aate hi chupke se update ho jaata hai
