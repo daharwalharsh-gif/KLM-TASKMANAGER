@@ -7474,7 +7474,7 @@ function rlPDF(rec) {
       <span>Kariger Name<span class="line"></span></span>
       <span>Card No<span class="line"></span></span>
     </div>
-    <div class="sub">${stamp}<br>${c.status === 'completed' ? 'Completed' : 'Pending'} · ${rows.length} operation(s)</div>
+    <div class="sub">${stamp}<br>${c.status === 'completed' ? 'Completed' : 'Pending'} · ${rows.filter(r => r.type !== 'total').length} operation(s)</div>
   </div>
   <table>
     <thead>
@@ -7509,10 +7509,12 @@ function rlPDF(rec) {
           }).join('') + '</tr>';
       }).join('');
     })()}</tbody>
-    <tfoot><tr><td></td><td class="op">TOTAL</td><td>${totRate}</td>` +
+    ${/* Harsh (13 Oct 2026): PDF me ek hi TOTAL — pehla wala (Cost Sheet se aaya).
+         Beech me TOTAL row na ho tabhi neeche wala TOTAL chhapo. */ ''}
+    ${rows.some(r => r.type === 'total') ? '' : `<tfoot><tr><td></td><td class="op">TOTAL</td><td>${totRate}</td>` +
       c.dates.map((_, j) => `<td>${rlFmt(rows.reduce((a, r) => a + (r.type === 'total' ? 0 : rlNum((r.cells[j] || {}).pcs)), 0))}</td>` +
         `<td>${rlFmt(rows.reduce((a, r) => a + (r.type === 'total' ? 0 : rlNum((r.cells[j] || {}).amount)), 0))}</td>`).join('') +
-    `</tr></tfoot>
+    `</tr></tfoot>`}
   </table>
   ${imgs.length ? `<div class="imgs">${imgs.map(f => `<img src="${escapeHtml(f.link)}">`).join('')}</div>` : ''}
   ${pdfs.length ? `<div class="sub" style="margin-top:8px">Attached PDF: ${pdfs.map(f => escapeHtml(f.name)).join(', ')}</div>` : ''}
