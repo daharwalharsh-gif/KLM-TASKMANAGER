@@ -7427,7 +7427,10 @@ function rlPDF(rec) {
   // dikhayi de rahi rows se mel nahi khata
   // Khaali rows chhod do, par Cost Sheet se aayi TOTAL rows rakho — unka op
   // aur rate khaali hota hai par chhapni zaroori hain.
-  const rows = c.rows.filter(r => r.type === 'total' || String(r.op || '').trim() || String(r.rate || '').trim());
+  const filled = c.rows.filter(r => r.type === 'total' || String(r.op || '').trim() || String(r.rate || '').trim());
+  // Harsh (13 Oct 2026): PDF pehle TOTAL par khatam — uske neeche ki rows nahi chhapni
+  const firstTot = filled.findIndex(r => r.type === 'total');
+  const rows = firstTot >= 0 ? filled.slice(0, firstTot + 1) : filled;
   const totRate = rlFmt(rows.reduce((a, r) => a + (r.type === 'total' ? 0 : rlNum(r.rate)), 0));
   const imgs = c.files.filter(f => f.kind === 'image');
   const pdfs = c.files.filter(f => f.kind !== 'image');
