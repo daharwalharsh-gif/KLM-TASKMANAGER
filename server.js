@@ -5015,12 +5015,28 @@ app.get('/api/otod/detail', requireAuth, requireOtodView, async (req, res) => {
 // K=PI approval date, Q=unique id.
 // Steps "Steps Directory" tab se aate hain, aur kaun sa step kis order par
 // poora hua ye "Data" tab (Unique Key + Step Code + status) se.
+// Harsh (14 Oct 2026): PPC ki saari reports ab sirf "All PMS Level 2 KLM" sheet ke
+// "NEW PMS " tab se — PMS Garments / PMS Boxing nahi. Header row 7, data row 8 se.
+// A=Timestamp B=Buyer C=Code D=Size E=Colour F=Quantity G=Product H=Merchant
+// K=PI number L=PI approval date P=Unique ID. Is sheet me "Steps Directory" tab nahi
+// hai, isliye steps neeche tay hain (Planned / Actual date aur quantity ke column).
 const PPC_SHEETS = {
-  garments: { key: 'garments', label: 'PMS Garments', id: '1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg' },
-  boxing:   { key: 'boxing',   label: 'PMS Boxing',   id: '1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM' }
+  newpms: { key: 'newpms', label: 'NEW PMS', id: '1jlknTV4aSBMHSkMbVH9OXgI5FiQH01_cxzxR6OG0ztU' }
 };
-const PPC_TAB = 'PMS';
-const PPC_HEADER_ROW = 6;
+const PPC_TAB = "'NEW PMS '";
+const PPC_HEADER_ROW = 7;
+// ppcIdx = us step ki "PPC Date" ka column (sheet me), qtyIdx = uski Actual Qty ka column
+const PPC_NEW_STEPS = [
+  { code: 'S2', name: 'Full Kitting For Cutting',        planIdx: 20, actIdx: 21, ppcIdx: -1, qtyIdx: -1 },
+  { code: 'S3', name: 'Cutting + Bundling',              planIdx: 25, actIdx: 26, ppcIdx: 30, qtyIdx: 32 },
+  { code: 'S4', name: 'Job Work',                        planIdx: 36, actIdx: 37, ppcIdx: -1, qtyIdx: 39 },
+  { code: 'S5', name: 'Sticker / Printing',              planIdx: 41, actIdx: 42, ppcIdx: 47, qtyIdx: 49 },
+  { code: 'S6', name: 'Full Kitting Stitching',          planIdx: 53, actIdx: 54, ppcIdx: -1, qtyIdx: -1 },
+  { code: 'S7', name: 'Issue For Stitching',             planIdx: 59, actIdx: 60, ppcIdx: 64, qtyIdx: 66 },
+  { code: 'S8', name: 'QC',                              planIdx: 77, actIdx: 78, ppcIdx: 82, qtyIdx: 85 },
+  { code: 'S9', name: 'Final Packed Ready For Dispatch', planIdx: 92, actIdx: 93, ppcIdx: 96, qtyIdx: 98 }
+].map(x => ({ ...x }));
+const ppcNewSteps = () => PPC_NEW_STEPS.map(x => ({ ...x, planCol: idxToCol(x.planIdx), actCol: idxToCol(x.actIdx) }));
 
 // Sheet me date DD-MM-YYYY ya DD/MM/YYYY dono me aati hai -> YYYY-MM-DD
 function ppcIsoDate(v) {
@@ -5064,7 +5080,7 @@ function ppcWeekRange(iso) {
 const PPC_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const key = String(req.query.sheet || 'garments').trim().toLowerCase();
+    const key = 'newpms';
     const cfg = PPC_SHEETS[key];
     if (!cfg) return res.status(400).json({ error: 'Unknown sheet' });
     const now = new Date();
@@ -5078,25 +5094,9 @@ app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
       try { const r = await sheetsApi.spreadsheets.values.get({ spreadsheetId: cfg.id, range }); return r.data.values || []; }
       catch (e) { return []; }
     };
-    const [pms, stepRows] = await Promise.all([
-      grab(`${PPC_TAB}!A${PPC_HEADER_ROW}:CZ`),
-      grab('Steps Directory!A2:D40')
-    ]);
-
-    // Steps = departments, sheet ke apne kram me
-    const steps = [];
-    for (const r of stepRows) {
-      const name = String(r[0] || '').trim();
-      const code = String(r[2] || '').trim();
-      const m = String(r[3] || '').match(/!\$?([A-Z]+)\$?\d*:\$?([A-Z]+)/);
-      if (!name || !code || !m) continue;
-      steps.push({ code, name, planIdx: ppcColIdx(m[1]), actIdx: ppcColIdx(m[2]),
-                   planCol: m[1], actCol: m[2] });
-    }
-    steps.sort((a, b) => {
-      const n = s => parseInt(String(s).replace(/\D+/g, ''), 10) || 0;
-      return n(a.code) - n(b.code);
-    });
+    const pms = await grab(`${PPC_TAB}!A${PPC_HEADER_ROW}:CZ`);
+    // Steps = departments (NEW PMS ke steps, sheet ke kram me)
+    const steps = ppcNewSteps();
 
     const wk = ppcWeekRange(asOf);
     const moFrom = asOf.slice(0, 8) + '01';
@@ -5117,20 +5117,21 @@ app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
     let rowNo = PPC_HEADER_ROW;
     for (const row of pms.slice(1)) {
       rowNo++;
-      const uid = String(row[16] || '').trim();     // Q
+      const uid = String(row[15] || '').trim();     // P
       const buyer = String(row[1] || '').trim();    // B
-      const piNo = String(row[9] || '').trim();     // J
+      const piNo = String(row[10] || '').trim();    // K
       if (!uid && !buyer && !piNo) continue;
       const qty = parseInt(String(row[5] || '').replace(/[^\d-]/g, ''), 10) || 0;   // F
       const rowKey = uid || ('r' + rowNo);
+      // Manual basis: plan date = sheet ki "PPC Date" (jis step me hai), warna app me bhari manual date
       const st = steps.map((s, i) => [
-        basis === 'manual' ? (manual[rowKey + '|' + i] || '')
+        basis === 'manual' ? ((s.ppcIdx >= 0 ? ppcIsoDate(row[s.ppcIdx]) : '') || manual[rowKey + '|' + i] || '')
                            : (s.planIdx >= 0 ? ppcIsoDate(row[s.planIdx]) : ''),
         s.actIdx >= 0 ? ppcIsoDate(row[s.actIdx]) : ''
       ]);
       orders.push({ uid, buyer, piNo, code: String(row[2] || '').trim(),
         size: String(row[3] || '').trim(), colour: String(row[4] || '').trim(),
-        qty, piApprovalDate: ppcIsoDate(row[10]), s: st });
+        qty, piApprovalDate: ppcIsoDate(row[11]), s: st });
     }
 
     const inRange = (d, a, b) => !!d && (!a || d >= a) && (!b || d <= b);
@@ -5139,7 +5140,8 @@ app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
       for (const o of orders) {
         const [p, a] = o.s[i];
         if (from === null ? !!p : inRange(p, from, to)) plan += o.qty;
-        if (from === null ? !!a : inRange(a, from, to)) actual += o.qty;
+        // Manual Date report me actual sirf unhi orders ka jinki PPC (plan) date bhari hai
+        if ((basis !== 'manual' || p) && (from === null ? !!a : inRange(a, from, to))) actual += o.qty;
       }
       const balance = plan - actual;
       const ach = plan > 0 ? Math.round((actual / plan) * 1000) / 10 : 0;
@@ -5197,7 +5199,7 @@ const PPC_QTY_COLS = {
 };
 app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const key = String(req.query.sheet || 'garments').trim().toLowerCase();
+    const key = 'newpms';
     const cfg = PPC_SHEETS[key];
     if (!cfg) return res.status(400).json({ error: 'Unknown sheet' });
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
@@ -5205,46 +5207,18 @@ app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => 
       try { const r = await sheetsApi.spreadsheets.values.get({ spreadsheetId: cfg.id, range }); return r.data.values || []; }
       catch (e) { return []; }
     };
-    const [pms, stepRows] = await Promise.all([
-      grab(`${PPC_TAB}!A${PPC_HEADER_ROW}:CZ`),
-      grab('Steps Directory!A2:D40')
-    ]);
-    const head = pms[0] || [];
-
-    const steps = [];
-    for (const r of stepRows) {
-      const name = String(r[0] || '').trim();
-      const code = String(r[2] || '').trim();
-      const m = String(r[3] || '').match(/!\$?([A-Z]+)\$?\d*:\$?([A-Z]+)/);
-      if (!name || !code || !m) continue;
-      steps.push({ code, name, planIdx: ppcColIdx(m[1]), actIdx: ppcColIdx(m[2]), qtyIdx: -1 });
-    }
-    steps.sort((a, b) => {
-      const n = s => parseInt(String(s).replace(/\D+/g, ''), 10) || 0;
-      return n(a.code) - n(b.code);
-    });
-    // Har step ka quantity column — uske Actual ke aage, agle step ke column se pehle.
-    // SIRF wahi columns jo tay kiye gaye hain (PPC_QTY_COLS) — sheet me aur bhi
-    // "Quantity" wale column hain (garments CA, boxing AL) par unhe nahi ginte.
-    const allow = new Set(PPC_QTY_COLS[key] || []);
-    const stepCols = new Set();
-    for (const s of steps) { stepCols.add(s.planIdx); stepCols.add(s.actIdx); }
-    for (const s of steps) {
-      for (let c = s.actIdx + 1; c <= s.actIdx + 8 && c < head.length; c++) {
-        if (stepCols.has(c)) break;                       // agla step shuru — ruk jao
-        if (!allow.has(idxToCol(c))) continue;
-        if (/qty|quantity/i.test(String(head[c] || ''))) { s.qtyIdx = c; break; }
-      }
-    }
+    const pms = await grab(`${PPC_TAB}!A${PPC_HEADER_ROW}:CZ`);
+    const steps = ppcNewSteps();      // quantity column har step ka pehle se tay (qtyIdx)
 
     const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(/[^\d.-]/g, '')); return Number.isFinite(n) ? n : 0; };
     const rows = [];
+    const pmsRowByKey = new Map();
     let rowNo = PPC_HEADER_ROW;
     for (const row of pms.slice(1)) {
       rowNo++;
-      const uid = String(row[16] || '').trim();     // Q
+      const uid = String(row[15] || '').trim();     // P
       const buyer = String(row[1] || '').trim();    // B
-      const orderNo = String(row[9] || '').trim();  // J — PI number
+      const orderNo = String(row[10] || '').trim(); // K — PI number
       if (!uid && !buyer && !orderNo) continue;
       const orderQty = num(row[5]);                 // F — Plan Qty
       const d = steps.map(s => {
@@ -5260,6 +5234,7 @@ app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => 
           balance: orderQty - actual,
           eff: orderQty > 0 ? (actual / orderQty) * 100 : null };
       });
+      pmsRowByKey.set(uid || ('r' + rowNo), row);
       rows.push({ uid, rowKey: uid || ('r' + rowNo), buyer, orderNo,
         style: String(row[6] || '').trim(),        // G — Product Name
         code: String(row[2] || '').trim(),         // C
@@ -5267,7 +5242,7 @@ app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => 
         size: String(row[3] || '').trim(),         // D
         line: String(row[14] || '').trim(),        // O — Line
         merchant: String(row[7] || '').trim(),     // H
-        piApprovalDate: ppcIsoDate(row[10]),       // K
+        piApprovalDate: ppcIsoDate(row[11]),       // L
         orderQty, d });
     }
     // Haath se daali gayi date — { "rowKey|stepNo": "YYYY-MM-DD" }
@@ -5278,9 +5253,18 @@ app.get('/api/ppc/order-master', requireAuth, requireAdmin, async (req, res) => 
         if (String(m.manual_date || '').trim()) manual[m.row_key + '|' + m.step_no] = String(m.manual_date).trim();
       }
     } catch (e) {}
+    // Jis step ki PPC Date sheet me hai, wahi manual date hai (sheet wali jeetti hai)
+    for (const r of rows) {
+      const raw = pmsRowByKey.get(r.rowKey);
+      steps.forEach((st, i) => {
+        if (st.ppcIdx < 0 || !raw) return;
+        const d = ppcIsoDate(raw[st.ppcIdx]);
+        if (d) manual[r.rowKey + '|' + i] = d; else if (!String(raw[st.ppcIdx] || '').trim()) delete manual[r.rowKey + '|' + i];
+      });
+    }
     res.json({ sheet: cfg.key, label: cfg.label, sheetId: cfg.id, manual,
       sheets: Object.values(PPC_SHEETS).map(s => ({ key: s.key, label: s.label })),
-      steps: steps.map(s => ({ code: s.code, name: s.name,
+      steps: steps.map(s => ({ code: s.code, name: s.name, ppcCol: s.ppcIdx >= 0 ? idxToCol(s.ppcIdx) : '',
         qtyCol: s.qtyIdx >= 0 ? idxToCol(s.qtyIdx) : '', hasQty: s.qtyIdx >= 0 })),
       rows, total: rows.length });
   } catch (err) {
@@ -5299,6 +5283,24 @@ app.post('/api/ppc/manual-date', requireAuth, requireAdmin, async (req, res) => 
     if (!PPC_SHEETS[sheet]) return res.status(400).json({ error: 'Unknown sheet' });
     if (!rowKey || stepNo === '') return res.status(400).json({ error: 'rowKey and stepNo required' });
     if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'Date must be YYYY-MM-DD' });
+    // Sheet ki "PPC Date" wale steps: seedha NEW PMS sheet me likho (Production page jaisa)
+    const stDef = PPC_NEW_STEPS[parseInt(stepNo, 10)];
+    if (stDef && stDef.ppcIdx >= 0) {
+      const wapi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets']);
+      const tab = await resolveTabName(wapi, PPC_SHEETS[sheet].id, PPC_TAB.replace(/^'|'$/g, ''));
+      const rd = await wapi.spreadsheets.values.get({ spreadsheetId: PPC_SHEETS[sheet].id, range: `'${tab}'!P${PPC_HEADER_ROW + 1}:P` });
+      const uids = (rd.data.values || []).map(x => String((x && x[0]) || '').trim());
+      let rowN = -1;
+      const mr = /^r(\d+)$/.exec(rowKey);
+      if (mr && !uids.includes(rowKey)) rowN = parseInt(mr[1], 10);
+      else { const ix = uids.indexOf(rowKey); if (ix >= 0) rowN = PPC_HEADER_ROW + 1 + ix; }
+      if (rowN < PPC_HEADER_ROW + 1) return res.status(409).json({ error: 'Row not found in the sheet — refresh and try again (nothing was saved).' });
+      const out = date ? `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(0, 4)}` : '';
+      await wapi.spreadsheets.values.update({ spreadsheetId: PPC_SHEETS[sheet].id, range: `'${tab}'!${idxToCol(stDef.ppcIdx)}${rowN}`,
+        valueInputOption: 'USER_ENTERED', requestBody: { values: [[out]] } });
+      _pms2Cache = null;
+      return res.json({ success: true, date, sheet: true });
+    }
     // step_no par SQL me barabari nahi lagate — '0' jaisi value match nahi hoti.
     // Isliye sheet+row ki rows lekar step JS me milaate hain.
     const [same] = await db.query('SELECT id, step_no FROM ppc_manual_dates WHERE sheet=? AND row_key=?',
@@ -5317,7 +5319,7 @@ app.post('/api/ppc/manual-date', requireAuth, requireAdmin, async (req, res) => 
 
 app.get('/api/ppc', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const key = String(req.query.sheet || 'garments').trim().toLowerCase();
+    const key = 'newpms';
     const cfg = PPC_SHEETS[key];
     if (!cfg) return res.status(400).json({ error: 'Unknown sheet' });
     const from = ppcIsoDate(req.query.from) || String(req.query.from || '').trim();
@@ -5330,35 +5332,9 @@ app.get('/api/ppc', requireAuth, requireAdmin, async (req, res) => {
         return r.data.values || [];
       } catch (e) { return []; }
     };
-    const [pms, stepRows, dataRows] = await Promise.all([
-      grab(`${PPC_TAB}!A:Q`),
-      grab('Steps Directory!A2:C'),
-      grab('Data!A:D')
-    ]);
-
-    // Steps — sheet ke apne steps, usi kram me
-    const steps = [];
-    for (const r of stepRows) {
-      const name = String(r[0] || '').trim();
-      const code = String(r[2] || '').trim();
-      if (!name || !code) continue;
-      steps.push({ code, name });
-    }
-    steps.sort((a, b) => {
-      const n = s => parseInt(String(s).replace(/\D+/g, ''), 10) || 0;
-      return n(a.code) - n(b.code);
-    });
-
-    // Kaun sa step kis unique id par Done
-    const doneMap = {};   // uniqueId -> Set(stepCode)
-    for (const r of dataRows) {
-      const uid = String(r[0] || '').trim();
-      const code = String(r[1] || '').trim();
-      const st = String(r[3] || '').trim().toLowerCase();
-      if (!uid || !code) continue;
-      if (st && st !== 'done') continue;
-      (doneMap[uid] = doneMap[uid] || new Set()).add(code);
-    }
+    const pms = await grab(`${PPC_TAB}!A:CZ`);
+    // Steps — NEW PMS ke steps; step "Done" = uska Actual date bhara ho
+    const steps = ppcNewSteps().map(x => ({ code: x.code, name: x.name, actIdx: x.actIdx }));
 
     // App me bhare hue manual column
     const [saved] = await db.query('SELECT * FROM ppc_rows');
@@ -5366,22 +5342,22 @@ app.get('/api/ppc', requireAuth, requireAdmin, async (req, res) => {
     for (const s of saved) byKey[String(s.row_key)] = s;
 
     const rows = [];
-    for (const row of pms.slice(PPC_HEADER_ROW)) {
+    for (const row of pms.slice(PPC_HEADER_ROW)) {   // row 8 se
       const buyer   = String(row[1]  || '').trim();   // B
       const code    = String(row[2]  || '').trim();   // C
       const size    = String(row[3]  || '').trim();   // D
       const colour  = String(row[4]  || '').trim();   // E
       const qty     = String(row[5]  || '').trim();   // F
-      const piNo    = String(row[9]  || '').trim();   // J
-      const piAppr  = ppcIsoDate(row[10]);            // K
-      const uniqueId= String(row[16] || '').trim();   // Q
+      const piNo    = String(row[10] || '').trim();   // K
+      const piAppr  = ppcIsoDate(row[11]);            // L
+      const uniqueId= String(row[15] || '').trim();   // P
       if (!buyer && !piNo && !uniqueId) continue;
       if (from && (!piAppr || piAppr < from)) continue;
       if (to   && (!piAppr || piAppr > to))   continue;
 
       const rowKey = key + '|' + (uniqueId || (piNo + '|' + code + '|' + size + '|' + colour));
       const s = byKey[rowKey] || {};
-      const done = doneMap[uniqueId] || new Set();
+      const done = new Set(steps.filter(st => String(row[st.actIdx] || '').trim() !== '').map(st => st.code));
       rows.push({
         rowKey, uniqueId, buyer, piNo, code, colour, size, orderQty: qty, piApprovalDate: piAppr,
         deliveryDate: s.delivery_date || '',
@@ -5698,6 +5674,129 @@ app.put('/api/production/fill', requireAuth, requireAdmin, async (req, res) => {
     }
     res.json({ success: true, count: done });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── NEW PMS — Production Management ka data (Harsh, 14 Oct 2026) ──
+// "All PMS Level 2 KLM" sheet ka "NEW PMS " tab: header row 7, data row 8 se, har row
+// ek colour/size. PI NUMBER ke hisaab se jodkar dikhate hain. 5 jagah "PPC Date" hai
+// (Cutting, Sticker, Issue For Stitching, QC, Final Packed) — wo yahin se bhari jaati
+// hain aur seedha sheet me likhi jaati hain.
+const PMS2_SHEET_ID = '1jlknTV4aSBMHSkMbVH9OXgI5FiQH01_cxzxR6OG0ztU';
+const PMS2_TAB = 'NEW PMS ';
+const PMS2_FIRST_ROW = 8;
+// column index (A=0)
+const PMS2_COL = { ts: 0, buyer: 1, code: 2, size: 3, colour: 4, qty: 5, product: 6, merchant: 7, hod: 8,
+  lead: 9, pi: 10, piAppr: 11, type: 12, fabric: 13, job: 14, uid: 15, status: 16, dept: 17 };
+const PMS2_PPC = { cut: { idx: 30, col: 'AE', label: 'Cutting + Bundling' },
+  sticker: { idx: 47, col: 'AV', label: 'Sticker / Printing' },
+  stitch: { idx: 64, col: 'BM', label: 'Issue For Stitching' },
+  qc: { idx: 82, col: 'CE', label: 'QC' },
+  pack: { idx: 96, col: 'CS', label: 'Final Packed' } };
+const PMS2_LAST_COL = 'CW';
+let _pms2Cache = null;                      // { at, data } — 15 sec, Sheets quota bachane ke liye
+const PMS2_TTL = 15000;
+
+// Sheet me DD/MM/YYYY (ya serial number) -> YYYY-MM-DD
+function pms2Iso(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[0] : '';
+}
+async function pms2Load(force) {
+  if (!force && _pms2Cache && Date.now() - _pms2Cache.at < PMS2_TTL) return _pms2Cache.data;
+  const api = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+  const tab = await resolveTabName(api, PMS2_SHEET_ID, PMS2_TAB);
+  let r;
+  try {
+    r = await api.spreadsheets.values.get({ spreadsheetId: PMS2_SHEET_ID, range: `'${tab}'!A${PMS2_FIRST_ROW}:${PMS2_LAST_COL}` });
+  } catch (e) {
+    if (/Unable to parse range/i.test(String(e.message))) throw new Error(await tabNotFoundMsg(api, PMS2_SHEET_ID, PMS2_TAB));
+    throw e;
+  }
+  const raw = r.data.values || [];
+  const g = (row, i) => String(row[i] == null ? '' : row[i]).trim();
+  const groups = new Map();
+  raw.forEach((row, n) => {
+    if (!row.some(c => String(c || '').trim())) return;
+    const sheetRow = PMS2_FIRST_ROW + n;
+    const buyer = g(row, PMS2_COL.buyer), pi = g(row, PMS2_COL.pi);
+    if (!buyer && !pi && !g(row, PMS2_COL.uid)) return;
+    const key = pi || ('(No PI) ' + buyer);
+    let o = groups.get(key);
+    if (!o) {
+      o = { key, pi, buyer, merchant: g(row, PMS2_COL.merchant), hod: g(row, PMS2_COL.hod), leadTime: g(row, PMS2_COL.lead),
+        piApproval: pms2Iso(row[PMS2_COL.piAppr]), type: g(row, PMS2_COL.type), qty: 0, items: [] };
+      groups.set(key, o);
+    }
+    const qty = parseFloat(String(row[PMS2_COL.qty] || '').replace(/,/g, '')) || 0;
+    o.qty += qty;
+    const ppc = {};
+    for (const k of Object.keys(PMS2_PPC)) ppc[k] = pms2Iso(row[PMS2_PPC[k].idx]);
+    o.items.push({ row: sheetRow, uid: g(row, PMS2_COL.uid), code: g(row, PMS2_COL.code), size: g(row, PMS2_COL.size),
+      colour: g(row, PMS2_COL.colour), qty, product: g(row, PMS2_COL.product), status: g(row, PMS2_COL.status), ppc });
+  });
+  const orders = [...groups.values()];
+  orders.forEach(o => {
+    o.ppc = {};
+    for (const k of Object.keys(PMS2_PPC)) {
+      const set = new Set(o.items.map(it => it.ppc[k] || ''));
+      o.ppc[k] = set.size === 1 ? [...set][0] : (set.size ? 'mixed' : '');      // sab row me ek hi date ho tabhi
+    }
+    o.ppcFilled = o.items.filter(it => Object.values(it.ppc).some(Boolean)).length;
+
+  });
+  // Naye order (PI approval date) upar
+  orders.sort((a, b) => String(b.piApproval || '').localeCompare(String(a.piApproval || '')));
+  const data = { orders, rows: raw.length, steps: Object.fromEntries(Object.entries(PMS2_PPC).map(([k, v]) => [k, v.label])) };
+  _pms2Cache = { at: Date.now(), data };
+  return data;
+}
+
+app.get('/api/production/pms', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const d = await pms2Load(req.query.force === '1');
+    res.json({ ...d, sheetUrl: `https://docs.google.com/spreadsheets/d/${PMS2_SHEET_ID}/edit?gid=432659505#gid=432659505` });
+  } catch (err) {
+    console.error('NEW PMS read FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PPC Date likho — {key:'cut'|..., value:'YYYY-MM-DD' ya '' (hatane ke liye), rows:[{row, uid}]}
+// Har row ka Unique ID (P) sheet se dobara milaya jaata hai — beech me sheet badal gayi ho
+// (row khisak gayi) to galat row me nahi likhte.
+app.put('/api/production/ppc-date', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { key, value, rows } = req.body || {};
+    const def = PMS2_PPC[key];
+    if (!def) return res.status(400).json({ error: 'Unknown PPC date column' });
+    if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ error: 'rows are required' });
+    if (rows.length > 600) return res.status(400).json({ error: 'Max 600 rows at a time' });
+    const iso = String(value == null ? '' : value).trim();
+    if (iso && !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return res.status(400).json({ error: 'Invalid date' });
+    const out = iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '';
+    const wapi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets']);
+    const tab = await resolveTabName(wapi, PMS2_SHEET_ID, PMS2_TAB);
+    const rd = await wapi.spreadsheets.values.get({ spreadsheetId: PMS2_SHEET_ID, range: `'${tab}'!P${PMS2_FIRST_ROW}:P` });
+    const uids = (rd.data.values || []).map(x => String((x && x[0]) || '').trim());
+    const data = [], bad = [];
+    for (const r of rows) {
+      const n = parseInt(r.row, 10);
+      if (!(n >= PMS2_FIRST_ROW) || uids[n - PMS2_FIRST_ROW] !== String(r.uid || '').trim() || !String(r.uid || '').trim()) { bad.push(r.row); continue; }
+      data.push({ range: `'${tab}'!${def.col}${n}`, values: [[out]] });
+    }
+    if (bad.length) return res.status(409).json({ error: 'The sheet has changed — refresh and try again (nothing was saved).', rows: bad.slice(0, 10) });
+    await wapi.spreadsheets.values.batchUpdate({ spreadsheetId: PMS2_SHEET_ID,
+      requestBody: { valueInputOption: 'USER_ENTERED', data } });
+    _pms2Cache = null;
+    res.json({ success: true, count: data.length });
+  } catch (err) {
+    console.error('NEW PMS PPC date save FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ══════════════════════════════════════════════════════
