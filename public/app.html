@@ -2344,6 +2344,8 @@ tbody tr:last-child td{border-bottom:none;}
     .pm-itrow td{background:#fff;font-size:12px}
     .pm-ppc{min-width:118px}
     .pm-mixed{background:#fef9c3;border-color:#fde047}
+    .pm-fx{background:#fff7ed;border-color:#fed7aa}
+    .pm-num{min-width:100px;text-align:right}
     .pm-dispatch{background:#dcfce7!important}
     .pm-dispatch .pm-sel{color:#15803d}
     .pm-cancel{background:#fee2e2!important}
@@ -19007,30 +19009,79 @@ async function loadProduction(force) {
   }
   _pmRows = Array.isArray(r.orders) ? r.orders : [];
   _pmSteps = r.steps || {};
+  _pmFields = r.fields || [];
+  _pmFilters = {};
   _pmSheetUrl = r.sheetUrl || '';
   const a = document.getElementById('pmSheetLink'); if (a && _pmSheetUrl) a.href = _pmSheetUrl;
   renderProduction();
 }
 
-// Search + PI approval date lagne ke baad kaunsi PI bachi
+// Search + PI approval date + column filters lagne ke baad kaunsi PI bachi
+let _pmFilters = {};      // { colKey: Set(values) } — khali = sab
+let _pmFields = [];       // sheet ke neele (manual) columns — server se
+// Fixed columns (filter ke liye) — PI-wise value
+const PM_BASE_COLS = [
+  { k: 'buyer',    label: 'Buyer Name',  w: 170, val: o => [o.buyer] },
+  { k: 'pi',       label: 'PI NO',       w: 130, val: o => [o.pi] },
+  { k: 'merchant', label: 'Merchant',    w: 90,  val: o => [o.merchant] },
+  { k: 'leadTime', label: 'Lead Time',   w: 70,  val: o => [o.leadTime] },
+  { k: 'piAppr',   label: 'PI Approval', w: 100, val: o => [pmFmtDate(o.piApproval)] },
+  { k: 'qty',      label: 'Qty',         w: 70,  val: o => [String(o.qty)] }
+];
+// Neele column ka filter — us PI ki kisi bhi row me wo value ho to PI dikhe
+function pmColVals(o, k) {
+  const fd = _pmFields.find(x => x.k === k);
+  if (fd) return [...new Set(o.items.map(it => fd.type === 'date' ? pmFmtDate(it.v[k] || '') : String(it.v[k] || '').trim()))];
+  const b = PM_BASE_COLS.find(x => x.k === k);
+  return b ? b.val(o).map(v => String(v == null ? '' : v)) : [''];
+}
 function pmVisible() {
   const q = (document.getElementById('pmSearch')?.value || '').toLowerCase().trim();
   const d = (document.getElementById('pmDate')?.value || '').trim();
   return _pmRows.filter(o => {
     if (d && o.piApproval !== d) return false;
+    for (const k of Object.keys(_pmFilters)) {
+      const set = _pmFilters[k];
+      if (set && set.size && !pmColVals(o, k).some(v => set.has(v))) return false;
+    }
     if (!q) return true;
     if ([o.buyer, o.pi, o.merchant, o.type].some(v => String(v || '').toLowerCase().includes(q))) return true;
     return o.items.some(it => [it.code, it.colour, it.size, it.product].some(v => String(v || '').toLowerCase().includes(q)));
   });
 }
 
-function pmDateInput(o, it, k) {
-  // it = null -> PI ki row (saari rows me lagti hai); warna ek colour/size row
-  const v = it ? it.ppc[k] : o.ppc[k];
+// Ek neela cell. it = null -> PI ki row (date/select saari rows me lagta hai; qty sirf jod dikhta hai)
+function pmCellInput(o, it, fd) {
+  const idx = _pmRows.indexOf(o);
+  const v = it ? it.v[fd.k] : o.v[fd.k];
   const mixed = v === 'mixed';
-    return `<input type="date" class="pm-in pm-ppc ${mixed ? 'pm-mixed' : ''}" value="${mixed ? '' : escapeHtml(v || '')}"
-    title="${mixed ? 'Different dates in different rows — set a date to apply to all' : escapeHtml(_pmSteps[k] || '')}"
-    onchange="pmSavePpc(${_pmRows.indexOf(o)},${it ? it.row : 0},'${k}',this.value)"/>`;
+  const rowNo = it ? it.row : 0;
+  const go = `pmSaveField(${idx},${rowNo},'${fd.k}',this.value,this)`;
+  if (fd.type === 'num') {
+    if (!it) {
+      // PI ki row me bhi type kar sakte ho — wahi value us PI ki saari rows me lagti hai
+      const sum = o.items.reduce((n, x) => n + (parseFloat(x.v[fd.k]) || 0), 0);
+      const anyFx = o.items.some(x => (x.fx || []).includes(fd.k));
+      return `<input type="number" step="any" class="pm-in pm-num ${mixed ? 'pm-mixed' : ''} ${anyFx ? 'pm-fx' : ''}" value="${mixed ? '' : escapeHtml(v || '')}"
+        placeholder="${mixed ? 'mixed' : ''}" title="Type a value to apply to all ${o.items.length} rows of this PI (total now: ${sum.toLocaleString('en-IN')})" onchange="${go}"/>`;
+    }
+    const fx = (it.fx || []).includes(fd.k);
+    return `<input type="number" step="any" class="pm-in pm-num ${fx ? 'pm-fx' : ''}" value="${escapeHtml(v || '')}" data-old="${escapeHtml(v || '')}"
+      ${fx ? 'data-fx="1" title="This cell has a formula in the sheet — typing a value replaces it"' : ''}
+      onchange="${go}"/>`;
+  }
+  if (fd.type === 'text') {
+    return `<input type="text" class="pm-in ${mixed ? 'pm-mixed' : ''}" value="${mixed ? '' : escapeHtml(v || '')}" placeholder="${mixed ? 'mixed' : ''}"
+      title="${mixed ? 'Different values in different rows — type a value to apply to all' : escapeHtml(fd.group + ' · ' + fd.label)}"
+      onchange="${go}"/>`;
+  }
+  return `<input type="date" class="pm-in pm-ppc ${mixed ? 'pm-mixed' : ''}" value="${mixed ? '' : escapeHtml(v || '')}"
+    title="${mixed ? 'Different dates in different rows — set a date to apply to all' : escapeHtml(fd.group + ' · ' + fd.label)}"
+    onchange="${go}"/>`;
+}
+
+function pmFiltBtn(k) {
+  return `<button class="pm-filt ${(_pmFilters[k] && _pmFilters[k].size) ? 'on' : ''}" onclick="event.stopPropagation();pmOpenFilter('${k}',this)" title="Filter">▾</button>`;
 }
 
 function renderProduction() {
@@ -19038,19 +19089,25 @@ function renderProduction() {
   const list = pmVisible();
   document.getElementById('pmCount').textContent = `${list.length} order(s) · ${list.reduce((n, o) => n + o.items.length, 0).toLocaleString('en-IN')} rows`;
   if (!list.length) { c.innerHTML = '<div class="pm-wrap"><div class="pm-empty">No orders found</div></div>'; return; }
-  const th = PM_STEP_KEYS.map(k => `<th style="min-width:128px;background:#dbeafe">PPC Date<div class="pm-sub" style="color:#1e3a8a">${escapeHtml(_pmSteps[k] || k)}</div></th>`).join('');
+  // Header — upar step ka naam (group), neeche column; har column par filter
+  const groups = [];
+  _pmFields.forEach(fd => { const g = groups[groups.length - 1]; if (g && g.name === fd.group) g.n++; else groups.push({ name: fd.group, n: 1 }); });
+  const baseTh = PM_BASE_COLS.map(b => `<th rowspan="2" style="min-width:${b.w}px"><div class="pm-th"><span>${b.label}</span>${pmFiltBtn(b.k)}</div></th>`).join('');
+  const gTh = groups.map(g => `<th colspan="${g.n}" style="background:#bfdbfe;text-align:center;color:#1e3a8a">${escapeHtml(g.name)}</th>`).join('');
+  const fTh = _pmFields.map(fd => `<th style="min-width:${fd.type === 'select' ? 130 : 128}px;background:#dbeafe"><div class="pm-th"><span>${escapeHtml(fd.label)}</span>${pmFiltBtn(fd.k)}</div></th>`).join('');
   const rows = list.map((o, i) => {
     const open = _pmOpen.has(o.key);
+    const oi = _pmRows.indexOf(o);
     const main = `<tr class="pm-pirow">
       <td class="pm-n">${i + 1}</td>
-      <td style="cursor:pointer" onclick="pmToggle(${_pmRows.indexOf(o)})"><b>${escapeHtml(o.buyer || '—')}</b>
+      <td style="cursor:pointer" onclick="pmToggle(${oi})"><b>${escapeHtml(o.buyer || '—')}</b>
         <div class="pm-sub">${open ? '▼' : '▶'} ${o.items.length} row(s)</div></td>
       <td>${escapeHtml(o.pi || '—')}</td>
       <td>${escapeHtml(o.merchant || '—')}</td>
       <td class="pm-numcol">${escapeHtml(o.leadTime || '—')}</td>
       <td style="text-align:center">${escapeHtml(pmFmtDate(o.piApproval) || '—')}</td>
       <td class="pm-numcol">${pmQty(o.qty)}</td>
-      ${PM_STEP_KEYS.map(k => `<td class="pm-edit">${pmDateInput(o, null, k)}</td>`).join('')}
+      ${_pmFields.map(fd => `<td class="pm-edit">${pmCellInput(o, null, fd)}</td>`).join('')}
     </tr>`;
     if (!open) return main;
     const sub = o.items.map(it => `<tr class="pm-itrow">
@@ -19059,17 +19116,15 @@ function renderProduction() {
         <div class="pm-sub">${escapeHtml(it.product || '')} · ${escapeHtml(it.uid)}</div></td>
       <td>${escapeHtml(it.status || '')}</td><td></td><td></td>
       <td class="pm-numcol">${pmQty(it.qty)}</td>
-      ${PM_STEP_KEYS.map(k => `<td class="pm-edit">${pmDateInput(o, it, k)}</td>`).join('')}
+      ${_pmFields.map(fd => `<td class="pm-edit">${pmCellInput(o, it, fd)}</td>`).join('')}
     </tr>`).join('');
     return main + sub;
   }).join('');
   const tot = list.reduce((n, o) => n + o.qty, 0);
   c.innerHTML = `<div class="pm-wrap"><table class="pm-tbl">
-    <thead><tr><th class="pm-n" style="width:40px">#</th><th style="min-width:170px">Buyer Name</th><th style="min-width:130px">PI NO</th>
-      <th style="min-width:90px">Merchant</th><th style="min-width:70px">Lead Time</th><th style="min-width:100px">PI Approval</th>
-      <th style="min-width:70px">Qty</th>${th}</tr></thead>
+    <thead><tr><th class="pm-n" rowspan="2" style="width:40px">#</th>${baseTh}${gTh}</tr><tr>${fTh}</tr></thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr><td class="pm-n"></td><td><b>TOTAL</b></td><td></td><td></td><td></td><td></td><td class="pm-numcol"><b>${pmQty(tot)}</b></td>${PM_STEP_KEYS.map(() => '<td></td>').join('')}</tr></tfoot>
+    <tfoot><tr><td class="pm-n"></td><td><b>TOTAL</b></td><td></td><td></td><td></td><td></td><td class="pm-numcol"><b>${pmQty(tot)}</b></td>${_pmFields.map(() => '<td></td>').join('')}</tr></tfoot>
   </table></div>`;
 }
 
@@ -19079,19 +19134,82 @@ function pmToggle(idx) {
   renderProduction();
 }
 
-// PPC Date save — sheet me seedha likhta hai. rowNo 0 = us PI ki saari rows.
-async function pmSavePpc(idx, rowNo, step, value) {
+// Sheet me seedha likhta hai. rowNo 0 = us PI ki saari rows (date / dropdown).
+async function pmSaveField(idx, rowNo, key, value, el) {
   const o = _pmRows[idx]; if (!o) return;
+  const fd = _pmFields.find(x => x.k === key); if (!fd) return;
   const targets = rowNo ? o.items.filter(it => it.row === rowNo) : o.items;
   if (!targets.length) return;
-  if (!rowNo && targets.length > 1 && value && !confirm(`Set ${_pmSteps[step] || step} PPC date to ${pmFmtDate(value)} for all ${targets.length} rows of ${o.pi || o.buyer}?`)) { renderProduction(); return; }
-  const r = await api('/api/production/ppc-date', 'PUT', { key: step, value, rows: targets.map(it => ({ row: it.row, uid: it.uid })) });
+  const label = `${fd.group} · ${fd.label}`;
+  const revert = () => { renderProduction(); };
+  // Formula wale cell par likhne se pehle poocho
+  if (rowNo && fd.type === 'num' && targets[0].fx && targets[0].fx.includes(key) && value !== (targets[0].v[key] || '')) {
+    if (!confirm(`${label}: this cell has a formula in the sheet.\nReplace it with ${value === '' ? 'an empty cell' : value}?`)) return revert();
+  }
+  if (!rowNo && targets.length > 1 && !value) {
+    if (fd.type === 'num') { showToast('Open the PI and clear rows one by one (formulas would be lost)', 'error'); return revert(); }
+    if (!confirm(`Clear ${label} for all ${targets.length} rows of ${o.pi || o.buyer}?`)) return revert();
+  }
+  if (!rowNo && targets.length > 1 && value) {
+    const nFx = fd.type === 'num' ? targets.filter(it => (it.fx || []).includes(key)).length : 0;
+    if (!confirm(`Set ${label} to "${fd.type === 'date' ? pmFmtDate(value) : String(value).trim()}" for all ${targets.length} rows of ${o.pi || o.buyer}?` + (nFx ? `
+
+${nFx} of these cells have a formula in the sheet — it will be replaced.` : ''))) return revert();
+  }
+  const r = await api('/api/production/ppc-date', 'PUT', { key, value, rows: targets.map(it => ({ row: it.row, uid: it.uid })) });
   if (!r || r.error) { showToast((r && r.error) || 'Could not save', 'error'); loadProduction(true); return; }
-  targets.forEach(it => { it.ppc[step] = value; });
-  const set = new Set(o.items.map(it => it.ppc[step] || ''));
-  o.ppc[step] = set.size === 1 ? [...set][0] : 'mixed';
+  targets.forEach(it => {
+    it.v[key] = value;
+    if (it.ppc && key in it.ppc) it.ppc[key] = value;
+    if (fd.type === 'num') it.fx = (it.fx || []).filter(x => x !== key);
+  });
+  const set = new Set(o.items.map(it => it.v[key] || ''));
+  o.v[key] = set.size === 1 ? [...set][0] : 'mixed';
+  if (o.ppc && key in o.ppc) o.ppc[key] = o.v[key];
   renderProduction();
   showToast(`Saved in sheet${targets.length > 1 ? ' · ' + targets.length + ' rows' : ''}`, 'success');
+}
+
+// ── Column filter popup ──
+function pmOpenFilter(k, btn) {
+  const old = document.getElementById('pmFilterPop'); if (old) old.remove();
+  const vals = [...new Set(_pmRows.flatMap(o => pmColVals(o, k)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const sel = _pmFilters[k] || new Set();
+  const pop = document.createElement('div');
+  pop.id = 'pmFilterPop'; pop.className = 'pm-pop';
+  pop.innerHTML = `
+    <input type="text" class="pm-pop-search" placeholder="🔍 Search…" oninput="pmFilterSearch(this.value)"/>
+    <div class="pm-pop-acts">
+      <button onclick="pmFilterAll(true)">✓ All</button>
+      <button onclick="pmFilterAll(false)">✕ None</button>
+    </div>
+    <div class="pm-pop-list" id="pmPopList">
+      ${vals.map(v => `<label data-v="${escapeHtml(v.toLowerCase())}">
+        <input type="checkbox" value="${escapeHtml(v)}" ${(!sel.size || sel.has(v)) ? 'checked' : ''}/>
+        <span>${escapeHtml(v === '' ? '(blank)' : v)}</span></label>`).join('')}
+    </div>
+    <div class="pm-pop-foot">
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('pmFilterPop').remove()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="pmApplyFilter('${k}')">Apply</button>
+    </div>`;
+  document.body.appendChild(pop);
+  const r = btn.getBoundingClientRect();
+  pop.style.top = (r.bottom + window.scrollY + 4) + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left + window.scrollX - 120, window.innerWidth - 260)) + 'px';
+}
+function pmFilterSearch(q) {
+  const s = String(q || '').toLowerCase();
+  document.querySelectorAll('#pmPopList label').forEach(l => { l.style.display = !s || (l.dataset.v || '').includes(s) ? '' : 'none'; });
+}
+function pmFilterAll(on) {
+  document.querySelectorAll('#pmPopList label').forEach(l => { if (l.style.display !== 'none') l.querySelector('input').checked = on; });
+}
+function pmApplyFilter(k) {
+  const boxes = [...document.querySelectorAll('#pmPopList input[type=checkbox]')];
+  const picked = boxes.filter(b => b.checked).map(b => b.value);
+  if (picked.length === boxes.length) delete _pmFilters[k]; else _pmFilters[k] = new Set(picked);
+  document.getElementById('pmFilterPop').remove();
+  renderProduction();
 }
 
 // ── PDF ──

@@ -5693,6 +5693,27 @@ const PMS2_PPC = { cut: { idx: 30, col: 'AE', label: 'Cutting + Bundling' },
   qc: { idx: 82, col: 'CE', label: 'QC' },
   pack: { idx: 96, col: 'CS', label: 'Final Packed' } };
 const PMS2_LAST_COL = 'CW';
+// Sheet ke NEELE (haath se bharne wale) columns — Production page me bhi bharte hain, sheet me seedha likhte hain.
+// type: date | num | select. group = kis step ke neeche dikhe.
+const PMS2_LINES = ['SANTOSH LINE ', 'JONY LINE ', 'H/W LINE ', 'B/B LINE', 'SHAHZAD LINE ', 'SHADAB LINE ', 'VAHID LINE '];
+const PMS2_CHECKERS = ['SACHIN SHARMA ', 'PARSURAM ', 'ANJU ', 'BHAWNA', 'RAHI', 'SALONI '];
+const PMS2_FIELDS = [
+  { k: 'cut',     idx: 30, col: 'AE', type: 'date',   group: 'Cutting + Bundling',  label: 'PPC Date' },
+  { k: 'cutQty',  idx: 31, col: 'AF', type: 'num',    group: 'Cutting + Bundling',  label: 'Plan Qty' },
+  { k: 'stkNo',   idx: 46, col: 'AU', type: 'num',    group: 'Sticker / Printing',  label: 'No. Of Sticker / Print' },
+  { k: 'sticker', idx: 47, col: 'AV', type: 'date',   group: 'Sticker / Printing',  label: 'PPC Date' },
+  { k: 'stkQty',  idx: 48, col: 'AW', type: 'num',    group: 'Sticker / Printing',  label: 'Plan Qty' },
+  { k: 'line',    idx: 63, col: 'BL', type: 'text',   group: 'Issue For Stitching', label: 'Line' },
+  { k: 'stitch',  idx: 64, col: 'BM', type: 'date',   group: 'Issue For Stitching', label: 'PPC Date' },
+  { k: 'loadQty', idx: 65, col: 'BN', type: 'num',    group: 'Issue For Stitching', label: 'PPC Loading Plan Qty' },
+  { k: 'outDate', idx: 69, col: 'BR', type: 'date',   group: 'Issue For Stitching', label: 'Date of OUT' },
+  { k: 'outPlan', idx: 70, col: 'BS', type: 'num',    group: 'Issue For Stitching', label: 'Line Out Plan' },
+  { k: 'checker', idx: 81, col: 'CD', type: 'text',   group: 'QC',                  label: 'Checker' },
+  { k: 'qc',      idx: 82, col: 'CE', type: 'date',   group: 'QC',                  label: 'PPC Date' },
+  { k: 'pack',    idx: 96, col: 'CS', type: 'date',   group: 'Final Packed',        label: 'PPC Date' },
+  { k: 'packQty', idx: 97, col: 'CT', type: 'num',    group: 'Final Packed',        label: 'Plan Qty' }
+];
+const PMS2_FIELD = Object.fromEntries(PMS2_FIELDS.map(x => [x.k, x]));
 let _pms2Cache = null;                      // { at, data } — 15 sec, Sheets quota bachane ke liye
 const PMS2_TTL = 15000;
 
@@ -5717,6 +5738,11 @@ async function pms2Load(force) {
     throw e;
   }
   const raw = r.data.values || [];
+  // Kin cells me formula hai (jaise Plan Qty =F8) — wahan likhna formula hata deta hai, isliye UI confirm poochta hai
+  const fxCols = PMS2_FIELDS.filter(x => x.type === 'num');
+  const fxRes = await api.spreadsheets.values.batchGet({ spreadsheetId: PMS2_SHEET_ID, valueRenderOption: 'FORMULA',
+    ranges: fxCols.map(x => `'${tab}'!${x.col}${PMS2_FIRST_ROW}:${x.col}`) });
+  const fxMap = fxCols.map((x, n) => ({ k: x.k, vals: (fxRes.data.valueRanges[n] || {}).values || [] }));
   const g = (row, i) => String(row[i] == null ? '' : row[i]).trim();
   const groups = new Map();
   raw.forEach((row, n) => {
@@ -5733,10 +5759,12 @@ async function pms2Load(force) {
     }
     const qty = parseFloat(String(row[PMS2_COL.qty] || '').replace(/,/g, '')) || 0;
     o.qty += qty;
-    const ppc = {};
+    const ppc = {}, v = {}, fx = [];
     for (const k of Object.keys(PMS2_PPC)) ppc[k] = pms2Iso(row[PMS2_PPC[k].idx]);
+    for (const fd of PMS2_FIELDS) v[fd.k] = fd.type === 'date' ? pms2Iso(row[fd.idx]) : g(row, fd.idx);
+    for (const m of fxMap) { const c = (m.vals[n] || [])[0]; if (typeof c === 'string' && c.startsWith('=')) fx.push(m.k); }
     o.items.push({ row: sheetRow, uid: g(row, PMS2_COL.uid), code: g(row, PMS2_COL.code), size: g(row, PMS2_COL.size),
-      colour: g(row, PMS2_COL.colour), qty, product: g(row, PMS2_COL.product), status: g(row, PMS2_COL.status), ppc });
+      colour: g(row, PMS2_COL.colour), qty, product: g(row, PMS2_COL.product), status: g(row, PMS2_COL.status), ppc, v, fx });
   });
   const orders = [...groups.values()];
   orders.forEach(o => {
@@ -5745,12 +5773,19 @@ async function pms2Load(force) {
       const set = new Set(o.items.map(it => it.ppc[k] || ''));
       o.ppc[k] = set.size === 1 ? [...set][0] : (set.size ? 'mixed' : '');      // sab row me ek hi date ho tabhi
     }
+    o.v = {};
+    for (const fd of PMS2_FIELDS) {
+      const set = new Set(o.items.map(it => it.v[fd.k] || ''));
+      o.v[fd.k] = set.size === 1 ? [...set][0] : (set.size ? 'mixed' : '');
+    }
     o.ppcFilled = o.items.filter(it => Object.values(it.ppc).some(Boolean)).length;
 
   });
   // Naye order (PI approval date) upar
   orders.sort((a, b) => String(b.piApproval || '').localeCompare(String(a.piApproval || '')));
-  const data = { orders, rows: raw.length, steps: Object.fromEntries(Object.entries(PMS2_PPC).map(([k, v]) => [k, v.label])) };
+  const data = { orders, rows: raw.length,
+    fields: PMS2_FIELDS.map(x => ({ k: x.k, col: x.col, type: x.type, group: x.group, label: x.label, options: null })),
+    steps: Object.fromEntries(Object.entries(PMS2_PPC).map(([k, v]) => [k, v.label])) };
   _pms2Cache = { at: Date.now(), data };
   return data;
 }
@@ -5771,13 +5806,21 @@ app.get('/api/production/pms', requireAuth, requireAdmin, async (req, res) => {
 app.put('/api/production/ppc-date', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { key, value, rows } = req.body || {};
-    const def = PMS2_PPC[key];
-    if (!def) return res.status(400).json({ error: 'Unknown PPC date column' });
+    const def = PMS2_FIELD[key];
+    if (!def) return res.status(400).json({ error: 'Unknown column' });
     if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ error: 'rows are required' });
     if (rows.length > 600) return res.status(400).json({ error: 'Max 600 rows at a time' });
     const iso = String(value == null ? '' : value).trim();
-    if (iso && !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return res.status(400).json({ error: 'Invalid date' });
-    const out = iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '';
+    let out = '';
+    if (def.type === 'date') {
+      if (iso && !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return res.status(400).json({ error: 'Invalid date' });
+      out = iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '';
+    } else if (def.type === 'num') {
+      if (iso && !/^-?\d+(\.\d+)?$/.test(iso)) return res.status(400).json({ error: 'Enter a number' });
+      out = iso;
+    } else {
+      out = iso.slice(0, 200);      // seedha likha hua text (dropdown nahi)
+    }
     const wapi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets']);
     const tab = await resolveTabName(wapi, PMS2_SHEET_ID, PMS2_TAB);
     const rd = await wapi.spreadsheets.values.get({ spreadsheetId: PMS2_SHEET_ID, range: `'${tab}'!P${PMS2_FIRST_ROW}:P` });
