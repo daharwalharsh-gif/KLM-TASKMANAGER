@@ -5814,6 +5814,7 @@ app.put('/api/production/ppc-date', requireAuth, requireAdmin, async (req, res) 
     let out = '';
     if (def.type === 'date') {
       if (iso && !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return res.status(400).json({ error: 'Invalid date' });
+      if (iso && (+iso.slice(0, 4) < 2020 || +iso.slice(0, 4) > 2100)) return res.status(400).json({ error: 'Check the year — ' + iso.slice(0, 4) + ' looks wrong' });
       out = iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '';
     } else if (def.type === 'num') {
       if (iso && !/^-?\d+(\.\d+)?$/.test(iso)) return res.status(400).json({ error: 'Enter a number' });

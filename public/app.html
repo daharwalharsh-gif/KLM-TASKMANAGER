@@ -19156,6 +19156,7 @@ async function pmSaveField(idx, rowNo, key, value, el) {
   const targets = rowNo ? o.items.filter(it => it.row === rowNo) : o.items;
   if (!targets.length) return;
   const label = `${fd.group} · ${fd.label}`;
+  if (fd.type === 'date' && value && (+value.slice(0, 4) < 2020 || +value.slice(0, 4) > 2100)) { showToast('Check the year — ' + value.slice(0, 4) + ' looks wrong', 'error'); return renderProduction(); }
   const revert = () => { renderProduction(); };
   // Formula wale cell par likhne se pehle poocho
   if (rowNo && fd.type === 'num' && targets[0].fx && targets[0].fx.includes(key) && value !== (targets[0].v[key] || '')) {
