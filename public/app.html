@@ -2344,6 +2344,12 @@ tbody tr:last-child td{border-bottom:none;}
     .pm-itrow td{background:#fff;font-size:12px}
     .pm-ppc{min-width:118px}
     .pm-mixed{background:#fef9c3;border-color:#fde047}
+    .pm-frz{max-height:calc(100vh - 200px);overflow:auto}
+    .pm-frz .pm-tbl{border-collapse:separate;border-spacing:0}
+    .pm-frz .pm-tbl th,.pm-frz .pm-tbl td{border-width:0 1px 1px 0}
+    .pm-frz thead th{position:sticky;top:0;z-index:3}
+    .pm-frz thead tr:nth-child(2) th{z-index:3}
+    .pm-frz tfoot td{position:sticky;bottom:0;z-index:2;background:#eef2ff}
     .pm-fx{background:#fff7ed;border-color:#fed7aa}
     .pm-num{min-width:100px;text-align:right}
     .pm-dispatch{background:#dcfce7!important}
@@ -19121,12 +19127,21 @@ function renderProduction() {
     return main + sub;
   }).join('');
   const tot = list.reduce((n, o) => n + o.qty, 0);
-  c.innerHTML = `<div class="pm-wrap"><table class="pm-tbl">
+  c.innerHTML = `<div class="pm-wrap pm-frz"><table class="pm-tbl">
     <thead><tr><th class="pm-n" rowspan="2" style="width:40px">#</th>${baseTh}${gTh}</tr><tr>${fTh}</tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr><td class="pm-n"></td><td><b>TOTAL</b></td><td></td><td></td><td></td><td></td><td class="pm-numcol"><b>${pmQty(tot)}</b></td>${_pmFields.map(() => '<td></td>').join('')}</tr></tfoot>
   </table></div>`;
+  pmFreezeHead();
 }
+// Headings freeze (Excel jaisa): upar ki do heading rows scroll par ruki rehti hain
+function pmFreezeHead() {
+  const r1 = document.querySelector('#pmContent .pm-frz thead tr:first-child');
+  if (!r1) return;
+  const h = r1.getBoundingClientRect().height;
+  document.querySelectorAll('#pmContent .pm-frz thead tr:nth-child(2) th').forEach(t => { t.style.top = h + 'px'; });
+}
+window.addEventListener('resize', () => { if (document.querySelector('#pmContent .pm-frz')) pmFreezeHead(); });
 
 function pmToggle(idx) {
   const key = (_pmRows[idx] || {}).key; if (key === undefined) return;
