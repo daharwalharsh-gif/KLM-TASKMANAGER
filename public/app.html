@@ -7487,7 +7487,7 @@ function rlPDF(rec) {
   </div>
   <table>
     <thead>
-      <tr><th rowspan="2" style="width:26px">S.NO</th><th rowspan="2" style="width:190px">OPERATION</th>
+      <tr><th rowspan="2" style="width:26px">OP NO.</th><th rowspan="2" style="width:190px">OPERATION</th>
         <th rowspan="2" style="width:60px">KARIGER RATE</th>
         ${c.dates.map(d => `<th colspan="2" class="dth">${escapeHtml(dt(d)) || 'DATE'}</th>`).join('')}</tr>
       <tr>${c.dates.map(() => '<th>NO OF PCS</th><th>AMOUNT</th>').join('')}</tr>
@@ -7499,7 +7499,7 @@ function rlPDF(rec) {
       const accCells = c.dates.map(() => ({ pcs: 0, amount: 0 }));
       return rows.map(r => {
         if (r.type === 'total') {
-          return `<tr class="tot"><td></td><td class="op">TOTAL</td><td>${rlFmt(accRate)}</td>` +
+          return `<tr class="tot"><td></td><td class="op">Rate total</td><td>${rlFmt(accRate)}</td>` +
             c.dates.map((_, j) => `<td>${rlFmt(accCells[j].pcs)}</td><td>${rlFmt(accCells[j].amount)}</td>`).join('') +
             '</tr>';
         }
@@ -7520,7 +7520,7 @@ function rlPDF(rec) {
     })()}</tbody>
     ${/* Harsh (13 Oct 2026): PDF me ek hi TOTAL — pehla wala (Cost Sheet se aaya).
          Beech me TOTAL row na ho tabhi neeche wala TOTAL chhapo. */ ''}
-    ${rows.some(r => r.type === 'total') ? '' : `<tfoot><tr><td></td><td class="op">TOTAL</td><td>${totRate}</td>` +
+    ${rows.some(r => r.type === 'total') ? '' : `<tfoot><tr><td></td><td class="op">Rate total</td><td>${totRate}</td>` +
       c.dates.map((_, j) => `<td>${rlFmt(rows.reduce((a, r) => a + (r.type === 'total' ? 0 : rlNum((r.cells[j] || {}).pcs)), 0))}</td>` +
         `<td>${rlFmt(rows.reduce((a, r) => a + (r.type === 'total' ? 0 : rlNum((r.cells[j] || {}).amount)), 0))}</td>`).join('') +
     `</tr></tfoot>`}
