@@ -647,6 +647,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M3 6h18M3 18h18"/></svg>
       <span class="nav-label-text">FMS Tasks</span>
     </div>
+    <div class="nav-item" id="nav-meca" style="display:none" onclick="navigate('meca',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h2.28a1 1 0 01.95.68l1.5 4.5a1 1 0 01-.5 1.2l-2.26 1.13a11 11 0 005.52 5.52l1.13-2.26a1 1 0 011.2-.5l4.5 1.5a1 1 0 01.68.95V19a2 2 0 01-2 2h-1C9.72 21 3 14.28 3 6V5z"/></svg>
+      <span class="nav-label-text">Meca Offline</span>
+    </div>
     <div class="nav-item" id="nav-accounts" onclick="navigate('accounts',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m-6 4h6m-6 4h4m-7 6h12a2 2 0 002-2V7.414a1 1 0 00-.293-.707l-3.414-3.414A1 1 0 0014.586 3H6a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
       <span class="nav-label-text">Accounts Department</span>
@@ -2690,6 +2694,33 @@ tbody tr:last-child td{border-bottom:none;}
     .pm-pop-list span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .pm-pop-foot{display:flex;gap:7px;justify-content:flex-end;margin-top:9px}
   </style>
+  <!-- Meca Offline — Sales NBD FMS (Outgoing / Incoming) customer-wise connects -->
+  <div id="page-meca" class="page">
+    <style>
+      .mc-yelrow{display:flex;gap:10px;flex-wrap:wrap;margin:-6px 0 18px}
+      .mc-yel{flex:1;min-width:150px;display:flex;align-items:baseline;justify-content:space-between;gap:10px;cursor:pointer;font-family:inherit;
+        background:#fef08a;border:1.5px solid #facc15;border-radius:12px;padding:10px 16px;transition:transform .15s,box-shadow .15s}
+      .mc-yel:hover{transform:translateY(-2px);box-shadow:0 10px 20px -12px rgba(161,98,7,.7)}
+      .mc-yel b{font-size:22px;font-weight:900;color:#713f12;font-variant-numeric:tabular-nums} .mc-yel span{font-size:12.5px;font-weight:700;color:#854d0e}
+      @media (max-width:640px){ .mc-yel{min-width:100%} }
+    </style>
+    <div class="page-header">
+      <h2>Meca Offline</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <a id="mcSheetLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="#">📄 Open Google Sheet ↗</a>
+        <button class="btn btn-outline btn-sm" onclick="loadMeca(true)">🔄 Refresh</button>
+      </div>
+    </div>
+    <div class="pm-bar">
+      <div style="min-width:300px"><label>Sheet</label>
+        <select id="mcSheet" onchange="mcSwitch(this.value)" style="width:100%;padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"><option value="out">Outgoing</option><option value="in">Incoming</option></select></div>
+      <div><label>Enquiry from</label><input type="date" id="mcFrom" onchange="_mc.from=this.value;renderMeca()"/></div>
+      <div><label>To</label><input type="date" id="mcTo" onchange="_mc.to=this.value;renderMeca()"/></div>
+      <div><label>&nbsp;</label><button class="btn btn-outline btn-sm" onclick="_mc.from='';_mc.to='';document.getElementById('mcFrom').value='';document.getElementById('mcTo').value='';renderMeca()">✕ Clear</button></div>
+    </div>
+    <div id="mcBody"></div>
+  </div>
+
   <div id="page-production" class="page">
     <div class="page-header">
       <h2>Production Management</h2>
@@ -4324,6 +4355,7 @@ async function init() {
       document.getElementById('nav-fms').style.display = 'flex';
       document.getElementById('nav-master').style.display = 'flex';   // Master Sheet — admin only
       const npm = document.getElementById('nav-production'); if (npm) npm.style.display = 'flex';
+      const nmc = document.getElementById('nav-meca'); if (nmc) nmc.style.display = 'flex';
       document.getElementById('bulkDeleteBtn').style.display = 'inline-flex';
       const pdb = document.getElementById('tasksPdfBtn'); if (pdb) { pdb.style.display = 'inline-flex'; syncPdfBtnLabel(); }
       const clb = document.getElementById('checklistListBtn'); if (clb) clb.style.display = 'inline-flex';
@@ -4458,7 +4490,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List',accounts:'Accounts Department'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',meca:'Meca Offline',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List',accounts:'Accounts Department'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -4479,6 +4511,7 @@ function navigate(page, el) {
   if (page==='scheduler') openScheduler();
   if (page==='master') loadMasterSheet();
   if (page==='production') loadProduction();
+  if (page==='meca') loadMeca();
   if (page==='catalogues') loadCatalogues();
   if (page==='forms') loadFormsPage();
   if (page==='ratelist') openRateList();
@@ -18988,6 +19021,193 @@ async function onFormSelect() {
   }
 }
 
+
+// ══════════════════════════════════════════════════════
+// MECA OFFLINE — Sales NBD FMS (Outgoing / Incoming) : kis customer se kitni baar connect hua
+// (Harsh, 16 Oct 2026). Dropdown se sheet chuno. Connect = customer ka wo step jiska Actual
+// bhara ho aur Status Cancel na ho. Kisi bhi card / bar / row par click = details popup.
+// ══════════════════════════════════════════════════════
+const _mc = { src: 'out', data: null, chip: 'all', q: '', from: '', to: '', pop: null, chart: null };
+const mcEsc = v => escapeHtml(String(v == null ? '' : v));
+const mcN = n => (Number(n) || 0).toLocaleString('en-IN');
+const mcD = iso => /^\d{4}-\d{2}-\d{2}/.test(String(iso || '')) ? String(iso).slice(8, 10) + '-' + String(iso).slice(5, 7) + '-' + String(iso).slice(0, 4) + (String(iso).length > 10 ? ' ' + String(iso).slice(11, 16) : '') : '—';
+const mcDone = s => !!s.a && !/cancel/i.test(s.s || '');
+
+async function loadMeca(force) {
+  const box = document.getElementById('mcBody');
+  if (!_mc.data || force) box.innerHTML = '<div class="pm-wrap"><div class="pm-empty">⏳ Loading data from the sheet…</div></div>';
+  const r = await api('/api/meca?src=' + _mc.src + (force ? '&force=1' : ''));
+  if (!r || r.error) { box.innerHTML = `<div class="pm-wrap"><div class="pm-empty" style="color:#ef4444">⚠️ ${mcEsc((r && r.error) || 'Could not load data')}</div></div>`; return; }
+  _mc.data = r;
+  const sel = document.getElementById('mcSheet');
+  if (sel.options.length !== (r.sheets || []).length) sel.innerHTML = r.sheets.map(s => `<option value="${s.key}">${mcEsc(s.label)}</option>`).join('');
+  sel.value = r.src;
+  const a = document.getElementById('mcSheetLink'); if (a) a.href = r.sheetUrl;
+  renderMeca();
+}
+function mcSwitch(src) { _mc.src = src; _mc.chip = 'all'; _mc.data = null; loadMeca(); }
+
+// Customers — phone (last 10 digits) ya company/naam se; ek customer ki kai enquiry ho to jud jaati hain
+function mcCustomers() {
+  const d = _mc.data; if (!d) return [];
+  const f = _mc.from, t = _mc.to, map = new Map();
+  for (const r of d.rows) {
+    if (f && (r.enquiry || '') < f) continue;
+    if (t && (r.enquiry || '') > t) continue;
+    const k = String(r.phone || '').replace(/\D/g, '').slice(-10) || String(r.company || r.name).toLowerCase().trim();
+    let c = map.get(k);
+    if (!c) { c = { key: k, name: r.name, company: r.company, phone: r.phone, city: r.city, enquiry: r.enquiry, rows: [], events: [], connects: 0, last: '', ordered: false, orderStage: false, orderDone: false, cancelled: false, value: 0, next: '' }; map.set(k, c); }
+    c.rows.push(r);
+    if (r.enquiry && r.enquiry < c.enquiry) c.enquiry = r.enquiry;
+    c.value += r.orderValue || 0;
+    r.st.forEach((s, i) => {
+      const def = d.steps[i];
+      if (/cancel/i.test(s.s || '')) c.cancelled = true;
+      if (def.isOrder) { if (s.p || s.a) c.orderStage = true; if (mcDone(s)) c.orderDone = true; }
+      if (def.isConnect && mcDone(s)) { c.connects++; c.events.push({ step: def.name, p: s.p, a: s.a, delay: s.d, cust: c }); if (s.a > c.last) c.last = s.a; }
+    });
+    const lr = c.rows[c.rows.length - 1];
+    const nx = lr.st.findIndex((s, i) => !s.a && !/cancel/i.test(s.s || ''));
+    c.next = nx >= 0 ? d.steps[nx].name : '';
+  }
+  const list = [...map.values()];
+  list.forEach(c => { c.ordered = c.orderDone; c.status = c.ordered ? 'ordered' : c.cancelled ? 'cancelled' : 'progress'; });
+  return list;
+}
+function mcStats(list) {
+  const meetings = list.reduce((n, c) => n + c.connects, 0);
+  const clients = list.filter(c => c.ordered), revenue = clients.reduce((n, c) => n + c.value, 0);
+  const orders = list.filter(c => c.orderStage), processed = list.filter(c => c.orderDone);
+  const pending = orders.filter(c => !c.orderDone && !c.cancelled);
+  return { meetings, clients, revenue, orders, processed, pending,
+    ratio: meetings ? clients.length / meetings * 100 : 0, avg: clients.length ? revenue / clients.length : 0 };
+}
+const mcBuckets = [[0, 0, '0'], [1, 1, '1'], [2, 2, '2'], [3, 3, '3'], [4, 4, '4'], [5, 99, '5+']];
+
+function renderMeca() {
+  const d = _mc.data; if (!d) return;
+  const all = mcCustomers(), S = mcStats(all);
+  const card = (cls, label, val, sub, fn) => `<button type="button" class="od-kpi ${cls}" onclick="${fn}"><span class="go">Details →</span><div class="l">${label}</div><div class="v">${val}</div><div class="s">${sub}</div></button>`;
+  const hasVal = all.some(c => c.value > 0);
+  const kpis =
+    card('od-c-blue', 'No. of Meetings / Calls', mcN(S.meetings), `${mcN(all.length)} customers`, "mecaPop('meet')") +
+    card('od-c-violet', 'Conversion Ratio', S.ratio.toFixed(2) + '%', 'clients ÷ meetings', "mecaPop('clients')") +
+    card('od-c-green', 'No. of Clients', mcN(S.clients.length), 'customers who ordered', "mecaPop('clients')") +
+    card('od-c-amber', 'Average Rs Sale', hasVal ? mcN(Math.round(S.avg)) : '—', hasVal ? 'revenue ÷ clients' : 'no order value in sheet', "mecaPop('clients')") +
+    card('od-c-rose', 'Revenue', hasVal ? '₹ ' + mcN(Math.round(S.revenue)) : '—', hasVal ? 'order value of clients' : 'no order value in sheet', "mecaPop('clients')");
+  const yel = (l, n, k) => `<button type="button" class="mc-yel" onclick="mecaPop('${k}')"><b>${mcN(n)}</b><span>${l}</span></button>`;
+  const chips = [['all', 'All'], ['ordered', '🟢 Ordered'], ['progress', '🟠 In progress'], ['cancelled', '🔴 Cancelled'], ['zero', 'Not connected (0)']];
+  const cnt = k => all.filter(c => k === 'all' ? true : k === 'zero' ? c.connects === 0 : c.status === k).length;
+  const sub = `${mcEsc(d.label)} · last refresh ${new Date(d.generatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
+  document.getElementById('mcBody').innerHTML = `
+    <div class="od-kpis">${kpis}</div>
+    <div class="mc-yelrow">${yel('No. of orders', S.orders.length, 'orders')}${yel('Processed orders', S.processed.length, 'processed')}${yel('Pending orders', S.pending.length, 'pending')}</div>
+    <div class="own-sec">Customers by number of times connected</div>
+    <div class="own-card" style="margin-bottom:16px"><div style="height:230px"><canvas id="mcChart"></canvas></div>
+      <div class="od-foot">Click a bar to see those customers.</div></div>
+    <div class="own-sec">Customer-wise connects <span style="font-weight:500;text-transform:none;color:#94a3b8">— ${mcEsc(sub)}</span></div>
+    <div class="own-card">
+      <div class="od-attn-bar">${chips.map(([k, l]) => `<button type="button" class="od-chip ${_mc.chip === k ? 'on' : ''}" onclick="_mc.chip='${k}';renderMeca()">${l}<span class="n">${cnt(k)}</span></button>`).join('')}
+        <input class="od-search" id="mcSearch" placeholder="🔍 Customer, company, phone, city…" value="${mcEsc(_mc.q)}" oninput="_mc.q=this.value;mcRenderTable()"></div>
+      <div class="od-attn-wrap" id="mcTable"></div><div class="od-foot" id="mcFoot"></div></div>`;
+  mcRenderTable(); mcDrawChart(all);
+}
+function mcVisible() {
+  const q = _mc.q.toLowerCase().trim();
+  return mcCustomers().filter(c => (_mc.chip === 'all' ? true : _mc.chip === 'zero' ? c.connects === 0 : c.status === _mc.chip) &&
+    (!q || [c.name, c.company, c.phone, c.city].some(v => String(v || '').toLowerCase().includes(q))))
+    .sort((a, b) => (b.connects - a.connects) || String(b.last).localeCompare(String(a.last)));
+}
+const mcBadge = c => c.status === 'ordered' ? '<span class="od-badge done">ORDERED</span>' : c.status === 'cancelled' ? '<span class="od-badge overdue">CANCELLED</span>' : '<span class="od-badge atrisk">IN PROGRESS</span>';
+const mcDaysAgo = iso => { if (!iso) return ''; const d = Math.floor((Date.now() - Date.parse(iso.slice(0, 10) + 'T00:00:00')) / 86400000); return d <= 0 ? 'today' : d + 'd ago'; };
+function mcRenderTable() {
+  const list = mcVisible(), box = document.getElementById('mcTable'); if (!box) return;
+  box.innerHTML = `<table class="own-tbl od-tbl"><thead><tr><th>#</th><th>Customer</th><th>Phone</th><th>City</th><th>Enquiry</th>
+    <th style="text-align:right">Times connected</th><th>Last connected</th><th>Next step</th><th>Status</th></tr></thead><tbody>${
+    list.map((c, i) => `<tr style="cursor:pointer" onclick="mecaPop('cust','${mcEsc(c.key).replace(/'/g, '&#39;')}')">
+      <td style="color:#94a3b8">${i + 1}</td><td><b>${mcEsc(c.name)}</b><small>${mcEsc(c.company && c.company !== c.name ? c.company : '')}</small></td>
+      <td>${mcEsc(c.phone)}</td><td>${mcEsc(c.city || '—')}</td><td style="white-space:nowrap">${mcEsc(mcD(c.enquiry))}</td>
+      <td style="text-align:right"><b style="font-size:15px;color:${c.connects ? '#1d4ed8' : '#94a3b8'}">${c.connects}</b></td>
+      <td style="white-space:nowrap">${c.last ? mcEsc(mcD(c.last)) + '<small>' + mcDaysAgo(c.last) + '</small>' : '—'}</td>
+      <td>${mcEsc(c.next || '—')}</td><td>${mcBadge(c)}</td></tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:24px">No customers found</td></tr>'}</tbody></table>`;
+  const f = document.getElementById('mcFoot'); if (f) f.textContent = `${mcN(list.length)} customer(s). Click a row for the full step-by-step history.`;
+}
+function mcDrawChart(all) {
+  if (typeof Chart === 'undefined') return;
+  try { if (_mc.chart) _mc.chart.destroy(); } catch (e) {}
+  const c = document.getElementById('mcChart'); if (!c) return;
+  const data = mcBuckets.map(([a, b]) => all.filter(x => x.connects >= a && x.connects <= b).length);
+  _mc.chart = new Chart(c, { type: 'bar',
+    data: { labels: mcBuckets.map(b => b[2] + (b[2] === '1' ? ' time' : ' times')), datasets: [{ label: 'Customers', data, backgroundColor: '#2a78d6', borderRadius: 5 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      onClick: (e, els) => { if (els.length) mecaPop('bucket', els[0].index); },
+      onHover: (e, els) => { const t = e && e.native && e.native.target; if (t) t.style.cursor = els.length ? 'pointer' : 'default'; },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `${x.parsed.y} customer(s)` } } },
+      scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+}
+
+// ── Details popup ──
+function mecaPop(kind, arg) {
+  const d = _mc.data; if (!d) return;
+  const all = mcCustomers(), S = mcStats(all);
+  const custCols = [
+    { h: 'Customer', v: c => `<b>${mcEsc(c.name)}</b><small>${mcEsc(c.company && c.company !== c.name ? c.company : '')}</small>` },
+    { h: 'Phone', v: c => mcEsc(c.phone) }, { h: 'City', v: c => mcEsc(c.city || '—') },
+    { h: 'Times connected', c: 'n', v: c => `<b>${c.connects}</b>` },
+    { h: 'Last connected', v: c => c.last ? mcEsc(mcD(c.last)) : '—' }, { h: 'Order value', c: 'n', v: c => c.value ? mcN(c.value) : '—' },
+    { h: 'Status', v: c => mcBadge(c) }];
+  let v;
+  if (kind === 'cust') {
+    const c = all.find(x => x.key === arg); if (!c) return;
+    const rows = [];
+    c.rows.forEach(r => r.st.forEach((s, i) => rows.push({ step: d.steps[i].name, conn: d.steps[i].isConnect, p: s.p, a: s.a, s: s.s, delay: s.d, row: r.row })));
+    v = { icon: '👤', title: c.name, sub: `${mcEsc(c.company)} · ${mcEsc(c.phone)} · ${mcEsc(c.city || '')} · connected <b>${c.connects}</b> time(s)${c.value ? ' · order value ' + mcN(c.value) : ''}`, big: c.connects,
+      cols: [{ h: 'Step', v: x => `<b>${mcEsc(x.step)}</b>` }, { h: 'Counts as connect', v: x => x.conn ? 'Yes' : '—' },
+        { h: 'Planned', v: x => mcEsc(mcD(x.p)) }, { h: 'Actual', v: x => x.a ? mcEsc(mcD(x.a)) : '—' },
+        { h: 'Status', v: x => /cancel/i.test(x.s) ? '<span class="od-badge overdue">CANCEL</span>' : x.a ? '<span class="od-badge done">DONE</span>' : '<span class="od-badge atrisk">PENDING</span>' },
+        { h: 'Time delay', v: x => mcEsc(x.delay || '—') }], rows,
+      cls: x => /cancel/i.test(x.s) ? 'od-r-overdue' : x.a ? 'od-r-done' : '' };
+  } else if (kind === 'meet') {
+    const rows = all.flatMap(c => c.events).sort((a, b) => String(b.a).localeCompare(String(a.a)));
+    v = { icon: '📞', title: 'Meetings / Calls', sub: 'Every completed connect (step with an Actual date, not cancelled) — newest first', big: rows.length,
+      cols: [{ h: 'Customer', v: e => `<b>${mcEsc(e.cust.name)}</b><small>${mcEsc(e.cust.phone)}</small>` }, { h: 'Step', v: e => mcEsc(e.step) },
+        { h: 'Planned', v: e => mcEsc(mcD(e.p)) }, { h: 'Actual', v: e => mcEsc(mcD(e.a)) }, { h: 'Time delay', v: e => mcEsc(e.delay || '—') }], rows };
+  } else if (kind === 'bucket') {
+    const [a, b, lbl] = mcBuckets[arg];
+    const rows = all.filter(c => c.connects >= a && c.connects <= b).sort((x, y) => String(y.last).localeCompare(String(x.last)));
+    v = { icon: '📊', title: `Customers connected ${lbl} time(s)`, sub: '', big: rows.length, cols: custCols, rows };
+  } else {
+    const m = { clients: ['🟢', 'Clients — customers who ordered', S.clients], orders: ['📦', 'No. of orders — customers who reached the order step', S.orders],
+      processed: ['✅', 'Processed orders', S.processed], pending: ['⏳', 'Pending orders — reached the order step, not done yet', S.pending] }[kind];
+    if (!m) return;
+    v = { icon: m[0], title: m[1], sub: '', big: m[2].length, cols: custCols, rows: m[2].slice().sort((x, y) => y.connects - x.connects) };
+  }
+  _mc.pop = v; _mc.popQ = '';
+  let el = document.getElementById('mecaPop');
+  if (!el) { el = document.createElement('div'); el.id = 'mecaPop'; el.className = 'od-pop'; el.addEventListener('click', e => { if (e.target === el) mecaPopClose(); }); document.body.appendChild(el); }
+  el.innerHTML = `<div class="od-pop-box" role="dialog" aria-modal="true"><div class="od-pop-hd"><div class="ic">${v.icon}</div><div class="tx"><h3>${mcEsc(v.title)}</h3><p>${v.sub || ''}</p></div>
+    <div class="big">${mcN(v.big)}</div><button type="button" class="od-pop-x" onclick="mecaPopClose()" aria-label="Close">✕</button></div>
+    <div class="od-pop-bar"><input class="od-search" style="margin-left:0;flex:1" placeholder="🔍 Search…" oninput="_mc.popQ=this.value;mecaPopPaint()"></div>
+    <div class="od-pop-body" id="mecaPopBody"></div><div class="od-pop-ft" id="mecaPopFt"></div></div>`;
+  el.classList.add('open'); document.body.style.overflow = 'hidden';
+  mecaPopPaint();
+}
+function mecaPopPaint() {
+  const v = _mc.pop; if (!v) return;
+  const q = String(_mc.popQ || '').toLowerCase().trim();
+  const txt = r => JSON.stringify(r, (k, x) => (k === 'cust' || k === 'rows' || k === 'events') ? undefined : x).toLowerCase();
+  const list = q ? v.rows.filter(r => txt(r).includes(q) || (r.cust && txt(r.cust).includes(q))) : v.rows;
+  const body = document.getElementById('mecaPopBody'), ft = document.getElementById('mecaPopFt'); if (!body) return;
+  body.innerHTML = list.length ? `<table class="own-tbl od-tbl"><thead><tr>${v.cols.map(c => `<th class="${c.c === 'n' ? 'n' : ''}">${c.h}</th>`).join('')}</tr></thead><tbody>${
+    list.slice(0, 500).map(r => `<tr class="${v.cls ? v.cls(r) : ''}">${v.cols.map(c => `<td class="${c.c || ''}">${c.v(r)}</td>`).join('')}</tr>`).join('')}</tbody></table>`
+    : '<div class="od-pop-empty">Nothing found</div>';
+  if (ft) ft.textContent = `${mcN(list.length)} row(s)` + (list.length > 500 ? ' — showing first 500' : '');
+}
+function mecaPopClose() {
+  const el = document.getElementById('mecaPop'); if (el) { el.classList.remove('open'); el.innerHTML = ''; }
+  document.body.style.overflow = ''; _mc.pop = null;
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && _mc.pop) mecaPopClose(); });
 
 // ══════════════════════════════════════════════════════
 // PRODUCTION MANAGEMENT — "All PMS Level 2 KLM" sheet ke "NEW PMS" tab ka data

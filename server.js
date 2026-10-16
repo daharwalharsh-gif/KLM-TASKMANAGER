@@ -5843,6 +5843,76 @@ app.put('/api/production/ppc-date', requireAuth, requireAdmin, async (req, res) 
   }
 });
 
+// ── MECA Offline — Sales NBD FMS (Outgoing / Incoming, domestic offline) ke customer-wise connect ──
+// Harsh (16 Oct 2026). Dono sheet ka "FMS" tab: header row 6, data row 7 se. Har step 4 column ka
+// block hai: Planned / Actual / Status / Time Delay. "Connect" = us customer ka wo step jiska Actual
+// bhara ho aur Status Cancel na ho. Sirf padhna.
+const MECA_SHEETS = {
+  out: { key: 'out', label: 'Sales NBD FMS — Outgoing (domestic offline)', short: 'Outgoing', id: '1ucJzw1vrFGZ40hZKpMar0EioMb9-TA3SL2WIN8YMlMQ',
+    gid: 663292535, tab: 'FMS', connectRe: /./, orderRe: /confirm\s*order/i },
+  in:  { key: 'in',  label: 'Sales NBD FMS — Incoming (domestic offline)', short: 'Incoming', id: '1dTOORmrhgQxZlOxFDADkrGO6RT3I-Ml7fG7z4pf81co',
+    gid: 663292535, tab: 'FMS', connectRe: /acknowledge|follow/i, orderRe: /hand\s*over/i }
+};
+const MECA_HEADER_ROW = 6;
+const mecaCache = {};
+const mecaDT = v => {                       // "dd/mm/yyyy hh:mm:ss" -> "YYYY-MM-DD HH:mm"
+  const m = String(v || '').trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:[ T](\d{1,2}):(\d{2}))?/);
+  if (!m) return '';
+  return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` + (m[4] ? ` ${m[4].padStart(2, '0')}:${m[5]}` : '');
+};
+app.get('/api/meca', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const cfg = MECA_SHEETS[String(req.query.src || 'out')];
+    if (!cfg) return res.status(400).json({ error: 'Unknown sheet' });
+    const c = mecaCache[cfg.key];
+    if (c && req.query.force !== '1' && Date.now() - c.at < 30000) return res.json(c.data);
+    const api = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    const tab = await resolveTabName(api, cfg.id, cfg.tab);
+    let r;
+    try { r = await api.spreadsheets.values.get({ spreadsheetId: cfg.id, range: `'${tab}'!A1:CZ` }); }
+    catch (e) {
+      if (/Unable to parse range/i.test(String(e.message))) throw new Error(await tabNotFoundMsg(api, cfg.id, cfg.tab));
+      throw e;
+    }
+    const v = r.data.values || [];
+    const hdr = v[MECA_HEADER_ROW - 1] || [], names = v[1] || [];
+    const g = (row, i) => String((row && row[i]) == null ? '' : row[i]).trim();
+    const find = re => hdr.findIndex(h => re.test(String(h || '')));
+    const iName = find(/^name/i), iCo = find(/company/i), iPh = find(/phone/i), iAddr = find(/^(address|city)$/i),
+      iDate = find(/^(date|date of inquiry)$/i), iOv = find(/order value/i), iCity = find(/^city$/i), iTs = 0;
+    // Step blocks: har "Planned" column ek step
+    const steps = [];
+    hdr.forEach((h, i) => {
+      if (!/^planned/i.test(String(h || '').trim())) return;
+      let nm = '';
+      for (let k = i; k < i + 4 && !nm; k++) nm = String(names[k] || '').trim();
+      steps.push({ name: nm || ('Step ' + (steps.length + 1)), p: i, a: i + 1, s: i + 2, d: i + 3 });
+    });
+    steps.forEach(s => { s.isConnect = cfg.connectRe.test(s.name); s.isOrder = cfg.orderRe.test(s.name); });
+    const rows = [];
+    for (let n = MECA_HEADER_ROW; n < v.length; n++) {
+      const row = v[n] || [];
+      if (!row.some(x => String(x || '').trim())) continue;
+      const name = g(row, iName), co = g(row, iCo);
+      if (!name && !co && !g(row, iPh)) continue;
+      const ov = parseFloat(g(row, iOv).replace(/[^0-9.\-]/g, ''));
+      rows.push({ row: n + 1, ts: mecaDT(row[iTs]), name, company: co, phone: g(row, iPh),
+        city: g(row, iCity >= 0 ? iCity : iAddr), enquiry: mecaDT(row[iDate]).slice(0, 10) || mecaDT(row[iTs]).slice(0, 10),
+        orderValue: Number.isFinite(ov) ? ov : 0,
+        st: steps.map(s => ({ p: mecaDT(row[s.p]), a: mecaDT(row[s.a]), s: g(row, s.s), d: g(row, s.d) })) });
+    }
+    const data = { src: cfg.key, label: cfg.label, short: cfg.short,
+      sheets: Object.values(MECA_SHEETS).map(x => ({ key: x.key, label: x.short })),
+      sheetUrl: `https://docs.google.com/spreadsheets/d/${cfg.id}/edit?gid=${cfg.gid}#gid=${cfg.gid}`,
+      steps: steps.map(s => ({ name: s.name, isConnect: s.isConnect, isOrder: s.isOrder })), rows, generatedAt: new Date().toISOString() };
+    mecaCache[cfg.key] = { at: Date.now(), data };
+    res.json(data);
+  } catch (err) {
+    console.error('MECA sheet read FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ══════════════════════════════════════════════════════
 // EMPLOYEE TO EMPLOYEE FEEDBACK FORM
 // ══════════════════════════════════════════════════════
