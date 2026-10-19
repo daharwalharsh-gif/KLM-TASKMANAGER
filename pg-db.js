@@ -31,7 +31,7 @@ const BLOB_DIR = path.join(__dirname, 'data', 'blobs');
 // `autoFill` = INSERT pe agar column miss hai to ye default fill hoga
 const SCHEMA = {
   users: {
-    cols: ['id','name','title','email','notification_email','password','role','phone','profile_image','department','week_off','extra_off'],
+    cols: ['id','name','title','email','notification_email','password','role','phone','profile_image','department','week_off','extra_off','birth_date'],
     autoFill: {}
   },
   delegation_tasks: {
@@ -612,7 +612,23 @@ async function ensureSchema(pool) {
      WHERE table_schema='public' AND table_name = ANY($1)`, [_managed]);
   const have = new Set(rows.map(r => r.table_name));
   const missing = _managed.filter(t => !have.has(t));
-  if (!missing.length && !wantMigrate) return; // sab maujood — turant nikal jao
+  if (!missing.length && !wantMigrate) {
+    // Table sab maujood. Par schema me koi NAYA column joda gaya ho (jaise users.birth_date)
+    // aur DB me na ho to table padhna hi fail ho jaata — isliye sirf missing column chupke se
+    // jod do. Ek hi query; kuch missing na ho to koi ALTER nahi.
+    const cr = await pool.query(
+      `SELECT table_name, column_name FROM information_schema.columns
+       WHERE table_schema='public' AND table_name = ANY($1)`, [_managed]);
+    const hasCol = new Set(cr.rows.map(r => r.table_name + '.' + r.column_name));
+    for (const t of _managed) {
+      for (const c of SCHEMA[t].cols) {
+        if (c === 'id' || hasCol.has(t + '.' + c)) continue;
+        await pool.query(`ALTER TABLE ${qIdent(t)} ADD COLUMN IF NOT EXISTS ${qIdent(c)} TEXT`);
+        console.log(`  ➕ ${t}.${c} column add kiya`);
+      }
+    }
+    return; // sab maujood — nikal jao
+  }
 
   for (const table of (wantMigrate ? _managed : missing)) {
     const cols = SCHEMA[table].cols;

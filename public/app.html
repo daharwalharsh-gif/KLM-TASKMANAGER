@@ -1149,7 +1149,7 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <div class="users-grid">
       <table>
-        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Department</th><th>Role</th><th>Action</th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Birth Date</th><th>Department</th><th>Role</th><th>Action</th></tr></thead>
         <tbody id="usersTbody"></tbody>
       </table>
     </div>
@@ -3476,6 +3476,14 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 </div>
 
+<!-- Birthday notice — aaj ka birthday sabko dikhta hai -->
+<div class="modal-overlay" id="bdayModal">
+  <div class="modal" style="max-width:430px;text-align:center">
+    <div id="bdayBody"></div>
+    <div style="margin-top:18px"><button class="btn btn-primary" style="width:100%" onclick="closeModal('bdayModal')">OK</button></div>
+  </div>
+</div>
+
 <!-- ══════════════════════════════════════
      FMS - EDIT MODAL
 ══════════════════════════════════════ -->
@@ -3791,6 +3799,9 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="form-row">
       <div class="form-group"><label>Notification Email <span style="color:#94a3b8;font-weight:400;font-size:11px">(real Gmail for task notifications)</span></label><input type="email" id="uNotifEmail" placeholder="real email for notifications"/></div>
       <div class="form-group"><label>Phone Number</label><input type="tel" id="uPhone" placeholder="Enter phone number"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Birth Date</label><input type="date" id="uBirth" min="1900-01-01" max="2100-12-31"/></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Department</label><input type="text" id="uDepartment" placeholder="e.g. Sales, Production"/></div>
@@ -4382,6 +4393,7 @@ async function init() {
     else loadDashboard();
     buildMobileNav();
     setTimeout(checkHolidayNotice, 1200);   // app khulte hi holiday notice
+    setTimeout(checkBirthdayNotice, 1800);  // aaj kisi ka birthday ho to sabko dikhao
     loadApprovalBadge();   // ye khud transfer badge bhi refresh karta hai
     loadNotifications();
     // Refresh badges every 30 seconds
@@ -11678,6 +11690,32 @@ async function checkHolidayNotice() {
   } catch (e) { console.error('holiday notice:', e); }
 }
 
+// ── Aaj kisi ka birthday ho to sabko notice (din me ek baar) — Harsh, 19 Oct 2026 ──
+// Jiska birthday hai usko "Happy Birthday"; baaki sabko "Today is <naam>'s birthday".
+async function checkBirthdayNotice() {
+  try {
+    const r = await api('/api/birthdays/today');
+    if (!r || r.error || !Array.isArray(r.people) || !r.people.length) return;
+    const key = 'tm_bday_seen', stamp = r.date + '|' + r.people.map(p => p.id).join(',');
+    let seen = ''; try { seen = localStorage.getItem(key) || ''; } catch (e) {}
+    if (seen === stamp) return;
+    const nm = p => escapeHtml((p.title ? p.title + ' ' : '') + titleName(p.name));
+    const mine = r.people.find(p => p.id === r.me), others = r.people.filter(p => p.id !== r.me);
+    let html = '';
+    if (mine) {
+      html = '<div class="hol-note-emo">🎂</div><div class="hol-note-ttl">Happy Birthday, ' + nm(mine) + '! 🎉</div>' +
+        '<div class="hol-note-sub">Wishing you a wonderful year ahead.<br>— Team KLM</div>';
+      if (others.length) html += '<div class="hol-note-box" style="margin-top:14px">Also celebrating today: <b>' + others.map(nm).join(', ') + '</b></div>';
+    } else {
+      html = '<div class="hol-note-emo">🎂</div><div class="hol-note-ttl">Today is a Birthday!</div>' +
+        '<div class="hol-note-sub">Today is <b>' + others.map(nm).join(', ') + '</b>\'s birthday 🎉<br>Do not forget to wish!</div>';
+    }
+    document.getElementById('bdayBody').innerHTML = html;
+    document.getElementById('bdayModal').classList.add('open');
+    try { localStorage.setItem(key, stamp); } catch (e) {}
+  } catch (e) { console.error('birthday notice:', e); }
+}
+
 function formatDate(d) {
   const dt = new Date(d+'T00:00:00');
   return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
@@ -11836,7 +11874,7 @@ const _usersMap = {};
 function renderUsersTable(users) {
   const tbody = document.getElementById('usersTbody');
   if (!users.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:#94a3b8">No users found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:#94a3b8">No users found</td></tr>`;
     return;
   }
   // Store all users in map so openEditUser(id) can safely retrieve data
@@ -11847,6 +11885,7 @@ function renderUsersTable(users) {
       <td style="font-weight:600">${(u.title ? u.title + ' ' : '') + titleName(u.name)}</td>
       <td style="color:#64748b">${u.email}</td>
       <td style="color:#64748b">${u.phone||'—'}</td>
+      <td style="color:#64748b;white-space:nowrap">${u.birth_date ? formatDate(u.birth_date) : '—'}</td>
       <td style="color:#64748b">${u.department||'—'}</td>
       <td><span class="role-badge ${u.role}">${roleLabel(u.role)}</span></td>
       <td>
@@ -11911,7 +11950,7 @@ function _getExtraOff() {
 
 function openAddUser() {
   document.getElementById('userModalTitle').textContent='Add User';
-  ['editUserId','uName','uEmail','uNotifEmail','uPhone','uDepartment','uPassword'].forEach(id=>document.getElementById(id).value='');
+  ['editUserId','uName','uEmail','uNotifEmail','uPhone','uBirth','uDepartment','uPassword'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('uTitle').value='';
   document.getElementById('uRole').value='user';
   document.getElementById('pwdOptional').style.display='none';
@@ -11932,6 +11971,7 @@ function openEditUser(id) {
   document.getElementById('uEmail').value=u.email||'';
   document.getElementById('uNotifEmail').value=u.notification_email||'';
   document.getElementById('uPhone').value=u.phone||'';
+  document.getElementById('uBirth').value=String(u.birth_date||'').slice(0,10);
   document.getElementById('uDepartment').value=u.department||'';
   document.getElementById('uPassword').value='';
   document.getElementById('uRole').value=u.role||'user';
@@ -11958,6 +11998,7 @@ async function saveUser() {
   const email=document.getElementById('uEmail').value.trim();
   const notification_email=document.getElementById('uNotifEmail').value.trim();
   const phone=document.getElementById('uPhone').value.trim();
+  const birth_date=document.getElementById('uBirth').value;
   const department=document.getElementById('uDepartment').value.trim();
   const password=document.getElementById('uPassword').value;
   const role=document.getElementById('uRole').value;
@@ -11973,7 +12014,8 @@ async function saveUser() {
     err.textContent='Enter a valid notification email — e.g. name@company.com';
     err.style.display='block'; document.getElementById('uNotifEmail').focus(); return; }
   if (!id&&!password) { err.textContent='Password required for new user'; err.style.display='block'; return; }
-  const body={name,title,email,notification_email,role,phone,department,week_off,extra_off};
+  if (birth_date && (+birth_date.slice(0,4) < 1900 || +birth_date.slice(0,4) > 2100)) { err.textContent='Check the birth date year'; err.style.display='block'; return; }
+  const body={name,title,email,notification_email,role,phone,department,week_off,extra_off,birth_date};
   if (password) body.password=password;
   const r = id ? await api(`/api/users/${id}`,'PUT',body) : await api('/api/users','POST',body);
   if (r.error) { err.textContent=r.error; err.style.display='block'; return; }

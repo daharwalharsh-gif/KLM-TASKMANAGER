@@ -3875,7 +3875,7 @@ app.get('/api/users/with-pending-tasks', requireAuth, async (req, res) => {
 // ══════════════════════════════════════════════════════
 app.get('/api/users', requireAuth, async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT id,name,title,email,notification_email,role,phone,department,week_off,extra_off FROM users ORDER BY role DESC,name ASC');
+    const [rows] = await db.query('SELECT id,name,title,email,notification_email,role,phone,department,week_off,extra_off,birth_date FROM users ORDER BY role DESC,name ASC');
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3888,17 +3888,21 @@ function isValidEmail(v) {
   return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/.test(s);
 }
 
+// Birth date — YYYY-MM-DD ya khaali (Harsh, 19 Oct 2026)
+const cleanBirth = v => { const s = String(v || '').trim(); return /^\d{4}-\d{2}-\d{2}$/.test(s) && +s.slice(0, 4) >= 1900 && +s.slice(0, 4) <= 2100 ? s : ''; };
+
 app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { name, title, email, notification_email, password, role, phone, department, week_off, extra_off } = req.body;
+    const birth_date = cleanBirth(req.body.birth_date);
     if (!name || !email || !password) return res.status(400).json({ error: 'All fields required' });
     if (!isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email — e.g. name@company.com' });
     if (notification_email && !isValidEmail(notification_email))
       return res.status(400).json({ error: 'Enter a valid notification email — e.g. name@company.com' });
     const [ex] = await db.query('SELECT id FROM users WHERE email=?', [email]);
     if (ex[0]) return res.status(400).json({ error: 'Email already exists' });
-    await db.query('INSERT INTO users (name,title,email,notification_email,password,role,phone,department,week_off,extra_off) VALUES (?,?,?,?,?,?,?,?,?,?)',
-      [name, title||'', email, notification_email||'', password, role||'user', phone||null, department||'', week_off||'', extra_off||'']);
+    await db.query('INSERT INTO users (name,title,email,notification_email,password,role,phone,department,week_off,extra_off,birth_date) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      [name, title||'', email, notification_email||'', password, role||'user', phone||null, department||'', week_off||'', extra_off||'', birth_date]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3906,14 +3910,27 @@ app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
 app.put('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { name, title, email, notification_email, role, password, phone, department, week_off, extra_off } = req.body;
+    const birth_date = cleanBirth(req.body.birth_date);
     if (!isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email — e.g. name@company.com' });
     if (notification_email && !isValidEmail(notification_email))
       return res.status(400).json({ error: 'Enter a valid notification email — e.g. name@company.com' });
-    if (password) await db.query('UPDATE users SET name=?,title=?,email=?,notification_email=?,role=?,password=?,phone=?,department=?,week_off=?,extra_off=? WHERE id=?',
-      [name,title||'',email,notification_email||'',role,password,phone||null,department||'',week_off||'',extra_off||'',req.params.id]);
-    else await db.query('UPDATE users SET name=?,title=?,email=?,notification_email=?,role=?,phone=?,department=?,week_off=?,extra_off=? WHERE id=?',
-      [name,title||'',email,notification_email||'',role,phone||null,department||'',week_off||'',extra_off||'',req.params.id]);
+    if (password) await db.query('UPDATE users SET name=?,title=?,email=?,notification_email=?,role=?,password=?,phone=?,department=?,week_off=?,extra_off=?,birth_date=? WHERE id=?',
+      [name,title||'',email,notification_email||'',role,password,phone||null,department||'',week_off||'',extra_off||'',birth_date,req.params.id]);
+    else await db.query('UPDATE users SET name=?,title=?,email=?,notification_email=?,role=?,phone=?,department=?,week_off=?,extra_off=?,birth_date=? WHERE id=?',
+      [name,title||'',email,notification_email||'',role,phone||null,department||'',week_off||'',extra_off||'',birth_date,req.params.id]);
     res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Aaj jiska birthday hai — sabko (sirf naam, janm ka saal nahi). India ki tareekh.
+app.get('/api/birthdays/today', requireAuth, async (req, res) => {
+  try {
+    const ist = new Date(Date.now() + 330 * 60000).toISOString();
+    const md = ist.slice(5, 10);
+    const [rows] = await db.query('SELECT id,name,title,birth_date FROM users');
+    const list = rows.filter(u => /^\d{4}-\d{2}-\d{2}$/.test(String(u.birth_date || '')) && String(u.birth_date).slice(5, 10) === md)
+      .map(u => ({ id: u.id, name: u.name, title: u.title || '' }));
+    res.json({ date: ist.slice(0, 10), people: list, me: req.session.userId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
