@@ -5930,6 +5930,111 @@ app.get('/api/meca', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// ── Master Rate List → Google Sheet ("KARIGER PAYMENT VOUCHER" ka "ALL LINE DATA ENTRY" tab) ──
+// Harsh (19 Oct 2026). Cost sheet ki operation rows + issue date ke hisaab se pcs/amount is tab me
+// nayi rows ki tarah jodte hain. Columns heading ke NAAM se match hote hain (jo sheet me nahi hain
+// wo heading apne aap jud jaati hai). Sheet ek native Google Sheet honi chahiye (.xlsx file par
+// Google Sheets API chalti hi nahi) aur service account ko Editor access chahiye.
+const KP_SHEET_ID = process.env.KARIGER_SHEET_ID || '15KDhlSRF6CrjJOilzMA8y7ccKchWsQXC';
+const KP_TAB = 'ALL LINE DATA ENTRY';
+const KP_GID = process.env.KARIGER_SHEET_GID || '264530258';
+// Sheet ke apne columns (jis kram me hain) + jo hum jodte hain
+const KP_COLS = ['KARIGER NAME', 'BUYER NAME', 'STYLE', 'COLOR', 'SIZE', 'PRODUCT NAME', 'ISSUE DATE', 'LINE MAN', 'OPERATION',
+  'OPERATION NO', 'KARIGER RATE', 'NO OF PCS', 'TOTAL AMOUNT', 'TOTAL RATE', 'RECEIVED QNTY'];
+const KP_EXTRA = ['CARD NO', 'RATE APPROVED DATE', 'ENTERED BY', 'SAVED ON'];
+const kpNorm = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toUpperCase();
+const kpDMY = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '')); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+const kpNum = v => { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return Number.isFinite(n) ? n : 0; };
+
+// Payload -> sheet rows ({ HEADING: value }). Ek operation x ek issue date = ek row.
+function kpBuildRows(p, who, savedOn) {
+  const h = p.head || {}, out = [];
+  const totalRate = kpNum(p.totalRate);
+  for (const op of (p.ops || [])) {
+    if (!String(op.op || '').trim()) continue;
+    const base = { 'KARIGER NAME': h.kariger || '', 'BUYER NAME': h.buyer || '', 'STYLE': h.style || '', 'COLOR': h.color || '',
+      'SIZE': h.size || '', 'PRODUCT NAME': h.product || '', 'LINE MAN': h.lineman || '', 'OPERATION': op.op,
+      'OPERATION NO': op.no, 'KARIGER RATE': op.rate === '' || op.rate == null ? '' : kpNum(op.rate), 'TOTAL RATE': totalRate || '',
+      'RECEIVED QNTY': op.recv === '' || op.recv == null ? '' : kpNum(op.recv),
+      'CARD NO': h.card || '', 'RATE APPROVED DATE': kpDMY(h.rateDate), 'ENTERED BY': who, 'SAVED ON': savedOn };
+    const cells = (op.cells || []).filter(c => String(c.pcs || '').trim() || String(c.amount || '').trim());
+    if (!cells.length) {
+      if (base['RECEIVED QNTY'] !== '') out.push({ ...base, 'ISSUE DATE': '', 'NO OF PCS': '', 'TOTAL AMOUNT': '' });
+      continue;
+    }
+    cells.forEach((c, i) => {
+      const pcs = kpNum(c.pcs), amt = String(c.amount || '').trim() ? kpNum(c.amount) : (pcs && base['KARIGER RATE'] !== '' ? pcs * kpNum(op.rate) : '');
+      out.push({ ...base, 'ISSUE DATE': kpDMY(c.date), 'NO OF PCS': String(c.pcs || '').trim() ? pcs : '', 'TOTAL AMOUNT': amt,
+        'RECEIVED QNTY': i === 0 ? base['RECEIVED QNTY'] : '' });   // received sirf pehli row par — jod na double ho
+    });
+  }
+  return out;
+}
+
+// Sheet me likho. api = Google Sheets client (alag parameter taaki bina internet ke bhi test ho sake)
+async function kpWrite(api, rows, sheetId) {
+  const sid = sheetId || KP_SHEET_ID;
+  let meta;
+  try { meta = await api.spreadsheets.get({ spreadsheetId: sid, fields: 'sheets.properties' }); }
+  catch (e) {
+    if (/not supported for this document|Office file/i.test(String(e.message)))
+      throw new Error('This file is an Excel (.xlsx) upload, not a native Google Sheet, so it cannot be written to. Open it → File → "Save as Google Sheets", share the new sheet with harsh-286@klmahajan.com as Editor, and give the new link.');
+    if (/permission|403|404|not found/i.test(String(e.message)))
+      throw new Error('No access to the sheet — share it with harsh-286@klmahajan.com as Editor.');
+    throw e;
+  }
+  const tabProp = (meta.data.sheets || []).map(s => s.properties).find(p => kpNorm(p.title) === kpNorm(KP_TAB));
+  if (!tabProp) throw new Error(`Tab "${KP_TAB}" not found in the sheet. Tabs: ${(meta.data.sheets || []).map(s => '"' + s.properties.title + '"').join(', ')}`);
+  const tab = tabProp.title;
+  const top = (await api.spreadsheets.values.get({ spreadsheetId: sid, range: `'${tab}'!A1:AZ8` })).data.values || [];
+  let hr = top.findIndex(r => (r || []).some(c => kpNorm(c) === 'KARIGER NAME'));
+  if (hr < 0) throw new Error('Heading row (KARIGER NAME …) not found in the first 8 rows of the tab.');
+  const hdr = (top[hr] || []).map(kpNorm);
+  const colOf = {}; hdr.forEach((c, i) => { if (c && colOf[c] === undefined) colOf[c] = i; });
+  // Jo heading sheet me nahi hai — aage jod do (format bhi O jaisa)
+  const need = [...KP_COLS, ...KP_EXTRA].filter(c => colOf[c] === undefined);
+  let width = Math.max(hdr.length, ...Object.values(colOf).map(i => i + 1), 0);
+  if (need.length) {
+    const startCol = width;
+    const colLetter = i => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+    await api.spreadsheets.values.update({ spreadsheetId: sid, range: `'${tab}'!${colLetter(startCol)}${hr + 1}`, valueInputOption: 'RAW',
+      requestBody: { values: [need] } });
+    need.forEach((c, i) => { colOf[c] = startCol + i; });
+    width = startCol + need.length;
+    try {   // heading ka rang/font pichhle heading jaisa
+      await api.spreadsheets.batchUpdate({ spreadsheetId: sid, requestBody: { requests: [{ copyPaste: {
+        source: { sheetId: tabProp.sheetId, startRowIndex: hr, endRowIndex: hr + 1, startColumnIndex: startCol - 1, endColumnIndex: startCol },
+        destination: { sheetId: tabProp.sheetId, startRowIndex: hr, endRowIndex: hr + 1, startColumnIndex: startCol, endColumnIndex: startCol + need.length },
+        pasteType: 'PASTE_FORMAT' } }] } });
+    } catch (e) { /* sirf rang — na ho to koi baat nahi */ }
+  }
+  const values = rows.map(r => { const line = new Array(width).fill(''); for (const [k, v] of Object.entries(r)) if (colOf[k] !== undefined) line[colOf[k]] = v; return line; });
+  const startLetter = 'A';
+  const res = await api.spreadsheets.values.append({ spreadsheetId: sid, range: `'${tab}'!${startLetter}${hr + 1}`,
+    valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS', requestBody: { values } });
+  return { added: rows.length, newColumns: need, updatedRange: (res.data.updates || {}).updatedRange || '' };
+}
+
+app.post('/api/ratelist/gsheet', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const p = req.body || {};
+    if (!String((p.head || {}).kariger || '').trim()) return res.status(400).json({ error: 'Kariger Name is required' });
+    if (!Array.isArray(p.ops) || p.ops.length > 300) return res.status(400).json({ error: 'Invalid operations' });
+    const [me] = await db.query('SELECT name FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    const savedOn = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 16).replace('T', ' ');
+    const rows = kpBuildRows(p, (me[0] && me[0].name) || '', savedOn);
+    if (!rows.length) return res.status(400).json({ error: 'Nothing to send — fill NO OF PCS / AMOUNT (or Received Qnty) for at least one operation' });
+    const api = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets']);
+    const r = await kpWrite(api, rows);
+    res.json({ success: true, ...r, url: `https://docs.google.com/spreadsheets/d/${KP_SHEET_ID}/edit?gid=${KP_GID}#gid=${KP_GID}` });
+  } catch (err) {
+    console.error('Kariger sheet write FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+app.get('/api/ratelist/gsheet-info', requireAuth, requireAdmin, (req, res) =>
+  res.json({ url: `https://docs.google.com/spreadsheets/d/${KP_SHEET_ID}/edit?gid=${KP_GID}#gid=${KP_GID}`, tab: KP_TAB, columns: [...KP_COLS, ...KP_EXTRA] }));
+
 // ══════════════════════════════════════════════════════
 // EMPLOYEE TO EMPLOYEE FEEDBACK FORM
 // ══════════════════════════════════════════════════════
