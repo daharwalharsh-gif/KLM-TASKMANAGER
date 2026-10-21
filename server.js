@@ -5978,9 +5978,9 @@ async function kpWrite(api, rows, sheetId) {
   try { meta = await api.spreadsheets.get({ spreadsheetId: sid, fields: 'sheets.properties' }); }
   catch (e) {
     if (/not supported for this document|Office file/i.test(String(e.message)))
-      throw new Error('This file is an Excel (.xlsx) upload, not a native Google Sheet, so it cannot be written to. Open it → File → "Save as Google Sheets", share the new sheet with harsh-286@klmahajan.com as Editor, and give the new link.');
+      throw new Error('This file is an Excel (.xlsx) upload, not a native Google Sheet, so it cannot be written to. Open it → File → "Save as Google Sheets", share the new sheet with harsh-286@klmtaskmanager.iam.gserviceaccount.com as Editor, and give the new link.');
     if (/permission|403|404|not found/i.test(String(e.message)))
-      throw new Error('No access to the sheet — share it with harsh-286@klmahajan.com as Editor.');
+      throw new Error('No access to the sheet — share it with harsh-286@klmtaskmanager.iam.gserviceaccount.com as Editor.');
     throw e;
   }
   const tabProp = (meta.data.sheets || []).map(s => s.properties).find(p => kpNorm(p.title) === kpNorm(KP_TAB));
@@ -6015,6 +6015,177 @@ async function kpWrite(api, rows, sheetId) {
   return { added: rows.length, newColumns: need, updatedRange: (res.data.updates || {}).updatedRange || '' };
 }
 
+// ── KARIGER PAYMENT VOUCHER .xlsx file me seedha likhna (Harsh, 21 Oct 2026) ──
+// File Google Drive par Excel (.xlsx) hai — Google Sheets API usme likh hi nahi sakti. Isliye Drive se
+// file laate hain, uske andar (zip) sirf "ALL LINE DATA ENTRY" tab ki XML me khaali rows bharte hain
+// (cell ka style wahi rehta hai), baaki saari file — doosre tabs, formatting — byte-for-byte waisi hi,
+// aur wahi file (wahi link) Drive par update karte hain. Drive purani version bhi rakhta hai.
+const KP_CRC_T = (() => { const t = new Int32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
+const kpCrc32 = buf => { let c = -1; for (let i = 0; i < buf.length; i++) c = KP_CRC_T[(c ^ buf[i]) & 0xff] ^ (c >>> 8); return (c ^ -1) >>> 0; };
+function kpUnzip(buf) {
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 70000); i--) if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error('The voucher file is not a valid .xlsx');
+  const n = buf.readUInt16LE(eocd + 10), cdOff = buf.readUInt32LE(eocd + 16), out = [];
+  let p = cdOff;
+  for (let k = 0; k < n; k++) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error('The voucher file is not a valid .xlsx');
+    const e = { verMade: buf.readUInt16LE(p + 4), verNeed: buf.readUInt16LE(p + 6), flags: buf.readUInt16LE(p + 8) & ~0x0008,
+      method: buf.readUInt16LE(p + 10), time: buf.readUInt16LE(p + 12), date: buf.readUInt16LE(p + 14), crc: buf.readUInt32LE(p + 16),
+      csize: buf.readUInt32LE(p + 20), usize: buf.readUInt32LE(p + 24), extAttr: buf.readUInt32LE(p + 38) };
+    const fnl = buf.readUInt16LE(p + 28), exl = buf.readUInt16LE(p + 30), cml = buf.readUInt16LE(p + 32), lho = buf.readUInt32LE(p + 42);
+    e.nameBuf = buf.slice(p + 46, p + 46 + fnl); e.name = e.nameBuf.toString('utf8');
+    const ds = lho + 30 + buf.readUInt16LE(lho + 26) + buf.readUInt16LE(lho + 28);
+    e.raw = buf.slice(ds, ds + e.csize);
+    out.push(e); p += 46 + fnl + exl + cml;
+  }
+  return out;
+}
+const kpEntryText = e => (e.method === 8 ? require('zlib').inflateRawSync(e.raw) : e.raw).toString('utf8');
+function kpSetEntryText(e, text) {
+  const data = Buffer.from(text, 'utf8');
+  e.raw = require('zlib').deflateRawSync(data, { level: 6 }); e.method = 8; e.crc = kpCrc32(data); e.csize = e.raw.length; e.usize = data.length;
+}
+function kpZip(ents) {
+  const parts = [], cds = []; let off = 0;
+  for (const e of ents) {
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(e.verNeed, 4); lh.writeUInt16LE(e.flags, 6); lh.writeUInt16LE(e.method, 8);
+    lh.writeUInt16LE(e.time, 10); lh.writeUInt16LE(e.date, 12); lh.writeUInt32LE(e.crc, 14); lh.writeUInt32LE(e.csize, 18);
+    lh.writeUInt32LE(e.usize, 22); lh.writeUInt16LE(e.nameBuf.length, 26); lh.writeUInt16LE(0, 28);
+    parts.push(lh, e.nameBuf, e.raw);
+    const cd = Buffer.alloc(46);
+    cd.writeUInt32LE(0x02014b50, 0); cd.writeUInt16LE(e.verMade, 4); cd.writeUInt16LE(e.verNeed, 6); cd.writeUInt16LE(e.flags, 8);
+    cd.writeUInt16LE(e.method, 10); cd.writeUInt16LE(e.time, 12); cd.writeUInt16LE(e.date, 14); cd.writeUInt32LE(e.crc, 16);
+    cd.writeUInt32LE(e.csize, 20); cd.writeUInt32LE(e.usize, 24); cd.writeUInt16LE(e.nameBuf.length, 28);
+    cd.writeUInt32LE(e.extAttr, 38); cd.writeUInt32LE(off, 42);
+    cds.push(cd, e.nameBuf);
+    off += 30 + e.nameBuf.length + e.raw.length;
+  }
+  const cdBuf = Buffer.concat(cds), end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(ents.length, 8); end.writeUInt16LE(ents.length, 10);
+  end.writeUInt32LE(cdBuf.length, 12); end.writeUInt32LE(off, 16);
+  return Buffer.concat([...parts, cdBuf, end]);
+}
+const kpXmlEsc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const kpXmlUnesc = s => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+const kpColL = i => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+const kpColI = l => { let n = 0; for (const ch of l) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
+
+// xlsx buffer + rows -> naya xlsx buffer (sirf ALL LINE DATA ENTRY tab badalta hai)
+function kpXlsxAppend(buf, rows) {
+  const ents = kpUnzip(buf), get = n => ents.find(e => e.name === n);
+  const wb = kpEntryText(get('xl/workbook.xml'));
+  const sh = (wb.match(/<sheet [^>]*>/g) || []).find(t => kpNorm(kpXmlUnesc((t.match(/name="([^"]*)"/) || [])[1] || '')) === kpNorm(KP_TAB));
+  if (!sh) throw new Error(`Tab "${KP_TAB}" not found in the voucher file`);
+  const rid = (sh.match(/r:id="([^"]+)"/) || [])[1];
+  const rels = kpEntryText(get('xl/_rels/workbook.xml.rels'));
+  const rel = (rels.match(/<Relationship [^>]*>/g) || []).find(t => t.includes(`Id="${rid}"`));
+  let target = (rel.match(/Target="([^"]+)"/) || [])[1].replace(/^\/?xl\//, '').replace(/^\//, '');
+  const sheetEnt = get('xl/' + target);
+  if (!sheetEnt) throw new Error('Tab file not found inside the voucher .xlsx');
+  // shared strings — heading padhne ke liye
+  const ssEnt = get('xl/sharedStrings.xml');
+  const ss = ssEnt ? (kpEntryText(ssEnt).match(/<si>[\s\S]*?<\/si>/g) || []).map(si => kpXmlUnesc((si.match(/<t[^>]*>[\s\S]*?<\/t>/g) || []).map(t => t.replace(/<[^>]+>/g, '')).join(''))) : [];
+  let xml = kpEntryText(sheetEnt);
+  const sdS = xml.indexOf('<sheetData'), sdE = xml.indexOf('</sheetData>');
+  if (sdS < 0 || sdE < 0) throw new Error('Unexpected tab format in the voucher .xlsx');
+  const sdOpenEnd = xml.indexOf('>', sdS) + 1;
+  const rowRe = /<row\b[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g;
+  const rowsXml = xml.slice(sdOpenEnd, sdE).match(rowRe) || [];
+  const rowNo = r => parseInt((r.match(/<row\b[^>]*?\br="(\d+)"/) || [])[1], 10);
+  const cellsOf = r => (r.match(/<c\b[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g) || []);
+  const cellRef = c => (c.match(/\br="([A-Z]+)(\d+)"/) || []);
+  const cellVal = c => {
+    if (/t="s"/.test(c)) { const v = (c.match(/<v>([^<]*)<\/v>/) || [])[1]; return v === undefined ? '' : (ss[+v] || ''); }
+    const is = c.match(/<is>([\s\S]*?)<\/is>/); if (is) return kpXmlUnesc(is[1].replace(/<[^>]+>/g, ''));
+    const v = c.match(/<v>([^<]*)<\/v>/); return v ? kpXmlUnesc(v[1]) : '';
+  };
+  const hasValue = r => cellsOf(r).some(c => /<v>|<is>|<f[ >]/.test(c));
+  // heading row
+  const hIdx = rowsXml.findIndex(r => cellsOf(r).some(c => kpNorm(cellVal(c)) === 'KARIGER NAME'));
+  if (hIdx < 0) throw new Error('Heading row (KARIGER NAME …) not found in the tab');
+  const hRow = rowsXml[hIdx], hNo = rowNo(hRow);
+  const colOf = {}; let lastHdr = -1; const hs = {};
+  for (const c of cellsOf(hRow)) {
+    const [, L] = cellRef(c); const v = kpNorm(cellVal(c));
+    if (v) { if (colOf[v] === undefined) colOf[v] = kpColI(L); lastHdr = Math.max(lastHdr, kpColI(L)); const st = (c.match(/\bs="(\d+)"/) || [])[1]; if (st) hs[st] = (hs[st] || 0) + 1; }
+  }
+  // naye heading ka style = baaki headings me sabse zyada wala (yellow heading)
+  const hdrStyle = Object.keys(hs).sort((x, y) => hs[y] - hs[x])[0] || '';
+  const need = [...KP_COLS, ...KP_EXTRA].filter(c => colOf[c] === undefined);
+  const setCells = (rowXml, rNo, vals, styleFallback, forceStyle) => {   // vals: { colIndex: value }
+    const cells = cellsOf(rowXml), byCol = {};
+    cells.forEach(c => { byCol[kpColI(cellRef(c)[1])] = c; });
+    for (const [ci, v] of Object.entries(vals)) {
+      const old = byCol[ci], s = forceStyle || (old ? (old.match(/\bs="(\d+)"/) || [])[1] : styleFallback), ref = kpColL(+ci) + rNo, sa = s ? ` s="${s}"` : '';
+      if (v === '' || v === null || v === undefined) { byCol[ci] = `<c r="${ref}"${sa}/>`; continue; }
+      byCol[ci] = typeof v === 'number' && isFinite(v) ? `<c r="${ref}"${sa}><v>${v}</v></c>`
+        : `<c r="${ref}"${sa} t="inlineStr"><is><t xml:space="preserve">${kpXmlEsc(v)}</t></is></c>`;
+    }
+    const open = (rowXml.match(/^<row\b[^>]*?(?=\/?>)/) || [`<row r="${rNo}"`])[0];
+    const body = Object.keys(byCol).map(Number).sort((a, b) => a - b).map(k => byCol[k]).join('');
+    return `${open}>${body}</row>`;
+  };
+  let newRows = rowsXml.slice();
+  if (need.length) {
+    const hv = {}; need.forEach((c, i) => { colOf[c] = lastHdr + 1 + i; hv[colOf[c]] = c; });
+    newRows[hIdx] = setCells(hRow, hNo, hv, hdrStyle, hdrStyle);
+  }
+  // pehli khaali row (heading ke baad, aakhri bhari row ke neeche)
+  let lastFilled = hNo;
+  for (const r of rowsXml) { const n = rowNo(r); if (n > hNo && hasValue(r)) lastFilled = Math.max(lastFilled, n); }
+  const byNo = new Map(newRows.map((r, i) => [rowNo(r), i]));
+  const dataStyle = (() => { const r = rowsXml.find(x => rowNo(x) === hNo + 1); const c = r && cellsOf(r)[0]; return c ? ((c.match(/\bs="(\d+)"/) || [])[1] || '') : ''; })();
+  const added = [];
+  rows.forEach((row, i) => {
+    const n = lastFilled + 1 + i, vals = {};
+    for (const [k, v] of Object.entries(row)) if (colOf[k] !== undefined) vals[colOf[k]] = v;
+    if (byNo.has(n)) newRows[byNo.get(n)] = setCells(newRows[byNo.get(n)], n, vals, dataStyle);
+    else { newRows.push(setCells(`<row r="${n}"`, n, vals, dataStyle)); byNo.set(n, newRows.length - 1); }
+    added.push(n);
+  });
+  newRows.sort((a, b) => rowNo(a) - rowNo(b));
+  xml = xml.slice(0, sdOpenEnd) + newRows.join('') + xml.slice(sdE);
+  // dimension (ho to) aage badhao
+  xml = xml.replace(/<dimension ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/, (m, a, b, c, d) =>
+    `<dimension ref="${a}${b}:${kpColI(c) >= lastHdr + need.length ? c : kpColL(lastHdr + need.length)}${Math.max(+d, added[added.length - 1] || 0)}"/>`);
+  kpSetEntryText(sheetEnt, xml);
+  return { buf: kpZip(ents), newColumns: need, firstRow: added[0], lastRow: added[added.length - 1] };
+}
+let _kpLock = Promise.resolve();
+async function kpWriteXlsx(rows, fileId) {
+  const fid = fileId || KP_SHEET_ID;
+  const run = async () => {
+    const { google } = require('googleapis');
+    const creds = process.env.GOOGLE_CREDENTIALS ? JSON.parse(process.env.GOOGLE_CREDENTIALS) : require('./credentials.json');
+    const auth = new google.auth.GoogleAuth({ credentials: creds, scopes: ['https://www.googleapis.com/auth/drive'] });
+    const drive = google.drive({ version: 'v3', auth });
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const m1 = await drive.files.get({ fileId: fid, fields: 'modifiedTime,capabilities(canEdit)', supportsAllDrives: true });
+      if (!m1.data.capabilities || !m1.data.capabilities.canEdit) throw new Error('No edit access to the voucher file — share it with harsh-286@klmtaskmanager.iam.gserviceaccount.com as Editor.');
+      const dl = await drive.files.get({ fileId: fid, alt: 'media', supportsAllDrives: true }, { responseType: 'arraybuffer' });
+      const out = kpXlsxAppend(Buffer.from(dl.data), rows);
+      // Beech me kisi ne file badli? to dobara (unka kaam na mite)
+      const m2 = await drive.files.get({ fileId: fid, fields: 'modifiedTime', supportsAllDrives: true });
+      if (m2.data.modifiedTime !== m1.data.modifiedTime) { if (attempt === 3) throw new Error('The voucher file is being edited right now — try again in a minute.'); continue; }
+      const { Readable } = require('stream');
+      await drive.files.update({ fileId: fid, supportsAllDrives: true,
+        media: { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', body: Readable.from(out.buf) } });
+      return { added: rows.length, newColumns: out.newColumns, updatedRange: `'${KP_TAB}'!A${out.firstRow}:${out.lastRow}` };
+    }
+  };
+  const p = _kpLock.then(run, run); _kpLock = p.catch(() => {});   // ek waqt me ek hi likhai
+  return p;
+}
+async function kpFileMime(fileId) {
+  const { google } = require('googleapis');
+  const creds = process.env.GOOGLE_CREDENTIALS ? JSON.parse(process.env.GOOGLE_CREDENTIALS) : require('./credentials.json');
+  const auth = new google.auth.GoogleAuth({ credentials: creds, scopes: ['https://www.googleapis.com/auth/drive.metadata.readonly'] });
+  const r = await google.drive({ version: 'v3', auth }).files.get({ fileId: fileId || KP_SHEET_ID, fields: 'mimeType', supportsAllDrives: true });
+  return r.data.mimeType;
+}
+
 app.post('/api/ratelist/gsheet', requireAuth, requireAdmin, async (req, res) => {
   try {
     const p = req.body || {};
@@ -6024,8 +6195,11 @@ app.post('/api/ratelist/gsheet', requireAuth, requireAdmin, async (req, res) => 
     const savedOn = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 16).replace('T', ' ');
     const rows = kpBuildRows(p, (me[0] && me[0].name) || '', savedOn);
     if (!rows.length) return res.status(400).json({ error: 'Nothing to send — fill NO OF PCS / AMOUNT (or Received Qnty) for at least one operation' });
-    const api = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets']);
-    const r = await kpWrite(api, rows);
+    // File Excel (.xlsx) hai to seedha usme; native Google Sheet ho to Sheets API se
+    const mime = await kpFileMime();
+    const r = /spreadsheetml|ms-excel/.test(String(mime))
+      ? await kpWriteXlsx(rows)
+      : await kpWrite(await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets']), rows);
     res.json({ success: true, ...r, url: `https://docs.google.com/spreadsheets/d/${KP_SHEET_ID}/edit?gid=${KP_GID}#gid=${KP_GID}` });
   } catch (err) {
     console.error('Kariger sheet write FAILED:', err.message);

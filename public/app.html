@@ -19125,9 +19125,21 @@ async function gsFillDrop() {
   sel.innerHTML = '<option value="">Load from Cost Sheet…</option>' + (all || []).filter(x => x.kind === 'cost' && x.status === 'completed')
     .map(x => `<option value="${x.id}">${escapeHtml((x.buyer || '—') + ' · ' + (x.style || '—'))}</option>`).join('');
 }
+// Dropdown ki list — "KARIGER NAME LIST.pdf" (21 Oct 2026). Kariger "NAAM-CARD" ke roop me (ek naam ke do log ho sakte hain).
+const GS_KARIGERS = 'SANTOSH BHAGAT|63,RAHI|64,SONU|114,RAJESH|126,JONI KUMAR|134,KHALEEL KHAN|173,SONU|206,SATISH|229,SUMBUL|307,ANJALI|310,MOHIT|333,TARUN KUMAR|357,AMIT KUMAR|364,AMIT KUMAR|429,LAXMI|447,VAHID|466,DEEPA|471,ANJU|472,SHADAB|473,SANDEEP|474,SHAHZAD AHMAD|493,AKSH SHARMA|517,SALEEM|531,FUL SAMANDRI|539,AASH MOHD|542,DEEPU|559,JOOLI GAUN|593,BHAVNA|604,MOHD AHAMAD|612,RAJA HUSAIN|616,RAVITA|627,URMILA|629,SUNITA|633,KAJAL|634,MOHIT|637,RAJPAL|638,SWATI|642,DEEPA|656,LAKHAN|667,NISHA|671,ASHOK KUMAR|680,SALONI SINGH|682,PARMILA|687,PANKAJ|691,ASHOK KUMAR|692,KANIKA|694,RAMARATAN|701,MAYANK KUMAR|703,ROHIT KUMAR|707,AVINASH TYAGI|711,SURESH KUMAR|725,HARISH|734,MOHIT YADAV|737,RAMAN|759,VIKASH|761,SAGAR|772,PRIYA|773,RAKHI|774,JYOTI|778,SAVITA|783,DHARMENDRA BHAGAT|788,RISHIPAL|793,POONAM DEVI|795,KAJAL|819,PAWAN|824,DHARMENDRA|830,MALIK|837,PRIYA|842,VINOD KUMAR|843,ANJU|848,LALIT|851,ASHU|860,RAJENDRA SINGH|865,DIPANSHU|868,PANKAJ|872,TRIVENI RATHORE|877,RADHA KASHYAP|878,RIYA|880,ABHISHEK|882,PINKI|883,AASHU|885,FOZIYA|886,VISHAL KUMAR|887,DEEPAK KUMAR|888,SAURAV PAL|889,SACHIT CHOUDHARY|890,ISHA KARNWAL|891,DEEPAK PAL|893,GAUTAM|895,ROHIT SOM|896,LAXMI|897,EKTA VISHVKARMA|900,MD ISRAIL|903,SHREECHAND|905,PARSHURAM YADAV|906,SURESH KUMAR|908,VIPUL KUMAR|909,SANGEETA|914,AKASH|915,JONI|916,PRIYANKA PANDEY|918,LUCKY|920,VIKAS|921,ANKIT KUMAR|922,MONIKA|925,NITIN KUMAR|926,ROHIT|927,ZAIB ISLAM|930,RINKI|932,MONIKA RANI|934,MEENU|935,SHALU SAINI|936,MINAKSHI THAKUR|940'
+  .split(',').map(x => { const [name, card] = x.split('|'); return { name, card, label: name + '-' + card }; });
+const GS_PRODUCTS = ['GLOVES', 'MMA GLOVES', 'SHIN GUARD', 'HEAD GUARD', 'COACHER PAD', 'T. SHIRT', 'LOWER', 'VEST', 'SHORTS', 'JACKET', 'SPORTS BRA', 'LEGGINGS', 'SAUNA SUIT'];
+const GS_LINEMEN = ['SHAHZAD LINE', 'SHADAB LINE', 'VAHID LINE', 'SANTOSH LINE', 'JONI LINE', 'HAND WRAP LINE', 'SAMPLE LINE', 'ALTER LINE'];
+// Kariger chunte hi Card No apne aap
+function gsPickKariger(v) {
+  _gs.head.kariger = v;
+  const k = GS_KARIGERS.find(x => x.label === String(v).trim());
+  if (k) { _gs.head.card = k.card; const c = document.getElementById('gsH_card'); if (c) c.value = k.card; }
+}
 function gsRender() {
-  const H = _gs.head, inp = (k, label, ph, w, type) => `<div><label>${label}</label><input type="${type || 'text'}" id="gsH_${k}" value="${escapeHtml(H[k])}" placeholder="${ph || label}"
-    style="width:${w || 150}px" oninput="gsHead('${k}',this.value)"></div>`;
+  const H = _gs.head, inp = (k, label, ph, w, type, list) => `<div><label>${label}</label><input type="${type || 'text'}" id="gsH_${k}" value="${escapeHtml(H[k])}" placeholder="${ph || label}"
+    style="width:${w || 150}px" ${list ? `list="${list}" autocomplete="off"` : ''} oninput="${k === 'kariger' ? 'gsPickKariger(this.value)' : `gsHead('${k}',this.value)`}"></div>`;
+  const dl = (id, arr) => `<datalist id="${id}">${arr.map(v => `<option value="${escapeHtml(v)}"></option>`).join('')}</datalist>`;
   const n = _gs.dates.length;
   const head1 = `<tr><th rowspan="2" style="width:56px">OP NO.</th><th rowspan="2" style="min-width:240px">OPERATION</th><th rowspan="2" style="width:100px">KARIGER RATE</th>` +
     _gs.dates.map((d, j) => `<th colspan="2" class="rl-d${j % 2}"><input type="date" class="rl-in" value="${escapeHtml(d)}" title="Issue date" onchange="gsDate(${j},this.value)"></th>`).join('') +
@@ -19149,8 +19161,9 @@ function gsRender() {
   document.getElementById('gsWrap').innerHTML = `
     <div class="rl-bar">
       <div><label>From Cost Sheet</label><select id="gsFromCost" onchange="gsLoadCost(this.value);this.value=''" style="width:230px;padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select></div>
-      ${inp('kariger', 'Kariger Name *', 'Kariger name', 170)}${inp('card', 'Card No', 'Card no', 100)}${inp('buyer', 'Buyer Name', 'Buyer', 160)}${inp('style', 'Style', 'Style', 190)}
-      ${inp('color', 'Color', 'Color', 110)}${inp('size', 'Size', 'Size', 80)}${inp('product', 'Product Name', 'Product', 170)}${inp('lineman', 'Line Man', 'Line man', 130)}
+      ${inp('kariger', 'Kariger Name *', '🔍 Select kariger', 210, '', 'gsKarList')}${inp('card', 'Card No', 'Card no', 90)}${inp('buyer', 'Buyer Name', 'Buyer', 160)}${inp('style', 'Style', 'Style', 190)}
+      ${inp('color', 'Color', 'Color', 110)}${inp('size', 'Size', 'Size', 80)}${inp('product', 'Product Name', '🔍 Select product', 170, '', 'gsProdList')}${inp('lineman', 'Line Man', '🔍 Select line', 160, '', 'gsLineList')}
+      ${dl('gsKarList', GS_KARIGERS.map(k => k.label))}${dl('gsProdList', GS_PRODUCTS)}${dl('gsLineList', GS_LINEMEN)}
       ${inp('rateDate', 'Rate Approved Date', '', 150, 'date')}
       <div class="rl-acts">
         <a id="gsLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="${escapeHtml(_gs.url || '#')}">📄 Open Google Sheet ↗</a>
@@ -19165,7 +19178,11 @@ function gsRender() {
 }
 async function gsSend() {
   const H = _gs.head;
-  if (!String(H.kariger || '').trim()) { showToast('Enter the Kariger Name first', 'error'); const e = document.getElementById('gsH_kariger'); if (e) e.focus(); return; }
+  const gsBad = (id, msg) => { showToast(msg, 'error'); const e = document.getElementById(id); if (e) e.focus(); };
+  if (!String(H.kariger || '').trim()) return gsBad('gsH_kariger', 'Select the Kariger Name first');
+  if (!GS_KARIGERS.some(k => k.label === String(H.kariger).trim())) return gsBad('gsH_kariger', 'Select the Kariger Name from the list');
+  if (String(H.product || '').trim() && !GS_PRODUCTS.includes(String(H.product).trim())) return gsBad('gsH_product', 'Select the Product Name from the list');
+  if (String(H.lineman || '').trim() && !GS_LINEMEN.includes(String(H.lineman).trim())) return gsBad('gsH_lineman', 'Select the Line Man from the list');
   let no = 0;
   const ops = _gs.ops.filter(o => String(o.op || '').trim()).map(o => ({ no: ++no, op: o.op, rate: o.rate, recv: o.recv,
     cells: _gs.dates.map((d, j) => ({ date: d, pcs: (o.cells[j] || {}).pcs || '', amount: (o.cells[j] || {}).amount || '' })) }));
