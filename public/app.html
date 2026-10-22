@@ -736,7 +736,20 @@ tbody tr:last-child td{border-bottom:none;}
         </button>
         <div id="notifPanel" style="display:none;position:absolute;right:0;top:44px;width:min(360px,90vw);max-height:440px;overflow-y:auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.16);z-index:200">
           <div style="padding:12px 14px;font-size:14px;font-weight:700;color:#1e293b;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:6px">🔔 Notifications</div>
+          <div id="notifPermBox"></div>
           <div id="notifPanelBody"><div style="padding:18px;text-align:center;color:#94a3b8;font-size:13px">Loading...</div></div>
+        </div>
+      </div>
+      <!-- App khulte hi poochna: ghanti + Chrome alert chalu karein? (Allow = Chrome ka apna popup) -->
+      <div id="notifPrompt" style="display:none;position:fixed;top:68px;right:16px;z-index:900;width:340px;max-width:calc(100vw - 32px);background:#1e293b;color:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 14px 36px rgba(15,23,42,.35);gap:12px;align-items:flex-start">
+        <div style="font-size:24px;line-height:1">🔔</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px">Notification alert chalu karein?</div>
+          <div style="font-size:12px;color:#cbd5e1;margin-top:4px;line-height:1.45">Har nayi notification par ghanti bajegi aur Chrome ka alert aayega — app minimise ho tab bhi.</div>
+          <div style="display:flex;gap:8px;margin-top:11px">
+            <button class="btn btn-primary btn-sm" onclick="notifAskPermission()">✅ Allow</button>
+            <button class="btn btn-sm" style="background:rgba(255,255,255,.12);color:#fff" onclick="notifPromptLater()">Baad me</button>
+          </div>
         </div>
       </div>
     </div>
@@ -4399,6 +4412,7 @@ async function init() {
     setTimeout(checkHolidayNotice, 1200);   // app khulte hi holiday notice
     setTimeout(checkBirthdayNotice, 1800);  // aaj kisi ka birthday ho to sabko dikhao
     loadApprovalBadge();   // ye khud transfer badge bhi refresh karta hai
+    notifInit();           // ghanti + Chrome alert (Allow wala option)
     loadNotifications();
     // Refresh badges every 30 seconds
     setInterval(loadApprovalBadge, 30000);
@@ -12136,10 +12150,11 @@ async function loadNotifications() {
       badge.textContent = count > 99 ? '99+' : String(count);
       badge.style.display = count ? 'inline-flex' : 'none';
     }
+    const fmtD = d => { const p = String(d || '').split('-'); return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : d; };
+    notifCheckNew(over, up, fmtD);   // nayi aayi ho to ghanti + Chrome alert
     const body = document.getElementById('notifPanelBody');
     if (!body) return;
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
-    const fmtD = d => { const p = String(d || '').split('-'); return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : d; };
     if (!count) {
       body.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px">🎉 Sab up-to-date — koi notification nahi</div>';
       return;
@@ -12171,14 +12186,153 @@ function toggleNotifPanel(e) {
   if (!panel) return;
   const opening = panel.style.display === 'none';
   panel.style.display = opening ? 'block' : 'none';
+  notifPermRender();   // panel khula ho to upar wala "Allow" card chhupa rahe
   if (opening) loadNotifications();
 }
 // Bahar click karne par panel band
 document.addEventListener('click', (e) => {
   const panel = document.getElementById('notifPanel');
   const wrap = document.getElementById('notifBellWrap');
-  if (panel && panel.style.display !== 'none' && wrap && !wrap.contains(e.target)) panel.style.display = 'none';
+  if (panel && panel.style.display !== 'none' && wrap && !wrap.contains(e.target)) { panel.style.display = 'none'; notifPermRender(); }
 });
+
+// ══════════════════════════════════════════════════════
+// NOTIFICATION RING + CHROME ALERT (Harsh, 22 Oct 2026)
+// Bell me koi NAYI notification aaye (is browser me pehle na aayi ho) to
+// ghanti bajti hai, aur permission di ho to Chrome / Edge ka notification bhi
+// aata hai — app minimise ho ya doosra tab khula ho tab bhi. Kaunsi aa chuki
+// hai wo localStorage me user-wise yaad rehta hai, isliye reload par dobara
+// nahi bajti. Upcoming wali task overdue ho jaaye to wo nayi maani jaati hai.
+// ══════════════════════════════════════════════════════
+let _ringCtx = null, _ringPending = false, _notifSwReg = null;
+function notifSupported() { return 'Notification' in window && window.isSecureContext; }
+
+// Browser bina click ke awaaz nahi chalne deta — pehle click / key par awaaz
+// chalu ho jaati hai, aur tab tak ruki hui ghanti us waqt baj jaati hai
+function notifAudioUnlock() {
+  try {
+    if (!_ringCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; _ringCtx = new AC(); }
+    if (_ringCtx.state === 'running') { if (_ringPending) { _ringPending = false; notifRing(); } return; }
+    _ringCtx.resume().then(() => { if (_ringPending && _ringCtx.state === 'running') { _ringPending = false; notifRing(); } }).catch(() => {});
+  } catch (e) { /* awaaz na chale to bas chup */ }
+}
+['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, notifAudioUnlock, { passive: true }));
+
+// Ghanti — do baar "ding-dong" (koi file nahi, browser khud banata hai)
+function notifRing() {
+  try {
+    if (!_ringCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; _ringCtx = new AC(); }
+    if (_ringCtx.state !== 'running') { _ringPending = true; _ringCtx.resume().catch(() => {}); return; }
+    const t0 = _ringCtx.currentTime + 0.02;
+    [[0, 1318.5], [0.22, 987.8], [0.7, 1318.5], [0.92, 987.8]].forEach(([dt, f]) => {
+      const o = _ringCtx.createOscillator(), g = _ringCtx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + dt);
+      g.gain.exponentialRampToValueAtTime(0.4, t0 + dt + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.6);
+      o.connect(g); g.connect(_ringCtx.destination);
+      o.start(t0 + dt); o.stop(t0 + dt + 0.65);
+    });
+  } catch (e) { /* awaaz na chale to bas chup */ }
+}
+
+// Chrome / Edge notification. Service worker se dikhate hain (Android Chrome par
+// sirf yahi chalta hai); wo na ho to seedha Notification se.
+async function notifShow(title, body, tag) {
+  if (!notifSupported() || Notification.permission !== 'granted') return;
+  const opts = { body, tag, renotify: true };
+  try {
+    const reg = _notifSwReg || ('serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null);
+    if (reg && reg.showNotification) { await reg.showNotification(title, opts); return; }
+  } catch (e) { /* neeche wala raasta */ }
+  try {
+    const n = new Notification(title, opts);
+    n.onclick = () => { window.focus(); n.close(); openNotifPanel(); };
+  } catch (e) { /* is browser me nahi chalta */ }
+}
+
+function openNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  notifPermRender();
+  loadNotifications();
+}
+
+// loadNotifications har baar list deta hai — jo pehli baar dikhi wahi "nayi"
+function notifCheckNew(over, up, fmtD) {
+  if (!ME || !ME.id) return;
+  const key = 'tm_notif_seen_' + ME.id;
+  const items = [
+    ...over.map(t => ({ k: 'o:' + t.type + ':' + t.id, t, over: true })),
+    ...up.map(t => ({ k: 'u:' + t.type + ':' + t.id + ':' + t.due_date, t, over: false }))
+  ];
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { seen = []; }
+  const seenSet = new Set(Array.isArray(seen) ? seen : []);
+  const fresh = items.filter(x => !seenSet.has(x.k));
+  try { localStorage.setItem(key, JSON.stringify(items.map(x => x.k))); } catch (e) { /* storage band */ }
+  if (!fresh.length) return;
+  notifRing();
+  if (fresh.length <= 3) {
+    fresh.forEach(x => notifShow(
+      x.over ? '⚠️ Overdue task' : '📅 2 din me due',
+      `${x.t.description || ''}\n${x.over ? 'Due tha' : 'Due'}: ${fmtD(x.t.due_date)}`,
+      'tm-' + x.k));
+  } else {
+    notifShow(`🔔 ${fresh.length} nayi notifications`,
+      fresh.slice(0, 3).map(x => '• ' + (x.t.description || '')).join('\n') + `\n+${fresh.length - 3} aur — bell me dekho`,
+      'tm-summary');
+  }
+}
+
+// "Allow" — Chrome ka apna Allow / Block popup isi click se khulta hai
+async function notifAskPermission() {
+  notifAudioUnlock();
+  if (!notifSupported()) { showToast('Ye browser notification support nahi karta', 'error'); return; }
+  let p = Notification.permission;
+  if (p === 'default') { try { p = await Notification.requestPermission(); } catch (e) { /* purana browser */ } }
+  notifPermRender();
+  if (p === 'granted') {
+    notifRing();
+    notifShow('🔔 Notifications chalu ho gayi', 'Har nayi notification par ghanti bajegi aur yahan alert aayega.', 'tm-enabled');
+    showToast('🔔 Notifications chalu — har nayi notification par ghanti bajegi');
+  } else if (p === 'denied') {
+    showToast('Notifications block hain — address bar me 🔒 par click karo → Notifications → Allow', 'error', 6000);
+  }
+}
+function notifPromptLater() {
+  try { localStorage.setItem('tm_notif_prompt_later', String(Date.now())); } catch (e) { /* storage band */ }
+  notifPermRender();
+}
+function notifPromptSnoozed() {
+  try { return Date.now() - Number(localStorage.getItem('tm_notif_prompt_later') || 0) < 3 * 86400000; } catch (e) { return false; }
+}
+// Bell panel ke upar halat + Allow button, aur app khulte hi ek chhota sa poochna
+function notifPermRender() {
+  const box = document.getElementById('notifPermBox');
+  const prompt = document.getElementById('notifPrompt');
+  const p = notifSupported() ? Notification.permission : 'unsupported';
+  if (box) {
+    box.innerHTML = p === 'granted'
+      ? '<div style="padding:8px 14px;font-size:12px;color:#15803d;background:#f0fdf4;border-bottom:1px solid #dcfce7">✅ Ghanti + Chrome alert chalu hai</div>'
+      : p === 'denied'
+      ? '<div style="padding:8px 14px;font-size:12px;color:#b91c1c;background:#fef2f2;border-bottom:1px solid #fee2e2;line-height:1.45">🚫 Chrome alert block hai — address bar me 🔒 par click karo → Notifications → <b>Allow</b>, phir page reload karo. (Ghanti phir bhi bajegi)</div>'
+      : p === 'default'
+      ? '<div style="padding:9px 14px;font-size:12px;color:#1e3a8a;background:#eff6ff;border-bottom:1px solid #dbeafe;display:flex;align-items:center;gap:8px;justify-content:space-between">🔔 Har nayi notification par ghanti + Chrome alert<button class="btn btn-primary btn-sm" style="flex-shrink:0" onclick="notifAskPermission()">Allow</button></div>'
+      : '';
+  }
+  const panel = document.getElementById('notifPanel');
+  const panelOpen = panel && panel.style.display !== 'none';
+  if (prompt) prompt.style.display = p === 'default' && !notifPromptSnoozed() && !panelOpen ? 'flex' : 'none';
+}
+async function notifInit() {
+  notifPermRender();
+  if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+  try { _notifSwReg = await navigator.serviceWorker.register('/notif-sw.js'); } catch (e) { _notifSwReg = null; }
+  // Notification par click hua (service worker se) -> bell panel kholo
+  navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'open-notif-panel') openNotifPanel(); });
+}
 
 // ══════════════════════════════════════════════════════
 async function loadApprovalBadge() {
