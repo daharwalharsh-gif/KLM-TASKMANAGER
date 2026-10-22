@@ -5957,13 +5957,13 @@ function kpBuildRows(p, who, savedOn) {
       'OPERATION NO': op.no, 'KARIGER RATE': op.rate === '' || op.rate == null ? '' : kpNum(op.rate), 'TOTAL RATE': totalRate || '',
       'RECEIVED QNTY': op.recv === '' || op.recv == null ? '' : kpNum(op.recv),
       'CARD NO': h.card || '', 'RATE APPROVED DATE': kpDMY(h.rateDate), 'ENTERED BY': who, 'SAVED ON': savedOn };
-    const cells = (op.cells || []).filter(c => String(c.pcs || '').trim() || String(c.amount || '').trim());
+    const cells = (op.cells || []).filter(c => String(c.pcs || '').trim());
     if (!cells.length) {
       if (base['RECEIVED QNTY'] !== '') out.push({ ...base, 'ISSUE DATE': '', 'NO OF PCS': '', 'TOTAL AMOUNT': '' });
       continue;
     }
     cells.forEach((c, i) => {
-      const pcs = kpNum(c.pcs), amt = String(c.amount || '').trim() ? kpNum(c.amount) : (pcs && base['KARIGER RATE'] !== '' ? pcs * kpNum(op.rate) : '');
+      const pcs = kpNum(c.pcs), amt = pcs && base['KARIGER RATE'] !== '' ? Math.round(pcs * kpNum(op.rate) * 100) / 100 : '';   // AMOUNT = PCS x RATE (auto)
       out.push({ ...base, 'ISSUE DATE': kpDMY(c.date), 'NO OF PCS': String(c.pcs || '').trim() ? pcs : '', 'TOTAL AMOUNT': amt,
         'RECEIVED QNTY': i === 0 ? base['RECEIVED QNTY'] : '' });   // received sirf pehli row par — jod na double ho
     });
@@ -6194,7 +6194,7 @@ app.post('/api/ratelist/gsheet', requireAuth, requireAdmin, async (req, res) => 
     const [me] = await db.query('SELECT name FROM users WHERE id=? LIMIT 1', [req.session.userId]);
     const savedOn = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 16).replace('T', ' ');
     const rows = kpBuildRows(p, (me[0] && me[0].name) || '', savedOn);
-    if (!rows.length) return res.status(400).json({ error: 'Nothing to send — fill NO OF PCS / AMOUNT (or Received Qnty) for at least one operation' });
+    if (!rows.length) return res.status(400).json({ error: 'Nothing to send — fill NO OF PCS for at least one operation' });
     // File Excel (.xlsx) hai to seedha usme; native Google Sheet ho to Sheets API se
     const mime = await kpFileMime();
     const r = /spreadsheetml|ms-excel/.test(String(mime))

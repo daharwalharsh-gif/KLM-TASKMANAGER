@@ -2112,13 +2112,13 @@ tbody tr:last-child td{border-bottom:none;}
       <div class="tab-group">
         <div class="tab active" id="rlTabForm" onclick="rlTab('form',this)">📝 Cost Sheet Print out</div>
         <div class="tab" id="rlTabCost" onclick="rlTab('cost',this)">🧾 Cost Sheet</div>
-        <div class="tab" id="rlTabGs" data-rl-edit onclick="rlTab('gs',this)">📤 Cost Sheet Google Sheet</div>
+        <div class="tab" id="rlTabGs" data-rl-edit onclick="rlTab('gs',this)">📤 Voucher Data Entry Form</div>
         <div class="tab" id="rlTabPending" onclick="rlTab('pending',this)">⏳ Pending</div>
         <div class="tab" id="rlTabDone" onclick="rlTab('completed',this)">✅ Completed</div>
       </div>
     </div>
 
-    <!-- ── Cost Sheet Google Sheet tab ── -->
+    <!-- ── Voucher Data Entry Form tab (pehle "Cost Sheet Google Sheet") ── -->
     <div id="gsWrapOuter" style="display:none"><div id="gsWrap"></div></div>
 
     <!-- ── EDITOR ── -->
@@ -19079,8 +19079,8 @@ async function onFormSelect() {
 // ══════════════════════════════════════════════════════
 const _gs = { head: { kariger: '', card: '', buyer: '', style: '', color: '', size: '', product: '', lineman: '', rateDate: '' },
   ops: [], dates: ['', '', '', '', '', ''], sent: 0, url: '' };
-const GS_BLANK_OPS = 3;
-const gsBlankOp = () => ({ op: '', rate: '', recv: '', cells: _gs.dates.map(() => ({ pcs: '', amount: '' })) });
+const GS_BLANK_OPS = 0;          // cost sheet load ke baad koi faltu khaali row nahi (22 Oct 2026)
+const gsBlankOp = () => ({ op: '', rate: '', cells: _gs.dates.map(() => ({ pcs: '', amount: '' })) });
 function gsReset() {
   Object.keys(_gs.head).forEach(k => { _gs.head[k] = ''; });
   _gs.dates = ['', '', '', '', '', '']; _gs.sent = 0;
@@ -19092,18 +19092,19 @@ function gsOpen() {
   if (!_gs.url) api('/api/ratelist/gsheet-info').then(r => { if (r && r.url) { _gs.url = r.url; const a = document.getElementById('gsLink'); if (a) a.href = r.url; } });
 }
 function gsHead(k, v) { _gs.head[k] = v; }
-function gsOpSet(i, k, v) { _gs.ops[i][k] = v; gsTotals(); }
-function gsCell(i, j, k, v) { const c = _gs.ops[i].cells[j]; c[k] = v; if (k === 'pcs' && !c._amtTouched) { const r = rlNum(_gs.ops[i].rate), p = rlNum(v); const a = document.getElementById('gsA' + i + '_' + j); if (a) { a.value = p && r ? rlFmt(p * r).replace(/,/g, '') : ''; c.amount = a.value; } } if (k === 'amount') c._amtTouched = true; gsTotals(); }
+// AMOUNT = NO OF PCS x KARIGER RATE — apne aap, haath se nahi bharte (22 Oct 2026)
+const gsAmt = (pcs, rate) => { const p = rlNum(pcs), r = rlNum(rate); return String(pcs).trim() && p && r ? Math.round(p * r * 100) / 100 : ''; };
+function gsPaintAmts(i) {
+  const o = _gs.ops[i]; if (!o) return;
+  o.cells.forEach((c, j) => { c.amount = gsAmt(c.pcs, o.rate); const a = document.getElementById('gsA' + i + '_' + j); if (a) a.textContent = c.amount === '' ? '' : rlFmt(c.amount); });
+}
+function gsOpSet(i, k, v) { _gs.ops[i][k] = v; if (k === 'rate') gsPaintAmts(i); gsTotals(); }
+function gsCell(i, j, k, v) { if (k !== 'pcs') return; _gs.ops[i].cells[j].pcs = v; gsPaintAmts(i); gsTotals(); }
 function gsDate(j, v) { _gs.dates[j] = v; }
 function gsAddRow() { _gs.ops.push(gsBlankOp()); gsRender(); }
 function gsTotals() {
   const tr = _gs.ops.reduce((n, o) => n + rlNum(o.rate), 0), set = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
-  set('gsTotRate', rlFmt(tr));
-  _gs.dates.forEach((_, j) => {
-    set('gsTP' + j, rlFmt(_gs.ops.reduce((n, o) => n + rlNum((o.cells[j] || {}).pcs), 0)));
-    set('gsTA' + j, rlFmt(_gs.ops.reduce((n, o) => n + rlNum((o.cells[j] || {}).amount), 0)));
-  });
-  set('gsTRecv', rlFmt(_gs.ops.reduce((n, o) => n + rlNum(o.recv), 0)));
+  set('gsTotRate', rlFmt(tr));      // neeche sirf Total Rate — pcs / amount ka jod nahi
 }
 // Cost sheet ki list ka dropdown — print out jaisa (completed cost sheets)
 async function gsLoadCost(id) {
@@ -19119,12 +19120,70 @@ async function gsLoadCost(id) {
   gsRender();
   showToast('📋 ' + items.length + ' operation(s) loaded from the cost sheet', 'success');
 }
+// "From Cost Sheet" — search wala dropdown (Print out tab jaisa): likho to list chhoti, click / Enter se load
+let _gsCsOpts = [], _gsCsHi = -1;
 async function gsFillDrop() {
-  const sel = document.getElementById('gsFromCost'); if (!sel) return;
   const all = await rlEnsure();
-  sel.innerHTML = '<option value="">Load from Cost Sheet…</option>' + (all || []).filter(x => x.kind === 'cost' && x.status === 'completed')
-    .map(x => `<option value="${x.id}">${escapeHtml((x.buyer || '—') + ' · ' + (x.style || '—'))}</option>`).join('');
+  _gsCsOpts = (all || []).filter(x => x.kind === 'cost' && x.status === 'completed').map(x => {
+    const label = (x.buyer || '—') + ' · ' + (x.style || '—');
+    return { id: String(x.id), label, lc: label.toLowerCase() };
+  });
+  const hint = document.getElementById('gsFromCostHint');
+  if (hint) hint.textContent = _gsCsOpts.length ? _gsCsOpts.length + ' completed cost sheet' + (_gsCsOpts.length > 1 ? 's' : '') : 'No completed cost sheet yet';
+  const list = document.getElementById('gsCsList');
+  if (list && list.style.display === 'block') gsCsRender();
 }
+function gsCsMatches() {
+  const inp = document.getElementById('gsFromCost');
+  const words = String(inp ? inp.value : '').toLowerCase().split(/\s+/).filter(Boolean);
+  return words.length ? _gsCsOpts.filter(o => words.every(w => o.lc.includes(w))) : _gsCsOpts;
+}
+function gsCsRender() {
+  const list = document.getElementById('gsCsList'); if (!list) return;
+  const m = gsCsMatches();
+  if (_gsCsHi >= m.length) _gsCsHi = m.length - 1;
+  list.innerHTML = m.length
+    ? m.map((o, i) => '<div class="rl-cs-opt' + (i === _gsCsHi ? ' hi' : '') + '" data-id="' + escapeHtml(o.id) + '" title="' + escapeHtml(o.label) + '">' + escapeHtml(o.label) + '</div>').join('')
+    : '<div class="rl-cs-none">' + (_gsCsOpts.length ? 'No cost sheet found' : 'No completed cost sheet yet') + '</div>';
+  const hi = list.querySelector('.rl-cs-opt.hi'); if (hi) hi.scrollIntoView({ block: 'nearest' });
+}
+function gsCsOpen(typed) {
+  const list = document.getElementById('gsCsList'); if (!list) return;
+  if (typed) _gsCsHi = 0; else if (list.style.display !== 'block') _gsCsHi = -1;
+  list.style.display = 'block';
+  gsCsRender();
+  if (!_gsCsOpts.length) gsFillDrop();
+}
+function gsCsClose() { const list = document.getElementById('gsCsList'); if (list) list.style.display = 'none'; }
+function gsCsToggle() {
+  const list = document.getElementById('gsCsList'), inp = document.getElementById('gsFromCost');
+  if (list && list.style.display === 'block') { gsCsClose(); return; }
+  if (inp) inp.focus();
+  gsCsOpen();
+}
+function gsCsKey(e) {
+  const list = document.getElementById('gsCsList'), open = list && list.style.display === 'block', m = gsCsMatches();
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!open) { gsCsOpen(); return; }
+    if (!m.length) return;
+    _gsCsHi = e.key === 'ArrowDown' ? Math.min(m.length - 1, _gsCsHi + 1) : Math.max(0, _gsCsHi - 1);
+    gsCsRender();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const pick = m[_gsCsHi >= 0 ? _gsCsHi : 0];
+    if (open && pick) gsCsPick(pick.id);
+  } else if (e.key === 'Escape') gsCsClose();
+}
+function gsCsPick(id) {
+  const inp = document.getElementById('gsFromCost'); if (inp) { inp.value = ''; inp.blur(); }
+  gsCsClose();
+  if (id) gsLoadCost(id);
+}
+document.addEventListener('mousedown', e => {
+  const o = e.target.closest && e.target.closest('#gsCsList .rl-cs-opt');
+  if (o) { e.preventDefault(); gsCsPick(o.dataset.id); }
+});
 // Dropdown ki list — "KARIGER NAME LIST.pdf" (21 Oct 2026). Kariger "NAAM-CARD" ke roop me (ek naam ke do log ho sakte hain).
 const GS_KARIGERS = 'SANTOSH BHAGAT|63,RAHI|64,SONU|114,RAJESH|126,JONI KUMAR|134,KHALEEL KHAN|173,SONU|206,SATISH|229,SUMBUL|307,ANJALI|310,MOHIT|333,TARUN KUMAR|357,AMIT KUMAR|364,AMIT KUMAR|429,LAXMI|447,VAHID|466,DEEPA|471,ANJU|472,SHADAB|473,SANDEEP|474,SHAHZAD AHMAD|493,AKSH SHARMA|517,SALEEM|531,FUL SAMANDRI|539,AASH MOHD|542,DEEPU|559,JOOLI GAUN|593,BHAVNA|604,MOHD AHAMAD|612,RAJA HUSAIN|616,RAVITA|627,URMILA|629,SUNITA|633,KAJAL|634,MOHIT|637,RAJPAL|638,SWATI|642,DEEPA|656,LAKHAN|667,NISHA|671,ASHOK KUMAR|680,SALONI SINGH|682,PARMILA|687,PANKAJ|691,ASHOK KUMAR|692,KANIKA|694,RAMARATAN|701,MAYANK KUMAR|703,ROHIT KUMAR|707,AVINASH TYAGI|711,SURESH KUMAR|725,HARISH|734,MOHIT YADAV|737,RAMAN|759,VIKASH|761,SAGAR|772,PRIYA|773,RAKHI|774,JYOTI|778,SAVITA|783,DHARMENDRA BHAGAT|788,RISHIPAL|793,POONAM DEVI|795,KAJAL|819,PAWAN|824,DHARMENDRA|830,MALIK|837,PRIYA|842,VINOD KUMAR|843,ANJU|848,LALIT|851,ASHU|860,RAJENDRA SINGH|865,DIPANSHU|868,PANKAJ|872,TRIVENI RATHORE|877,RADHA KASHYAP|878,RIYA|880,ABHISHEK|882,PINKI|883,AASHU|885,FOZIYA|886,VISHAL KUMAR|887,DEEPAK KUMAR|888,SAURAV PAL|889,SACHIT CHOUDHARY|890,ISHA KARNWAL|891,DEEPAK PAL|893,GAUTAM|895,ROHIT SOM|896,LAXMI|897,EKTA VISHVKARMA|900,MD ISRAIL|903,SHREECHAND|905,PARSHURAM YADAV|906,SURESH KUMAR|908,VIPUL KUMAR|909,SANGEETA|914,AKASH|915,JONI|916,PRIYANKA PANDEY|918,LUCKY|920,VIKAS|921,ANKIT KUMAR|922,MONIKA|925,NITIN KUMAR|926,ROHIT|927,ZAIB ISLAM|930,RINKI|932,MONIKA RANI|934,MEENU|935,SHALU SAINI|936,MINAKSHI THAKUR|940'
   .split(',').map(x => { const [name, card] = x.split('|'); return { name, card, label: name + '-' + card }; });
@@ -19142,8 +19201,7 @@ function gsRender() {
   const dl = (id, arr) => `<datalist id="${id}">${arr.map(v => `<option value="${escapeHtml(v)}"></option>`).join('')}</datalist>`;
   const n = _gs.dates.length;
   const head1 = `<tr><th rowspan="2" style="width:56px">OP NO.</th><th rowspan="2" style="min-width:240px">OPERATION</th><th rowspan="2" style="width:100px">KARIGER RATE</th>` +
-    _gs.dates.map((d, j) => `<th colspan="2" class="rl-d${j % 2}"><input type="date" class="rl-in" value="${escapeHtml(d)}" title="Issue date" onchange="gsDate(${j},this.value)"></th>`).join('') +
-    `<th rowspan="2" style="width:110px;background:#fef3c7">RECEIVED QNTY</th></tr>`;
+    _gs.dates.map((d, j) => `<th colspan="2" class="rl-d${j % 2}"><input type="date" class="rl-in" value="${escapeHtml(d)}" title="Issue date" onchange="gsDate(${j},this.value)"></th>`).join('') + '</tr>';
   const head2 = '<tr>' + _gs.dates.map((_, j) => `<th class="rl-d${j % 2}">NO OF PCS</th><th class="rl-d${j % 2}">AMOUNT</th>`).join('') + '</tr>';
   let no = 0;
   const body = _gs.ops.map((o, i) => {
@@ -19153,28 +19211,47 @@ function gsRender() {
       <td><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(o.rate)}" oninput="gsOpSet(${i},'rate',this.value)"></td>` +
       _gs.dates.map((_, j) => { const c = o.cells[j] || (o.cells[j] = { pcs: '', amount: '' });
         return `<td class="rl-d${j % 2}"><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(c.pcs)}" oninput="gsCell(${i},${j},'pcs',this.value)"></td>` +
-          `<td class="rl-d${j % 2}"><input class="rl-in rl-num" id="gsA${i}_${j}" inputmode="decimal" value="${escapeHtml(c.amount)}" oninput="gsCell(${i},${j},'amount',this.value)"></td>`; }).join('') +
-      `<td style="background:#fffbeb"><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(o.recv)}" oninput="gsOpSet(${i},'recv',this.value)"></td></tr>`;
+          `<td class="rl-d${j % 2} rl-num gs-amt" id="gsA${i}_${j}" title="NO OF PCS × KARIGER RATE (auto)">${c.amount === '' || c.amount == null ? '' : rlFmt(c.amount)}</td>`; }).join('') + '</tr>';
   }).join('');
-  const foot = `<tr class="rl-totrow"><td></td><td style="text-align:center">Rate total</td><td class="rl-num" id="gsTotRate"></td>` +
-    _gs.dates.map((_, j) => `<td class="rl-num" id="gsTP${j}"></td><td class="rl-num" id="gsTA${j}"></td>`).join('') + `<td class="rl-num" id="gsTRecv"></td></tr>`;
+  const foot = `<tr class="rl-totrow"><td></td><td style="text-align:center">Total Rate</td><td class="rl-num" id="gsTotRate"></td>` +
+    _gs.dates.map(() => '<td></td><td></td>').join('') + '</tr>';
   document.getElementById('gsWrap').innerHTML = `
     <div class="rl-bar">
-      <div><label>From Cost Sheet</label><select id="gsFromCost" onchange="gsLoadCost(this.value);this.value=''" style="width:230px;padding:8px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select></div>
+      <div><label>From Cost Sheet</label>
+        <div class="rl-cs" id="gsCsBox" style="width:250px">
+          <input type="text" id="gsFromCost" class="rl-cs-in" placeholder="🔍 Search / Load from Cost Sheet…" autocomplete="off"
+            onfocus="gsCsOpen()" onclick="gsCsOpen()" oninput="gsCsOpen(true)" onkeydown="gsCsKey(event)" onblur="setTimeout(gsCsClose, 150)">
+          <span class="rl-cs-caret" onmousedown="event.preventDefault();gsCsToggle()">▾</span>
+          <div class="rl-cs-list" id="gsCsList"></div>
+        </div>
+        <div id="gsFromCostHint" style="font-size:10.5px;color:#94a3b8;margin-top:3px"></div></div>
       ${inp('kariger', 'Kariger Name *', '🔍 Select kariger', 210, '', 'gsKarList')}${inp('card', 'Card No', 'Card no', 90)}${inp('buyer', 'Buyer Name', 'Buyer', 160)}${inp('style', 'Style', 'Style', 190)}
       ${inp('color', 'Color', 'Color', 110)}${inp('size', 'Size', 'Size', 80)}${inp('product', 'Product Name', '🔍 Select product', 170, '', 'gsProdList')}${inp('lineman', 'Line Man', '🔍 Select line', 160, '', 'gsLineList')}
       ${dl('gsKarList', GS_KARIGERS.map(k => k.label))}${dl('gsProdList', GS_PRODUCTS)}${dl('gsLineList', GS_LINEMEN)}
       ${inp('rateDate', 'Rate Approved Date', '', 150, 'date')}
       <div class="rl-acts">
         <a id="gsLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="${escapeHtml(_gs.url || '#')}">📄 Open Google Sheet ↗</a>
-        <button class="btn btn-outline btn-sm" onclick="gsAddRow()">➕ Row</button>
         <button class="btn btn-outline btn-sm" onclick="if(confirm('Clear everything on this tab?')){gsReset();gsRender()}">✕ Clear</button>
         <button class="btn btn-primary btn-sm" id="gsSendBtn" onclick="gsSend()">📤 Send to Google Sheet</button>
       </div>
     </div>
-    <div class="rl-wrap"><table class="rl-tbl"><thead>${head1}${head2}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>
-    <div class="od-foot" id="gsFoot" style="margin-top:8px">Each operation × issue date with NO OF PCS / AMOUNT becomes one row in the tab <b>ALL LINE DATA ENTRY</b>. Headings that are missing in the sheet (Card No, Rate Approved Date, Entered By, Saved On …) are added automatically.</div>`;
-  gsTotals(); gsFillDrop();
+    <style>
+      .gs-frz{max-height:calc(100vh - 370px);min-height:260px;overflow:auto}
+      .gs-frz .rl-tbl{border-collapse:separate;border-spacing:0}
+      .gs-frz .rl-tbl th,.gs-frz .rl-tbl td{border-width:0 1px 1px 0}
+      .gs-frz thead th{position:sticky;top:0;z-index:3}
+      .gs-frz tfoot td{position:sticky;bottom:0;z-index:2}
+      .gs-amt{background:#f8fafc;color:#334155;font-weight:700;text-align:right;padding-right:9px!important;cursor:default}
+    </style>
+    <div class="rl-wrap gs-frz"><table class="rl-tbl"><thead>${head1}${head2}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>
+    <div class="od-foot" id="gsFoot" style="margin-top:8px">AMOUNT = NO OF PCS × KARIGER RATE (auto). Each operation × issue date with NO OF PCS becomes one row in the tab <b>ALL LINE DATA ENTRY</b>. Headings that are missing in the sheet (Card No, Rate Approved Date, Entered By, Saved On …) are added automatically.</div>`;
+  gsTotals(); gsFillDrop(); gsFreezeHead();
+}
+// Dusri heading row (NO OF PCS / AMOUNT) pehli ke theek neeche ruke
+function gsFreezeHead() {
+  const r1 = document.querySelector('#gsWrap .gs-frz thead tr:first-child'); if (!r1) return;
+  const h = r1.getBoundingClientRect().height;
+  document.querySelectorAll('#gsWrap .gs-frz thead tr:nth-child(2) th').forEach(t => { t.style.top = h + 'px'; });
 }
 async function gsSend() {
   const H = _gs.head;
@@ -19184,10 +19261,12 @@ async function gsSend() {
   if (String(H.product || '').trim() && !GS_PRODUCTS.includes(String(H.product).trim())) return gsBad('gsH_product', 'Select the Product Name from the list');
   if (String(H.lineman || '').trim() && !GS_LINEMEN.includes(String(H.lineman).trim())) return gsBad('gsH_lineman', 'Select the Line Man from the list');
   let no = 0;
-  const ops = _gs.ops.filter(o => String(o.op || '').trim()).map(o => ({ no: ++no, op: o.op, rate: o.rate, recv: o.recv,
-    cells: _gs.dates.map((d, j) => ({ date: d, pcs: (o.cells[j] || {}).pcs || '', amount: (o.cells[j] || {}).amount || '' })) }));
-  const filled = ops.filter(o => o.recv !== '' || o.cells.some(c => String(c.pcs).trim() || String(c.amount).trim()));
-  if (!filled.length) { showToast('Fill NO OF PCS / AMOUNT (or Received Qnty) for at least one operation', 'error'); return; }
+  const ops = _gs.ops.filter(o => String(o.op || '').trim()).map(o => ({ no: ++no, op: o.op, rate: o.rate,
+    cells: _gs.dates.map((d, j) => { const pcs = (o.cells[j] || {}).pcs || ''; return { date: d, pcs, amount: gsAmt(pcs, o.rate) }; }) }));
+  const filled = ops.filter(o => o.cells.some(c => String(c.pcs).trim()));
+  if (!filled.length) { showToast('Fill NO OF PCS for at least one operation', 'error'); return; }
+  const noDate = filled.some(o => o.cells.some(c => String(c.pcs).trim() && !c.date));
+  if (noDate) { showToast('Select the issue date at the top of every column where NO OF PCS is filled', 'error'); return; }
   if (_gs.sent && !confirm(`${_gs.sent} row(s) were already sent from this screen. Send again (this adds the rows again)?`)) return;
   const b = document.getElementById('gsSendBtn'); if (b) { b.disabled = true; b.textContent = '⏳ Sending…'; }
   const r = await api('/api/ratelist/gsheet', 'POST', { head: H, ops, totalRate: _gs.ops.reduce((n, o) => n + rlNum(o.rate), 0) });
