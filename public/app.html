@@ -744,11 +744,11 @@ tbody tr:last-child td{border-bottom:none;}
       <div id="notifPrompt" style="display:none;position:fixed;top:68px;right:16px;z-index:900;width:340px;max-width:calc(100vw - 32px);background:#1e293b;color:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 14px 36px rgba(15,23,42,.35);gap:12px;align-items:flex-start">
         <div style="font-size:24px;line-height:1">🔔</div>
         <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:14px">Notification alert chalu karein?</div>
-          <div style="font-size:12px;color:#cbd5e1;margin-top:4px;line-height:1.45">Har nayi notification par ghanti bajegi aur Chrome ka alert aayega — app minimise ho tab bhi.</div>
+          <div style="font-weight:700;font-size:14px">Turn on notification alerts?</div>
+          <div style="font-size:12px;color:#cbd5e1;margin-top:4px;line-height:1.45">You will hear a ring and get a Chrome alert for every new notification — even when the app is minimised.</div>
           <div style="display:flex;gap:8px;margin-top:11px">
             <button class="btn btn-primary btn-sm" onclick="notifAskPermission()">✅ Allow</button>
-            <button class="btn btn-sm" style="background:rgba(255,255,255,.12);color:#fff" onclick="notifPromptLater()">Baad me</button>
+            <button class="btn btn-sm" style="background:rgba(255,255,255,.12);color:#fff" onclick="notifPromptLater()">Later</button>
           </div>
         </div>
       </div>
@@ -12156,7 +12156,7 @@ async function loadNotifications() {
     if (!body) return;
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
     if (!count) {
-      body.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px">🎉 Sab up-to-date — koi notification nahi</div>';
+      body.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px">🎉 All caught up — no notifications</div>';
       return;
     }
     const row = (icon, color, title, sub) => `
@@ -12169,12 +12169,12 @@ async function loadNotifications() {
       </div>`;
     let html = '';
     if (up.length) {
-      html += `<div style="padding:8px 14px;font-size:11px;font-weight:700;color:#d97706;background:#fffbeb;letter-spacing:.3px">⏳ AANE WALE — 2 DIN ME DUE (${up.length})</div>`;
+      html += `<div style="padding:8px 14px;font-size:11px;font-weight:700;color:#d97706;background:#fffbeb;letter-spacing:.3px">⏳ UPCOMING — DUE IN 2 DAYS (${up.length})</div>`;
       html += up.map(t => row('📅', '#d97706', esc(t.description), `${t.frequency ? esc(t.frequency) + ' • ' : ''}due: ${fmtD(t.due_date)}`)).join('');
     }
     if (over.length) {
       html += `<div style="padding:8px 14px;font-size:11px;font-weight:700;color:#dc2626;background:#fef2f2;letter-spacing:.3px">⚠️ OVERDUE (${over.length})</div>`;
-      html += over.map(t => row(t.type === 'delegation' ? '📋' : '✅', '#dc2626', esc(t.description), `${esc(t.type)} • due tha: ${fmtD(t.due_date)}`)).join('');
+      html += over.map(t => row(t.type === 'delegation' ? '📋' : '✅', '#dc2626', esc(t.description), `${esc(t.type)} • was due: ${fmtD(t.due_date)}`)).join('');
     }
     body.innerHTML = html;
   } catch (e) { /* silent */ }
@@ -12276,12 +12276,12 @@ function notifCheckNew(over, up, fmtD) {
   notifRing();
   if (fresh.length <= 3) {
     fresh.forEach(x => notifShow(
-      x.over ? '⚠️ Overdue task' : '📅 2 din me due',
-      `${x.t.description || ''}\n${x.over ? 'Due tha' : 'Due'}: ${fmtD(x.t.due_date)}`,
+      x.over ? '⚠️ Overdue task' : '📅 Due in 2 days',
+      `${x.t.description || ''}\n${x.over ? 'Was due' : 'Due'}: ${fmtD(x.t.due_date)}`,
       'tm-' + x.k));
   } else {
-    notifShow(`🔔 ${fresh.length} nayi notifications`,
-      fresh.slice(0, 3).map(x => '• ' + (x.t.description || '')).join('\n') + `\n+${fresh.length - 3} aur — bell me dekho`,
+    notifShow(`🔔 ${fresh.length} new notifications`,
+      fresh.slice(0, 3).map(x => '• ' + (x.t.description || '')).join('\n') + `\n+${fresh.length - 3} more — check the bell`,
       'tm-summary');
   }
 }
@@ -12289,16 +12289,16 @@ function notifCheckNew(over, up, fmtD) {
 // "Allow" — Chrome ka apna Allow / Block popup isi click se khulta hai
 async function notifAskPermission() {
   notifAudioUnlock();
-  if (!notifSupported()) { showToast('Ye browser notification support nahi karta', 'error'); return; }
+  if (!notifSupported()) { showToast('This browser does not support notifications', 'error'); return; }
   let p = Notification.permission;
   if (p === 'default') { try { p = await Notification.requestPermission(); } catch (e) { /* purana browser */ } }
   notifPermRender();
   if (p === 'granted') {
     notifRing();
-    notifShow('🔔 Notifications chalu ho gayi', 'Har nayi notification par ghanti bajegi aur yahan alert aayega.', 'tm-enabled');
-    showToast('🔔 Notifications chalu — har nayi notification par ghanti bajegi');
+    notifShow('🔔 Notifications are on', 'You will hear a ring and get an alert here for every new notification.', 'tm-enabled');
+    showToast('🔔 Notifications on — you will hear a ring for every new notification');
   } else if (p === 'denied') {
-    showToast('Notifications block hain — address bar me 🔒 par click karo → Notifications → Allow', 'error', 6000);
+    showToast('Notifications are blocked — click the 🔒 icon in the address bar → Notifications → Allow', 'error', 6000);
   }
 }
 function notifPromptLater() {
@@ -12315,11 +12315,11 @@ function notifPermRender() {
   const p = notifSupported() ? Notification.permission : 'unsupported';
   if (box) {
     box.innerHTML = p === 'granted'
-      ? '<div style="padding:8px 14px;font-size:12px;color:#15803d;background:#f0fdf4;border-bottom:1px solid #dcfce7">✅ Ghanti + Chrome alert chalu hai</div>'
+      ? '<div style="padding:8px 14px;font-size:12px;color:#15803d;background:#f0fdf4;border-bottom:1px solid #dcfce7">✅ Ring + Chrome alerts are on</div>'
       : p === 'denied'
-      ? '<div style="padding:8px 14px;font-size:12px;color:#b91c1c;background:#fef2f2;border-bottom:1px solid #fee2e2;line-height:1.45">🚫 Chrome alert block hai — address bar me 🔒 par click karo → Notifications → <b>Allow</b>, phir page reload karo. (Ghanti phir bhi bajegi)</div>'
+      ? '<div style="padding:8px 14px;font-size:12px;color:#b91c1c;background:#fef2f2;border-bottom:1px solid #fee2e2;line-height:1.45">🚫 Chrome alerts are blocked — click the 🔒 icon in the address bar → Notifications → <b>Allow</b>, then reload the page. (The ring will still play)</div>'
       : p === 'default'
-      ? '<div style="padding:9px 14px;font-size:12px;color:#1e3a8a;background:#eff6ff;border-bottom:1px solid #dbeafe;display:flex;align-items:center;gap:8px;justify-content:space-between">🔔 Har nayi notification par ghanti + Chrome alert<button class="btn btn-primary btn-sm" style="flex-shrink:0" onclick="notifAskPermission()">Allow</button></div>'
+      ? '<div style="padding:9px 14px;font-size:12px;color:#1e3a8a;background:#eff6ff;border-bottom:1px solid #dbeafe;display:flex;align-items:center;gap:8px;justify-content:space-between">🔔 Get a ring + Chrome alert for every new notification<button class="btn btn-primary btn-sm" style="flex-shrink:0" onclick="notifAskPermission()">Allow</button></div>'
       : '';
   }
   const panel = document.getElementById('notifPanel');
