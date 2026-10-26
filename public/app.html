@@ -2123,9 +2123,9 @@ tbody tr:last-child td{border-bottom:none;}
 
     <div style="display:flex;gap:8px;margin-bottom:16px">
       <div class="tab-group">
-        <div class="tab active" id="rlTabForm" onclick="rlTab('form',this)">📝 Cost Sheet Print out</div>
+        <div class="tab active" id="rlTabGs" data-rl-edit onclick="rlTab('gs',this)">📤 Voucher Data Entry Form</div>
+        <div class="tab" id="rlTabForm" onclick="rlTab('form',this)">📝 Cost Sheet Print out</div>
         <div class="tab" id="rlTabCost" onclick="rlTab('cost',this)">🧾 Cost Sheet</div>
-        <div class="tab" id="rlTabGs" data-rl-edit onclick="rlTab('gs',this)">📤 Voucher Data Entry Form</div>
         <div class="tab" id="rlTabPending" onclick="rlTab('pending',this)">⏳ Pending</div>
         <div class="tab" id="rlTabDone" onclick="rlTab('completed',this)">✅ Completed</div>
       </div>
@@ -6136,7 +6136,7 @@ function legalReadFileBase64(file) {
 // Typing ke waqt sirf total dobara ginte hain, poori table nahi banti, warna
 // har akshar par cursor input se bahar nikal jaata.
 
-let _rlView = 'form';
+let _rlView = '';   // khali = pehli baar: admin ko Voucher Data Entry Form, baaki ko Print out / Cost Sheet
 let _rlCur = null;       // abhi editor me khula record
 let _rlList = [];
 let _rlSaving = false;
@@ -6410,7 +6410,7 @@ function rlNew() {
   _rlCur = _rlKeep[kind];
   rlTab(kind === 'cost' ? 'cost' : 'form');
 }
-function openRateList() { rlApplyPrintAccess(); rlApplyEditAccess(); rlTab(_rlView || 'form'); }
+function openRateList() { rlApplyPrintAccess(); rlApplyEditAccess(); rlTab(_rlView || (rlCanEdit() ? 'gs' : 'form')); }
 
 // Cost Sheet me edit karne ka haq sirf admin ko. Baaki sab dekh sakte hain
 // aur PDF nikaal sakte hain, par badal nahi sakte.
@@ -19258,7 +19258,9 @@ function gsDate(j, v) { _gs.dates[j] = v; }
 function gsAddRow() { _gs.ops.push(gsBlankOp()); gsRender(); }
 function gsTotals() {
   const tr = _gs.ops.reduce((n, o) => n + rlNum(o.rate), 0), set = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
-  set('gsTotRate', rlFmt(tr));      // neeche sirf Total Rate — pcs / amount ka jod nahi
+  set('gsTotRate', rlFmt(tr));
+  // har issue date ke AMOUNT ka jod, uske theek neeche (26 Oct 2026). NO OF PCS ka jod nahi.
+  _gs.dates.forEach((_, j) => set('gsTotAmt' + j, rlFmt(_gs.ops.reduce((n, o) => n + (Number(o.cells[j] && o.cells[j].amount) || 0), 0))));
 }
 // Cost sheet ki list ka dropdown — print out jaisa (completed cost sheets)
 async function gsLoadCost(id) {
@@ -19360,15 +19362,15 @@ function gsRender() {
   let no = 0;
   const body = _gs.ops.map((o, i) => {
     const has = String(o.op || '').trim(); if (has) no++;
-    return `<tr><td class="rl-sr">${has ? no : ''}</td>
-      <td><input class="rl-in rl-op" value="${escapeHtml(o.op)}" placeholder="Operation" oninput="gsOpSet(${i},'op',this.value)"></td>
-      <td><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(o.rate)}" oninput="gsOpSet(${i},'rate',this.value)"></td>` +
+    return `<tr data-r="${i}"><td class="rl-sr">${has ? no : ''}</td>
+      <td><input class="rl-in rl-op" data-r="${i}" data-c="op" value="${escapeHtml(o.op)}" placeholder="Operation" oninput="gsOpSet(${i},'op',this.value)"></td>
+      <td><input class="rl-in rl-num" data-r="${i}" data-c="rate" inputmode="decimal" value="${escapeHtml(o.rate)}" oninput="gsOpSet(${i},'rate',this.value)"></td>` +
       _gs.dates.map((_, j) => { const c = o.cells[j] || (o.cells[j] = { pcs: '', amount: '' });
-        return `<td class="rl-d${j % 2}"><input class="rl-in rl-num" inputmode="decimal" value="${escapeHtml(c.pcs)}" oninput="gsCell(${i},${j},'pcs',this.value)"></td>` +
+        return `<td class="rl-d${j % 2}"><input class="rl-in rl-num" data-r="${i}" data-c="p${j}" inputmode="decimal" value="${escapeHtml(c.pcs)}" oninput="gsCell(${i},${j},'pcs',this.value)"></td>` +
           `<td class="rl-d${j % 2} rl-num gs-amt" id="gsA${i}_${j}" title="NO OF PCS × KARIGER RATE (auto)">${c.amount === '' || c.amount == null ? '' : rlFmt(c.amount)}</td>`; }).join('') + '</tr>';
   }).join('');
   const foot = `<tr class="rl-totrow"><td></td><td style="text-align:center">Total Rate</td><td class="rl-num" id="gsTotRate"></td>` +
-    _gs.dates.map(() => '<td></td><td></td>').join('') + '</tr>';
+    _gs.dates.map((_, j) => `<td></td><td class="rl-num" id="gsTotAmt${j}" title="Total AMOUNT"></td>`).join('') + '</tr>';
   document.getElementById('gsWrap').innerHTML = `
     <div class="rl-bar">
       <div><label>From Cost Sheet</label>
@@ -19390,7 +19392,10 @@ function gsRender() {
       </div>
     </div>
     <style>
-      .gs-frz{max-height:calc(100vh - 370px);min-height:260px;overflow:auto}
+      .gs-frz{max-height:calc(100vh - 370px);min-height:260px;overflow:auto;position:relative}
+      .gs-fillh{position:absolute;display:none;width:9px;height:9px;background:#4f46e5;border:2px solid #fff;border-radius:2px;
+        box-shadow:0 0 0 1px #4f46e5;cursor:crosshair;z-index:1}
+      #gsWrap td.gs-fillsel{outline:2px dashed #4f46e5;outline-offset:-2px;background:#eef2ff}
       .gs-frz .rl-tbl{border-collapse:separate;border-spacing:0}
       .gs-frz .rl-tbl th,.gs-frz .rl-tbl td{border-width:0 1px 1px 0}
       .gs-frz thead th{position:sticky;top:0;z-index:3}
@@ -19398,9 +19403,99 @@ function gsRender() {
       .gs-amt{background:#f8fafc;color:#334155;font-weight:700;text-align:right;padding-right:9px!important;cursor:default}
     </style>
     <div class="rl-wrap gs-frz"><table class="rl-tbl"><thead>${head1}${head2}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>
-    <div class="od-foot" id="gsFoot" style="margin-top:8px">AMOUNT = NO OF PCS × KARIGER RATE (auto). Each operation × issue date with NO OF PCS becomes one row in the tab <b>ALL LINE DATA ENTRY</b>. Headings that are missing in the sheet (Card No, Rate Approved Date, Entered By, Saved On …) are added automatically.</div>`;
+    <div class="od-foot" id="gsFoot" style="margin-top:8px">Works like Excel: ↑ ↓ / Enter to move between rows, drag the small square at a cell's corner to copy its value down, and paste cells copied from Excel. AMOUNT = NO OF PCS × KARIGER RATE (auto). Each operation × issue date with NO OF PCS becomes one row in the tab <b>ALL LINE DATA ENTRY</b>. Headings that are missing in the sheet (Card No, Rate Approved Date, Entered By, Saved On …) are added automatically.</div>`;
   gsTotals(); gsFillDrop(); gsFreezeHead();
 }
+// ── Voucher grid Excel jaisi (Harsh, 26 Oct 2026) ──
+// ↑ ↓ / Enter = upar-neeche wala cell, ← → = kinare par pahunch kar agla cell.
+// Cell ke kone ka chhota dibba kheencho = wahi value neeche (ya upar) ke cells me.
+// Excel se kai cells copy karke kisi cell par paste = wahin se aage bhar jaata hai.
+// Column kram screen jaisa hai: AMOUNT wale column apne aap bante hain, paste me unki value chhod di jaati hai.
+const gsCols = () => ['op', 'rate', ..._gs.dates.flatMap((_, j) => ['p' + j, 'a' + j])];
+const gsInp = (r, c) => document.querySelector('#gsWrap tbody input[data-r="' + r + '"][data-c="' + c + '"]');
+function gsGo(r, c) { const el = gsInp(r, c); if (!el) return false; el.focus(); el.select(); return true; }
+function gsPut(r, c, v) {
+  const el = gsInp(r, c); if (el) el.value = v;
+  if (c === 'op' || c === 'rate') gsOpSet(r, c, v); else if (c[0] === 'p') gsCell(r, +c.slice(1), 'pcs', v);
+}
+function gsHandleAt(el) {
+  const wrap = document.querySelector('#gsWrap .gs-frz'); if (!wrap || !el) return;
+  let h = document.getElementById('gsFillH');
+  if (!h) { h = document.createElement('div'); h.id = 'gsFillH'; h.className = 'gs-fillh'; h.title = 'Drag to copy this value to other rows'; wrap.appendChild(h); }
+  const w = wrap.getBoundingClientRect(), t = el.closest('td').getBoundingClientRect();
+  h.style.left = (t.right - w.left + wrap.scrollLeft - 6) + 'px';
+  h.style.top = (t.bottom - w.top + wrap.scrollTop - 6) + 'px';
+  h.style.display = 'block'; h.dataset.r = el.dataset.r; h.dataset.c = el.dataset.c;
+}
+const gsIsCell = el => !!(el && el.matches && el.matches('#gsWrap tbody input[data-c]'));
+document.addEventListener('focusin', e => { if (gsIsCell(e.target)) gsHandleAt(e.target); });
+document.addEventListener('input', e => { if (gsIsCell(e.target)) gsHandleAt(e.target); });
+document.addEventListener('keydown', e => {
+  const el = e.target; if (!gsIsCell(el)) return;
+  const r = +el.dataset.r, c = el.dataset.c, cols = gsCols().filter(x => x[0] !== 'a'), ci = cols.indexOf(c);
+  const len = el.value.length, a = el.selectionStart, b = el.selectionEnd, all = a === 0 && b === len;
+  let to = null;
+  if (e.key === 'ArrowDown' || (e.key === 'Enter' && !e.shiftKey)) to = [r + 1, c];
+  else if (e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey)) to = [r - 1, c];
+  else if (e.key === 'ArrowRight' && (all || (a === len && b === len))) to = [r, cols[ci + 1]];
+  else if (e.key === 'ArrowLeft' && (all || (a === 0 && b === 0))) to = [r, cols[ci - 1]];
+  if (to && gsGo(to[0], to[1])) e.preventDefault();
+  else if (e.key === 'Enter') e.preventDefault();
+});
+let _gsFill = null;     // { r0, r1, c } — fill handle kheenchte waqt
+function gsFillMark() {
+  document.querySelectorAll('#gsWrap td.gs-fillsel').forEach(td => td.classList.remove('gs-fillsel'));
+  if (!_gsFill) return;
+  const lo = Math.min(_gsFill.r0, _gsFill.r1), hi = Math.max(_gsFill.r0, _gsFill.r1);
+  for (let r = lo; r <= hi; r++) { const el = gsInp(r, _gsFill.c); if (el) el.closest('td').classList.add('gs-fillsel'); }
+}
+document.addEventListener('mousedown', e => {
+  if (!e.target || e.target.id !== 'gsFillH') return;
+  e.preventDefault();
+  _gsFill = { r0: +e.target.dataset.r, r1: +e.target.dataset.r, c: e.target.dataset.c };
+  document.body.style.cursor = 'crosshair';
+  gsFillMark();
+});
+document.addEventListener('mousemove', e => {
+  if (!_gsFill) return;
+  const wrap = document.querySelector('#gsWrap .gs-frz');
+  if (wrap) {            // kinare par le jao to table khud khiske
+    const w = wrap.getBoundingClientRect();
+    if (e.clientY > w.bottom - 45) wrap.scrollTop += 16; else if (e.clientY < w.top + 75) wrap.scrollTop -= 16;
+  }
+  const at = document.elementFromPoint(e.clientX, e.clientY);
+  const tr = at && at.closest && at.closest('#gsWrap tbody tr[data-r]');
+  if (tr && +tr.dataset.r !== _gsFill.r1) { _gsFill.r1 = +tr.dataset.r; gsFillMark(); }
+});
+document.addEventListener('mouseup', () => {
+  if (!_gsFill) return;
+  const { r0, r1, c } = _gsFill;
+  _gsFill = null; document.body.style.cursor = ''; gsFillMark();
+  if (r1 === r0) return;
+  const src = gsInp(r0, c), v = src ? src.value : '';
+  const lo = Math.min(r0, r1), hi = Math.max(r0, r1);
+  for (let r = lo; r <= hi; r++) if (r !== r0) gsPut(r, c, v);
+  if (c === 'op') gsRender();          // OP NO. dobara gine
+  gsGo(r1, c);
+});
+document.addEventListener('paste', e => {
+  const el = e.target; if (!gsIsCell(el)) return;
+  const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+  const rows = text.replace(/\r/g, '').replace(/\n+$/, '').split('\n').map(l => l.split('\t'));
+  if (rows.length === 1 && rows[0].length === 1) return;     // ek hi value — normal paste
+  e.preventDefault();
+  const cols = gsCols(), r0 = +el.dataset.r, c0 = cols.indexOf(el.dataset.c);
+  while (_gs.ops.length < r0 + rows.length) _gs.ops.push(gsBlankOp());   // jitni rows aayi utni ban jaati hain
+  rows.forEach((vals, dr) => vals.forEach((v, dc) => {
+    const c = cols[c0 + dc]; if (!c || c[0] === 'a') return;     // AMOUNT apne aap banta hai
+    const o = _gs.ops[r0 + dr], val = String(v).trim();
+    if (c === 'op' || c === 'rate') o[c] = val; else o.cells[+c.slice(1)].pcs = val;
+  }));
+  _gs.ops.forEach((_, i) => gsPaintAmts(i));
+  gsRender();
+  gsGo(r0, el.dataset.c);
+  showToast('📋 Pasted ' + rows.length + ' row(s)', 'success');
+});
 // Dusri heading row (NO OF PCS / AMOUNT) pehli ke theek neeche ruke
 function gsFreezeHead() {
   const r1 = document.querySelector('#gsWrap .gs-frz thead tr:first-child'); if (!r1) return;
