@@ -9149,9 +9149,11 @@ function dashHello() {
   try { h = parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false }).format(now), 10) % 24; } catch (e) {}
   // raat 10 se subah 5 tak seedha "Hello"
   const greet = h >= 5 && h < 12 ? 'Good Morning' : h >= 12 && h < 17 ? 'Good Afternoon' : h >= 17 && h < 22 ? 'Good Evening' : 'Hello';
-  // "Mr. Tribhuvan Tyagi" -> "Tribhuvan"
-  const words = titleName(ME.name || '').split(' ').filter(w => !/^(mr|mrs|ms|miss|dr|shri|smt)\.?$/i.test(w));
-  const first = words[0] || 'there';
+  // Pura naam title ke saath — "Mr. Manik Mahajan" (Harsh, 26 Oct 2026; pehle sirf pehla naam aata tha).
+  // Naam me title pehle se likha ho to dobara nahi lagta.
+  const nm = titleName(ME.name || '').trim(), ttl = String(ME.title || '').trim();
+  const hasTtl = ttl && new RegExp('^' + ttl.replace(/\./g, '').replace(/[^a-z]/gi, '') + '\\.?\\s', 'i').test(nm + ' ');
+  const first = ((ttl && !hasTtl ? ttl + ' ' : '') + nm).trim() || 'there';
   let day = '';
   try { day = now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) {}
   document.getElementById('dashHelloGreet').textContent = greet;
