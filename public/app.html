@@ -1054,7 +1054,7 @@ tbody tr:last-child td{border-bottom:none;}
       <div><div class="own-hero-t">Owner Dashboard</div>
         <div class="own-hero-s">Pending work, overdue tasks, upcoming risks, order delays, OTD and escalations — all on one screen</div></div>
       <div class="od-hero-r"><span class="od-upd" id="odUpdated"></span>
-        <button class="op-glow-btn" onclick="opModalOpen()" title="Open the KLM Export / Invincible presentations">🎬 Presentation</button>
+        <button class="btn btn-outline btn-sm" onclick="opModalOpen()" title="Open the KLM Export / Invincible presentations">🎬 Presentation</button>
         <button class="btn btn-outline btn-sm" onclick="odRefresh()">🔄 Refresh</button></div>
     </div>
     <div class="own-card own-flt od-filters">
@@ -2712,21 +2712,10 @@ tbody tr:last-child td{border-bottom:none;}
     .pm-pop-list span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .pm-pop-foot{display:flex;gap:7px;justify-content:flex-end;margin-top:9px}
   </style>
-  <!-- Owner Presentation — Owner Dashboard ke chamakte "Presentation" button se popup (Harsh, 26 Oct 2026).
+  <!-- Owner Presentation — Owner Dashboard ke "Presentation" button se popup (Harsh, 26 Oct 2026).
        Upar KLM Export / Invincible; PDF app khud dikhati hai (PDF.js), poori chaudai me. -->
   <div id="opModal" class="op-modal">
     <style>
-      /* Owner Dashboard ka button — halka sa dhadakta aur chamakta rehta hai */
-      .op-glow-btn{position:relative;overflow:hidden;border:none;border-radius:10px;padding:8px 16px;cursor:pointer;
-        font:800 13px 'Inter',sans-serif;color:#fff;letter-spacing:.2px;background:linear-gradient(135deg,#f97316,#ef4444 45%,#8b5cf6);
-        animation:opPulse 1.8s ease-in-out infinite;transition:transform .15s}
-      .op-glow-btn:hover{transform:translateY(-1px) scale(1.03)}
-      .op-glow-btn::after{content:'';position:absolute;top:0;left:-70%;width:45%;height:100%;
-        background:linear-gradient(115deg,transparent,rgba(255,255,255,.75),transparent);animation:opShine 2.6s ease-in-out infinite}
-      @keyframes opPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.55),0 4px 14px rgba(139,92,246,.35)}
-        50%{box-shadow:0 0 0 9px rgba(239,68,68,0),0 6px 22px rgba(139,92,246,.6)}}
-      @keyframes opShine{0%{left:-70%}55%,100%{left:140%}}
-      @media (prefers-reduced-motion:reduce){.op-glow-btn,.op-glow-btn::after{animation:none}}
       /* Popup */
       .op-modal{position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;padding:2vh 2vw;
         background:rgba(15,23,42,.6);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}

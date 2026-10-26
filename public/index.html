@@ -672,7 +672,7 @@ async function login(ev){
     btn.querySelector('.btn-label').textContent = 'Welcome!';
     // App pehle se laana shuru — BOOM ke beech download ho jaata hai
     try { const l = document.createElement('link'); l.rel = 'prefetch'; l.href = '/app'; document.head.appendChild(l); } catch (e) {}
-    loginBoom(String(d.name || '').trim().split(/\s+/)[0] || '');
+    loginBoom(String(d.name || '').trim().replace(/\s+/g, ' '));   // pura naam (Harsh, 26 Oct 2026 — pehle sirf pehla shabd aata tha)
   }catch(e){ loginFail('Server error. Try again.'); }
 }
 
@@ -690,7 +690,7 @@ async function login(ev){
 })();
 
 // ══ BOOM — sahi login par chakra tez ghoome, usme se glove ka mukka, BOOM!, confetti, phir app ══
-function loginBoom(firstName) {
+function loginBoom(fullName) {
   const go = () => window.location.replace('/app');
   // Kuch bhi atke — app 3 second me zaroor khule
   const safety = setTimeout(go, 3200);
@@ -796,19 +796,33 @@ function loginBoom(firstName) {
     // 3. WELCOME, NAAM!
     setTimeout(() => {
       const wel = document.createElement('div'); wel.className = 'boom-welcome';
-      const name = (firstName || 'Champ').toUpperCase() + '!';
+      const name = (fullName || 'Champ').toUpperCase() + '!';
       wel.innerHTML = '<div class="w1">WELCOME BACK</div><div class="w2"></div><div class="w3">Let\'s crush today\'s tasks 🥊</div>';
       const w2 = wel.querySelector('.w2');
-      [...name].forEach((ch, i) => {
+      // Lamba naam bhi ek line me aaye: font naam ki lambai ke hisaab se chhota (kam se kam 30px).
+      // Chaudai clientWidth se — animation ke udte saamaan se phone par innerWidth galat (bada) aata hai.
+      const vw = document.documentElement.clientWidth || window.innerWidth;
+      const avail = Math.min(vw * 0.92, 900), base = Math.min(110, Math.max(44, vw * 0.085));
+      let fs = Math.max(30, Math.min(base, avail / (name.length * 0.72)));
+      w2.style.fontSize = fs + 'px';
+      // Har shabd ke akshar ek saath rahein — line tootni ho to sirf shabdon ke beech
+      let word = null, i = -1;
+      const step = Math.min(45, 500 / name.length);   // lamba naam bhi app khulne se pehle poora gir jaaye
+      [...name].forEach(ch => {
+        if (ch === ' ') { w2.appendChild(document.createTextNode(' ')); word = null; return; }
+        if (!word) { word = document.createElement('span'); word.style.cssText = 'opacity:1;white-space:nowrap'; w2.appendChild(word); }
+        i++;
         const s = document.createElement('span');
-        s.className = 'nm'; s.textContent = ch === ' ' ? ' ' : ch;
-        w2.appendChild(s);
+        s.className = 'nm'; s.textContent = ch;
+        word.appendChild(s);
         s.animate([{ opacity: 0, transform: 'translateY(-60px) rotate(-12deg) scale(.6)' },
                    { opacity: 1, transform: 'translateY(6px) rotate(2deg) scale(1.08)', offset: .7 },
                    { opacity: 1, transform: 'none' }],
-          { duration: 420, delay: 60 + i * 45, easing: 'cubic-bezier(.34,1.56,.64,1)', fill: 'forwards' });
+          { duration: 420, delay: 60 + i * step, easing: 'cubic-bezier(.34,1.56,.64,1)', fill: 'forwards' });
       });
       layer.appendChild(wel);
+      // Screen par naap kar: do line ban rahi ho to font aur chhota (30px tak; usse bhi lamba ho to shabdon par line tootegi)
+      while (fs > 30 && w2.getBoundingClientRect().height > fs * 1.6) { fs -= 2; w2.style.fontSize = fs + 'px'; }
       wel.querySelector('.w1').animate([{ opacity: 0, letterSpacing: '18px' }, { opacity: 1, letterSpacing: '6px' }], { duration: 450, fill: 'forwards', easing: 'ease-out' });
       wel.querySelector('.w3').animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 450, delay: 380, fill: 'forwards', easing: 'ease-out' });
     }, 1050);
