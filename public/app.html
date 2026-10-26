@@ -19270,7 +19270,9 @@ async function gsLoadCost(id) {
   if (!src) return showToast('That cost sheet is no longer available', 'error');
   if (_gs.ops.some(o => String(o.op || '').trim()) && !confirm('Replace the operations with the ones from this cost sheet?')) return;
   _gs.head.buyer = src.buyer || ''; _gs.head.style = src.style || ''; _gs.head.rateDate = src.sheet_date || '';
-  const items = (src.rows || []).filter(r => r.type !== 'total' && String(r.op || '').trim());
+  // Print out PDF jaisa: sirf pehle TOTAL tak ke operation — uske neeche wale nahi (Harsh, 26 Oct 2026)
+  const srcRows = src.rows || [], firstTot = srcRows.findIndex(r => r.type === 'total');
+  const items = (firstTot >= 0 ? srcRows.slice(0, firstTot) : srcRows).filter(r => r.type !== 'total' && String(r.op || '').trim());
   _gs.ops = items.map(r => ({ ...gsBlankOp(), op: r.op, rate: String(r.newRate || r.rate || '') }));
   for (let i = 0; i < GS_BLANK_OPS; i++) _gs.ops.push(gsBlankOp());
   gsRender();
