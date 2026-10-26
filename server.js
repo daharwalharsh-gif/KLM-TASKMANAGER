@@ -6186,6 +6186,59 @@ async function kpFileMime(fileId) {
   return r.data.mimeType;
 }
 
+// ══════════════════════════════════════════════════════
+// OWNER PRESENTATION — Drive ki PDF app ke raaste (Harsh, 26 Oct 2026)
+// App khud PDF dikhati hai (har page poori chaudai me, Drive viewer ke kaale
+// kinare nahi), isliye file yahan se jaati hai. Sirf in file ki ijazat —
+// server koi khula Drive proxy nahi banta. Range (1 MB ke tukde) hi deta hai:
+// Vercel ki 4.5 MB response hadd kabhi nahi lagti aur browser saare tukde ek
+// saath mangwa leta hai. Nayi file jodni ho to yahan bhi aur app.html ki
+// OWNER_DECKS list me bhi id daalo.
+// ══════════════════════════════════════════════════════
+const OWNER_DECK_IDS = ['1JUAFbzWi96JEszZCHX23YS2UN7710LLh', '1yrW0aN2g3pzdYHmhBpzet22vud_Des27', '1kDCS-9LGUf1yLnBFA8YRMyCGi-zaILkg'];
+const DECK_CHUNK = 1048576;
+let _deckAuth = null;
+async function deckToken() {
+  if (!_deckAuth) {
+    const { google } = require('googleapis');
+    const creds = process.env.GOOGLE_CREDENTIALS ? JSON.parse(process.env.GOOGLE_CREDENTIALS) : require('./credentials.json');
+    _deckAuth = new google.auth.GoogleAuth({ credentials: creds, scopes: ['https://www.googleapis.com/auth/drive.readonly'] });
+  }
+  return _deckAuth.getAccessToken();
+}
+// size + modifiedTime — browser isi se tay karta hai ki save ki hui copy abhi bhi taaza hai
+app.get('/api/owner-deck/:id/meta', requireAuth, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    if (!OWNER_DECK_IDS.includes(id)) return res.status(404).json({ error: 'File not found' });
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,size,modifiedTime&supportsAllDrives=true`,
+      { headers: { Authorization: 'Bearer ' + await deckToken() } });
+    const j = await r.json();
+    if (!r.ok) return res.status(502).json({ error: (j.error && j.error.message) || 'Drive did not answer' });
+    res.json({ name: j.name, size: +j.size || 0, modifiedTime: j.modifiedTime || '' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/owner-deck/:id', requireAuth, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    if (!OWNER_DECK_IDS.includes(id)) return res.status(404).json({ error: 'File not found' });
+    const m = /^bytes=(\d+)-(\d*)$/.exec(String(req.headers.range || ''));
+    const a = m ? +m[1] : 0;
+    let b = m && m[2] !== '' ? +m[2] : a + DECK_CHUNK - 1;
+    if (b - a + 1 > 2 * DECK_CHUNK) b = a + 2 * DECK_CHUNK - 1;     // ek jawab me 2 MB se zyada nahi
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`,
+      { headers: { Authorization: 'Bearer ' + await deckToken(), Range: `bytes=${a}-${b}` } });
+    if (!r.ok) return res.status(r.status === 416 ? 416 : 502).json({ error: 'Drive download failed (' + r.status + ')' });
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.status(r.status);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Accept-Ranges', 'bytes');
+    if (r.headers.get('content-range')) res.setHeader('Content-Range', r.headers.get('content-range'));
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.end(buf);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/ratelist/gsheet', requireAuth, requireAdmin, async (req, res) => {
   try {
     const p = req.body || {};

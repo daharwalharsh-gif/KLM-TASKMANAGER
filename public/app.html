@@ -617,6 +617,10 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
       <span class="nav-label-text">Owner Dashboard</span>
     </div>
+    <div class="nav-item" id="nav-presentation" style="display:none" onclick="navigate('presentation',this)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18M5 4v10a2 2 0 002 2h10a2 2 0 002-2V4M12 16v4m-4 0h8M9 12l2-2 2 2 3-3"/></svg>
+      <span class="nav-label-text">Owner Presentation</span>
+    </div>
     <div class="nav-item" onclick="navigate('alltasks',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
       <span class="nav-label-text">All Tasks</span>
@@ -2711,6 +2715,65 @@ tbody tr:last-child td{border-bottom:none;}
     .pm-pop-list span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .pm-pop-foot{display:flex;gap:7px;justify-content:flex-end;margin-top:9px}
   </style>
+  <!-- Owner Presentation — Google Drive ki 3 PDF app ke andar (Harsh, 26 Oct 2026) -->
+  <div id="page-presentation" class="page">
+    <style>
+      #page-presentation{background:linear-gradient(180deg,#f5f9ff 0%,#eff6ff 100%);border-radius:20px;padding:18px 18px 22px;}
+      .op-head{margin-bottom:14px}
+      .op-head h2{font-size:22px;font-weight:800;color:#1e3a8a;margin:0}
+      .op-head p{font-size:12.5px;color:#64748b;margin-top:3px}
+      .op-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+      .op-tab{display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid #dbeafe;border-radius:16px;padding:13px 15px;cursor:pointer;
+        text-align:left;font-family:inherit;transition:transform .15s,box-shadow .15s,border-color .15s;box-shadow:0 4px 14px rgba(37,99,235,.07);min-width:0}
+      .op-tab:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(37,99,235,.14)}
+      .op-tab.on{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#fff);box-shadow:0 10px 26px rgba(37,99,235,.2)}
+      .op-ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:20px;flex-shrink:0;background:#eef2ff}
+      .op-tab.on .op-ico{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}
+      .op-t{display:block;font-size:14px;font-weight:800;color:#1e293b;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .op-s{display:block;font-size:11.5px;color:#64748b;margin-top:2px}
+      .op-viewer{background:#fff;border:1px solid #dbeafe;border-radius:18px;overflow:hidden;box-shadow:0 8px 26px rgba(37,99,235,.1)}
+      .op-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #e2e8f0;background:#f8fafc}
+      .op-bar b{font-size:13.5px;color:#1e3a8a}
+      .op-bar a.btn{text-decoration:none}
+      .op-nav{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:#334155}
+      .op-nav button{width:30px;height:30px;padding:0;justify-content:center}
+      .op-frames{position:relative;height:calc(100vh - 290px);min-height:460px;background:#e9eef5}
+      .op-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:12px 0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+      .op-page{position:relative;width:var(--pw,96%);margin:0 auto 12px;background:#fff;border-radius:4px;overflow:hidden;
+        box-shadow:0 2px 12px rgba(15,23,42,.16)}
+      .op-page img{position:absolute;inset:0;width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none}
+      .op-load{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#334155;font-size:13.5px}
+      .op-prog{width:240px;max-width:70%;height:6px;background:#cbd5e1;border-radius:6px;overflow:hidden}
+      .op-prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#60a5fa,#2563eb);transition:width .15s}
+      .op-load small{color:#64748b}
+      .op-viewer:fullscreen{border-radius:0;border:0}
+      .op-viewer:fullscreen .op-frames{height:calc(100vh - 53px)}
+      .op-viewer:fullscreen .op-page{margin-bottom:16px}
+      @media (max-width:760px){ .op-tabs{grid-template-columns:1fr} .op-frames{height:72vh;min-height:380px} }
+    </style>
+    <div class="op-head">
+      <h2>Owner Presentation</h2>
+      <p>Product catalogue, custom range and fabric library — pick one to view and present it here</p>
+    </div>
+    <div class="op-tabs" id="opTabs"></div>
+    <div class="op-viewer" id="opViewer">
+      <div class="op-bar">
+        <b id="opTitle"></b>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <div class="op-nav">
+            <button class="btn btn-outline btn-sm" onclick="opStep(-1)" title="Previous page (←)">‹</button>
+            <span id="opPageNo">—</span>
+            <button class="btn btn-outline btn-sm" onclick="opStep(1)" title="Next page (→)">›</button>
+          </div>
+          <button class="btn btn-outline btn-sm" id="opFsBtn" onclick="opFullscreen()">⛶ Full screen</button>
+          <a class="btn btn-outline btn-sm" id="opOpen" target="_blank" rel="noopener">↗ Open in Drive</a>
+          <a class="btn btn-outline btn-sm" id="opDown" target="_blank" rel="noopener">⬇ Download</a>
+        </div>
+      </div>
+      <div class="op-frames" id="opFrames"></div>
+    </div>
+  </div>
+
   <!-- Meca Offline — Sales NBD FMS (Outgoing / Incoming) customer-wise connects -->
   <div id="page-meca" class="page">
     <style>
@@ -4369,6 +4432,7 @@ async function init() {
       'ea@klmahajan.com'];   // Ms. Priyanka (EA)
     if (OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
       document.getElementById('nav-owner').style.display = 'flex';
+      document.getElementById('nav-presentation').style.display = 'flex';
     }
     // In logon ko MIS ki saari reports dikhti hain (role user hi rehta hai —
     // baaki admin cheezein inke liye pehle jaisi hi band hain)
@@ -4520,7 +4584,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',meca:'Meca Offline',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List',accounts:'Accounts Department'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',presentation:'Owner Presentation',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',meca:'Meca Offline',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List',accounts:'Accounts Department'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -4530,6 +4594,7 @@ function navigate(page, el) {
   document.getElementById('topbarTitle').textContent = pageTitles[page] || page;
   if (page==='dashboard') loadDashboard();
   if (page==='owner') loadOwnerDashboard();
+  if (page==='presentation') loadOwnerPresentation();
   if (page==='alltasks') loadAllTasks();
   if (page==='users') loadUsers();
   if (page==='approvals') loadApprovals();
@@ -4549,6 +4614,278 @@ function navigate(page, el) {
   closeSidebar();   // mobile drawer band karo nav ke baad
   window.scrollTo(0,0);
 }
+
+// ══════════════════════════════════════════════════════
+// OWNER PRESENTATION — Google Drive ki 3 PDF app ke andar (Harsh, 26 Oct 2026)
+// Drive ka viewer page ko beech me chhota rakhta tha (dono taraf kaala) —
+// isliye ab app khud PDF.js se dikhati hai: har page poori chaudai me (Full
+// screen me poora page screen me fit). File /api/owner-deck se 1 MB ke tukdon
+// me ek saath aati hai, aur browser me save ho jaati hai (Drive par file badle
+// to apne aap nayi). Sirf screen ke aas-paas wale page bante hain, door wale
+// mita diye jaate hain — isliye 40+ page par bhi scroll smooth rehta hai.
+// Nayi file jodni ho to is list me aur server.js ki OWNER_DECK_IDS me id daalo.
+// ══════════════════════════════════════════════════════
+const OWNER_DECKS = [
+  // bytes = file ka size: saare tukde bina ruke ek saath maang lete hain (Drive par file badle to apne aap sahi size se dobara)
+  { id: '1JUAFbzWi96JEszZCHX23YS2UN7710LLh', name: 'Tego Product Catalogue KLM', size: '1.9 MB', bytes: 2044099, icon: '📘' },
+  { id: '1yrW0aN2g3pzdYHmhBpzet22vud_Des27', name: 'Title Boxing Custom Range', size: '3.9 MB', bytes: 4136478, icon: '🥊' },
+  { id: '1kDCS-9LGUf1yLnBFA8YRMyCGi-zaILkg', name: 'KLM Fabric Library', size: '2.4 MB', bytes: 2537035, icon: '🧵' }
+];
+const OP_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+let _opCur = 0, _opLib = null, _opRO = null;
+const _opDocs = {};   // deck no. -> { scroll, pdf, pages, w, cur, ready }
+function loadOwnerPresentation() {
+  if (!_opRO && window.ResizeObserver) {   // khidki / sidebar / full screen se chaudai badle to page dobara fit
+    _opRO = new ResizeObserver(() => requestAnimationFrame(() => { const d = _opDocs[_opCur]; if (d) opLayout(d); }));
+    _opRO.observe(document.getElementById('opFrames'));
+  }
+  opShow(_opCur);
+}
+// PDF.js sirf is page par pehli baar aane par aata hai
+function opLib() {
+  if (_opLib) return _opLib;
+  _opLib = new Promise((ok, no) => {
+    const s = document.createElement('script');
+    s.src = OP_PDFJS + 'pdf.min.js';
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = OP_PDFJS + 'pdf.worker.min.js'; ok(window.pdfjsLib); };
+    s.onerror = () => { _opLib = null; no(new Error('Could not load the PDF viewer — check the internet connection')); };
+    document.head.appendChild(s);
+  });
+  return _opLib;
+}
+function opShow(i) {
+  _opCur = i;
+  const d = OWNER_DECKS[i];
+  document.getElementById('opTabs').innerHTML = OWNER_DECKS.map((x, k) =>
+    `<button class="op-tab${k === i ? ' on' : ''}" onclick="opShow(${k})"><span class="op-ico">${x.icon}</span>
+      <span style="min-width:0"><span class="op-t">${escapeHtml(x.name)}</span><span class="op-s">PDF · ${x.size}</span></span></button>`).join('');
+  document.getElementById('opTitle').textContent = d.icon + ' ' + d.name;
+  document.getElementById('opOpen').href = 'https://drive.google.com/file/d/' + d.id + '/view';
+  document.getElementById('opDown').href = 'https://drive.google.com/uc?export=download&id=' + d.id;
+  const box = document.getElementById('opFrames');
+  box.querySelectorAll('.op-scroll').forEach(x => { x.style.display = 'none'; });
+  let doc = _opDocs[i];
+  if (!doc) {
+    doc = _opDocs[i] = { i, pages: [], w: 0, cur: 1, ready: false };
+    doc.scroll = document.createElement('div');
+    doc.scroll.className = 'op-scroll';
+    box.appendChild(doc.scroll);
+    opLoadDeck(doc);
+  }
+  doc.scroll.style.display = '';
+  if (doc.ready) { opLayout(doc); opKick(doc); }
+  opCounter();
+}
+// ── Browser me save copy (IndexedDB): doosri baar file turant khulti hai ──
+function opDb() {
+  if (!opDb.p) opDb.p = new Promise((ok, no) => {
+    const r = indexedDB.open('klm-owner-decks', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('files');
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => no(r.error);
+  });
+  return opDb.p;
+}
+async function opDbGet(id) {
+  try {
+    const db = await opDb();
+    return await new Promise(ok => { const q = db.transaction('files').objectStore('files').get(id); q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null); });
+  } catch (e) { return null; }
+}
+async function opDbPut(id, rec) {
+  try { const db = await opDb(); db.transaction('files', 'readwrite').objectStore('files').put(rec, id); } catch (e) { /* save na ho to bas agli baar dobara download */ }
+}
+// Drive se 1 MB ke tukde, sab ek saath. Size pehle se pata hai; Drive par badal gayi ho to sahi size se dobara.
+async function opDownload(d, onProg) {
+  const tok = localStorage.getItem('authToken'), CH = 1048576;
+  const run = async size => {
+    const out = new Uint8Array(size);
+    let got = 0, total = size;
+    await Promise.all(Array.from({ length: Math.max(1, Math.ceil(size / CH)) }, async (_, k) => {
+      const a = k * CH, b = Math.min(size, a + CH) - 1;
+      const r = await fetch('/api/owner-deck/' + d.id, { credentials: 'include',
+        headers: Object.assign({ Range: 'bytes=' + a + '-' + b }, tok ? { Authorization: 'Bearer ' + tok } : {}) });
+      if (r.status === 416) { total = 0; return; }               // file chhoti ho gayi
+      if (!r.ok) throw new Error('Download failed (' + r.status + ') — please try again');
+      total = +String(r.headers.get('content-range') || '').split('/')[1] || total;
+      const part = new Uint8Array(await r.arrayBuffer());
+      out.set(part.subarray(0, Math.max(0, size - a)), a);
+      got += part.length; onProg(Math.min(1, got / size));
+    }));
+    return { out, total };
+  };
+  let res = await run(d.bytes);
+  if (res.total !== d.bytes) {
+    const m = await api('/api/owner-deck/' + d.id + '/meta');
+    if (!m || m.error || !m.size) throw new Error((m && m.error) || 'Could not reach the file');
+    d.bytes = m.size;
+    res = await run(m.size);
+  }
+  return res.out;
+}
+// Ek file ek hi baar aati hai (khulte waqt ya peeche se) — ArrayBuffer, saved ya naya
+const _opDl = {};
+function opFetch(d, onProg) {
+  let job = _opDl[d.id];
+  if (!job) {
+    job = _opDl[d.id] = { prog: new Set() };
+    job.p = (async () => {
+      const saved = await opDbGet(d.id);
+      if (saved && saved.buf) { opCheckFresh(d, saved); return saved.buf; }
+      const metaP = api('/api/owner-deck/' + d.id + '/meta').catch(() => null);   // version — rukte nahi
+      const out = await opDownload(d, p => job.prog.forEach(f => f(p)));
+      metaP.then(m => opDbPut(d.id, { v: (m && m.modifiedTime) || '', size: out.length, buf: out.buffer }));
+      return out.buffer;
+    })().catch(e => { delete _opDl[d.id]; throw e; });
+  }
+  if (onProg) job.prog.add(onProg);
+  return job.p;
+}
+// Saved copy turant dikhti hai; peeche se dekh lo Drive par file badli to nahi — badli ho to nayi le aao
+function opCheckFresh(d, saved) {
+  api('/api/owner-deck/' + d.id + '/meta').then(m => {
+    if (!m || m.error || !m.modifiedTime || (m.modifiedTime === saved.v && +m.size === saved.size)) return;
+    d.bytes = +m.size || d.bytes;
+    return opDownload(d, () => {}).then(out => {
+      opDbPut(d.id, { v: m.modifiedTime, size: out.length, buf: out.buffer });
+      _opDl[d.id] = { prog: new Set(), p: Promise.resolve(out.buffer) };
+      const i = OWNER_DECKS.indexOf(d), doc = _opDocs[i];
+      if (doc) { if (doc.io) doc.io.disconnect(); doc.pages.forEach(p => p.url && URL.revokeObjectURL(p.url)); doc.scroll.remove(); delete _opDocs[i]; }
+      if (i === _opCur && document.getElementById('page-presentation').classList.contains('active')) opShow(i);
+      showToast('📄 ' + d.name + ' updated to the latest version');
+    });
+  }).catch(() => {});
+}
+async function opLoadDeck(doc) {
+  const d = OWNER_DECKS[doc.i];
+  doc.scroll.innerHTML = `<div class="op-load"><div>⏳ Opening <b>${escapeHtml(d.name)}</b>…</div><div class="op-prog"><i></i></div><small>0%</small></div>`;
+  const bar = doc.scroll.querySelector('.op-prog i'), pct = doc.scroll.querySelector('.op-load small');
+  try {
+    const [lib, buf] = await Promise.all([opLib(), opFetch(d, p => { const v = Math.round(p * 100) + '%'; bar.style.width = v; pct.textContent = v; })]);
+    pct.textContent = 'Preparing pages…';
+    doc.pdf = await lib.getDocument({ data: new Uint8Array(buf.slice(0)) }).promise;   // copy — PDF.js asli buffer le jaata hai
+    const vps = await Promise.all(Array.from({ length: doc.pdf.numPages }, (_, k) => doc.pdf.getPage(k + 1).then(p => p.getViewport({ scale: 1 }))));
+    doc.scroll.innerHTML = '';
+    doc.pages = vps.map((vp, k) => {
+      const el = document.createElement('div');
+      el.className = 'op-page'; el.dataset.k = k; el.style.aspectRatio = vp.width + ' / ' + vp.height;
+      doc.scroll.appendChild(el);
+      return { el, w: vp.width, h: vp.height, img: null, url: '', at: 0, near: false };
+    });
+    doc.ready = true;
+    opLayout(doc);
+    // kaun se page screen par (ya aadhi screen tak paas) hain — wahi pehle bante hain
+    doc.io = new IntersectionObserver(es => {
+      es.forEach(e => { doc.pages[+e.target.dataset.k].near = e.isIntersecting; });
+      // door wala page ban raha ho aur saamne wala khaali ho — use rok do
+      if (doc.task && doc.taskK != null && !doc.pages[doc.taskK].near && doc.pages.some(p => p.near && p.at !== doc.w)) doc.task.cancel();
+      opKick(doc);
+    }, { root: doc.scroll, rootMargin: '50% 0px' });
+    doc.pages.forEach(pg => doc.io.observe(pg.el));
+    let raf = 0;
+    doc.scroll.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; opTrack(doc); }); }, { passive: true });
+    opCounter();
+    // baaki files peeche se le aao — tab badalte hi turant khulein
+    OWNER_DECKS.forEach(x => { if (x !== d) opFetch(x).catch(() => {}); });
+  } catch (e) {
+    doc.scroll.innerHTML = `<div class="op-load"><div style="color:#b91c1c">⚠️ ${escapeHtml(e.message || 'Could not open this file')}</div>
+      <button class="btn btn-outline btn-sm" onclick="opRetry(${doc.i})">↻ Try again</button></div>`;
+  }
+}
+function opRetry(i) { const d = _opDocs[i]; if (d) { d.scroll.remove(); delete _opDocs[i]; } opShow(i); }
+// Page ki chaudai: normal me poori chaudai, Full screen me poora page screen ke andar
+function opLayout(doc) {
+  if (!doc.ready || doc.scroll.style.display === 'none' || !doc.pages.length) return;
+  const cw = doc.scroll.clientWidth, ch = doc.scroll.clientHeight;
+  if (!cw) return;
+  let w = Math.max(200, cw - 24);
+  if (document.fullscreenElement) w = Math.min(w, Math.floor((ch - 28) * doc.pages[0].w / doc.pages[0].h));
+  if (w === doc.w) return;
+  const keep = doc.cur;
+  doc.w = w;
+  doc.scroll.style.setProperty('--pw', w + 'px');
+  opGo(doc, keep, false);
+  opKick(doc);       // purani tasveer khinch kar dikhti rehti hai jab tak nayi na ban jaye
+}
+// Ek waqt me ek page banta hai: pehle jo screen par hai (current ke sabse paas), phir
+// aage-peeche wale, phir baaki saare peeche se — taaki poora deck jaldi smooth ho jaye.
+// Bana hua page JPEG tasveer ban kar rehta hai, wapas aane par dobara nahi banta.
+function opKick(doc) {
+  if (doc.busy || !doc.ready || !doc.w || doc.scroll.style.display === 'none') return;
+  if (!document.getElementById('page-presentation').classList.contains('active')) return;
+  const w = doc.w, cur = doc.cur - 1;
+  let pick = -1, best = Infinity;
+  doc.pages.forEach((pg, k) => {
+    if (pg.at === w) return;
+    const score = Math.abs(k - cur) + (k < cur ? 0.5 : 0) + (pg.near ? 0 : 1000);
+    if (score < best) { best = score; pick = k; }
+  });
+  if (pick < 0) return;
+  doc.busy = true;
+  opDraw(doc, pick).finally(() => { doc.busy = false; setTimeout(() => opKick(doc), best >= 1000 ? 40 : 0); });
+}
+async function opDraw(doc, k) {
+  const pg = doc.pages[k], w = doc.w;
+  doc.taskK = k;
+  try {
+    const page = await doc.pdf.getPage(k + 1);
+    const vp = page.getViewport({ scale: (w / pg.w) * Math.min(window.devicePixelRatio || 1, 2) });
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+    doc.task = page.render({ canvasContext: c.getContext('2d', { alpha: false }), viewport: vp });
+    await doc.task.promise;
+    doc.task = null;
+    const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.92));
+    c.width = c.height = 0;
+    if (!blob) throw 0;
+    if (!pg.img) { pg.img = document.createElement('img'); pg.img.alt = ''; pg.img.decoding = 'async'; pg.el.appendChild(pg.img); }
+    const old = pg.url;
+    pg.url = URL.createObjectURL(blob);
+    pg.img.onload = () => { if (old) URL.revokeObjectURL(old); };
+    pg.img.src = pg.url;
+    pg.at = w;
+  } catch (e) { /* ruk gaya / fail — agli baar dobara ban jayega */ }
+  doc.task = null; doc.taskK = null;
+}
+function opTrack(doc) {
+  const y = doc.scroll.scrollTop + doc.scroll.clientHeight / 3;
+  let cur = 1;
+  for (let k = 0; k < doc.pages.length; k++) { if (doc.pages[k].el.offsetTop <= y) cur = k + 1; else break; }
+  if (cur !== doc.cur) { doc.cur = cur; opCounter(); }
+}
+function opCounter() {
+  const doc = _opDocs[_opCur], el = document.getElementById('opPageNo');
+  if (el) el.textContent = doc && doc.ready ? 'Page ' + doc.cur + ' / ' + doc.pages.length : '—';
+}
+function opGo(doc, n, smooth) {
+  const pg = doc.pages[Math.max(1, Math.min(doc.pages.length, n)) - 1];
+  if (!pg) return;
+  doc.cur = +pg.el.dataset.k + 1; opCounter();
+  doc.scroll.scrollTo({ top: pg.el.offsetTop - 12, behavior: smooth ? 'smooth' : 'auto' });
+}
+function opStep(dir) { const doc = _opDocs[_opCur]; if (doc && doc.ready) opGo(doc, doc.cur + dir, true); }
+// ← → / Page Up-Down se agla-pichhla page (Full screen me ↑ ↓ bhi)
+document.addEventListener('keydown', e => {
+  const pageEl = document.getElementById('page-presentation');
+  if (!pageEl || !pageEl.classList.contains('active') || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) return;
+  const fs = !!document.fullscreenElement;
+  const next = e.key === 'ArrowRight' || e.key === 'PageDown' || (fs && (e.key === 'ArrowDown' || e.key === ' '));
+  const prev = e.key === 'ArrowLeft' || e.key === 'PageUp' || (fs && e.key === 'ArrowUp');
+  if (next || prev) { e.preventDefault(); opStep(next ? 1 : -1); }
+});
+// Poori screen par dikhana (meeting me present karne ke liye); Esc ya dobara click se wapas
+function opFullscreen() {
+  const v = document.getElementById('opViewer');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (v.requestFullscreen) v.requestFullscreen();
+  else if (v.webkitRequestFullscreen) v.webkitRequestFullscreen();
+}
+document.addEventListener('fullscreenchange', () => {
+  const b = document.getElementById('opFsBtn');
+  if (b) b.textContent = document.fullscreenElement ? '✕ Exit full screen' : '⛶ Full screen';
+  const d = _opDocs[_opCur];
+  if (d) requestAnimationFrame(() => opLayout(d));
+});
 
 // ── Mobile sidebar drawer toggle ──
 function toggleSidebar() {
@@ -12084,6 +12421,7 @@ function buildMobileNav() {
   const wanted = [
     { page: 'dashboard', label: 'Home' },
     { page: 'owner',     label: 'Owner' },
+    { page: 'presentation', label: 'Slides' },
     { page: 'alltasks',  label: 'Tasks' },
     { page: 'approvals', label: 'Approvals' },
     { page: 'users',     label: 'Users' },
