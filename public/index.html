@@ -85,7 +85,7 @@
   @keyframes barShine{from{transform:translateX(-100%)}to{transform:translateX(330%)}}
   @media (max-width:480px){
     .login-wrap{ padding:30px 22px 24px; }
-    .logo-img-wrap img{ width:160px; }
+    .logo-img-wrap img{ width:140px; }
   }
   @keyframes cardIn {
     from { opacity:0; transform:translateX(40px) scale(.96); }
@@ -109,7 +109,7 @@
     to   { opacity:1; transform:translateY(0)     scale(1);  }
   }
   .logo-img-wrap img {
-    width:220px;
+    width:170px;
     display:block;
     filter: drop-shadow(0 4px 12px rgba(120,100,50,.14));
     animation: logoFloat 3.5s ease-in-out 1.2s infinite;
@@ -147,7 +147,7 @@
   }
   /* Sabse upar: K.L. MAHAJAN & SONS + tagline (Harsh, 26 Oct 2026) */
   .klm-brand{display:flex;flex-direction:column;align-items:center;width:100%;margin-bottom:16px;animation:tagIn .5s ease .15s both}
-  .klm-name{font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:22px;letter-spacing:.8px;color:#1f2b22;line-height:1.1}
+  .klm-name{font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:28px;letter-spacing:.8px;color:#1f2b22;line-height:1.1}
   .klm-tag{display:flex;align-items:center;gap:8px;width:100%;margin-top:5px;font-size:9.5px;font-weight:700;letter-spacing:1.1px;
     color:#b0893a;white-space:nowrap}
   .klm-tag span{flex:1;height:1px;background:linear-gradient(90deg,rgba(214,193,140,0),#d6c18c)}
@@ -156,6 +156,8 @@
   .tm-row{display:flex;align-items:center;gap:10px;margin-top:16px;font-size:24px;font-weight:600;color:#1f2b22;letter-spacing:-.2px;
     animation:tagIn .5s ease 1.1s both}
   .tm-row svg{width:28px;height:28px;color:#4f6b3a;flex-shrink:0}
+  /* phone par naam aur logo thode chhote (ye niyam upar wale ke baad aana zaroori hai) */
+  @media (max-width:480px){ .klm-name{font-size:23px} .logo-img-wrap img{width:140px} }
 
   /* ── Form ── */
   h2{font-family:'Playfair Display',Georgia,serif;font-size:33px;font-weight:700;color:#1f2b22;margin-bottom:4px;text-align:center;letter-spacing:-.2px;}
