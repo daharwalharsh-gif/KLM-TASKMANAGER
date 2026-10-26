@@ -1193,7 +1193,7 @@ app.post('/api/login', async (req, res) => {
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
-    res.json({ id: user.id, name: user.name, email: user.email, role: user.role, token });
+    res.json({ id: user.id, name: user.name, title: user.title || '', email: user.email, role: user.role, token });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

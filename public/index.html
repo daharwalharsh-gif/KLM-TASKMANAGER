@@ -148,6 +148,8 @@
   /* Sabse upar: K.L. MAHAJAN & SONS + tagline (Harsh, 26 Oct 2026) */
   .klm-brand{display:flex;flex-direction:column;align-items:center;width:100%;margin-bottom:16px;animation:tagIn .5s ease .15s both}
   .klm-name{font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:28px;letter-spacing:.8px;color:#1f2b22;line-height:1.1}
+  /* Playfair ka & sajawati (Et jaisa) dikhta hai — seedha & chahiye (Harsh, 26 Oct 2026) */
+  .klm-name .amp{font-family:Georgia,'Times New Roman',serif;font-weight:700}
   .klm-tag{display:flex;align-items:center;gap:8px;width:100%;margin-top:5px;font-size:9.5px;font-weight:700;letter-spacing:1.1px;
     color:#b0893a;white-space:nowrap}
   .klm-tag span{flex:1;height:1px;background:linear-gradient(90deg,rgba(214,193,140,0),#d6c18c)}
@@ -541,7 +543,7 @@
     <!-- Logo -->
     <div class="logo-section">
       <div class="klm-brand">
-        <div class="klm-name">K.L. MAHAJAN &amp; SONS</div>
+        <div class="klm-name">K.L. MAHAJAN <span class="amp">&amp;</span> SONS</div>
         <div class="klm-tag"><span></span>YOUR BRAND. OUR MANUFACTURING EXPERTISE.<span></span></div>
       </div>
       <div class="logo-img-wrap">
@@ -672,7 +674,8 @@ async function login(ev){
     btn.querySelector('.btn-label').textContent = 'Welcome!';
     // App pehle se laana shuru — BOOM ke beech download ho jaata hai
     try { const l = document.createElement('link'); l.rel = 'prefetch'; l.href = '/app'; document.head.appendChild(l); } catch (e) {}
-    loginBoom(String(d.name || '').trim().replace(/\s+/g, ' '));   // pura naam (Harsh, 26 Oct 2026 — pehle sirf pehla shabd aata tha)
+    // pura naam, title ke saath — "Mr. Manik Mahajan" (Harsh, 26 Oct 2026 — pehle sirf pehla shabd aata tha)
+    loginBoom([d.title, d.name].map(x => String(x || '').trim()).filter(Boolean).join(' ').replace(/\s+/g, ' '));
   }catch(e){ loginFail('Server error. Try again.'); }
 }
 
