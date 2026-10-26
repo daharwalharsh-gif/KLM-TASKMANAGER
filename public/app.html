@@ -617,10 +617,6 @@ tbody tr:last-child td{border-bottom:none;}
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
       <span class="nav-label-text">Owner Dashboard</span>
     </div>
-    <div class="nav-item" id="nav-presentation" style="display:none" onclick="navigate('presentation',this)">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18M5 4v10a2 2 0 002 2h10a2 2 0 002-2V4M12 16v4m-4 0h8M9 12l2-2 2 2 3-3"/></svg>
-      <span class="nav-label-text">Owner Presentation</span>
-    </div>
     <div class="nav-item" onclick="navigate('alltasks',this)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
       <span class="nav-label-text">All Tasks</span>
@@ -1058,6 +1054,7 @@ tbody tr:last-child td{border-bottom:none;}
       <div><div class="own-hero-t">Owner Dashboard</div>
         <div class="own-hero-s">Pending work, overdue tasks, upcoming risks, order delays, OTD and escalations — all on one screen</div></div>
       <div class="od-hero-r"><span class="od-upd" id="odUpdated"></span>
+        <button class="op-glow-btn" onclick="opModalOpen()" title="Open the KLM Export / Invincible presentations">🎬 Presentation</button>
         <button class="btn btn-outline btn-sm" onclick="odRefresh()">🔄 Refresh</button></div>
     </div>
     <div class="own-card own-flt od-filters">
@@ -2715,29 +2712,57 @@ tbody tr:last-child td{border-bottom:none;}
     .pm-pop-list span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .pm-pop-foot{display:flex;gap:7px;justify-content:flex-end;margin-top:9px}
   </style>
-  <!-- Owner Presentation — Google Drive ki 3 PDF app ke andar (Harsh, 26 Oct 2026) -->
-  <div id="page-presentation" class="page">
+  <!-- Owner Presentation — Owner Dashboard ke chamakte "Presentation" button se popup (Harsh, 26 Oct 2026).
+       Upar KLM Export / Invincible; PDF app khud dikhati hai (PDF.js), poori chaudai me. -->
+  <div id="opModal" class="op-modal">
     <style>
-      #page-presentation{background:linear-gradient(180deg,#f5f9ff 0%,#eff6ff 100%);border-radius:20px;padding:18px 18px 22px;}
-      .op-head{margin-bottom:14px}
-      .op-head h2{font-size:22px;font-weight:800;color:#1e3a8a;margin:0}
+      /* Owner Dashboard ka button — halka sa dhadakta aur chamakta rehta hai */
+      .op-glow-btn{position:relative;overflow:hidden;border:none;border-radius:10px;padding:8px 16px;cursor:pointer;
+        font:800 13px 'Inter',sans-serif;color:#fff;letter-spacing:.2px;background:linear-gradient(135deg,#f97316,#ef4444 45%,#8b5cf6);
+        animation:opPulse 1.8s ease-in-out infinite;transition:transform .15s}
+      .op-glow-btn:hover{transform:translateY(-1px) scale(1.03)}
+      .op-glow-btn::after{content:'';position:absolute;top:0;left:-70%;width:45%;height:100%;
+        background:linear-gradient(115deg,transparent,rgba(255,255,255,.75),transparent);animation:opShine 2.6s ease-in-out infinite}
+      @keyframes opPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.55),0 4px 14px rgba(139,92,246,.35)}
+        50%{box-shadow:0 0 0 9px rgba(239,68,68,0),0 6px 22px rgba(139,92,246,.6)}}
+      @keyframes opShine{0%{left:-70%}55%,100%{left:140%}}
+      @media (prefers-reduced-motion:reduce){.op-glow-btn,.op-glow-btn::after{animation:none}}
+      /* Popup */
+      .op-modal{position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;padding:2vh 2vw;
+        background:rgba(15,23,42,.6);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+      .op-modal.open{display:flex}
+      .op-dlg{width:min(1500px,100%);height:100%;display:flex;flex-direction:column;background:linear-gradient(180deg,#f5f9ff,#eff6ff);
+        border-radius:20px;padding:16px 18px;box-shadow:0 30px 80px rgba(0,0,0,.35);animation:opIn .22s ease-out}
+      @keyframes opIn{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+      .op-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+      .op-head > div:first-child{flex:1;min-width:200px}
+      .op-head h2{font-size:21px;font-weight:800;color:#1e3a8a;margin:0}
       .op-head p{font-size:12.5px;color:#64748b;margin-top:3px}
-      .op-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
-      .op-tab{display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid #dbeafe;border-radius:16px;padding:13px 15px;cursor:pointer;
+      .op-cats{display:flex;gap:4px;background:#e0e7ff;padding:4px;border-radius:12px}
+      .op-cat{border:none;background:transparent;padding:8px 18px;border-radius:9px;font:800 13px 'Inter',sans-serif;color:#3730a3;cursor:pointer;white-space:nowrap}
+      .op-cat.on{background:#fff;color:#1d4ed8;box-shadow:0 2px 10px rgba(37,99,235,.22)}
+      .op-cat small{font-weight:700;color:#64748b;margin-left:4px}
+      #opMain{flex:1;min-height:0;display:flex;flex-direction:column}
+      .op-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;
+        background:#fff;border:1.5px dashed #c7d2fe;border-radius:18px;color:#64748b;font-size:13.5px;padding:20px}
+      .op-empty b{font-size:16px;color:#1e3a8a}
+      .op-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:12px}
+      .op-tab{display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid #dbeafe;border-radius:16px;padding:12px 15px;cursor:pointer;
         text-align:left;font-family:inherit;transition:transform .15s,box-shadow .15s,border-color .15s;box-shadow:0 4px 14px rgba(37,99,235,.07);min-width:0}
       .op-tab:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(37,99,235,.14)}
       .op-tab.on{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#fff);box-shadow:0 10px 26px rgba(37,99,235,.2)}
-      .op-ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:20px;flex-shrink:0;background:#eef2ff}
+      .op-ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:19px;flex-shrink:0;background:#eef2ff}
       .op-tab.on .op-ico{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}
       .op-t{display:block;font-size:14px;font-weight:800;color:#1e293b;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .op-s{display:block;font-size:11.5px;color:#64748b;margin-top:2px}
-      .op-viewer{background:#fff;border:1px solid #dbeafe;border-radius:18px;overflow:hidden;box-shadow:0 8px 26px rgba(37,99,235,.1)}
+      .op-viewer{flex:1;min-height:0;display:flex;flex-direction:column;background:#fff;border:1px solid #dbeafe;border-radius:18px;overflow:hidden;
+        box-shadow:0 8px 26px rgba(37,99,235,.1)}
       .op-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid #e2e8f0;background:#f8fafc}
       .op-bar b{font-size:13.5px;color:#1e3a8a}
       .op-bar a.btn{text-decoration:none}
       .op-nav{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:#334155}
       .op-nav button{width:30px;height:30px;padding:0;justify-content:center}
-      .op-frames{position:relative;height:calc(100vh - 290px);min-height:460px;background:#e9eef5}
+      .op-frames{position:relative;flex:1;min-height:300px;background:#e9eef5}
       .op-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:12px 0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
       .op-page{position:relative;width:var(--pw,96%);margin:0 auto 12px;background:#fff;border-radius:4px;overflow:hidden;
         box-shadow:0 2px 12px rgba(15,23,42,.16)}
@@ -2747,30 +2772,40 @@ tbody tr:last-child td{border-bottom:none;}
       .op-prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#60a5fa,#2563eb);transition:width .15s}
       .op-load small{color:#64748b}
       .op-viewer:fullscreen{border-radius:0;border:0}
-      .op-viewer:fullscreen .op-frames{height:calc(100vh - 53px)}
       .op-viewer:fullscreen .op-page{margin-bottom:16px}
-      @media (max-width:760px){ .op-tabs{grid-template-columns:1fr} .op-frames{height:72vh;min-height:380px} }
+      @media (max-width:760px){
+        .op-modal{padding:0}
+        .op-dlg{border-radius:0;padding:12px}
+        .op-tabs{display:flex;overflow-x:auto;gap:8px}
+        .op-tab{flex:0 0 220px}
+      }
     </style>
-    <div class="op-head">
-      <h2>Owner Presentation</h2>
-      <p>Product catalogue, custom range and fabric library — pick one to view and present it here</p>
-    </div>
-    <div class="op-tabs" id="opTabs"></div>
-    <div class="op-viewer" id="opViewer">
-      <div class="op-bar">
-        <b id="opTitle"></b>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <div class="op-nav">
-            <button class="btn btn-outline btn-sm" onclick="opStep(-1)" title="Previous page (←)">‹</button>
-            <span id="opPageNo">—</span>
-            <button class="btn btn-outline btn-sm" onclick="opStep(1)" title="Next page (→)">›</button>
+    <div class="op-dlg" role="dialog" aria-modal="true" aria-label="Owner Presentation">
+      <div class="op-head">
+        <div><h2>🎬 Owner Presentation</h2><p>Choose KLM Export or Invincible, then pick a presentation to view or present it</p></div>
+        <div class="op-cats" id="opCats"></div>
+        <button class="btn btn-outline btn-sm" onclick="opModalClose()">✕ Close</button>
+      </div>
+      <div class="op-empty" id="opEmpty" style="display:none"></div>
+      <div id="opMain">
+        <div class="op-tabs" id="opTabs"></div>
+        <div class="op-viewer" id="opViewer">
+          <div class="op-bar">
+            <b id="opTitle"></b>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <div class="op-nav">
+                <button class="btn btn-outline btn-sm" onclick="opStep(-1)" title="Previous page (←)">‹</button>
+                <span id="opPageNo">—</span>
+                <button class="btn btn-outline btn-sm" onclick="opStep(1)" title="Next page (→)">›</button>
+              </div>
+              <button class="btn btn-outline btn-sm" id="opFsBtn" onclick="opFullscreen()">⛶ Full screen</button>
+              <a class="btn btn-outline btn-sm" id="opOpen" target="_blank" rel="noopener">↗ Open in Drive</a>
+              <a class="btn btn-outline btn-sm" id="opDown" target="_blank" rel="noopener">⬇ Download</a>
+            </div>
           </div>
-          <button class="btn btn-outline btn-sm" id="opFsBtn" onclick="opFullscreen()">⛶ Full screen</button>
-          <a class="btn btn-outline btn-sm" id="opOpen" target="_blank" rel="noopener">↗ Open in Drive</a>
-          <a class="btn btn-outline btn-sm" id="opDown" target="_blank" rel="noopener">⬇ Download</a>
+          <div class="op-frames" id="opFrames"></div>
         </div>
       </div>
-      <div class="op-frames" id="opFrames"></div>
     </div>
   </div>
 
@@ -4432,7 +4467,6 @@ async function init() {
       'ea@klmahajan.com'];   // Ms. Priyanka (EA)
     if (OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
       document.getElementById('nav-owner').style.display = 'flex';
-      document.getElementById('nav-presentation').style.display = 'flex';
     }
     // In logon ko MIS ki saari reports dikhti hain (role user hi rehta hai —
     // baaki admin cheezein inke liye pehle jaisi hi band hain)
@@ -4584,7 +4618,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',presentation:'Owner Presentation',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',meca:'Meca Offline',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List',accounts:'Accounts Department'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',meca:'Meca Offline',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List',accounts:'Accounts Department'};
 
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -4594,7 +4628,6 @@ function navigate(page, el) {
   document.getElementById('topbarTitle').textContent = pageTitles[page] || page;
   if (page==='dashboard') loadDashboard();
   if (page==='owner') loadOwnerDashboard();
-  if (page==='presentation') loadOwnerPresentation();
   if (page==='alltasks') loadAllTasks();
   if (page==='users') loadUsers();
   if (page==='approvals') loadApprovals();
@@ -4616,7 +4649,8 @@ function navigate(page, el) {
 }
 
 // ══════════════════════════════════════════════════════
-// OWNER PRESENTATION — Google Drive ki 3 PDF app ke andar (Harsh, 26 Oct 2026)
+// OWNER PRESENTATION — Owner Dashboard ke "Presentation" button ka popup (Harsh, 26 Oct 2026)
+// Upar do button: KLM Export / Invincible — har file ka group neeche list me.
 // Drive ka viewer page ko beech me chhota rakhta tha (dono taraf kaala) —
 // isliye ab app khud PDF.js se dikhati hai: har page poori chaudai me (Full
 // screen me poora page screen me fit). File /api/owner-deck se 1 MB ke tukdon
@@ -4627,10 +4661,39 @@ function navigate(page, el) {
 // ══════════════════════════════════════════════════════
 const OWNER_DECKS = [
   // bytes = file ka size: saare tukde bina ruke ek saath maang lete hain (Drive par file badle to apne aap sahi size se dobara)
-  { id: '1JUAFbzWi96JEszZCHX23YS2UN7710LLh', name: 'Tego Product Catalogue KLM', size: '1.9 MB', bytes: 2044099, icon: '📘' },
-  { id: '1yrW0aN2g3pzdYHmhBpzet22vud_Des27', name: 'Title Boxing Custom Range', size: '3.9 MB', bytes: 4136478, icon: '🥊' },
-  { id: '1kDCS-9LGUf1yLnBFA8YRMyCGi-zaILkg', name: 'KLM Fabric Library', size: '2.4 MB', bytes: 2537035, icon: '🧵' }
+  { group: 'klm', id: '1JUAFbzWi96JEszZCHX23YS2UN7710LLh', name: 'Tego Product Catalogue KLM', size: '1.9 MB', bytes: 2044099, icon: '📘' },
+  { group: 'klm', id: '1yrW0aN2g3pzdYHmhBpzet22vud_Des27', name: 'Title Boxing Custom Range', size: '3.9 MB', bytes: 4136478, icon: '🥊' },
+  { group: 'klm', id: '1kDCS-9LGUf1yLnBFA8YRMyCGi-zaILkg', name: 'KLM Fabric Library', size: '2.4 MB', bytes: 2537035, icon: '🧵' }
 ];
+const OP_GROUPS = [{ key: 'klm', name: 'KLM Export' }, { key: 'inv', name: 'Invincible' }];
+let _opGroup = 'klm';
+const opIsOpen = () => document.getElementById('opModal').classList.contains('open');
+function opModalOpen() {
+  document.getElementById('opModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  loadOwnerPresentation();
+}
+function opModalClose() {
+  if (document.fullscreenElement) document.exitFullscreen();
+  document.getElementById('opModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+// KLM Export / Invincible — jis group me file na ho wahan khaali sandesh
+function opSetGroup(g) {
+  _opGroup = g;
+  const list = OWNER_DECKS.filter(x => x.group === g);
+  document.getElementById('opCats').innerHTML = OP_GROUPS.map(x =>
+    `<button class="op-cat${x.key === g ? ' on' : ''}" onclick="opSetGroup('${x.key}')">${escapeHtml(x.name)}<small>${OWNER_DECKS.filter(d => d.group === x.key).length}</small></button>`).join('');
+  document.getElementById('opMain').style.display = list.length ? '' : 'none';
+  const empty = document.getElementById('opEmpty');
+  empty.style.display = list.length ? 'none' : '';
+  if (!list.length) {
+    const name = (OP_GROUPS.find(x => x.key === g) || {}).name || '';
+    empty.innerHTML = `<div style="font-size:34px">📂</div><b>No presentation added yet for ${escapeHtml(name)}</b><div>Share the Drive link and it will show here.</div>`;
+    return;
+  }
+  opShow(OWNER_DECKS[_opCur] && OWNER_DECKS[_opCur].group === g ? _opCur : OWNER_DECKS.indexOf(list[0]));
+}
 const OP_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 let _opCur = 0, _opLib = null, _opRO = null;
 const _opDocs = {};   // deck no. -> { scroll, pdf, pages, w, cur, ready }
@@ -4639,9 +4702,9 @@ function loadOwnerPresentation() {
     _opRO = new ResizeObserver(() => requestAnimationFrame(() => { const d = _opDocs[_opCur]; if (d) opLayout(d); }));
     _opRO.observe(document.getElementById('opFrames'));
   }
-  opShow(_opCur);
+  opSetGroup(_opGroup);
 }
-// PDF.js sirf is page par pehli baar aane par aata hai
+// PDF.js sirf popup pehli baar khulne par aata hai
 function opLib() {
   if (_opLib) return _opLib;
   _opLib = new Promise((ok, no) => {
@@ -4656,7 +4719,7 @@ function opLib() {
 function opShow(i) {
   _opCur = i;
   const d = OWNER_DECKS[i];
-  document.getElementById('opTabs').innerHTML = OWNER_DECKS.map((x, k) =>
+  document.getElementById('opTabs').innerHTML = OWNER_DECKS.map((x, k) => x.group !== d.group ? '' :
     `<button class="op-tab${k === i ? ' on' : ''}" onclick="opShow(${k})"><span class="op-ico">${x.icon}</span>
       <span style="min-width:0"><span class="op-t">${escapeHtml(x.name)}</span><span class="op-s">PDF · ${x.size}</span></span></button>`).join('');
   document.getElementById('opTitle').textContent = d.icon + ' ' + d.name;
@@ -4751,7 +4814,7 @@ function opCheckFresh(d, saved) {
       _opDl[d.id] = { prog: new Set(), p: Promise.resolve(out.buffer) };
       const i = OWNER_DECKS.indexOf(d), doc = _opDocs[i];
       if (doc) { if (doc.io) doc.io.disconnect(); doc.pages.forEach(p => p.url && URL.revokeObjectURL(p.url)); doc.scroll.remove(); delete _opDocs[i]; }
-      if (i === _opCur && document.getElementById('page-presentation').classList.contains('active')) opShow(i);
+      if (i === _opCur && opIsOpen()) opShow(i);
       showToast('📄 ' + d.name + ' updated to the latest version');
     });
   }).catch(() => {});
@@ -4786,7 +4849,7 @@ async function opLoadDeck(doc) {
     doc.scroll.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; opTrack(doc); }); }, { passive: true });
     opCounter();
     // baaki files peeche se le aao — tab badalte hi turant khulein
-    OWNER_DECKS.forEach(x => { if (x !== d) opFetch(x).catch(() => {}); });
+    OWNER_DECKS.forEach(x => { if (x !== d && x.group === d.group) opFetch(x).catch(() => {}); });
   } catch (e) {
     doc.scroll.innerHTML = `<div class="op-load"><div style="color:#b91c1c">⚠️ ${escapeHtml(e.message || 'Could not open this file')}</div>
       <button class="btn btn-outline btn-sm" onclick="opRetry(${doc.i})">↻ Try again</button></div>`;
@@ -4812,7 +4875,7 @@ function opLayout(doc) {
 // Bana hua page JPEG tasveer ban kar rehta hai, wapas aane par dobara nahi banta.
 function opKick(doc) {
   if (doc.busy || !doc.ready || !doc.w || doc.scroll.style.display === 'none') return;
-  if (!document.getElementById('page-presentation').classList.contains('active')) return;
+  if (!opIsOpen()) return;          // popup band — peeche ka kaam bhi ruk jaata hai
   const w = doc.w, cur = doc.cur - 1;
   let pick = -1, best = Infinity;
   doc.pages.forEach((pg, k) => {
@@ -4864,11 +4927,11 @@ function opGo(doc, n, smooth) {
   doc.scroll.scrollTo({ top: pg.el.offsetTop - 12, behavior: smooth ? 'smooth' : 'auto' });
 }
 function opStep(dir) { const doc = _opDocs[_opCur]; if (doc && doc.ready) opGo(doc, doc.cur + dir, true); }
-// ← → / Page Up-Down se agla-pichhla page (Full screen me ↑ ↓ bhi)
+// ← → / Page Up-Down se agla-pichhla page (Full screen me ↑ ↓ bhi), Esc = popup band
 document.addEventListener('keydown', e => {
-  const pageEl = document.getElementById('page-presentation');
-  if (!pageEl || !pageEl.classList.contains('active') || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) return;
+  if (!opIsOpen() || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) return;
   const fs = !!document.fullscreenElement;
+  if (e.key === 'Escape' && !fs) { opModalClose(); return; }
   const next = e.key === 'ArrowRight' || e.key === 'PageDown' || (fs && (e.key === 'ArrowDown' || e.key === ' '));
   const prev = e.key === 'ArrowLeft' || e.key === 'PageUp' || (fs && e.key === 'ArrowUp');
   if (next || prev) { e.preventDefault(); opStep(next ? 1 : -1); }
@@ -12421,7 +12484,6 @@ function buildMobileNav() {
   const wanted = [
     { page: 'dashboard', label: 'Home' },
     { page: 'owner',     label: 'Owner' },
-    { page: 'presentation', label: 'Slides' },
     { page: 'alltasks',  label: 'Tasks' },
     { page: 'approvals', label: 'Approvals' },
     { page: 'users',     label: 'Users' },
