@@ -6870,6 +6870,9 @@ function rlTab(which, el) {
   document.getElementById('rlListWrap').style.display = (isEditor || isGs) ? 'none' : '';
   const ha = document.getElementById('rlHeadActs'); if (ha) ha.innerHTML = '';   // Voucher ke buttons sirf Voucher tab par
   if (isGs) { gsOpen(); return; }
+  // "New" button wapas — sirf Cost Sheet Print out aur Cost Sheet tab par, aur sirf admin ko (Harsh, 27 Oct 2026)
+  if (ha && isEditor && rlCanEdit())
+    ha.innerHTML = '<button class="btn btn-outline btn-sm" onclick="rlNew()" id="rlNewBtn"></button>';
   const nb = document.getElementById('rlNewBtn');
   if (nb) nb.textContent = isCost ? '➕ New Cost Sheet' : '➕ New Rate List';
   if (isEditor) {
