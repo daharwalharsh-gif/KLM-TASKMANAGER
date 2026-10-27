@@ -7443,7 +7443,11 @@ function rlShape(r) {
     completedByName: r.completedByName || '',
     created_at: r.created_at || '',
     updated_at: r.updated_at || '',
-    completed_at: r.completed_at || ''
+    completed_at: r.completed_at || '',
+    revision: parseInt(r.revision) || 0,          // Revise button se bani copy: kaun si baar (0 = asli sheet)
+    revised_at: r.revised_at || '',
+    revisedByName: r.revisedByName || '',
+    revised_from: r.revised_from || ''            // kis sheet ki copy hai
   };
 }
 // Client se aayi grid ko saaf karo — sirf wahi fields jo hum jaante hain.
@@ -7524,10 +7528,11 @@ app.post('/api/rate-lists/upload-file', requireAuth, requireAdmin, async (req, r
 app.get('/api/rate-lists', requireAuth, async (req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT r.*, u.name AS createdByName, u2.name AS completedByName
+      `SELECT r.*, u.name AS createdByName, u2.name AS completedByName, u3.name AS revisedByName
        FROM rate_lists r
        LEFT JOIN users u ON r.created_by = u.id
-       LEFT JOIN users u2 ON r.completed_by = u2.id`);
+       LEFT JOIN users u2 ON r.completed_by = u2.id
+       LEFT JOIN users u3 ON r.revised_by = u3.id`);
     let list = (rows || []).map(rlShape);
     const want = String(req.query.status || '').trim();
     if (want === 'pending' || want === 'completed') list = list.filter(x => x.status === want);
@@ -7540,10 +7545,11 @@ app.get('/api/rate-lists', requireAuth, async (req, res) => {
 app.get('/api/rate-lists/:id', requireAuth, async (req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT r.*, u.name AS createdByName, u2.name AS completedByName
+      `SELECT r.*, u.name AS createdByName, u2.name AS completedByName, u3.name AS revisedByName
        FROM rate_lists r
        LEFT JOIN users u ON r.created_by = u.id
        LEFT JOIN users u2 ON r.completed_by = u2.id
+       LEFT JOIN users u3 ON r.revised_by = u3.id
        WHERE r.id=?`, [req.params.id]);
     if (!rows || !rows[0]) return res.status(404).json({ error: 'Rate list not found' });
     res.json(rlShape(rows[0]));
@@ -7633,6 +7639,28 @@ app.post('/api/rate-lists/:id/status', requireAuth, requireAdmin, async (req, re
     await db.query('UPDATE rate_lists SET status=?,completed_at=?,completed_by=?,updated_at=? WHERE id=?',
       [want, want === 'completed' ? now : '', want === 'completed' ? String(req.session.userId) : '', now, req.params.id]);
     res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Revise — Completed sheet ki nayi copy, aaj ki date par (Harsh, 27 Oct 2026) ──
+// Purani sheet bilkul waisi hi rehti hai. Copy Completed me aati hai, upar "Revised"
+// likha hota hai, aur Revised tab me bhi dikhti hai. Naye rate copy ko Edit karke.
+app.post('/api/rate-lists/:id/revise', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM rate_lists WHERE id=?', [req.params.id]);
+    if (!rows || !rows[0]) return res.status(404).json({ error: 'Sheet not found' });
+    const src = rows[0], now = rlNow(), uid = String(req.session.userId || '');
+    const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);   // India ki aaj ki date
+    const [result] = await db.query(
+      `INSERT INTO rate_lists (list_name,buyer,style,status,date_cols,rows_json,files_json,
+         created_by,created_at,updated_at,completed_at,completed_by,kind,sheet_date,fabric,gsm,
+         revision,revised_at,revised_by,revised_from)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [src.list_name || '', src.buyer || '', src.style || '', 'completed',
+       src.date_cols || '[]', src.rows_json || '[]', src.files_json || '[]',
+       uid, now, now, now, uid, src.kind === 'cost' ? 'cost' : 'rate', today, src.fabric || '', src.gsm || '',
+       String((parseInt(src.revision) || 0) + 1), now, uid, String(src.id)]);
+    res.json({ success: true, id: result && result.insertId, sheet_date: today });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

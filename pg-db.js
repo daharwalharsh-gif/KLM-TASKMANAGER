@@ -174,7 +174,9 @@ const SCHEMA = {
   rate_lists: {
     cols: ['id','list_name','buyer','style','status','date_cols','rows_json','files_json',
            'created_by','created_at','updated_at','completed_at','completed_by',
-           'kind','sheet_date','fabric','gsm'],
+           'kind','sheet_date','fabric','gsm',
+           // Revise button se bani copy: kis sheet se (revised_from), kaun si baar, kab, kisne (27 Oct 2026)
+           'revision','revised_at','revised_by','revised_from'],
     autoFill: { created_at: 'NOW', updated_at: 'NOW' }
   },
   // Time Scheduler — roz ka routine (sirf allowed emails)

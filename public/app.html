@@ -2099,6 +2099,10 @@ tbody tr:last-child td{border-bottom:none;}
     .rl-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-block}
     .rl-bp{background:#fef3c7;color:#92400e}
     .rl-bc{background:#dcfce7;color:#166534}
+    /* chhota sa "Revised" — complete hone ke baad badli sheet */
+    .rl-rev{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;
+      background:#ede9fe;color:#6d28d9;vertical-align:1px;white-space:nowrap}
+    .rl-rev.open{background:#fef3c7;color:#92400e}
     .rl-empty{padding:30px;text-align:center;color:#94a3b8;font-size:13px}
     /* "From Cost Sheet" — search wala dropdown */
     .rl-cs{position:relative;width:270px}
@@ -2127,7 +2131,7 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="tab active" id="rlTabGs" data-rl-edit onclick="rlTab('gs',this)">📤 Voucher Data Entry Form</div>
         <div class="tab" id="rlTabForm" onclick="rlTab('form',this)">📝 Cost Sheet Print out</div>
         <div class="tab" id="rlTabCost" onclick="rlTab('cost',this)">🧾 Cost Sheet</div>
-        <div class="tab" id="rlTabPending" onclick="rlTab('pending',this)">⏳ Pending</div>
+        <div class="tab" id="rlTabRevised" onclick="rlTab('revised',this)">🔄 Revised</div>
         <div class="tab" id="rlTabDone" onclick="rlTab('completed',this)">✅ Completed</div>
       </div>
     </div>
@@ -2161,7 +2165,7 @@ tbody tr:last-child td{border-bottom:none;}
           <button class="btn btn-outline btn-sm" data-rl-edit title="Excel (.xlsx) ya CSV se ye sheet bharein"
             onclick="document.getElementById(&#39;rlCostCsvInput&#39;).click()">⬆ Upload CSV / Excel</button>
           <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="rlPDF()">📄 PDF</button>
-          <button class="btn btn-outline btn-sm" data-rl-edit id="rlCReopenBtn" style="display:none" onclick="rlSetStatus('pending')">↩ Move to Pending</button>
+          <button class="btn btn-outline btn-sm" data-rl-edit id="rlCReopenBtn" style="display:none" onclick="rlSetStatus('pending')">↩ Reopen</button>
           <button class="btn btn-outline btn-sm" data-rl-edit id="rlCCompleteBtn" style="color:#16a34a;border-color:#bbf7d0"
             onclick="rlSetStatus('completed')">✅ Complete</button>
           <button class="btn btn-primary btn-sm" data-rl-edit onclick="rlSave()">💾 Save</button>
@@ -6703,7 +6707,7 @@ function rlCacheSet(rec) {
 async function rlRefresh() {
   _rlCache = null;
   await rlEnsure(true);
-  if (_rlView === 'pending' || _rlView === 'completed') rlLoadList(_rlView);
+  if (_rlView === 'revised' || _rlView === 'completed') rlLoadList(_rlView);
   showToast('🔄 Refreshed', 'success');
 }
 const RL_NEW_ROWS = 12;  // naye record me itni khaali operation rows
@@ -6855,7 +6859,7 @@ function rlTab(which, el) {
   document.querySelectorAll('#page-ratelist .tab-group .tab').forEach(t => t.classList.remove('active'));
   const t = el || document.getElementById(
     which === 'form' ? 'rlTabForm' : which === 'cost' ? 'rlTabCost' : which === 'gs' ? 'rlTabGs'
-      : which === 'pending' ? 'rlTabPending' : 'rlTabDone');
+      : which === 'revised' ? 'rlTabRevised' : 'rlTabDone');
   if (t) t.classList.add('active');
   const isCost = which === 'cost', isGs = which === 'gs', isEditor = which === 'form' || isCost;
   document.getElementById('gsWrapOuter').style.display = isGs ? '' : 'none';
@@ -6896,7 +6900,7 @@ function rlRenderHead() {
   }
   const done = c.status === 'completed';
   const badge = c.id
-    ? `<span class="rl-badge ${done ? 'rl-bc' : 'rl-bp'}">${done ? 'Completed' : 'Pending'}</span>`
+    ? `<span class="rl-badge ${done ? 'rl-bc' : 'rl-bp'}">${done ? 'Completed' : (+c.revision ? 'Reopened' : 'Not completed')}</span>${rlRevChip(c)}`
     : '<span class="rl-badge rl-bp">Not saved yet</span>';
   // Print out tab me status/complete/save hain hi nahi, isliye har element
   // ka hona zaroori nahi — jo mile usi ko set karo.
@@ -7650,21 +7654,45 @@ async function rlSetStatus(st) {
   await rlEnsure();          // poori list paas me aa jaaye
   rlCacheSet(c);             // phir usme apna record sach ke hisaab se sudhaar do
   if (st === 'completed') { showToast('✅ Moved to Completed', 'success'); rlTab('completed'); }
-  else { showToast('↩ Moved back to Pending', 'success'); rlRenderHead(); }
+  else { showToast('↩ Reopened — it shows in the Revised tab until completed', 'success'); rlRenderHead(); }
+}
+// Chhota sa "Revised" — Revise button se bani copy par (kab / kisne / kis sheet se — mouse le jao to dikhta hai)
+function rlRevChip(x, where) {
+  const n = +x.revision || 0;
+  const when = x.revised_at ? rlStamp(x.revised_at) : '', by = x.revisedByName || '';
+  const tip = 'Revised copy' + (n > 1 ? ' (revision ' + n + ')' : '') + (when ? ' · made on ' + when : '') + (by ? ' by ' + by : '')
+    + (x.revised_from ? ' · from sheet #' + x.revised_from : '');
+  let h = n ? '<span class="rl-rev" title="' + escapeHtml(tip) + '">Revised' + (n > 1 ? ' ×' + n : '') + (when ? ' · ' + escapeHtml(when.slice(0, 10)) : '') + '</span>' : '';
+  if (where === 'revised' && x.status !== 'completed') h += '<span class="rl-rev open">Not completed yet</span>';
+  return h;
+}
+// 🔄 Revise — Completed sheet ki nayi copy aaj ki date par; purani waisi hi rehti hai
+async function rlRevise(id) {
+  const all = await rlEnsure();
+  const rec = (all || []).find(x => String(x.id) === String(id));
+  const what = rec ? ([rec.buyer, rec.style].filter(Boolean).join(' — ') || ('#' + id)) : ('#' + id);
+  if (!confirm('Revise this sheet?\n\n' + what + '\n\nA new copy dated today will be made and marked "Revised". The original stays exactly as it is.')) return;
+  const r = await api('/api/rate-lists/' + id + '/revise', 'POST', {});
+  if (!r || r.error || !r.id) return showToast((r && r.error) || 'Could not revise this sheet', 'error');
+  await rlEnsure(true);
+  showToast('🔄 Revised copy made (dated ' + rlDMY(r.sheet_date) + ') — open it to change the rates', 'success');
+  rlLoadList(_rlView === 'completed' ? 'completed' : 'revised');
 }
 
-// ── Pending / Completed list ──
+// ── Revised / Completed list ──
+// Revised = Revise button se bani copies (Completed me bhi rehti hain), aur jo abhi complete
+// nahi hui — taaki koi sheet nazar se gayab na ho.
 async function rlLoadList(which) {
   const box = document.getElementById('rlListWrap');
   if (!_rlCache) box.innerHTML = '<div class="rl-empty">Loading…</div>';
   const all = await rlEnsure();
   if (!Array.isArray(all)) { box.innerHTML = '<div class="rl-empty">Could not load the sheets.</div>'; return; }
   if (_rlView !== which) return;              // beech me tab badal gaya
-  const list = all.filter(x => (x.status || 'pending') === which)
+  const list = all.filter(x => which === 'revised' ? (+x.revision > 0 || (x.status || 'pending') !== 'completed') : (x.status || 'pending') === which)
     .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
   _rlList = list;
   if (!list.length) {
-    box.innerHTML = `<div class="rl-empty">No ${which === 'pending' ? 'pending' : 'completed'} sheets yet.</div>`;
+    box.innerHTML = `<div class="rl-empty">No ${which === 'revised' ? 'revised' : 'completed'} sheets yet.</div>`;
     return;
   }
   box.innerHTML = `<div class="rl-wrap"><table class="rl-tbl" style="font-size:13px">
@@ -7673,7 +7701,7 @@ async function rlLoadList(which) {
       <th style="width:148px">Rate Approved Date</th><th style="text-align:left">Buyer</th>
       <th style="text-align:left">Style</th><th style="width:90px">Operations</th><th style="width:100px">Total</th>
       <th style="width:100px">PDF view</th><th style="text-align:left">Created by</th>
-      <th style="text-align:left;width:140px">Updated</th><th style="width:96px">Action</th>
+      <th style="text-align:left;width:140px">Updated</th><th style="width:${which === 'completed' ? 180 : 96}px">Action</th>
     </tr></thead><tbody>` +
     list.map((x, i) => {
       const cost = x.kind === 'cost';
@@ -7686,14 +7714,15 @@ async function rlLoadList(which) {
         <td style="text-align:center"><span class="rl-badge" style="background:${cost ? '#ede9fe' : '#e0f2fe'};color:${cost ? '#5b21b6' : '#075985'}">${cost ? 'Cost Sheet' : 'Rate List'}</span></td>
         <td style="text-align:center;white-space:nowrap">${escapeHtml(rlDMY(x.sheet_date)) || '—'}</td>
         <td style="padding:9px 10px">${escapeHtml(x.buyer) || '—'}</td>
-        <td style="padding:9px 10px"><b>${escapeHtml(x.style) || '—'}</b></td>
+        <td style="padding:9px 10px"><b>${escapeHtml(x.style) || '—'}</b>${rlRevChip(x, which)}</td>
         <td style="text-align:center">${ops}</td>
         <td class="rl-num" style="padding:9px 10px">${rlFmt(tot) || '—'}</td>
         <td style="text-align:center">${(x.files || []).length || '—'}</td>
         <td style="padding:9px 10px">${escapeHtml(x.createdByName || '') || '—'}</td>
         <td style="padding:9px 10px;white-space:nowrap">${escapeHtml(rlStamp(x.updated_at))}</td>
-        <td style="text-align:center"><button class="btn btn-outline btn-sm"
-          onclick="rlOpen(${x.id})">${rlCanEdit() ? '✏️ Edit' : '👁 View'}</button></td>
+        <td style="text-align:center;white-space:nowrap"><button class="btn btn-outline btn-sm"
+          onclick="rlOpen(${x.id})">${rlCanEdit() ? '✏️ Edit' : '👁 View'}</button>${which === 'completed' && rlCanEdit()
+          ? ` <button class="btn btn-outline btn-sm" style="color:#6d28d9;border-color:#ddd6fe" title="Make a revised copy dated today — the original stays as it is" onclick="rlRevise(${x.id})">🔄 Revise</button>` : ''}</td>
       </tr>`;
     }).join('') + '</tbody></table></div>';
 }
@@ -7709,7 +7738,7 @@ async function rlDelete(id) {
   if (_rlCache) _rlCache = _rlCache.filter(x => String(x.id) !== String(id));
   if (_rlCur && String(_rlCur.id) === String(id)) { _rlKeep[_rlCur.kind] = null; _rlCur = null; }
   showToast('🗑 Deleted', 'success');
-  rlLoadList(_rlView === 'completed' ? 'completed' : 'pending');
+  rlLoadList(_rlView === 'completed' ? 'completed' : 'revised');
 }
 
 async function rlOpen(id) {
@@ -7738,7 +7767,7 @@ async function rlDetail(id) {
   const done = c.status === 'completed';
   const bit = (k, v) => v ? '<b>' + k + ':</b> ' + escapeHtml(v) : '';
   document.getElementById('rlDMeta').innerHTML = [
-    '<span class="rl-badge ' + (done ? 'rl-bc' : 'rl-bp') + '">' + (done ? 'Completed' : 'Pending') + '</span>',
+    '<span class="rl-badge ' + (done ? 'rl-bc' : 'rl-bp') + '">' + (done ? 'Completed' : (+r.revision ? 'Reopened' : 'Not completed')) + '</span>' + rlRevChip(r),
     bit('Rate Approved Date', rlDMY(c.sheet_date)), bit('Buyer', c.buyer), bit('Style', c.style),
     cost ? bit('Fabric', c.fabric) : '', cost ? bit('GSM', c.gsm) : '',
     bit('Created by', r.createdByName), bit('Updated', rlStamp(c.updated_at))
