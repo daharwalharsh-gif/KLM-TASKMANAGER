@@ -2120,10 +2120,9 @@ tbody tr:last-child td{border-bottom:none;}
   <div id="page-ratelist" class="page">
     <div class="page-header">
       <h2>Master Rate List</h2>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn btn-outline btn-sm" onclick="rlRefresh()">🔄 Refresh</button>
-        <button class="btn btn-outline btn-sm" onclick="rlNew()" id="rlNewBtn">➕ New Rate List</button>
-      </div>
+      <!-- Refresh / New Cost Sheet button hataye (Harsh, 27 Oct 2026). Yahan ab sirf Voucher tab ke
+           Open Google Sheet / Clear / Send buttons aate hain (gsRender bharta hai, baaki tab par khaali) -->
+      <div id="rlHeadActs" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end"></div>
     </div>
 
     <div style="display:flex;gap:8px;margin-bottom:16px">
@@ -6580,11 +6579,15 @@ function rlStamp(v) {
 // milti-julti cost sheets dikhati hai; click ya Enter se wo cost sheet aa jaati hai.
 let _rlCsOpts = [];   // [{ id, label, lc }]
 let _rlCsHi = -1;     // keyboard se chuni hui line
+// Jis sheet ki Revise se nayi copy ban chuki, wo purana version hai — list aur dropdown me nahi dikhta,
+// sirf naya (revised) dikhta hai. Database se mitaya nahi jaata (Harsh, 27 Oct 2026).
+function rlOldIds(all) { return new Set((all || []).filter(x => x.revised_from).map(x => String(x.revised_from))); }
 async function rlFillCostDrop() {
   if (!document.getElementById('rlFromCost')) return;
   const all = await rlEnsure();
   if (!Array.isArray(all) || !document.getElementById('rlFromCost')) return;
-  const cs = all.filter(x => x.kind === 'cost' && (x.status || 'pending') === 'completed')
+  const old = rlOldIds(all);
+  const cs = all.filter(x => x.kind === 'cost' && (x.status || 'pending') === 'completed' && !old.has(String(x.id)))
     .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
   const seen = {};
   _rlCsOpts = cs.map(c => {
@@ -6865,6 +6868,7 @@ function rlTab(which, el) {
   document.getElementById('gsWrapOuter').style.display = isGs ? '' : 'none';
   document.getElementById('rlFormWrap').style.display = isEditor ? '' : 'none';
   document.getElementById('rlListWrap').style.display = (isEditor || isGs) ? 'none' : '';
+  const ha = document.getElementById('rlHeadActs'); if (ha) ha.innerHTML = '';   // Voucher ke buttons sirf Voucher tab par
   if (isGs) { gsOpen(); return; }
   const nb = document.getElementById('rlNewBtn');
   if (nb) nb.textContent = isCost ? '➕ New Cost Sheet' : '➕ New Rate List';
@@ -7613,8 +7617,22 @@ async function rlSave(newStatus) {
     sheet_date: c.sheet_date || '', fabric: c.fabric || '', gsm: c.gsm || '',
     dates: c.dates, rows: c.rows, files: c.files };
   if (newStatus) payload.status = newStatus;   // Save aur Complete ek hi call me
-  let r = c.id ? await api('/api/rate-lists/' + c.id, 'PUT', payload)
-               : await api('/api/rate-lists', 'POST', payload);
+  // Completed sheet me Style ka naam badal kar Save = NAYI sheet ban jaati hai (wo bhi Completed);
+  // purani jaisi thi waisi rehti hai. Style wahi ho to Save pehle jaisa (Harsh, 27 Oct 2026).
+  const orig = c.id && !newStatus ? (_rlCache || []).find(x => String(x.id) === String(c.id)) : null;
+  const asNew = !!(orig && orig.status === 'completed' &&
+    String(orig.style || '').trim().toLowerCase() !== String(c.style || '').trim().toLowerCase());
+  let r = c.id && !asNew ? await api('/api/rate-lists/' + c.id, 'PUT', payload)
+                         : await api('/api/rate-lists', 'POST', payload);
+  if (asNew && r && !r.error && r.id) {
+    const s2 = await api('/api/rate-lists/' + r.id + '/status', 'POST', { status: 'completed' });
+    if (s2 && s2.error) r = s2;
+    else {
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      Object.assign(c, { id: r.id, status: 'completed', created_at: now, completed_at: now,
+        createdByName: (window.ME && ME.name) || '', revision: 0, revised_at: '', revisedByName: '', revised_from: '' });
+    }
+  }
   // Purani id ka record database me na mile ("Rate list not found") to Save
   // yahin atak jaata tha aur poora kaam phansa reh jaata tha. Ab us id ko
   // chhod kar naya record bana dete hain — kaam bachana zyada zaroori hai.
@@ -7635,7 +7653,8 @@ async function rlSave(newStatus) {
   if (!c.createdByName && window.ME) c.createdByName = ME.name || '';
   rlCacheSet(c);
   rlRenderHead();
-  showToast(c.kind === 'cost' ? '💾 Cost sheet saved' : '💾 Rate list saved', 'success');
+  showToast(asNew ? '💾 Saved as a new sheet (style changed) — the old one stays as it was'
+    : c.kind === 'cost' ? '💾 Cost sheet saved' : '💾 Rate list saved', 'success');
   return true;
 }
 async function rlSetStatus(st) {
@@ -7688,7 +7707,8 @@ async function rlLoadList(which) {
   const all = await rlEnsure();
   if (!Array.isArray(all)) { box.innerHTML = '<div class="rl-empty">Could not load the sheets.</div>'; return; }
   if (_rlView !== which) return;              // beech me tab badal gaya
-  const list = all.filter(x => which === 'revised' ? (+x.revision > 0 || (x.status || 'pending') !== 'completed') : (x.status || 'pending') === which)
+  const old = rlOldIds(all);       // purana version — sirf naya revised dikhe
+  const list = all.filter(x => !old.has(String(x.id)) && (which === 'revised' ? (+x.revision > 0 || (x.status || 'pending') !== 'completed') : (x.status || 'pending') === which))
     .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
   _rlList = list;
   if (!list.length) {
@@ -9274,6 +9294,13 @@ async function loadDashboard() {
     } else if (ME.role === 'user') {
       document.getElementById('dashBtns').innerHTML = ``;
     }
+  }
+  // 🗓 Holidays sabko dikhe — HOD, PC, user sab (Harsh, 27 Oct 2026). Baaki sirf list
+  // dekhte hain; holiday add / delete admin hi kar sakta hai (openHoliday + server dono me).
+  if (!isAdmin) {
+    const db = document.getElementById('dashBtns');
+    if (db && !db.querySelector('[onclick="openHoliday()"]'))
+      db.insertAdjacentHTML('afterbegin', '<button class="btn btn-yellow" onclick="openHoliday()">🗓 Holidays</button>');
   }
 
   if (dashChartInst) dashChartInst.destroy();
@@ -19701,12 +19728,16 @@ async function gsLoadCost(id) {
 let _gsCsOpts = [], _gsCsHi = -1;
 async function gsFillDrop() {
   const all = await rlEnsure();
-  _gsCsOpts = (all || []).filter(x => x.kind === 'cost' && x.status === 'completed').map(x => {
+  const old = rlOldIds(all);
+  _gsCsOpts = (all || []).filter(x => x.kind === 'cost' && x.status === 'completed' && !old.has(String(x.id))).map(x => {
     const label = (x.buyer || '—') + ' · ' + (x.style || '—');
     return { id: String(x.id), label, lc: label.toLowerCase() };
   });
   const hint = document.getElementById('gsFromCostHint');
-  if (hint) hint.textContent = _gsCsOpts.length ? _gsCsOpts.length + ' completed cost sheet' + (_gsCsOpts.length > 1 ? 's' : '') : 'No completed cost sheet yet';
+  if (hint) {
+    hint.textContent = '(' + _gsCsOpts.length + ')';
+    hint.title = _gsCsOpts.length ? _gsCsOpts.length + ' completed cost sheet' + (_gsCsOpts.length > 1 ? 's' : '') : 'No completed cost sheet yet';
+  }
   const list = document.getElementById('gsCsList');
   if (list && list.style.display === 'block') gsCsRender();
 }
@@ -19773,8 +19804,8 @@ function gsPickKariger(v) {
   if (k) { _gs.head.card = k.card; const c = document.getElementById('gsH_card'); if (c) c.value = k.card; }
 }
 function gsRender() {
-  const H = _gs.head, inp = (k, label, ph, w, type, list) => `<div><label>${label}</label><input type="${type || 'text'}" id="gsH_${k}" value="${escapeHtml(H[k])}" placeholder="${ph || label}"
-    style="width:${w || 150}px" ${list ? `list="${list}" autocomplete="off"` : ''} oninput="${k === 'kariger' ? 'gsPickKariger(this.value)' : `gsHead('${k}',this.value)`}"></div>`;
+  const H = _gs.head, inp = (k, label, ph, w, type, list) => `<div style="flex:${w || 150} 1 0;min-width:0"><label>${label}</label><input type="${type || 'text'}" id="gsH_${k}" value="${escapeHtml(H[k])}" placeholder="${ph || label}"
+    style="width:100%" ${list ? `list="${list}" autocomplete="off"` : ''} oninput="${k === 'kariger' ? 'gsPickKariger(this.value)' : `gsHead('${k}',this.value)`}"></div>`;
   const dl = (id, arr) => `<datalist id="${id}">${arr.map(v => `<option value="${escapeHtml(v)}"></option>`).join('')}</datalist>`;
   const n = _gs.dates.length;
   const head1 = `<tr><th rowspan="2" style="width:56px">OP NO.</th><th rowspan="2" style="min-width:240px">OPERATION</th><th rowspan="2" style="width:100px">KARIGER RATE</th>` +
@@ -19794,25 +19825,27 @@ function gsRender() {
     _gs.dates.map((_, j) => `<td></td><td class="rl-num" id="gsTotAmt${j}" title="Total AMOUNT"></td>`).join('') + '</tr>';
   document.getElementById('gsWrap').innerHTML = `
     <div class="rl-bar">
-      <div><label>From Cost Sheet</label>
-        <div class="rl-cs" id="gsCsBox" style="width:250px">
-          <input type="text" id="gsFromCost" class="rl-cs-in" placeholder="🔍 Search / Load from Cost Sheet…" autocomplete="off"
+      <!-- Saare chunne wale dabbe ek line me (Card No / Rate Approved Date ke dabbe hataye — 27 Oct 2026;
+           unki value ab bhi apne aap jaati hai: card no kariger se, date cost sheet se) -->
+      <div class="gs-fields">
+      <div style="flex:230 1 0;min-width:0"><label>From Cost Sheet <span id="gsFromCostHint" class="gs-hint"></span></label>
+        <div class="rl-cs" id="gsCsBox" style="width:100%">
+          <input type="text" id="gsFromCost" class="rl-cs-in" placeholder="🔍 Search cost sheet…" title="Search / load operations from a completed cost sheet" autocomplete="off"
             onfocus="gsCsOpen()" onclick="gsCsOpen()" oninput="gsCsOpen(true)" onkeydown="gsCsKey(event)" onblur="setTimeout(gsCsClose, 150)">
           <span class="rl-cs-caret" onmousedown="event.preventDefault();gsCsToggle()">▾</span>
           <div class="rl-cs-list" id="gsCsList"></div>
-        </div>
-        <div id="gsFromCostHint" style="font-size:10.5px;color:#94a3b8;margin-top:3px"></div></div>
-      ${inp('kariger', 'Kariger Name *', '🔍 Select kariger', 210, '', 'gsKarList')}${inp('card', 'Card No', 'Card no', 90)}${inp('buyer', 'Buyer Name', 'Buyer', 160)}${inp('style', 'Style', 'Style', 190)}
-      ${inp('color', 'Color', 'Color', 110)}${inp('size', 'Size', 'Size', 80)}${inp('product', 'Product Name', '🔍 Select product', 170, '', 'gsProdList')}${inp('lineman', 'Line Man', '🔍 Select line', 160, '', 'gsLineList')}
+        </div></div>
+      ${inp('kariger', 'Kariger Name *', '🔍 Select kariger', 190, '', 'gsKarList')}${inp('buyer', 'Buyer Name', 'Buyer', 140)}${inp('style', 'Style', 'Style', 170)}
+      ${inp('color', 'Color', 'Color', 100)}${inp('size', 'Size', 'Size', 75)}${inp('product', 'Product Name', '🔍 Select product', 160, '', 'gsProdList')}${inp('lineman', 'Line Man', '🔍 Select line', 140, '', 'gsLineList')}
       ${dl('gsKarList', GS_KARIGERS.map(k => k.label))}${dl('gsProdList', GS_PRODUCTS)}${dl('gsLineList', GS_LINEMEN)}
-      ${inp('rateDate', 'Rate Approved Date', '', 150, 'date')}
-      <div class="rl-acts">
-        <a id="gsLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="${escapeHtml(_gs.url || '#')}">📄 Open Google Sheet ↗</a>
-        <button class="btn btn-outline btn-sm" onclick="if(confirm('Clear everything on this tab?')){gsReset();gsRender()}">✕ Clear</button>
-        <button class="btn btn-primary btn-sm" id="gsSendBtn" onclick="gsSend()">📤 Send to Google Sheet</button>
       </div>
     </div>
     <style>
+      .gs-fields{display:flex;gap:10px;align-items:flex-end;flex:1 1 100%;min-width:0}
+      .gs-fields label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .gs-fields input[type=text]{height:38px;box-sizing:border-box}
+      .gs-hint{font-size:10px;font-weight:600;color:#94a3b8;text-transform:none;letter-spacing:0}
+      @media (max-width:1100px){ .gs-fields{flex-wrap:wrap} .gs-fields > div{flex-basis:170px !important} }
       .gs-frz{max-height:calc(100vh - 370px);min-height:260px;overflow:auto;position:relative}
       .gs-fillh{position:absolute;display:none;width:9px;height:9px;background:#4f46e5;border:2px solid #fff;border-radius:2px;
         box-shadow:0 0 0 1px #4f46e5;cursor:crosshair;z-index:1}
@@ -19825,6 +19858,11 @@ function gsRender() {
     </style>
     <div class="rl-wrap gs-frz"><table class="rl-tbl"><thead>${head1}${head2}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>
     <div class="od-foot" id="gsFoot" style="margin-top:8px">Works like Excel: ↑ ↓ / Enter to move between rows, drag the small square at a cell's corner to copy its value down, and paste cells copied from Excel. AMOUNT = NO OF PCS × KARIGER RATE (auto). Each operation × issue date with NO OF PCS becomes one row in the tab <b>ALL LINE DATA ENTRY</b>. Headings that are missing in the sheet (Card No, Rate Approved Date, Entered By, Saved On …) are added automatically.</div>`;
+  const ha = document.getElementById('rlHeadActs');
+  if (ha) ha.innerHTML = `
+      <a id="gsLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener" style="text-decoration:none" href="${escapeHtml(_gs.url || '#')}">📄 Open Google Sheet ↗</a>
+      <button class="btn btn-outline btn-sm" onclick="if(confirm('Clear everything on this tab?')){gsReset();gsRender()}">✕ Clear</button>
+      <button class="btn btn-primary btn-sm" id="gsSendBtn" onclick="gsSend()">📤 Send to Google Sheet</button>`;
   gsTotals(); gsFillDrop(); gsFreezeHead();
 }
 // ── Voucher grid Excel jaisi (Harsh, 26 Oct 2026) ──
