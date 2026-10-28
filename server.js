@@ -4296,11 +4296,19 @@ const FULL_VIEW_KAJAL = {
           'invincible sales nbd fms- incoming(domestic offline)',
           'invincible sales nbd fms- outgoing(domestic offline)']
 };
+// Mr. Tribhuvan Tyagi (Production Manager) — Merchant O2D FMS sirf DEKHNE ke liye:
+// saare steps + saari rows, par Done nahi (viewOnly). Harsh (28 Oct 2026).
+const FULL_VIEW_TYAGI = {
+  ids: [4],
+  names: ['merchant o2d fms'],
+  viewOnly: true
+};
 const FMS_FULL_VIEW = {
   'amit@invincible.in': FULL_VIEW_FMS,
   'marketing@klmahajan.com': FULL_VIEW_KAJAL,
   'kiran@klmahajan.com': FULL_VIEW_PMS,
   'gm@klmahajan.com': FULL_VIEW_GM,
+  'ttyagi@klmahajan.com': FULL_VIEW_TYAGI,
 };
 // Ye user full-view rakhta hai? -> config object ya null
 async function fmsFullViewCfg(userId) {
@@ -4354,6 +4362,8 @@ app.get('/api/fms-tasks/:id', requireAuth, async (req, res) => {
       const [doers] = await db.query(`SELECT fsd.user_id,u.name FROM fms_step_doers fsd JOIN users u ON fsd.user_id=u.id WHERE fsd.step_id=?`, [step.id]);
       step.doers = doers;
       step.isMyStep = fullView || doers.some(d => d.user_id === uid);
+      // View-only full view: jis step ka doer nahi, wahan sirf dekhna (Done nahi)
+      step.viewOnly = !!(fvCfg && fvCfg.viewOnly && fullView) && !doers.some(d => String(d.user_id) === String(uid));
       try { step.show_cols_parsed = JSON.parse(step.show_cols||'[]'); } catch(e) { step.show_cols_parsed = []; }
       const [extraRows] = await db.query('SELECT * FROM fms_extra_rows WHERE step_id=? ORDER BY id ASC', [step.id]);
       step.extraRows = extraRows;
@@ -6836,6 +6846,16 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
     const [steps] = await db.query('SELECT * FROM fms_steps WHERE id=? AND fms_id=?', [req.params.stepId, req.params.fmsId]);
     if (!steps[0]) return res.status(404).json({ error: 'Step not found' });
     const step = steps[0];
+    // View-only user (sirf dekhne wala) — is step ka doer nahi to Done nahi
+    if (req.session.role !== 'admin') {
+      const voCfg = await fmsFullViewCfg(req.session.userId);
+      if (voCfg && voCfg.viewOnly && fmsInFullView(voCfg, sheet)) {
+        const [ds] = await db.query('SELECT user_id FROM fms_step_doers WHERE step_id=?', [step.id]);
+        if (!ds.some(d => String(d.user_id) === String(req.session.userId))) {
+          return res.status(403).json({ error: 'You have view-only access to this FMS' });
+        }
+      }
+    }
 
     const actualCol = (step.actual_col||'').toUpperCase();
     if (!actualCol) return res.status(400).json({ error: 'Actual column not configured for this step' });

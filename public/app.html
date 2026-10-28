@@ -417,6 +417,7 @@ tbody tr:last-child td{border-bottom:none;}
 .fms-step-rows-table table td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
 .fms-done-btn{background:#10b981;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;font-family:'Inter',sans-serif;}
 .fms-done-btn:hover{background:#059669;transform:translateY(-1px);}
+.fms-view-tag{display:inline-block;padding:5px 11px;border-radius:8px;font-size:11.5px;font-weight:700;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;white-space:nowrap;}
 .fms-status-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:#fef9c3;color:#854d0e;}
 .fms-search-bar{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:8px 12px;margin-bottom:10px;}
 .fms-search-bar input{flex:1;border:none;outline:none;font-size:13px;font-family:'Inter',sans-serif;color:#1e293b;background:transparent;}
@@ -16137,6 +16138,8 @@ function renderFMSTaskRows(rowsToShow) {
     return;
   }
   const bulkOn = fmsBulkAllowed();
+  // View-only access (sirf dekhne ke liye) — Done button nahi
+  const viewOnly = !!(window._fmsActiveStepData && window._fmsActiveStepData.viewOnly);
   tbody.innerHTML = rowsToShow.map(row => {
     const origIdx = allRows.indexOf(row);
     const rn = String(row.sheetRowNumber);
@@ -16146,7 +16149,8 @@ function renderFMSTaskRows(rowsToShow) {
       : '';
     return `<tr>
       ${cb}
-      <td><button class="fms-done-btn" onclick="openFMSDoneModal(${origIdx})">✅ Done</button></td>
+      <td>${viewOnly ? '<span class="fms-view-tag" title="You have view-only access">👁 View only</span>'
+        : `<button class="fms-done-btn" onclick="openFMSDoneModal(${origIdx})">✅ Done</button>`}</td>
       ${colKeys.map(k => `<td>${row.data[k] || '—'}</td>`).join('')}
       <td><span class="fms-status-badge">⏳ Pending</span></td>
     </tr>`;
