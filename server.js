@@ -6195,7 +6195,9 @@ async function kpFileMime(fileId) {
 // saath mangwa leta hai. Nayi file jodni ho to yahan bhi aur app.html ki
 // OWNER_DECKS list me bhi id daalo.
 // ══════════════════════════════════════════════════════
-const OWNER_DECK_IDS = ['1JUAFbzWi96JEszZCHX23YS2UN7710LLh', '1yrW0aN2g3pzdYHmhBpzet22vud_Des27', '1kDCS-9LGUf1yLnBFA8YRMyCGi-zaILkg'];
+const OWNER_DECK_IDS = ['1JUAFbzWi96JEszZCHX23YS2UN7710LLh', '1yrW0aN2g3pzdYHmhBpzet22vud_Des27', '1kDCS-9LGUf1yLnBFA8YRMyCGi-zaILkg',
+  // KLM Export ki 9 aur (Harsh, 28 Oct 2026)
+  '1JBe8ngVUkQnLQygBa1mB27UarJBVMNpr', '1cj7V6dUM3PlYZCCA34hzRCPlDZJsRxxC', '1pB1AV46f8BqdZZ9wRAwuzfh9br3kZgRZ', '1ArxmxZ8EUkJfeg4diiKQ-vBA1r9FID8B', '1zGxfUTqKHhhU8emFiSBWzc0Gtg7SSW82', '1q4_V-gJazWb1cHCwZmGswRvljtCSjrQf', '1UB2-LzdY2cWKYWvcA9rCnC5cn12_hDfu', '1Te2zYWoUPo1TAViDZreezsfi_yu2pV1Z', '1EIIbLpR4731bOAg8kpJKplKEGHGOg2Tp'];
 const DECK_CHUNK = 1048576;
 let _deckAuth = null;
 async function deckToken() {

@@ -2734,16 +2734,19 @@ tbody tr:last-child td{border-bottom:none;}
       .op-cat{border:none;background:transparent;padding:8px 18px;border-radius:9px;font:800 13px 'Inter',sans-serif;color:#3730a3;cursor:pointer;white-space:nowrap}
       .op-cat.on{background:#fff;color:#1d4ed8;box-shadow:0 2px 10px rgba(37,99,235,.22)}
       .op-cat small{font-weight:700;color:#64748b;margin-left:4px}
-      #opMain{flex:1;min-height:0;display:flex;flex-direction:column}
+      #opMain{flex:1;min-height:0;display:flex;flex-direction:row;gap:12px}
       .op-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;
         background:#fff;border:1.5px dashed #c7d2fe;border-radius:18px;color:#64748b;font-size:13.5px;padding:20px}
       .op-empty b{font-size:16px;color:#1e3a8a}
-      .op-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:12px}
+      .op-tabs{display:flex;flex-direction:column;gap:8px;width:270px;flex-shrink:0;overflow-y:auto;padding:2px 4px 2px 2px}
       .op-tab{display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid #dbeafe;border-radius:16px;padding:12px 15px;cursor:pointer;
         text-align:left;font-family:inherit;transition:transform .15s,box-shadow .15s,border-color .15s;box-shadow:0 4px 14px rgba(37,99,235,.07);min-width:0}
       .op-tab:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(37,99,235,.14)}
       .op-tab.on{border-color:#2563eb;background:linear-gradient(135deg,#eff6ff,#fff);box-shadow:0 10px 26px rgba(37,99,235,.2)}
-      .op-ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:19px;flex-shrink:0;background:#eef2ff}
+      .op-ico{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:18px;flex-shrink:0;background:#eef2ff}
+      .op-tabs .op-tab{padding:10px 12px;border-radius:14px}
+      .op-tabs .op-tab:hover{transform:translateX(2px)}
+      .op-tabs .op-t{white-space:normal;font-size:13.5px}   /* lamba naam do line me, kate nahi */
       .op-tab.on .op-ico{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}
       .op-t{display:block;font-size:14px;font-weight:800;color:#1e293b;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .op-s{display:block;font-size:11.5px;color:#64748b;margin-top:2px}
@@ -2768,8 +2771,9 @@ tbody tr:last-child td{border-bottom:none;}
       @media (max-width:760px){
         .op-modal{padding:0}
         .op-dlg{border-radius:0;padding:12px}
-        .op-tabs{display:flex;overflow-x:auto;gap:8px}
-        .op-tab{flex:0 0 220px}
+        #opMain{flex-direction:column}
+        .op-tabs{flex-direction:row;width:auto;overflow-x:auto;overflow-y:hidden;margin-bottom:4px}
+        .op-tabs .op-tab{flex:0 0 210px}
       }
     </style>
     <div class="op-dlg" role="dialog" aria-modal="true" aria-label="Owner Presentation">
@@ -4654,7 +4658,17 @@ const OWNER_DECKS = [
   // bytes = file ka size: saare tukde bina ruke ek saath maang lete hain (Drive par file badle to apne aap sahi size se dobara)
   { group: 'klm', id: '1JUAFbzWi96JEszZCHX23YS2UN7710LLh', name: 'Tego Product Catalogue KLM', size: '1.9 MB', bytes: 2044099, icon: '📘' },
   { group: 'klm', id: '1yrW0aN2g3pzdYHmhBpzet22vud_Des27', name: 'Title Boxing Custom Range', size: '3.9 MB', bytes: 4136478, icon: '🥊' },
-  { group: 'klm', id: '1kDCS-9LGUf1yLnBFA8YRMyCGi-zaILkg', name: 'KLM Fabric Library', size: '2.4 MB', bytes: 2537035, icon: '🧵' }
+  { group: 'klm', id: '1kDCS-9LGUf1yLnBFA8YRMyCGi-zaILkg', name: 'KLM Fabric Library', size: '2.4 MB', bytes: 2537035, icon: '🧵' },
+  // KLM Export ki 9 aur (Harsh, 28 Oct 2026)
+  { group: 'klm', id: '1JBe8ngVUkQnLQygBa1mB27UarJBVMNpr', name: 'Everlast Equipment PPT', size: '3.0 MB', bytes: 3130242, icon: '🥊' },
+  { group: 'klm', id: '1cj7V6dUM3PlYZCCA34hzRCPlDZJsRxxC', name: 'Exigo PPT', size: '1.9 MB', bytes: 2039319, icon: '🥊' },
+  { group: 'klm', id: '1pB1AV46f8BqdZZ9wRAwuzfh9br3kZgRZ', name: 'FLY PPT', size: '2.1 MB', bytes: 2209773, icon: '🥊' },
+  { group: 'klm', id: '1ArxmxZ8EUkJfeg4diiKQ-vBA1r9FID8B', name: 'Oversized T-shirts', size: '2.4 MB', bytes: 2499257, icon: '👕' },
+  { group: 'klm', id: '1zGxfUTqKHhhU8emFiSBWzc0Gtg7SSW82', name: 'Schmidt Boxing Portfolio', size: '1.8 MB', bytes: 1898606, icon: '🥊' },
+  { group: 'klm', id: '1q4_V-gJazWb1cHCwZmGswRvljtCSjrQf', name: 'Shark Product Catalog', size: '3.7 MB', bytes: 3836036, icon: '🦈' },
+  { group: 'klm', id: '1UB2-LzdY2cWKYWvcA9rCnC5cn12_hDfu', name: 'Tigear Product Catalog', size: '2.6 MB', bytes: 2689305, icon: '🐯' },
+  { group: 'klm', id: '1Te2zYWoUPo1TAViDZreezsfi_yu2pV1Z', name: 'TopFighter Product', size: '3.2 MB', bytes: 3391522, icon: '🥊' },
+  { group: 'klm', id: '1EIIbLpR4731bOAg8kpJKplKEGHGOg2Tp', name: 'Women’s Activewear – SHARK PPT', size: '2.4 MB', bytes: 2510070, icon: '👚' }
 ];
 const OP_GROUPS = [{ key: 'klm', name: 'KLM Export' }, { key: 'inv', name: 'Invincible' }];
 let _opGroup = 'klm';
@@ -4713,6 +4727,8 @@ function opShow(i) {
   document.getElementById('opTabs').innerHTML = OWNER_DECKS.map((x, k) => x.group !== d.group ? '' :
     `<button class="op-tab${k === i ? ' on' : ''}" onclick="opShow(${k})"><span class="op-ico">${x.icon}</span>
       <span style="min-width:0"><span class="op-t">${escapeHtml(x.name)}</span><span class="op-s">PDF · ${x.size}</span></span></button>`).join('');
+  const onTab = document.querySelector('#opTabs .op-tab.on');   // list me chuni hui PDF saamne rahe
+  if (onTab) onTab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   document.getElementById('opTitle').textContent = d.icon + ' ' + d.name;
   document.getElementById('opOpen').href = 'https://drive.google.com/file/d/' + d.id + '/view';
   document.getElementById('opDown').href = 'https://drive.google.com/uc?export=download&id=' + d.id;
@@ -4840,7 +4856,8 @@ async function opLoadDeck(doc) {
     doc.scroll.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; opTrack(doc); }); }, { passive: true });
     opCounter();
     // baaki files peeche se le aao — tab badalte hi turant khulein
-    OWNER_DECKS.forEach(x => { if (x !== d && x.group === d.group) opFetch(x).catch(() => {}); });
+    const grp = OWNER_DECKS.filter(x => x.group === d.group), at = grp.indexOf(d);
+    [1, 2].forEach(k => { const x = grp[(at + k) % grp.length]; if (x && x !== d) opFetch(x).catch(() => {}); });
   } catch (e) {
     doc.scroll.innerHTML = `<div class="op-load"><div style="color:#b91c1c">⚠️ ${escapeHtml(e.message || 'Could not open this file')}</div>
       <button class="btn btn-outline btn-sm" onclick="opRetry(${doc.i})">↻ Try again</button></div>`;
