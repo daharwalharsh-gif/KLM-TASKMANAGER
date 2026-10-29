@@ -4809,7 +4809,9 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
     // generate to dispatch") uske block ka "Planned" aur "Actual", aur
     // "Dispatch Status" naam wala column. Aage column jude-hatein to bhi
     // sahi jagah milegi. Na mile to aaj ki jagah (AK / AL / L).
-    let invPlan = 36, invAct = 37, invDisp = 11;
+    // Harsh (29 Oct 2026): "AM col me cancel likha ho to wo nahi aana chahiye" —
+    // dispatch step ka "Status" (aaj AM). Na mile to AM.
+    let invPlan = 36, invAct = 37, invDisp = 11, invStat = 38;
     if (src === 'invincible') {
       const nameRow = raw[1] || [], head = raw[cfg.headerRow - 1] || [];
       const H = c => String(head[c] || '').trim().toLowerCase();
@@ -4824,6 +4826,9 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
           else if (/^actual/.test(H(c))) invAct = c;
         }
       }
+      // Dispatch ke Actual ke theek baad wala "Status" (aaj AM)
+      const st = [invAct + 1, invAct + 2].find(c => H(c) === 'status');
+      if (st !== undefined) invStat = st;
       const d = [...Array(head.length).keys()].find(c => H(c) === 'dispatch status');
       if (d !== undefined) invDisp = d;
     }
@@ -4900,6 +4905,7 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
         const actual = String(row[invAct] || '').trim();    // dispatch step ka Actual
         // Actual aane tak row pending — Planned date bhari ho ya na ho
         if (!party) continue;
+        if (/cancel/i.test(String(row[invStat] || ''))) continue;   // cancel order report me nahi
         rows.push({
           sheetRow,
           rowKey: party + '|' + (row[12] || '') + '|' + planned,
