@@ -4788,15 +4788,18 @@ function otodSources() {
   };
 }
 
+// Harsh (29 Oct 2026): "Quota exceeded ... Read requests per minute" — app ki saari
+// reports ek hi Google account se padhti hain; ek minute me hadd paar ho to Google
+// mana kar deta hai. Ab thoda ruk kar dobara koshish hoti hai, aur phir bhi na mile
+// to is report ka pichhla sahi jawab dikhate hain (error ki jagah).
+const _otodLastGood = new Map();   // src -> pichhla sahi jawab
 app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
+  const SRC = otodSources();
+  const src = SRC[String(req.query.src || 'merchant')] ? String(req.query.src || 'merchant') : 'merchant';
   try {
-    const SRC = otodSources();
-    const src = SRC[String(req.query.src || 'merchant')] ? String(req.query.src || 'merchant') : 'merchant';
     const cfg = SRC[src];
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
-    const r = await sheetsApi.spreadsheets.values.get({
-      spreadsheetId: cfg.sheetId, range: `${cfg.tab}!${cfg.range}`
-    });
+    const r = await sheetsValuesGetRetry(sheetsApi, cfg.sheetId, `${cfg.tab}!${cfg.range}`);
     const raw = r.data.values || [];
     const all = raw.slice(cfg.headerRow);
 
@@ -4832,6 +4835,8 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
       const d = [...Array(head.length).keys()].find(c => H(c) === 'dispatch status');
       if (d !== undefined) invDisp = d;
     }
+    // Pending ke liye saare steps (All PC Report jaisa hi padhte hain)
+    const invSteps = src === 'invincible' ? pcrSteps(raw, cfg.headerRow) : [];
 
     // Export (Merchant O2D) sheet — wahi tareeka.
     // Harsh (25 Sep 2026): "dispatch wale ke pehle 5 col add kiye google sheet
@@ -4875,9 +4880,7 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
     const piKey = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (src === 'merchant') {
       const pms = [PCR_SOURCES.pmsgarments, PCR_SOURCES.pmsboxing];
-      const got = await Promise.all(pms.map(p => sheetsApi.spreadsheets.values.get({
-        spreadsheetId: p.id, range: `${p.tab}!A:J`
-      })));
+      const got = await Promise.all(pms.map(p => sheetsValuesGetRetry(sheetsApi, p.id, `${p.tab}!A:J`)));
       got.forEach((g, i) => {
         const vals = g.data.values || [];
         const head = vals[pms[i].headerRow - 1] || [];
@@ -4905,11 +4908,13 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
         const actual = String(row[invAct] || '').trim();    // dispatch step ka Actual
         if (!party) continue;
         if (/cancel/i.test(String(row[invStat] || ''))) continue;   // cancel order report me nahi
-        // Harsh (29 Oct 2026): Step 7 me Planned hai aur Actual nahi = Pending;
-        // Actual hai aur Status "Done" = Dispatched. Jo Step 7 tak pahuncha hi
-        // nahi (Planned khaali) wo report me nahi.
+        // Harsh (29 Oct 2026): Pending = All PC Report wali condition — kisi bhi
+        // step ki Planned date bani hai aur Actual khaali. Dispatched = dispatch
+        // step ka Actual hai aur Status "Done". Baaki row report me nahi.
         const done = !!actual && /^done$/i.test(String(row[invStat] || '').trim());
-        if (!done && (actual || !String(row[invPlan] || '').trim())) continue;
+        const stuck = invSteps.some(st => st.plannedCol >= 0 &&
+          String(row[st.plannedCol] || '').trim() && !String(row[st.actualCol] || '').trim());
+        if (!done && !stuck) continue;
         rows.push({
           sheetRow,
           rowKey: party + '|' + (row[12] || '') + '|' + planned,
@@ -4985,10 +4990,17 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
       if (!y.planned) return -1;
       return x.planned < y.planned ? -1 : x.planned > y.planned ? 1 : 0;
     });
-    res.json({ src, label: cfg.label, rows, total: rows.length });
+    const out = { src, label: cfg.label, rows, total: rows.length };
+    _otodLastGood.set(src, out);
+    res.json(out);
   } catch (err) {
     console.error('O to D report FAILED:', err.message);
-    res.status(500).json({ error: err.message });
+    const last = _otodLastGood.get(src);
+    if (last) return res.json({ ...last, stale: true });
+    const busy = (err.code || err.status) === 429 || /quota/i.test(String(err.message));
+    res.status(500).json({ error: busy
+      ? 'Google Sheets is busy right now (too many reads this minute). Please wait a few seconds and click Refresh.'
+      : err.message });
   }
 });
 
