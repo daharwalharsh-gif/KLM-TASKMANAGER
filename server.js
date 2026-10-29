@@ -5017,8 +5017,8 @@ app.get('/api/otod/detail', requireAuth, requireOtodView, async (req, res) => {
     if (!(rowNo > cfg.headerRow)) return res.status(400).json({ error: 'Row number galat hai' });
     const sheetsApi = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
     const [top, one] = await Promise.all([
-      sheetsApi.spreadsheets.values.get({ spreadsheetId: cfg.sheetId, range: `${cfg.tab}!A1:DZ${cfg.headerRow}` }),
-      sheetsApi.spreadsheets.values.get({ spreadsheetId: cfg.sheetId, range: `${cfg.tab}!A${rowNo}:DZ${rowNo}` })
+      sheetsValuesGetRetry(sheetsApi, cfg.sheetId, `${cfg.tab}!A1:DZ${cfg.headerRow}`),
+      sheetsValuesGetRetry(sheetsApi, cfg.sheetId, `${cfg.tab}!A${rowNo}:DZ${rowNo}`)
     ]);
     const head = (top.data.values || [])[cfg.headerRow - 1] || [];
     const row = (one.data.values || [])[0] || [];
@@ -5065,7 +5065,10 @@ app.get('/api/otod/detail', requireAuth, requireOtodView, async (req, res) => {
     res.json({ src, label: cfg.label, row: rowNo, sections });
   } catch (err) {
     console.error('O to D detail FAILED:', err.message);
-    res.status(500).json({ error: err.message });
+    const busy = (err.code || err.status) === 429 || /quota/i.test(String(err.message));
+    res.status(500).json({ error: busy
+      ? 'Google Sheets is busy right now (too many reads this minute). Please wait a few seconds and try again.'
+      : err.message });
   }
 });
 
@@ -5944,6 +5947,9 @@ async function pms2DoneLoad() {
 async function pms2NotifyAllowed(uid, role) {
   if (role === 'admin') return true;
   const [sheets] = await db.query('SELECT id, sheet_id FROM fms_sheets');
+  // FMS list abhi load hi nahi hui (Google busy) — "nahi" mat bolo, warna browser
+  // purane update bhool kar list wapas aane par dobara ghanti bajata
+  if (!sheets.length) throw new Error('FMS list not loaded yet');
   const fmsIds = new Set(sheets.filter(s => extractSpreadsheetId(s.sheet_id) === PMS2_SHEET_ID).map(s => String(s.id)));
   if (!fmsIds.size) return false;
   const [steps] = await db.query('SELECT id, fms_id FROM fms_steps');
