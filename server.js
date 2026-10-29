@@ -1374,7 +1374,20 @@ app.get('/api/notifications', requireAuth, async (req, res) => {
          AND due_date > '${today}' AND due_date <= '${plus2}'
        ORDER BY due_date ASC LIMIT 100`, [uid]);
 
-    res.json({ overdue: [...delOver, ...chkOver], upcoming });
+    // NEW PMS — PI / Style ka Full Kitting, Cutting, Stitching complete (pichhle 3 din).
+    // null = sheet abhi nahi padh paaye (tab browser purani yaad rakhta hai, dobara nahi bajta)
+    let production = [];
+    try {
+      if (await pms2NotifyAllowed(uid, req.session.role)) {
+        const from = new Date(Date.now() + 330 * 60000 - (PMS2_DONE_DAYS - 1) * 86400000).toISOString().slice(0, 10);
+        production = (await pms2DoneLoad()).filter(x => x.at.slice(0, 10) >= from).slice(0, 150);
+      }
+    } catch (e) {
+      console.error('PMS notifications FAILED:', e.message);
+      production = null;
+    }
+
+    res.json({ overdue: [...delOver, ...chkOver], upcoming, production });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -5826,6 +5839,96 @@ app.get('/api/production/pms', requireAuth, requireAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ── NEW PMS — step complete hone ki NOTIFICATION (bell) (Harsh, 29 Oct 2026) ──
+// "Style-wise aur PI-wise: Full Kitting, Cutting, Stitching complete ho to notification".
+// Kisi PI ki (ya PI ke andar ek Style ki) SAARI rows me us step ki Actual Date bhar
+// jaaye to wo step complete. Cancel wali rows ginti me nahi. Bell me 3 din (aaj +
+// pichhle 2) tak dikhta hai. Admin + is PMS FMS ke saare doers ko.
+const PMS2_DONE_STEPS = [
+  { k: 'kitcut',    act: 'V',  st: 'X',  label: 'Full Kitting for Cutting' },
+  { k: 'cut',       act: 'AA', st: 'AC', label: 'Cutting + Bundling' },
+  { k: 'kitstitch', act: 'BC', st: 'BE', label: 'Full Kitting for Stitching' },
+  { k: 'stitch',    act: 'BI', st: 'BK', label: 'Issue For Stitching' }
+];
+const PMS2_DONE_DAYS = 3;
+const PMS2_DONE_TTL = 120000;               // 2 min — har user har minute bell poochta hai
+let _pms2DoneCache = null, _pms2DoneBusy = null;
+
+// Actual Date "14/10/2026 10:34:18" -> "2026-10-14 10:34:18" (sort ke liye)
+function pms2Stamp(v) {
+  const s = String(v == null ? '' : v).trim();
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')} ${(m[4] || '0').padStart(2, '0')}:${m[5] || '00'}:${m[6] || '00'}`;
+  const d = pms2Iso(s);
+  return d ? d + ' 00:00:00' : '';
+}
+
+// Sheet se saare "complete" (PI-wise + Style-wise) — sirf zaroori columns padhte hain
+async function pms2DoneLoad() {
+  if (_pms2DoneCache && Date.now() - _pms2DoneCache.at < PMS2_DONE_TTL) return _pms2DoneCache.list;
+  if (_pms2DoneBusy) return _pms2DoneBusy;
+  _pms2DoneBusy = (async () => {
+    try {
+      const api = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+      const tab = await resolveTabName(api, PMS2_SHEET_ID, PMS2_TAB);
+      const cols = ['B', 'C', 'K', 'Q', ...PMS2_DONE_STEPS.flatMap(s => [s.act, s.st])];
+      const r = await api.spreadsheets.values.batchGet({ spreadsheetId: PMS2_SHEET_ID,
+        ranges: cols.map(c => `'${tab}'!${c}${PMS2_FIRST_ROW}:${c}`) });
+      const vals = {};
+      cols.forEach((c, n) => { vals[c] = ((r.data.valueRanges[n] || {}).values || []).map(x => String(x[0] == null ? '' : x[0]).trim()); });
+      const len = Math.max(0, ...Object.values(vals).map(a => a.length));
+      const groups = new Map();      // key -> { kind, pi, style, buyer, rows }
+      const add = (key, o, row) => { let g = groups.get(key); if (!g) groups.set(key, g = { ...o, rows: [] }); g.rows.push(row); };
+      for (let n = 0; n < len; n++) {
+        const v = c => vals[c][n] || '';
+        const pi = v('K');
+        if (!pi || /cancel/i.test(v('Q'))) continue;
+        const row = { style: v('C'), st: {} };
+        for (const s of PMS2_DONE_STEPS) row.st[s.k] = { filled: !!v(s.act), at: pms2Stamp(v(s.act)), skip: /cancel/i.test(v(s.st)) };
+        add('pi|' + pi, { kind: 'pi', pi, style: '', buyer: v('B') }, row);
+        if (row.style) add('style|' + pi + '|' + row.style, { kind: 'style', pi, style: row.style, buyer: v('B') }, row);
+      }
+      // Ek hi style wale PI me Style aur PI dono same baat — wahan sirf PI wala (style ke naam ke saath)
+      const styleCount = {};
+      for (const g of groups.values()) if (g.kind === 'style') styleCount[g.pi] = (styleCount[g.pi] || 0) + 1;
+      const list = [];
+      for (const g of groups.values()) {
+        if (g.kind === 'style' && styleCount[g.pi] === 1) continue;
+        const styles = g.kind === 'pi' ? [...new Set(g.rows.map(x => x.style).filter(Boolean))] : [g.style];
+        for (const s of PMS2_DONE_STEPS) {
+          const live = g.rows.filter(x => !x.st[s.k].skip);
+          if (!live.length || !live.every(x => x.st[s.k].filled)) continue;
+          const at = live.map(x => x.st[s.k].at).sort().pop();
+          if (!at) continue;
+          list.push({ key: [g.kind, s.k, g.pi, g.style].join('|'), kind: g.kind, step: s.k, label: s.label,
+            pi: g.pi, style: g.kind === 'pi' && styles.length === 1 ? styles[0] : g.style,
+            styles: styles.length, buyer: g.buyer, at });
+        }
+      }
+      list.sort((a, b) => b.at.localeCompare(a.at) || (a.kind === 'pi' ? -1 : 1));
+      _pms2DoneCache = { at: Date.now(), list };
+      return list;
+    } catch (e) {
+      // Sheet na padh paaye to purani list (ho to) — warna bell me production updates gayab ho kar wapas aate hi dobara bajte
+      if (_pms2DoneCache) return _pms2DoneCache.list;
+      throw e;
+    } finally { _pms2DoneBusy = null; }
+  })();
+  return _pms2DoneBusy;
+}
+
+// Ye notification kise milein: admin + is PMS sheet wali FMS ke kisi bhi step ka doer
+async function pms2NotifyAllowed(uid, role) {
+  if (role === 'admin') return true;
+  const [sheets] = await db.query('SELECT id, sheet_id FROM fms_sheets');
+  const fmsIds = new Set(sheets.filter(s => extractSpreadsheetId(s.sheet_id) === PMS2_SHEET_ID).map(s => String(s.id)));
+  if (!fmsIds.size) return false;
+  const [steps] = await db.query('SELECT id, fms_id FROM fms_steps');
+  const stepIds = new Set(steps.filter(s => fmsIds.has(String(s.fms_id))).map(s => String(s.id)));
+  const [mine] = await db.query('SELECT step_id FROM fms_step_doers WHERE user_id=?', [uid]);
+  return mine.some(d => stepIds.has(String(d.step_id)));
+}
 
 // PPC Date likho — {key:'cut'|..., value:'YYYY-MM-DD' ya '' (hatane ke liye), rows:[{row, uid}]}
 // Har row ka Unique ID (P) sheet se dobara milaya jaata hai — beech me sheet badal gayi ho

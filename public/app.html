@@ -12610,15 +12610,15 @@ async function loadNotifications() {
   try {
     const r = await api('/api/notifications');
     if (!r || r.error) return;
-    const over = r.overdue || [], up = r.upcoming || [];
-    const count = over.length + up.length;
+    const over = r.overdue || [], up = r.upcoming || [], prod = r.production || [];
+    const count = over.length + up.length + prod.length;
     const badge = document.getElementById('notifBadge');
     if (badge) {
       badge.textContent = count > 99 ? '99+' : String(count);
       badge.style.display = count ? 'inline-flex' : 'none';
     }
     const fmtD = d => { const p = String(d || '').split('-'); return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : d; };
-    notifCheckNew(over, up, fmtD);   // nayi aayi ho to ghanti + Chrome alert
+    notifCheckNew(over, up, fmtD, r.production);   // nayi aayi ho to ghanti + Chrome alert
     const body = document.getElementById('notifPanelBody');
     if (!body) return;
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -12635,6 +12635,10 @@ async function loadNotifications() {
         </div>
       </div>`;
     let html = '';
+    if (prod.length) {
+      html += `<div style="padding:8px 14px;font-size:11px;font-weight:700;color:#15803d;background:#f0fdf4;letter-spacing:.3px">🏭 PRODUCTION UPDATES — LAST 3 DAYS (${prod.length})</div>`;
+      html += prod.map(p => { const n = pmsNotifText(p); return row(n.icon, '#15803d', esc(n.title), esc(n.sub)); }).join('');
+    }
     if (up.length) {
       html += `<div style="padding:8px 14px;font-size:11px;font-weight:700;color:#d97706;background:#fffbeb;letter-spacing:.3px">⏳ UPCOMING — DUE IN 2 DAYS (${up.length})</div>`;
       html += up.map(t => row('📅', '#d97706', esc(t.description), `${t.frequency ? esc(t.frequency) + ' • ' : ''}due: ${fmtD(t.due_date)}`)).join('');
@@ -12726,29 +12730,47 @@ function openNotifPanel() {
   loadNotifications();
 }
 
+// NEW PMS ka "complete" — bell aur Chrome alert dono me yahi text
+function pmsNotifText(p) {
+  const icon = { kitcut: '📦', kitstitch: '📦', cut: '✂️', stitch: '🧵' }[p.step] || '🏭';
+  const at = String(p.at || ''), d = at.slice(0, 10).split('-');
+  const when = d.length === 3 ? `${d[2]}-${d[1]}-${d[0]} ${at.slice(11, 16)}` : at;
+  const who = p.kind === 'pi' ? 'PI ' + p.pi : 'Style ' + p.style;
+  const sub = p.kind === 'pi'
+    ? [p.style ? 'Style ' + p.style : (p.styles ? p.styles + ' styles' : ''), p.buyer, when]
+    : ['PI ' + p.pi, p.buyer, when];
+  return { icon, who, title: `${p.label} completed — ${who}`, sub: sub.filter(Boolean).join(' • ') };
+}
+
 // loadNotifications har baar list deta hai — jo pehli baar dikhi wahi "nayi"
-function notifCheckNew(over, up, fmtD) {
+function notifCheckNew(over, up, fmtD, prod) {
   if (!ME || !ME.id) return;
   const key = 'tm_notif_seen_' + ME.id;
   const items = [
     ...over.map(t => ({ k: 'o:' + t.type + ':' + t.id, t, over: true })),
-    ...up.map(t => ({ k: 'u:' + t.type + ':' + t.id + ':' + t.due_date, t, over: false }))
+    ...up.map(t => ({ k: 'u:' + t.type + ':' + t.id + ':' + t.due_date, t, over: false })),
+    ...(prod || []).map(p => ({ k: 'p:' + p.key, p }))
   ];
   let seen = [];
   try { seen = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { seen = []; }
   const seenSet = new Set(Array.isArray(seen) ? seen : []);
   const fresh = items.filter(x => !seenSet.has(x.k));
-  try { localStorage.setItem(key, JSON.stringify(items.map(x => x.k))); } catch (e) { /* storage band */ }
+  // Production list is baar nahi aayi (null) to purani yaad rakho — wapas aane par dobara na baje
+  const keep = prod ? [] : [...seenSet].filter(k => k.startsWith('p:'));
+  try { localStorage.setItem(key, JSON.stringify([...items.map(x => x.k), ...keep])); } catch (e) { /* storage band */ }
   if (!fresh.length) return;
   notifRing();
+  const text = x => x.p ? pmsNotifText(x.p).title : (x.t.description || '');
   if (fresh.length <= 3) {
-    fresh.forEach(x => notifShow(
-      x.over ? '⚠️ Overdue task' : '📅 Due in 2 days',
-      `${x.t.description || ''}\n${x.over ? 'Was due' : 'Due'}: ${fmtD(x.t.due_date)}`,
-      'tm-' + x.k));
+    fresh.forEach(x => x.p
+      ? notifShow('🏭 ' + x.p.label + ' completed', `${pmsNotifText(x.p).who}\n${pmsNotifText(x.p).sub}`, 'tm-' + x.k)
+      : notifShow(
+        x.over ? '⚠️ Overdue task' : '📅 Due in 2 days',
+        `${x.t.description || ''}\n${x.over ? 'Was due' : 'Due'}: ${fmtD(x.t.due_date)}`,
+        'tm-' + x.k));
   } else {
     notifShow(`🔔 ${fresh.length} new notifications`,
-      fresh.slice(0, 3).map(x => '• ' + (x.t.description || '')).join('\n') + `\n+${fresh.length - 3} more — check the bell`,
+      fresh.slice(0, 3).map(x => '• ' + text(x)).join('\n') + `\n+${fresh.length - 3} more — check the bell`,
       'tm-summary');
   }
 }
