@@ -4903,9 +4903,13 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
         const party = String(row[1] || '').trim();          // B
         const planned = prodIsoDate(row[invPlan]);          // dispatch step ka Planned
         const actual = String(row[invAct] || '').trim();    // dispatch step ka Actual
-        // Actual aane tak row pending — Planned date bhari ho ya na ho
         if (!party) continue;
         if (/cancel/i.test(String(row[invStat] || ''))) continue;   // cancel order report me nahi
+        // Harsh (29 Oct 2026): Step 7 me Planned hai aur Actual nahi = Pending;
+        // Actual hai aur Status "Done" = Dispatched. Jo Step 7 tak pahuncha hi
+        // nahi (Planned khaali) wo report me nahi.
+        const done = !!actual && /^done$/i.test(String(row[invStat] || '').trim());
+        if (!done && (actual || !String(row[invPlan] || '').trim())) continue;
         rows.push({
           sheetRow,
           rowKey: party + '|' + (row[12] || '') + '|' + planned,
@@ -4918,7 +4922,7 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
           planned,
           actualDate: prodIsoDate(row[invAct]),
           dispatchStatus: String(row[invDisp] || '').trim(),
-          dispatched: !!actual
+          dispatched: done
         });
       } else if (src === 'sampling') {
         const buyer = String(row[1] || '').trim();          // B
