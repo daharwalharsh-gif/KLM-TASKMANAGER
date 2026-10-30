@@ -7905,7 +7905,9 @@ function sendHtmlNoCache(res, file) {
 app.get('/', (req, res) => sendHtmlNoCache(res, 'index.html'));
 // Auth check is handled client-side via /api/me in init() — removing server-side
 // requireAuth here prevents app.html from loading if cookie has any timing/domain issue
-app.get('/app', (req, res) => sendHtmlNoCache(res, 'app.html'));
+// /app/users, /app/mis … — URL me page ka naam (Harsh, 30 Oct 2026). Sab par wahi app.html,
+// page browser khud URL dekh kar kholta hai (refresh par bhi wahi page).
+app.get(/^\/app(?:\/[a-z0-9-]+)?\/?$/i, (req, res) => sendHtmlNoCache(res, 'app.html'));
 
 // On Vercel/serverless we export the app and let the platform invoke it
 // as a request handler — calling app.listen() there would crash the function.

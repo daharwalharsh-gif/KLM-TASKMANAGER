@@ -603,11 +603,11 @@ tbody tr:last-child td{border-bottom:none;}
 ══════════════════════════════════════ -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
-    <img src="invincible-mark-white.svg" alt="Invincible"
+    <img src="/invincible-mark-white.svg" alt="Invincible"
       style="width:34px;height:34px;object-fit:contain;flex-shrink:0"
       onerror="this.style.display='none';document.getElementById('sidebarLogoFallback').style.display='grid'"/>
     <div id="sidebarLogoFallback" style="display:none;width:34px;height:34px;background:linear-gradient(135deg,#1a1a1a,#444);border-radius:8px;place-items:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0">I</div>
-    <img src="invincible-logo-white.svg" alt="Invincible" class="logo-full"/>
+    <img src="/invincible-logo-white.svg" alt="Invincible" class="logo-full"/>
   </div>
   <nav class="nav">
     <div class="nav-item active" onclick="navigate('dashboard',this)">
@@ -4500,7 +4500,11 @@ async function init() {
     // bas login pe seedha Owner Dashboard khulta hai
     const isOwnerLanding = String(ME.email || '').trim().toLowerCase() === 'manik@klmahajan.com';
     setMinDates();
-    if (isOwnerLanding) navigate('owner', document.getElementById('nav-owner'));
+    // URL me page ho (/app/mis — refresh ya bookmark) to wahi page; warna pehle jaisa
+    const want = urlPage();
+    const startPage = pageAllowed(want) ? want : (isOwnerLanding ? 'owner' : 'dashboard');
+    try { history.replaceState({ page: startPage }, '', '/app/' + startPage); } catch (e) { /* purana browser */ }
+    if (startPage !== 'dashboard') navigate(startPage, navEl(startPage), true);
     else loadDashboard();
     buildMobileNav();
     setTimeout(checkHolidayNotice, 1200);   // app khulte hi holiday notice
@@ -4616,12 +4620,35 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',meca:'Meca Offline',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List',accounts:'Accounts Department'};
 
-function navigate(page, el) {
+// URL me page ka naam — /app/users, /app/mis … (Harsh, 30 Oct 2026). Refresh par wahi page
+// khulta hai aur browser ka Back / Forward pichhle page par le jaata hai.
+function urlPage() {
+  const m = /^\/app\/([a-z0-9-]+)\/?$/i.exec(location.pathname);
+  return m ? m[1].toLowerCase() : '';
+}
+// Ye page is user ke liye khul sakta hai? (page ho, aur sidebar me uska button chhupa na ho)
+function pageAllowed(page) {
+  if (!page || !document.getElementById('page-' + page)) return false;
+  const nav = document.getElementById('nav-' + page);
+  return !nav || nav.style.display !== 'none';
+}
+function navEl(page) {
+  return document.getElementById('nav-' + page) || document.querySelector(`.nav-item[onclick*="navigate('${page}'"]`);
+}
+window.addEventListener('popstate', () => {
+  const p = urlPage() || 'dashboard';
+  if (pageAllowed(p)) navigate(p, navEl(p), true);
+});
+
+function navigate(page, el, fromUrl) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
   if (el) el.classList.add('active');
   document.getElementById('topbarTitle').textContent = pageTitles[page] || page;
+  if (!fromUrl && location.pathname !== '/app/' + page) {
+    try { history.pushState({ page }, '', '/app/' + page); } catch (e) { /* purana browser — bas URL nahi badlega */ }
+  }
   if (page==='dashboard') loadDashboard();
   if (page==='owner') loadOwnerDashboard();
   if (page==='alltasks') loadAllTasks();
