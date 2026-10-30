@@ -7491,10 +7491,8 @@ app.get('/api/leaves', requireAuth, async (req, res) => {
       LEFT JOIN users d ON l.decided_by = d.id
       ${whereSql}
       ORDER BY l.applied_at DESC, l.id DESC`, params);
-    // "Your approver" = pehla admin
-    const [admins] = await db.query("SELECT name FROM users WHERE role='admin' ORDER BY id ASC LIMIT 1");
-    const approverName = (admins[0] && admins[0].name) || 'Admin';
-    res.json({ leaves: rows, approverName, isAdmin });
+    // "Your approver" — kisi ka naam nahi, sirf "Admin" (Harsh, 30 Oct 2026)
+    res.json({ leaves: rows, approverName: 'Admin', isAdmin });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
