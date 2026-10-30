@@ -6076,7 +6076,9 @@ app.get('/api/meca', requireAuth, requireAdmin, async (req, res) => {
 // nayi rows ki tarah jodte hain. Columns heading ke NAAM se match hote hain (jo sheet me nahi hain
 // wo heading apne aap jud jaati hai). Sheet ek native Google Sheet honi chahiye (.xlsx file par
 // Google Sheets API chalti hi nahi) aur service account ko Editor access chahiye.
-const KP_SHEET_ID = process.env.KARIGER_SHEET_ID || '15KDhlSRF6CrjJOilzMA8y7ccKchWsQXC';
+// Harsh (30 Oct 2026): voucher ab asli Google Sheet me hai (pehle .xlsx file 15KDhl… thi) —
+// ab sirf isi me likhte hain. File ka type dekh kar neeche apne aap Sheets API wala raasta chalta hai.
+const KP_SHEET_ID = '18wGrwva1lLbAoezw48Jbe8XaAPfrUyACqGbbVAOddSc';
 const KP_TAB = 'ALL LINE DATA ENTRY';
 const KP_GID = process.env.KARIGER_SHEET_GID || '264530258';
 // Sheet ke apne columns (jis kram me hain) + jo hum jodte hain
@@ -6135,9 +6137,9 @@ async function kpWrite(api, rows, sheetId) {
   // Jo heading sheet me nahi hai — aage jod do (format bhi O jaisa)
   const need = [...KP_COLS, ...KP_EXTRA].filter(c => colOf[c] === undefined);
   let width = Math.max(hdr.length, ...Object.values(colOf).map(i => i + 1), 0);
+  const colLetter = i => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
   if (need.length) {
     const startCol = width;
-    const colLetter = i => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
     await api.spreadsheets.values.update({ spreadsheetId: sid, range: `'${tab}'!${colLetter(startCol)}${hr + 1}`, valueInputOption: 'RAW',
       requestBody: { values: [need] } });
     need.forEach((c, i) => { colOf[c] = startCol + i; });
@@ -6149,11 +6151,21 @@ async function kpWrite(api, rows, sheetId) {
         pasteType: 'PASTE_FORMAT' } }] } });
     } catch (e) { /* sirf rang — na ho to koi baat nahi */ }
   }
-  const values = rows.map(r => { const line = new Array(width).fill(''); for (const [k, v] of Object.entries(r)) if (colOf[k] !== undefined) line[colOf[k]] = v; return line; });
-  const startLetter = 'A';
-  const res = await api.spreadsheets.values.append({ spreadsheetId: sid, range: `'${tab}'!${startLetter}${hr + 1}`,
-    valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS', requestBody: { values } });
-  return { added: rows.length, newColumns: need, updatedRange: (res.data.updates || {}).updatedRange || '' };
+  // Harsh (30 Oct 2026): .xlsx wale raaste jaisa hi — sirf apne columns (null = cell ko chhoona hi
+  // nahi, jaise O ka formula), values jaisi hain waisi (RAW: date/card text hi rehte hain, number
+  // number), aur AAKHRI bhari row ke theek neeche (beech ki kisi khaali row me nahi, bhari row kabhi nahi).
+  const values = rows.map(r => { const line = new Array(width).fill(null); for (const [k, v] of Object.entries(r)) if (colOf[k] !== undefined) line[colOf[k]] = v; return line; });
+  const lastL = colLetter(width - 1);
+  const body = (await api.spreadsheets.values.get({ spreadsheetId: sid, range: `'${tab}'!A${hr + 2}:${lastL}` })).data.values || [];
+  let lastFilled = hr + 1;                          // heading row (1-based)
+  body.forEach((r, i) => { if ((r || []).some(c => String(c == null ? '' : c).trim() !== '')) lastFilled = hr + 2 + i; });
+  const first = lastFilled + 1, last = first + values.length - 1;
+  const rowCount = (tabProp.gridProperties || {}).rowCount || 0;
+  if (last > rowCount) await api.spreadsheets.batchUpdate({ spreadsheetId: sid, requestBody: { requests: [
+    { appendDimension: { sheetId: tabProp.sheetId, dimension: 'ROWS', length: last - rowCount } }] } });
+  const range = `'${tab}'!A${first}:${lastL}${last}`;
+  await api.spreadsheets.values.update({ spreadsheetId: sid, range, valueInputOption: 'RAW', requestBody: { values } });
+  return { added: rows.length, newColumns: need, updatedRange: range };
 }
 
 // ── KARIGER PAYMENT VOUCHER .xlsx file me seedha likhna (Harsh, 21 Oct 2026) ──
