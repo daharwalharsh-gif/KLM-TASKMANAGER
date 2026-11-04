@@ -7586,6 +7586,24 @@ app.delete('/api/leaves/:id', requireAuth, async (req, res) => {
 // Naya record "pending" me banta hai; Complete dabane par "completed" ho jaata
 // hai aur Completed tab me chala jaata hai, jahan se dobara edit ho sakta hai.
 
+// Master Rate List me kaam (Voucher form, Print out, Cost Sheet banana/edit,
+// Complete, Revise) admin ke alawa in emails ko bhi. Baaki app me ye admin nahi.
+const RL_EDIT_EMAILS = new Set([
+  'qc@klmahajan.com',
+  'deo@klmahajan.com',          // Mr. Deepak Pal
+]);
+async function canEditRateList(req) {
+  if (req.session.role === 'admin') return true;
+  try {
+    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    return RL_EDIT_EMAILS.has((rows[0]?.email || '').trim().toLowerCase());
+  } catch (e) { return false; }
+}
+async function requireRateListEdit(req, res, next) {
+  if (await canEditRateList(req)) return next();
+  res.status(403).json({ error: 'Admin only' });
+}
+
 const RL_MAX_ROWS = 300;     // ek list me itni se zyada operation rows nahi
 const RL_MAX_DATES = 24;     // itne se zyada DATE column nahi
 // pg-db 45,000 akshar se badi cell ko local disk par bhej deta hai
@@ -7678,24 +7696,6 @@ const rlNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
 app.post('/api/rate-lists/upload-file', requireAuth, requireRateListEdit, async (req, res) => {
   try {
     const { filename, mimeType, dataBase64 } = req.body || {};
-// Master Rate List me kaam (Voucher form, Print out, Cost Sheet banana/edit,
-// Complete, Revise) admin ke alawa in emails ko bhi. Baaki app me ye admin nahi.
-const RL_EDIT_EMAILS = new Set([
-  'qc@klmahajan.com',
-  'deo@klmahajan.com',          // Mr. Deepak Pal
-]);
-async function canEditRateList(req) {
-  if (req.session.role === 'admin') return true;
-  try {
-    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
-    return RL_EDIT_EMAILS.has((rows[0]?.email || '').trim().toLowerCase());
-  } catch (e) { return false; }
-}
-async function requireRateListEdit(req, res, next) {
-  if (await canEditRateList(req)) return next();
-  res.status(403).json({ error: 'Admin only' });
-}
-
     if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
     const EXT_MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
       gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', bmp: 'image/bmp' };
