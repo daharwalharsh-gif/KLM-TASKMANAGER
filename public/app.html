@@ -6893,12 +6893,22 @@ function canSeeRlPrint() {
   if (ME.role === 'admin' || ME.canRateList) return true;
   return RL_PRINT_EMAILS.includes(String(ME.email || '').trim().toLowerCase());
 }
+// Admin ke alawa jinhe Master Rate List ka kaam mila hai (qc, deo, rohit) unhe sirf
+// Voucher Data Entry Form aur Cost Sheet Print out — baaki tab nahi (Harsh, 4 Nov 2026)
+function rlTwoTabs() {
+  return typeof ME !== 'undefined' && !!ME && ME.role !== 'admin' && !!ME.canRateList;
+}
 function rlApplyPrintAccess() {
   const tab = document.getElementById('rlTabForm');
   if (tab) tab.style.display = canSeeRlPrint() ? '' : 'none';
+  const two = rlTwoTabs();
+  ['rlTabCost', 'rlTabRevised', 'rlTabDone'].forEach(id => {
+    const t = document.getElementById(id); if (t) t.style.display = two ? 'none' : '';
+  });
 }
 
 function rlTab(which, el) {
+  if (rlTwoTabs() && which !== 'gs' && which !== 'form') { which = 'form'; el = null; }
   // Jinke paas print out tab ka access nahi, unhe Cost Sheet par bhej do
   if (which === 'form' && !canSeeRlPrint()) which = 'cost';
   if (which === 'gs' && !rlCanEdit()) which = 'cost';

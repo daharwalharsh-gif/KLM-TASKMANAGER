@@ -7591,6 +7591,7 @@ app.delete('/api/leaves/:id', requireAuth, async (req, res) => {
 const RL_EDIT_EMAILS = new Set([
   'qc@klmahajan.com',
   'deo@klmahajan.com',          // Mr. Deepak Pal
+  'rohit@klmahajan.com',
 ]);
 async function canEditRateList(req) {
   if (req.session.role === 'admin') return true;
