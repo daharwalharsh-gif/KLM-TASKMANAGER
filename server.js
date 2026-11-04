@@ -1228,6 +1228,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Sabki leave dekh/approve kar sakta hai ya nahi (admin + HR)
     rows[0].canLeaves = req.session.role === 'admin' ||
       LEAVE_APPROVER_EMAILS.has((rows[0].email || '').trim().toLowerCase());
+    // Master Rate List me kaam kar sakta hai ya sirf dekh sakta hai
+    rows[0].canRateList = req.session.role === 'admin' ||
+      RL_EDIT_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -6400,7 +6403,7 @@ app.get('/api/owner-deck/:id', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/ratelist/gsheet', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/ratelist/gsheet', requireAuth, requireRateListEdit, async (req, res) => {
   try {
     const p = req.body || {};
     if (!String((p.head || {}).kariger || '').trim()) return res.status(400).json({ error: 'Kariger Name is required' });
@@ -6420,7 +6423,7 @@ app.post('/api/ratelist/gsheet', requireAuth, requireAdmin, async (req, res) => 
     res.status(500).json({ error: err.message });
   }
 });
-app.get('/api/ratelist/gsheet-info', requireAuth, requireAdmin, (req, res) =>
+app.get('/api/ratelist/gsheet-info', requireAuth, requireRateListEdit, (req, res) =>
   res.json({ url: `https://docs.google.com/spreadsheets/d/${KP_SHEET_ID}/edit?gid=${KP_GID}#gid=${KP_GID}`, tab: KP_TAB, columns: [...KP_COLS, ...KP_EXTRA] }));
 
 // ══════════════════════════════════════════════════════
@@ -7672,9 +7675,27 @@ function rlCleanFiles(v) {
 const rlNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
 
 // ── Attachment upload — image ya PDF. fms_files me jaati hai, public /f/:id link ──
-app.post('/api/rate-lists/upload-file', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/rate-lists/upload-file', requireAuth, requireRateListEdit, async (req, res) => {
   try {
     const { filename, mimeType, dataBase64 } = req.body || {};
+// Master Rate List me kaam (Voucher form, Print out, Cost Sheet banana/edit,
+// Complete, Revise) admin ke alawa in emails ko bhi. Baaki app me ye admin nahi.
+const RL_EDIT_EMAILS = new Set([
+  'qc@klmahajan.com',
+  'deo@klmahajan.com',          // Mr. Deepak Pal
+]);
+async function canEditRateList(req) {
+  if (req.session.role === 'admin') return true;
+  try {
+    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    return RL_EDIT_EMAILS.has((rows[0]?.email || '').trim().toLowerCase());
+  } catch (e) { return false; }
+}
+async function requireRateListEdit(req, res, next) {
+  if (await canEditRateList(req)) return next();
+  res.status(403).json({ error: 'Admin only' });
+}
+
     if (!filename || !dataBase64) return res.status(400).json({ error: 'filename and dataBase64 required' });
     const EXT_MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
       gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', bmp: 'image/bmp' };
@@ -7740,7 +7761,7 @@ app.get('/api/rate-lists/:id', requireAuth, async (req, res) => {
 // ── Naya record — id wapas jaata hai taaki client turant editor khol sake ──
 // Cost sheet / rate list BADALNA sirf admin ka kaam. Dekhna sabke liye khula
 // hai (GET par rok nahi), par likhne wale raaste admin-only.
-app.post('/api/rate-lists', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/rate-lists', requireAuth, requireRateListEdit, async (req, res) => {
   try {
     const b = req.body || {};
     if (!String(b.style || '').trim()) return res.status(400).json({ error: 'Style is required' });
@@ -7762,7 +7783,7 @@ app.post('/api/rate-lists', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // ── Edit — Completed hone ke baad bhi chalta hai (Completed tab ka Edit button) ──
-app.put('/api/rate-lists/:id', requireAuth, requireAdmin, async (req, res) => {
+app.put('/api/rate-lists/:id', requireAuth, requireRateListEdit, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM rate_lists WHERE id=?', [req.params.id]);
     if (!rows || !rows[0]) return res.status(404).json({ error: 'Rate list not found' });
@@ -7796,7 +7817,7 @@ app.put('/api/rate-lists/:id', requireAuth, requireAdmin, async (req, res) => {
 // ── Delete — sirf admin, ya jisne khud banayi thi ──
 // Attachment (image/PDF) fms_files me padi rehti hain; unhe chhedte nahi,
 // kyunki wo wapas nahi aayengi aur kisi aur jagah bhi lagi ho sakti hain.
-app.delete('/api/rate-lists/:id', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/api/rate-lists/:id', requireAuth, requireRateListEdit, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM rate_lists WHERE id=?', [req.params.id]);
     if (!rows || !rows[0]) return res.status(404).json({ error: 'Sheet not found' });
@@ -7810,7 +7831,7 @@ app.delete('/api/rate-lists/:id', requireAuth, requireAdmin, async (req, res) =>
 });
 
 // ── Complete / wapas Pending ──
-app.post('/api/rate-lists/:id/status', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/rate-lists/:id/status', requireAuth, requireRateListEdit, async (req, res) => {
   try {
     const want = String((req.body || {}).status || '').trim();
     if (want !== 'pending' && want !== 'completed') return res.status(400).json({ error: 'status must be pending or completed' });
@@ -7826,7 +7847,7 @@ app.post('/api/rate-lists/:id/status', requireAuth, requireAdmin, async (req, re
 // ── Revise — Completed sheet ki nayi copy, aaj ki date par (Harsh, 27 Oct 2026) ──
 // Purani sheet bilkul waisi hi rehti hai. Copy Completed me aati hai, upar "Revised"
 // likha hota hai, aur Revised tab me bhi dikhti hai. Naye rate copy ko Edit karke.
-app.post('/api/rate-lists/:id/revise', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/rate-lists/:id/revise', requireAuth, requireRateListEdit, async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM rate_lists WHERE id=?', [req.params.id]);
     if (!rows || !rows[0]) return res.status(404).json({ error: 'Sheet not found' });

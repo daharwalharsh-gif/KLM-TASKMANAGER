@@ -6855,7 +6855,7 @@ function openRateList() { rlApplyPrintAccess(); rlApplyEditAccess(); rlTab(_rlVi
 // Cost Sheet me edit karne ka haq sirf admin ko. Baaki sab dekh sakte hain
 // aur PDF nikaal sakte hain, par badal nahi sakte.
 function rlCanEdit() {
-  return typeof ME !== 'undefined' && !!ME && ME.role === 'admin';
+  return typeof ME !== 'undefined' && !!ME && (ME.role === 'admin' || !!ME.canRateList);
 }
 // Edit ke saare buttons/fields ko chhupana ya readonly karna
 function rlApplyEditAccess() {
@@ -6890,7 +6890,7 @@ const RL_PRINT_EMAILS = ['rohit@klmahajan.com', 'gm@klmahajan.com',
 function canSeeRlPrint() {
   // ME `let` se bana hai, isliye window.ME kabhi nahi milta — seedha ME hi dekho
   if (typeof ME === 'undefined' || !ME) return true;   // pata na ho to rok mat lagao
-  if (ME.role === 'admin') return true;
+  if (ME.role === 'admin' || ME.canRateList) return true;
   return RL_PRINT_EMAILS.includes(String(ME.email || '').trim().toLowerCase());
 }
 function rlApplyPrintAccess() {
