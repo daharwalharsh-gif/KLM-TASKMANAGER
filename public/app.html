@@ -19783,7 +19783,21 @@ function gsPaintAmts(i) {
 }
 function gsOpSet(i, k, v) { _gs.ops[i][k] = v; if (k === 'rate') gsPaintAmts(i); gsTotals(); }
 function gsCell(i, j, k, v) { if (k !== 'pcs') return; _gs.ops[i].cells[j].pcs = v; gsPaintAmts(i); gsTotals(); }
-function gsDate(j, v) { _gs.dates[j] = v; }
+// Issue date sirf is mahine ya agle mahine ki — pichhle mahine ki nahi (4 Nov 2026)
+function gsDateRange() {
+  const t = new Date(Date.now() + 330 * 60000);   // India ki aaj ki date
+  const y = t.getUTCFullYear(), m = t.getUTCMonth(), iso = d => d.toISOString().slice(0, 10);
+  return { min: iso(new Date(Date.UTC(y, m, 1))), max: iso(new Date(Date.UTC(y, m + 2, 0))) };
+}
+const gsDateOk = d => { const R = gsDateRange(); return !d || (d >= R.min && d <= R.max); };
+function gsDate(j, v, el) {
+  // calendar me pichhla mahina band hai, par haath se type karke bhi na aa sake
+  if (!gsDateOk(v)) {
+    showToast('Issue date must be in this month or next month', 'error');
+    v = ''; if (el) el.value = '';
+  }
+  _gs.dates[j] = v;
+}
 function gsAddRow() { _gs.ops.push(gsBlankOp()); gsRender(); }
 function gsTotals() {
   const tr = _gs.ops.reduce((n, o) => n + rlNum(o.rate), 0), set = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
@@ -19890,9 +19904,9 @@ function gsRender() {
   const H = _gs.head, inp = (k, label, ph, w, type, list) => `<div style="flex:${w || 150} 1 0;min-width:0"><label>${label}</label><input type="${type || 'text'}" id="gsH_${k}" value="${escapeHtml(H[k])}" placeholder="${ph || label}"
     style="width:100%" ${list ? `list="${list}" autocomplete="off"` : ''} oninput="${k === 'kariger' ? 'gsPickKariger(this.value)' : `gsHead('${k}',this.value)`}"></div>`;
   const dl = (id, arr) => `<datalist id="${id}">${arr.map(v => `<option value="${escapeHtml(v)}"></option>`).join('')}</datalist>`;
-  const n = _gs.dates.length;
+  const n = _gs.dates.length, DR = gsDateRange();
   const head1 = `<tr><th rowspan="2" style="width:56px">OP NO.</th><th rowspan="2" style="min-width:240px">OPERATION</th><th rowspan="2" style="width:100px">KARIGER RATE</th>` +
-    _gs.dates.map((d, j) => `<th colspan="2" class="rl-d${j % 2}"><input type="date" class="rl-in" value="${escapeHtml(d)}" title="Issue date" onchange="gsDate(${j},this.value)"></th>`).join('') + '</tr>';
+    _gs.dates.map((d, j) => `<th colspan="2" class="rl-d${j % 2}"><input type="date" class="rl-in" value="${escapeHtml(d)}" min="${DR.min}" max="${DR.max}" title="Issue date" onchange="gsDate(${j},this.value,this)"></th>`).join('') + '</tr>';
   const head2 = '<tr>' + _gs.dates.map((_, j) => `<th class="rl-d${j % 2}">NO OF PCS</th><th class="rl-d${j % 2}">AMOUNT</th>`).join('') + '</tr>';
   let no = 0;
   const body = _gs.ops.map((o, i) => {
@@ -20058,6 +20072,10 @@ async function gsSend() {
   if (!filled.length) { showToast('Fill NO OF PCS for at least one operation', 'error'); return; }
   const noDate = filled.some(o => o.cells.some(c => String(c.pcs).trim() && !c.date));
   if (noDate) { showToast('Select the issue date at the top of every column where NO OF PCS is filled', 'error'); return; }
+  // screen raat bhar khuli rahe to mahina badal jaata hai — bhejne se pehle dobara dekho
+  if (filled.some(o => o.cells.some(c => String(c.pcs).trim() && !gsDateOk(c.date)))) {
+    showToast('Issue date must be in this month or next month — please change the old date', 'error'); return;
+  }
   if (_gs.sent && !confirm(`${_gs.sent} row(s) were already sent from this screen. Send again (this adds the rows again)?`)) return;
   const b = document.getElementById('gsSendBtn'); if (b) { b.disabled = true; b.textContent = '⏳ Sending…'; }
   const r = await api('/api/ratelist/gsheet', 'POST', { head: H, ops, totalRate: _gs.ops.reduce((n, o) => n + rlNum(o.rate), 0) });
