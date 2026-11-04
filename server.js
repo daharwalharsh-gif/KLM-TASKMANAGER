@@ -3021,12 +3021,17 @@ async function requirePcSampling(req, res, next) {
 
 // headerRow = sheet me heading kis row par hai (aam taur par 6). Step ka naam
 // usse 4 row upar ("What") aur doer 3 row upar ("Who") hota hai.
-function pcrSteps(rows, headerRow = 6) {
+// loose = sirf Invincible O2D ke liye (neeche dekho); baaki sab sheets pehle jaisi exact "Actual".
+function pcrSteps(rows, headerRow = 6, loose = false) {
   const nameRow = rows[headerRow - 5] || [], whoRow = rows[headerRow - 4] || [], head = rows[headerRow - 1] || [];
   const H = c => String(head[c] || '').trim().toLowerCase();
   const steps = [];
   for (let c = 0; c < head.length; c++) {
-    if (H(c) !== 'actual') continue;
+    // Harsh (4 Nov 2026): Invincible O2D ke "PI Payment Recieved" step ki heading "Actual Date" hai —
+    // exact "Actual" dhoondhne se wo step chhoot jaata tha (order Step 3 ke baad report se gayab, phir
+    // Step 5 par "wapas pending"). Isliye Invincible (loose) me: "Actual…" jiske theek pehle "Planned…"
+    // ho = step — aage heading badle tab bhi na chhoote. Baaki FMS ko nahi chheda (user: "baki fms ko mt chedna").
+    if (loose ? (!/^actual/.test(H(c)) || !/^planned/.test(H(c - 1))) : H(c) !== 'actual') continue;
     // Is block ka naam aur "STEP n" — dono peeche ki taraf dekh kar.
     // Kuch sheet me step ke naam wali row me link pada hota hai (PMS Garments),
     // use naam nahi maante — aage peeche dekh kar asli naam uthate hain.
@@ -3068,7 +3073,7 @@ app.get('/api/pc-reporting', requireAuth, requireMisView, requirePcSampling, asy
       spreadsheetId: CFG.id, range: `${CFG.tab}!${CFG.range}`
     });
     const all = r.data.values || [];
-    const steps = pcrSteps(all, CFG.headerRow);
+    const steps = pcrSteps(all, CFG.headerRow, src === 'invincible');
     const data = all.slice(CFG.headerRow);
     const today = new Date();
     const T = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -4836,7 +4841,7 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
       if (d !== undefined) invDisp = d;
     }
     // Pending ke liye saare steps (All PC Report jaisa hi padhte hain)
-    const invSteps = src === 'invincible' ? pcrSteps(raw, cfg.headerRow) : [];
+    const invSteps = src === 'invincible' ? pcrSteps(raw, cfg.headerRow, true) : [];
 
     // Export (Merchant O2D) sheet — wahi tareeka.
     // Harsh (25 Sep 2026): "dispatch wale ke pehle 5 col add kiye google sheet
@@ -4991,12 +4996,13 @@ app.get('/api/otod', requireAuth, requireOtodView, async (req, res) => {
       return x.planned < y.planned ? -1 : x.planned > y.planned ? 1 : 0;
     });
     const out = { src, label: cfg.label, rows, total: rows.length };
-    _otodLastGood.set(src, out);
+    _otodLastGood.set(src, { at: Date.now(), out });
     res.json(out);
   } catch (err) {
     console.error('O to D report FAILED:', err.message);
+    // Pichhla jawab sirf 3 min tak — usse purana dikhaya to Done ho chuka order bhi "pending" dikhta
     const last = _otodLastGood.get(src);
-    if (last) return res.json({ ...last, stale: true });
+    if (last && Date.now() - last.at < 3 * 60000) return res.json({ ...last.out, stale: true });
     const busy = (err.code || err.status) === 429 || /quota/i.test(String(err.message));
     res.status(500).json({ error: busy
       ? 'Google Sheets is busy right now (too many reads this minute). Please wait a few seconds and click Refresh.'
@@ -7013,7 +7019,7 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
       const aIdx = colToIdx(actualCol);
       const hIdx = await holdColIdx(step.id);
       const lastC = idxToCol(Math.max(1, aIdx, hIdx));
-      const chk = await sheetsApi.spreadsheets.values.get({ spreadsheetId, range: `${tabName}!A${rowNumber}:${lastC}${rowNumber}` });
+      const chk = await sheetsValuesGetRetry(sheetsApi, spreadsheetId, `${tabName}!A${rowNumber}:${lastC}${rowNumber}`);
       const cur = (chk.data.values || [[]])[0] || [];
       if (fmsRowKey(cur) !== String(req.body.rowKey)) {
         return res.status(409).json({ error: 'Sheet me rows aage-peeche ho gayi hain — is row par ab koi aur order hai. Kuch nahi likha. Refresh karke dobara Done karo.' });
@@ -7057,14 +7063,24 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
       batchData.push({ range: `${tabName}!${step.doer_name_col.toUpperCase()}${rowNumber}`, values: [[doerName]] });
     }
 
-    // Single batchUpdate API call — replaces N sequential calls
-    const writeResp = await sheetsApi.spreadsheets.values.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        valueInputOption: 'USER_ENTERED',
-        data: batchData
+    // Single batchUpdate API call — replaces N sequential calls.
+    // Google busy (429/5xx) ho to thoda ruk kar dobara — wahi cells, wahi value, isliye dobara likhna safe.
+    let writeResp;
+    for (let i = 0; ; i++) {
+      try {
+        writeResp = await sheetsApi.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            valueInputOption: 'USER_ENTERED',
+            data: batchData
+          }
+        });
+        break;
+      } catch (e) {
+        if (!SHEETS_RETRY_CODES.has(e.code || e.status) || i === 2) throw e;
+        await new Promise(r => setTimeout(r, 500 * Math.pow(2, i) + Math.floor(Math.random() * 250)));
       }
-    });
+    }
 
     const updated = writeResp.data || {};
 
@@ -7096,6 +7112,8 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
   } catch (err) {
     console.error('FMS done write FAILED:', err.code, err.message);
     if (err.code === 403) return res.status(400).json({ error: 'Access denied. Sheet write permission needed.' });
+    if ((err.code || err.status) === 429 || /quota/i.test(String(err.message)))
+      return res.status(503).json({ error: 'Google Sheets is busy right now — nothing was saved. Please press Save again in a few seconds.' });
     res.status(500).json({ error: err.message });
   }
 });
