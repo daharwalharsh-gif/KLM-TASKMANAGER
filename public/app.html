@@ -4471,6 +4471,8 @@ async function init() {
     if (MIS_VIEW_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
       document.getElementById('nav-mis').style.display = 'flex';
     }
+    // Meca Offline — admin ke alawa chuninda emails (Ms. Kashvi)
+    if (ME.canMeca) { const nmc = document.getElementById('nav-meca'); if (nmc) nmc.style.display = 'flex'; }
     if (ME.role === 'admin') {
       document.getElementById('nav-users').style.display = 'flex';
       document.getElementById('nav-mis').style.display = 'flex';

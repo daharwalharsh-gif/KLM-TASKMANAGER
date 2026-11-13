@@ -1231,6 +1231,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Master Rate List me kaam kar sakta hai ya sirf dekh sakta hai
     rows[0].canRateList = req.session.role === 'admin' ||
       RL_EDIT_EMAILS.has((rows[0].email || '').trim().toLowerCase());
+    // Meca Offline ka tab dikhe ya nahi
+    rows[0].canMeca = req.session.role === 'admin' ||
+      MECA_VIEW_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -6027,7 +6030,19 @@ const mecaDT = v => {                       // "dd/mm/yyyy hh:mm:ss" -> "YYYY-MM
   if (!m) return '';
   return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` + (m[4] ? ` ${m[4].padStart(2, '0')}:${m[5]}` : '');
 };
-app.get('/api/meca', requireAuth, requireAdmin, async (req, res) => {
+// Meca Offline admin ke alawa in emails ko bhi dikhta hai
+const MECA_VIEW_EMAILS = new Set([
+  'nbd@klmahajan.com',          // Ms. Kashvi
+]);
+async function requireMecaView(req, res, next) {
+  if (req.session.role === 'admin') return next();
+  try {
+    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    if (MECA_VIEW_EMAILS.has((rows[0]?.email || '').trim().toLowerCase())) return next();
+  } catch (e) { /* neeche mana */ }
+  res.status(403).json({ error: 'Admin only' });
+}
+app.get('/api/meca', requireAuth, requireMecaView, async (req, res) => {
   try {
     const cfg = MECA_SHEETS[String(req.query.src || 'out')];
     if (!cfg) return res.status(400).json({ error: 'Unknown sheet' });
