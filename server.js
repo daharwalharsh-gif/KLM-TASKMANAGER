@@ -6197,7 +6197,8 @@ async function vdLoad(force) {
 }
 app.get('/api/voucher-dash', requireAuth, async (req, res) => {
   try {
-    if (!(await isOwnerUser(req))) return res.status(403).json({ error: 'Only Owner Dashboard users can open the Voucher Dashboard' });
+    // saare admin + Owner Dashboard wale (Harsh, 14 Nov 2026)
+    if (req.session.role !== 'admin' && !(await isOwnerUser(req))) return res.status(403).json({ error: 'Only admins can open the Voucher Dashboard' });
     res.json(await vdLoad(req.query.force === '1'));
   } catch (err) {
     const busy = SHEETS_RETRY_CODES.has(err.code || err.status) || /quota/i.test(String(err.message));
