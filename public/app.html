@@ -1055,6 +1055,7 @@ tbody tr:last-child td{border-bottom:none;}
       <div><div class="own-hero-t">Owner Dashboard</div>
         <div class="own-hero-s">Pending work, overdue tasks, upcoming risks, order delays, OTD and escalations — all on one screen</div></div>
       <div class="od-hero-r"><span class="od-upd" id="odUpdated"></span>
+        <button class="btn btn-outline btn-sm" onclick="navigate('voucher', document.getElementById('nav-owner'))" title="Kariger voucher — daily work, top performers and skill analysis">📒 Voucher Dashboard</button>
         <button class="btn btn-outline btn-sm" onclick="opModalOpen()" title="Open the KLM Export / Invincible presentations">🎬 Presentation</button>
         <button class="btn btn-outline btn-sm" onclick="odRefresh()">🔄 Refresh</button></div>
     </div>
@@ -2831,6 +2832,71 @@ tbody tr:last-child td{border-bottom:none;}
       <div><label>&nbsp;</label><button class="btn btn-outline btn-sm" onclick="_mc.from='';_mc.to='';document.getElementById('mcFrom').value='';document.getElementById('mcTo').value='';renderMeca()">✕ Clear</button></div>
     </div>
     <div id="mcBody"></div>
+  </div>
+
+  <!-- Voucher Dashboard — Owner Dashboard ke button se khulta hai (Harsh, 14 Nov 2026).
+       Owner Dashboard wale card / table / popup ke class (own-*, od-*) hi lagte hain. -->
+  <div id="page-voucher" class="page">
+    <style>
+      #page-voucher.page.active{display:block}
+      #page-voucher{background:linear-gradient(180deg,#f5f9ff 0%,#eff6ff 100%);border-radius:20px;padding:18px 18px 26px}
+      #page-voucher .btn-outline{border-color:#bfdbfe;color:#2563eb}
+      #page-voucher .btn-outline:hover{background:#eff6ff;border-color:#2563eb;color:#1d4ed8}
+      #page-voucher .od-hero-r{flex-wrap:wrap;justify-content:flex-end}
+      .vd-flt{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px;padding:14px 18px}
+      .vd-flt select,.vd-flt input{min-width:140px;max-width:230px}
+      .vd-card{margin-bottom:20px}
+      .vd-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+      .vd-hd .sp{flex:1}
+      .vd-hd .od-search{margin-left:0}
+      .vd-tbl td,.vd-tbl th{white-space:nowrap}
+      .vd-tbl th.n,.vd-tbl td.n{text-align:right;font-variant-numeric:tabular-nums}
+      .vd-piv th:first-child,.vd-piv td:first-child{position:sticky;left:0;z-index:1;background:#fff}
+      .vd-piv thead th{position:sticky;top:0;z-index:2}
+      .vd-piv thead th:first-child{z-index:3;background:#eff6ff}
+      .vd-piv td.c{cursor:pointer} .vd-piv td.c:hover{background:#dbeafe !important}
+      .vd-piv tr.tot td{font-weight:800;background:#f8fafc;color:#1e3a8a;border-top:2px solid #dbeafe}
+      .vd-name{background:none;border:none;padding:0;font:inherit;font-weight:700;color:#1d4ed8;cursor:pointer;text-align:left}
+      .vd-name:hover{text-decoration:underline}
+      .vd-cat{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;white-space:nowrap}
+      .vd-cat.s{background:#dcfce7;color:#166534} .vd-cat.ss{background:#e0e7ff;color:#3730a3} .vd-cat.n{background:#f1f5f9;color:#64748b}
+      .vd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;max-height:760px;overflow:auto;padding:2px}
+      .vd-top{border:1px solid #e5edf8;border-radius:14px;padding:12px 14px;background:#fff}
+      .vd-top h4{margin:0;font-size:13px;font-weight:800;color:#1e3a8a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .vd-top .sub{font-size:11px;color:#94a3b8;margin:2px 0 8px}
+      .vd-rk{display:grid;grid-template-columns:22px minmax(0,1fr) auto;column-gap:6px;align-items:center;font-size:12.5px;padding:3px 0}
+      .vd-rk .m{font-size:13px;text-align:center}
+      .vd-rk .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .vd-rk .val{font-weight:800;color:#0f172a;font-variant-numeric:tabular-nums;white-space:nowrap}
+      .vd-rk .bar{grid-column:2 / 4;height:5px;border-radius:3px;background:#eef2f7;overflow:hidden;margin-top:2px}
+      .vd-rk .bar i{display:block;height:100%;background:linear-gradient(90deg,#60a5fa,#2563eb);border-radius:3px}
+      .vd-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+      .vd-two h3{margin:0 0 8px;font-size:13.5px;font-weight:800;color:#1e3a8a}
+      .vd-win{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:16px}
+      .vd-w{border-radius:16px;padding:14px 16px;border:1.5px solid #fde68a;background:linear-gradient(125deg,#fffbeb,#fff 75%)}
+      .vd-w .l{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#b45309}
+      .vd-w .nm{font-size:17px;margin-top:6px} .vd-w .nm .vd-name{font-weight:900}
+      .vd-w .s{font-size:12px;color:#64748b;margin-top:3px}
+      .vd-note{font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:8px 12px;margin-bottom:12px}
+      .vd-shr{display:flex;align-items:center;gap:8px;min-width:150px;font-size:11.5px;color:#64748b}
+      .vd-shr i{display:block;height:7px;border-radius:4px;background:linear-gradient(90deg,#60a5fa,#2563eb)}
+      .vd-sel{padding:7px 11px;border:1.5px solid #dbe3ef;border-radius:10px;font-size:12.5px;font-family:inherit;max-width:100%;min-width:0}
+      @media (max-width:640px){
+        #page-voucher{padding:12px 10px 20px}
+        .vd-flt > div{flex:1 1 45%} .vd-flt select,.vd-flt input{min-width:0;max-width:none;width:100%}
+        .vd-hd .od-search{width:100%}
+      }
+    </style>
+    <div class="own-hero">
+      <div><div class="own-hero-t">Voucher Dashboard</div>
+        <div class="own-hero-s">Kariger payment voucher — daily work, top performers and operation-wise experts in one place</div></div>
+      <div class="od-hero-r"><span class="od-upd" id="vdUpdated"></span>
+        <button class="btn btn-outline btn-sm" onclick="navigate('owner', document.getElementById('nav-owner'))">← Owner Dashboard</button>
+        <a id="vdSheetLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="#">📄 Open Google Sheet ↗</a>
+        <button class="btn btn-outline btn-sm" onclick="loadVoucherDash(true)">🔄 Refresh</button></div>
+    </div>
+    <div class="own-card own-flt vd-flt" id="vdFilters" style="display:none"></div>
+    <div id="vdBody"></div>
   </div>
 
   <div id="page-production" class="page">
@@ -4620,7 +4686,7 @@ function setMinDates() {
 // ══════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════
-const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',meca:'Meca Offline',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List',accounts:'Accounts Department'};
+const pageTitles = {dashboard:'Dashboard',owner:'Owner Dashboard',alltasks:'All Tasks',approvals:'Approvals',users:'Users',profile:'Profile',mis:'MIS Report',fms:'FMS Admin','fms-tasks':'FMS Tasks',scot:'SCOT Sheet',records:'Employee Records',leaves:'Leave Tracker',scheduler:'Time Scheduler',master:'Master Sheet',production:'Production Management',meca:'Meca Offline',catalogues:'Invincible Catalogues',forms:'Forms',department:'Department',ratelist:'Master Rate List',accounts:'Accounts Department',voucher:'Voucher Dashboard'};
 
 // URL me page ka naam — /app/users, /app/mis … (Harsh, 30 Oct 2026). Refresh par wahi page
 // khulta hai aur browser ka Back / Forward pichhle page par le jaata hai.
@@ -4665,6 +4731,7 @@ function navigate(page, el, fromUrl) {
   if (page==='master') loadMasterSheet();
   if (page==='production') loadProduction();
   if (page==='meca') loadMeca();
+  if (page==='voucher') loadVoucherDash();
   if (page==='catalogues') loadCatalogues();
   if (page==='forms') loadFormsPage();
   if (page==='ratelist') openRateList();
@@ -20273,6 +20340,322 @@ function mecaPopClose() {
   document.body.style.overflow = ''; _mc.pop = null;
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && _mc.pop) mecaPopClose(); });
+
+// ══════════════════════════════════════════════════════
+// VOUCHER DASHBOARD — Owner Dashboard ka button (Harsh, 14 Nov 2026)
+// KARIGER PAYMENT VOUCHER sheet ka "ALL LINE DATA ENTRY" tab: kariger-wise roz ka kaam, Top 5,
+// Skilled / Semi-Skilled, mahine ka best, aur kaun kis operation / style me sabse achha.
+// Category usi sheet ke "KARIGER CATEGORY" tab se. Saari ginti yahin browser me — filter
+// badalne par sheet dobara nahi padhte (Google quota bachta hai).
+// ══════════════════════════════════════════════════════
+const _vd = { data: null, rows: [], f: { month: '', from: '', to: '', k: '', op: '', style: '', cat: '' },
+  piv: 'amt', rank: 'amt', topBy: 'op', topQ: '', skQ: '', cmpBy: 'op', cmpSel: '', month: '', topK: '', pop: null };
+const vdEsc = escapeHtml;
+const vdN = n => (Math.round((+n || 0) * 100) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+const vdRs = n => '₹ ' + vdN(n);
+const vdBy = (v, by) => by === 'pcs' ? vdN(v) + ' pcs' : vdRs(v);
+const vdD = iso => iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '';
+const VD_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const vdMon = ym => ym ? VD_MON[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4) : '';
+const vdCatB = c => c === 'Skilled' ? '<span class="vd-cat s">Skilled</span>' : c === 'Semi-Skilled' ? '<span class="vd-cat ss">Semi-Skilled</span>' : '<span class="vd-cat n">Not set</span>';
+// naam par click = poori history (data-k se — naam me ' ho to bhi chale)
+const vdName = k => `<button type="button" class="vd-name" data-k="${vdEsc(k)}" onclick="vdHist(this.dataset.k)">${vdEsc(k)}</button>`;
+const vdMedal = i => ['🥇', '🥈', '🥉'][i] || `<span style="color:#94a3b8;font-weight:800">${i + 1}</span>`;
+const vdChips = (list, cur, fn) => list.map(([k, l]) => `<button type="button" class="od-chip ${cur === k ? 'on' : ''}" onclick="${fn}('${k}')">${l}</button>`).join('');
+// rows ko kisi cheez se jodo — har group me pcs, amount, din aur uski rows
+function vdGroup(rows, keyFn) {
+  const m = new Map();
+  for (const r of rows) {
+    const key = keyFn(r); if (!key) continue;
+    let g = m.get(key);
+    if (!g) { g = { key, pcs: 0, amt: 0, days: new Set(), rows: [] }; m.set(key, g); }
+    g.pcs += r.pcs; g.amt += r.amt; g.days.add(r.date); g.rows.push(r);
+  }
+  return [...m.values()];
+}
+const vdVal = (g, by) => by === 'pcs' ? g.pcs : g.amt;
+const vdSort = (list, by) => list.sort((a, b) => vdVal(b, by) - vdVal(a, by) || String(a.key).localeCompare(String(b.key)));
+// No. 1 — barabar number wale sab (ek hi kaam, ek jaise pcs: kisi ek ko naam ke kram se mat chuno)
+const vdTop1 = (list, by) => { const s = vdSort(list, by), m = s.length ? vdVal(s[0], by) : 0; return s.filter(x => Math.abs(vdVal(x, by) - m) < 0.005); };
+const vdTied = ws => ws.length > 1 ? `<small title="${vdEsc(ws.slice(1).map(x => x.key).join(', '))}">tied with ${vdEsc(ws.slice(1, 3).map(x => x.key).join(', '))}${ws.length > 3 ? ' +' + (ws.length - 3) : ''}</small>` : '';
+const vdRank = (t, i, by, max) => `<div class="vd-rk"><span class="m">${vdMedal(i)}</span><span class="t">${vdName(t.key)}</span><span class="val">${vdBy(vdVal(t, by), by)}</span>
+  <span></span><span class="bar"><i style="width:${Math.max(4, vdVal(t, by) / (max || 1) * 100)}%"></i></span></div>`;
+
+async function loadVoucherDash(force) {
+  const box = document.getElementById('vdBody'), u = document.getElementById('vdUpdated');
+  if (!_vd.data) box.innerHTML = '<div class="own-card"><div class="od-pop-empty">⏳ Loading data from the voucher sheet…</div></div>';
+  else if (u) u.textContent = '⏳ Refreshing…';
+  const r = await api('/api/voucher-dash' + (force ? '?force=1' : ''));
+  if (r && r.error && /Owner Dashboard users/i.test(r.error)) { navigate('dashboard', navEl('dashboard')); return; }
+  if (!r || r.error || !Array.isArray(r.rows)) {
+    const msg = (r && r.error) || 'Could not load data';
+    if (_vd.data) { showToast(msg, 'error'); vdStamp(); return; }      // purana data dikhta rahe
+    box.innerHTML = `<div class="own-card"><div class="od-pop-empty" style="color:#dc2626">⚠️ ${vdEsc(msg)}</div></div>`; return;
+  }
+  _vd.data = r;
+  _vd.rows = r.rows.map(a => { const o = {}; r.cols.forEach((c, i) => { o[c] = a[i]; }); o.pcs = +o.pcs || 0; o.amt = +o.amt || 0; o.rate = +o.rate || 0; return o; });
+  const a = document.getElementById('vdSheetLink'); if (a && r.url) a.href = r.url;
+  vdStamp(); vdRenderFilters(); vdRender();
+}
+function vdStamp() {
+  const u = document.getElementById('vdUpdated'), d = _vd.data; if (!u || !d) return;
+  u.textContent = (d.stale ? '⚠️ Old data (Google busy) · ' : '') + 'Updated ' + new Date(d.at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ── Filter: date / month / kariger / operation / style / category ──
+function vdOpts(key) { return [...new Set(_vd.rows.map(r => r[key]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b))); }
+function vdRenderFilters() {
+  const el = document.getElementById('vdFilters'); if (!el) return;
+  el.style.display = '';
+  const f = _vd.f, months = [...new Set(_vd.rows.map(r => r.date.slice(0, 7)))].sort().reverse();
+  const sel = (label, key, list, all) => `<div><label>${label}</label><select onchange="vdSet('${key}',this.value)"><option value="">${all}</option>${
+    list.map(([v, l]) => `<option value="${vdEsc(v)}" ${f[key] === v ? 'selected' : ''}>${vdEsc(l)}</option>`).join('')}</select></div>`;
+  el.innerHTML = sel('Month', 'month', months.map(m => [m, vdMon(m)]), 'All months') +
+    `<div><label>From</label><input type="date" value="${f.from}" onchange="vdSet('from',this.value)"></div>` +
+    `<div><label>To</label><input type="date" value="${f.to}" onchange="vdSet('to',this.value)"></div>` +
+    sel('Kariger', 'k', vdOpts('k').map(x => [x, x]), 'All karigers') +
+    sel('Operation', 'op', vdOpts('op').map(x => [x, x]), 'All operations') +
+    sel('Style', 'style', vdOpts('style').map(x => [x, x]), 'All styles') +
+    sel('Category', 'cat', [['Skilled', 'Skilled'], ['Semi-Skilled', 'Semi-Skilled'], ['-', 'Not set']], 'All categories') +
+    `<div><label>&nbsp;</label><button class="btn btn-outline btn-sm" onclick="vdClear()">✕ Clear</button></div>`;
+}
+function vdSet(k, v) {
+  const f = _vd.f; f[k] = v;
+  if (k === 'month') {
+    if (v) { const last = new Date(Date.UTC(+v.slice(0, 4), +v.slice(5, 7), 0)).getUTCDate(); f.from = v + '-01'; f.to = v + '-' + String(last).padStart(2, '0'); }
+    else { f.from = ''; f.to = ''; }
+    _vd.month = v;
+  }
+  if (k === 'from' || k === 'to') f.month = '';
+  vdRenderFilters(); vdRender();
+}
+function vdClear() { _vd.f = { month: '', from: '', to: '', k: '', op: '', style: '', cat: '' }; vdRenderFilters(); vdRender(); }
+function vdFilter(noDate) {
+  const f = _vd.f;
+  return _vd.rows.filter(r => (noDate || ((!f.from || r.date >= f.from) && (!f.to || r.date <= f.to))) &&
+    (!f.k || r.k === f.k) && (!f.op || r.op === f.op) && (!f.style || r.style === f.style) &&
+    (!f.cat || (f.cat === '-' ? !r.cat : r.cat === f.cat)));
+}
+
+function vdRender() {
+  const box = document.getElementById('vdBody'); if (!_vd.data || !box) return;
+  if (!_vd.rows.length) { box.innerHTML = '<div class="own-card"><div class="od-pop-empty">No voucher entries in the sheet yet.</div></div>'; return; }
+  const rows = vdFilter(), ks = vdSort(vdGroup(rows, r => r.k), 'amt');
+  const days = new Set(rows.map(r => r.date)).size, amt = rows.reduce((n, r) => n + r.amt, 0), pcs = rows.reduce((n, r) => n + r.pcs, 0);
+  const cnt = c => ks.filter(g => (g.rows[0].cat || '') === c).length, top = ks[0];
+  _vd.topK = top ? top.key : '';
+  const go = id => `document.getElementById('${id}').scrollIntoView({behavior:'smooth',block:'start'})`;
+  const card = (cls, label, val, sub, fn, vs) => `<button type="button" class="od-kpi ${cls}" onclick="${fn}"><span class="go">Details →</span><div class="l">${label}</div><div class="v"${vs ? ` style="${vs}"` : ''}>${val}</div><div class="s">${sub}</div></button>`;
+  const kpis = rows.length ? [
+    card('od-c-blue', 'Total amount', vdRs(amt), `${days} working day(s)`, go('vdHDaily')),
+    card('od-c-violet', 'Total pieces', vdN(pcs), `${new Set(rows.map(r => r.op)).size} operations · ${new Set(rows.map(r => r.style)).size} styles`, go('vdHTop')),
+    card('od-c-green', 'Karigers worked', ks.length, `${cnt('Skilled')} skilled · ${cnt('Semi-Skilled')} semi-skilled · ${cnt('')} not set`, go('vdHSkill')),
+    card('od-c-amber', 'Avg daily amount', vdRs(days ? amt / days : 0), 'total amount ÷ working days', go('vdHDaily')),
+    card('od-c-rose', 'Top kariger', top ? vdEsc(top.key) : '—', top ? `${vdRs(top.amt)} · ${vdN(top.pcs)} pcs` : '', 'vdHist(_vd.topK)', 'font-size:20px;line-height:1.25;word-break:break-word')
+  ].join('') : '';
+  box.innerHTML = rows.length ? `<div class="od-kpis">${kpis}</div>
+    <div class="own-sec" id="vdHDaily">Daily kariger-wise voucher sheet</div><div class="own-card vd-card" id="vdSecDaily"></div>
+    <div class="own-sec" id="vdHTop">Top 5 karigers — operation-wise &amp; style-wise</div><div class="own-card vd-card" id="vdSecTop"></div>
+    <div class="own-sec">Category-wise top 5 — Skilled &amp; Semi-Skilled</div><div class="own-card vd-card" id="vdSecCat"></div>
+    <div class="own-sec">Monthly best performer</div><div class="own-card vd-card" id="vdSecMonth"></div>
+    <div class="own-sec" id="vdHSkill">Kariger skill analysis</div><div class="own-card vd-card" id="vdSecSkill"></div>
+    <div class="own-sec">Compare karigers on one operation or style</div><div class="own-card vd-card" id="vdSecCmp"></div>`
+    : '<div class="own-card"><div class="od-pop-empty">No entries match these filters.</div></div>';
+  if (rows.length) { vdPaintDaily(); vdPaintTop(); vdPaintCat(); vdPaintMonth(); vdPaintSkill(); vdPaintCmp(); }
+}
+
+// 1. Roz ka kariger-wise voucher — kariger x date (amount ya pcs), neeche har din ka jod
+function vdPaintDaily() {
+  const el = document.getElementById('vdSecDaily'); if (!el) return;
+  const rows = vdFilter(), by = _vd.piv;
+  const dates = [...new Set(rows.map(r => r.date))].sort();
+  const ks = vdSort(vdGroup(rows, r => r.k), by), cell = new Map(), dayTot = new Map();
+  for (const r of rows) {
+    const key = r.k + '|' + r.date, c = cell.get(key) || { pcs: 0, amt: 0 };
+    c.pcs += r.pcs; c.amt += r.amt; cell.set(key, c);
+    dayTot.set(r.date, (dayTot.get(r.date) || 0) + (by === 'pcs' ? r.pcs : r.amt));
+  }
+  const wd = dt => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(dt + 'T00:00:00').getDay()];
+  const all = [...dayTot.values()].reduce((a, b) => a + b, 0);
+  el.innerHTML = `<div class="vd-hd"><div class="od-attn-bar" style="margin:0">${vdChips([['amt', 'Amount (₹)'], ['pcs', 'Pieces']], by, 'vdSetPiv')}</div><span class="sp"></span>
+      <span class="od-upd">${ks.length} kariger(s) · ${dates.length} day(s) — click a name for the full history, a number for that day's work</span></div>
+    <div class="od-attn-wrap"><table class="own-tbl vd-tbl vd-piv"><thead><tr><th>Kariger</th><th>Category</th>${
+      dates.map(dt => `<th class="n">${vdD(dt).slice(0, 5)}<small style="display:block;font-weight:600;color:#64748b;text-transform:none">${wd(dt)}</small></th>`).join('')}
+      <th class="n">Total ${by === 'pcs' ? '(pcs)' : '(₹)'}</th><th class="n">Days</th><th class="n">Avg / day</th></tr></thead><tbody>${
+      ks.map(g => `<tr><td>${vdName(g.key)}</td><td>${vdCatB(g.rows[0].cat)}</td>${dates.map(dt => {
+        const c = cell.get(g.key + '|' + dt);
+        return c ? `<td class="n c" data-k="${vdEsc(g.key)}" data-d="${dt}" onclick="vdHist(this.dataset.k,this.dataset.d)" title="${vdN(c.pcs)} pcs · ${vdRs(c.amt)}">${vdN(by === 'pcs' ? c.pcs : c.amt)}</td>`
+          : '<td class="n" style="color:#cbd5e1">—</td>'; }).join('')}
+        <td class="n"><b>${vdN(vdVal(g, by))}</b></td><td class="n">${g.days.size}</td><td class="n">${vdN(vdVal(g, by) / g.days.size)}</td></tr>`).join('')}
+      <tr class="tot"><td>Daily total</td><td></td>${dates.map(dt => `<td class="n">${vdN(dayTot.get(dt))}</td>`).join('')}
+        <td class="n">${vdN(all)}</td><td class="n">${dates.length}</td><td class="n">${vdN(dates.length ? all / dates.length : 0)}</td></tr></tbody></table></div>`;
+}
+function vdSetPiv(v) { _vd.piv = v; vdPaintDaily(); }
+
+// 2. Har operation / style ke Top 5 kariger (amount ya pcs se)
+function vdPaintTop() {
+  const el = document.getElementById('vdSecTop'); if (!el) return;
+  el.innerHTML = `<div class="vd-hd"><div class="od-attn-bar" style="margin:0">${vdChips([['op', 'Operation-wise'], ['style', 'Style-wise']], _vd.topBy, 'vdSetTopBy')}</div>
+      <div class="od-attn-bar" style="margin:0">${vdChips([['amt', 'By amount'], ['pcs', 'By pieces']], _vd.rank, 'vdSetRank')}</div><span class="sp"></span>
+      <input class="od-search" placeholder="🔍 Find ${_vd.topBy === 'op' ? 'an operation' : 'a style'}…" value="${vdEsc(_vd.topQ)}" oninput="_vd.topQ=this.value;vdPaintTopGrid()"></div>
+    <div id="vdTopGrid"></div>`;
+  vdPaintTopGrid();
+}
+function vdPaintTopGrid() {
+  const el = document.getElementById('vdTopGrid'); if (!el) return;
+  const by = _vd.rank, key = _vd.topBy, q = _vd.topQ.toLowerCase().trim();
+  const groups = vdSort(vdGroup(vdFilter(), r => r[key]), 'amt').filter(g => !q || String(g.key).toLowerCase().includes(q));
+  el.innerHTML = groups.length ? `<div class="vd-grid">${groups.map(g => {
+    const top = vdSort(vdGroup(g.rows, r => r.k), by).slice(0, 5);
+    const extra = [...new Set(g.rows.map(r => key === 'op' ? r.style : r.product))].filter(Boolean);
+    return `<div class="vd-top"><h4 title="${vdEsc(g.key)}">${vdEsc(g.key)}</h4>
+      <div class="sub">${new Set(g.rows.map(r => r.k)).size} kariger(s) · ${vdN(g.pcs)} pcs · ${vdRs(g.amt)}${extra.length ? ' · ' + vdEsc(extra.slice(0, 2).join(', ')) + (extra.length > 2 ? ' +' + (extra.length - 2) : '') : ''}</div>
+      ${top.map((t, i) => vdRank(t, i, by, vdVal(top[0], by))).join('')}</div>`; }).join('')}</div>`
+    : '<div class="od-pop-empty">Nothing found</div>';
+}
+function vdSetTopBy(v) { _vd.topBy = v; _vd.topQ = ''; vdPaintTop(); }
+function vdSetRank(v) { _vd.rank = v; vdPaintTop(); vdPaintCat(); vdPaintCmp(); }
+
+// 3. Skilled / Semi-Skilled — dono ke alag Top 5
+function vdPaintCat() {
+  const el = document.getElementById('vdSecCat'); if (!el) return;
+  const d = _vd.data, by = _vd.rank, ks = vdGroup(vdFilter(), r => r.k);
+  const notSet = ks.filter(g => !g.rows[0].cat).map(g => g.key).sort();
+  const note = !d.catTab
+    ? `<div class="vd-note">The voucher sheet has no <b>${vdEsc(d.catTabName)}</b> tab yet. Add a tab with that name and two columns — <b>KARIGER NAME</b> and <b>CATEGORY</b> (Skilled / Semi-Skilled). Until then every kariger shows as “Not set”.</div>`
+    : notSet.length ? `<div class="vd-note">${notSet.length} kariger(s) have no category yet — add them in the <b>${vdEsc(d.catTabName)}</b> tab: ${vdEsc(notSet.slice(0, 8).join(', '))}${notSet.length > 8 ? ' …' : ''}</div>` : '';
+  const box = (title, cat, icon) => {
+    const list = vdSort(ks.filter(g => g.rows[0].cat === cat), by), top = list.slice(0, 5);
+    return `<div class="vd-top"><h4>${icon} ${title}</h4><div class="sub">${list.length} kariger(s) · ranked ${by === 'pcs' ? 'by pieces' : 'by amount'}</div>
+      ${top.length ? top.map((t, i) => vdRank(t, i, by, vdVal(top[0], by))).join('') : '<div class="od-empty">No karigers in this category yet</div>'}</div>`;
+  };
+  el.innerHTML = note + `<div class="vd-two">${box('Skilled — Top 5', 'Skilled', '🛠️')}${box('Semi-Skilled — Top 5', 'Semi-Skilled', '🧵')}</div>`;
+}
+
+// 4. Mahine ka best — sabse zyada amount; Skilled / Semi-Skilled alag; har operation aur style ka bhi
+function vdPaintMonth() {
+  const el = document.getElementById('vdSecMonth'); if (!el) return;
+  const base = vdFilter(true), months = [...new Set(base.map(r => r.date.slice(0, 7)))].sort().reverse();
+  if (!months.length) { el.innerHTML = '<div class="od-pop-empty">No entries</div>'; return; }
+  if (!months.includes(_vd.month)) _vd.month = months.includes(_vd.f.month) ? _vd.f.month : months[0];
+  const rows = base.filter(r => r.date.slice(0, 7) === _vd.month), ks = vdSort(vdGroup(rows, r => r.k), 'amt');
+  const best = cat => vdTop1(ks.filter(g => cat === undefined || g.rows[0].cat === cat), 'amt');
+  const win = (label, ws, icon) => { const g = ws[0]; return `<div class="vd-w"><div class="l">${icon} ${label}</div>${g
+    ? `<div class="nm">${vdName(g.key)}</div><div class="s">${vdRs(g.amt)} · ${vdN(g.pcs)} pcs · ${g.days.size} day(s)</div>${ws.length > 1 ? `<div class="s">Tied with ${ws.slice(1).map(x => vdName(x.key)).join(', ')}</div>` : ''}`
+    : '<div class="s" style="margin-top:8px">No one in this category yet</div>'}</div>`; };
+  const tbl = (title, key) => `<div><h3>${title}</h3><div class="od-attn-wrap" style="max-height:440px"><table class="own-tbl od-tbl vd-tbl"><thead><tr>
+      <th>${key === 'op' ? 'Operation' : 'Style'}</th><th>Best kariger</th><th class="n">Pcs</th><th class="n">Amount</th></tr></thead><tbody>${
+      vdSort(vdGroup(rows, r => r[key]), 'amt').map(g => { const ws = vdTop1(vdGroup(g.rows, r => r.k), 'amt'), w = ws[0];
+        return `<tr><td style="white-space:normal;min-width:150px">${vdEsc(g.key)}</td><td>${vdName(w.key)} ${vdCatB(w.rows[0].cat)}${vdTied(ws)}</td>
+          <td class="n">${vdN(w.pcs)}</td><td class="n"><b>${vdRs(w.amt)}</b></td></tr>`; }).join('')}</tbody></table></div></div>`;
+  el.innerHTML = `<div class="vd-hd"><select class="vd-sel" onchange="_vd.month=this.value;vdPaintMonth()">${months.map(m => `<option value="${m}" ${m === _vd.month ? 'selected' : ''}>${vdMon(m)}</option>`).join('')}</select>
+      <span class="sp"></span><span class="od-upd">Best = highest amount in the month</span></div>
+    <div class="vd-win">${win('Best performer — ' + vdMon(_vd.month), best(), '🏆')}${win('Best Skilled', best('Skilled'), '🛠️')}${win('Best Semi-Skilled', best('Semi-Skilled'), '🧵')}</div>
+    <div class="vd-two">${tbl('Operation-wise best of the month', 'op')}${tbl('Style-wise best of the month', 'style')}</div>`;
+}
+
+// 5. Kaun kis operation / style me sabse achha — har kariger ki ek line
+function vdPaintSkill() {
+  const el = document.getElementById('vdSecSkill'); if (!el) return;
+  el.innerHTML = `<div class="vd-hd"><span class="od-upd">Which kariger does best at which operation and style — from every saved voucher entry (style, operation, rate, pieces, amount)</span><span class="sp"></span>
+      <input class="od-search" placeholder="🔍 Kariger…" value="${vdEsc(_vd.skQ)}" oninput="_vd.skQ=this.value;vdPaintSkillTbl()"></div>
+    <div id="vdSkillTbl"></div>
+    <div class="od-foot">Best operation / style = where the kariger earned the most (pieces × rate). Expert in = operations where this kariger is No. 1 among all karigers by amount (a tie counts for everyone tied).</div>`;
+  vdPaintSkillTbl();
+}
+function vdPaintSkillTbl() {
+  const el = document.getElementById('vdSkillTbl'); if (!el) return;
+  const rows = vdFilter(), q = _vd.skQ.toLowerCase().trim(), no1 = new Map();
+  vdGroup(rows, r => r.op).forEach(g => {           // har operation me No. 1 kaun (barabar ho to sab)
+    for (const w of vdTop1(vdGroup(g.rows, r => r.k), 'amt')) { if (!no1.has(w.key)) no1.set(w.key, []); no1.get(w.key).push(g.key); }
+  });
+  const ks = vdSort(vdGroup(rows, r => r.k), 'amt').filter(g => !q || g.key.toLowerCase().includes(q));
+  const two = g => g ? `<b>${vdEsc(g.key)}</b><small>${vdN(g.pcs)} pcs · ${vdRs(g.amt)}</small>` : '—';
+  el.innerHTML = `<div class="od-attn-wrap"><table class="own-tbl od-tbl vd-tbl"><thead><tr><th>#</th><th>Kariger</th><th>Category</th><th>Best operation</th><th>Best style</th><th>Expert in (No. 1)</th>
+      <th class="n">Operations</th><th class="n">Styles</th><th class="n">Days</th><th class="n">Pcs</th><th class="n">Amount</th><th class="n">Avg ₹ / day</th></tr></thead><tbody>${
+    ks.map((g, i) => {
+      const ex = no1.get(g.key) || [];
+      return `<tr><td style="color:#94a3b8">${i + 1}</td><td>${vdName(g.key)}</td><td>${vdCatB(g.rows[0].cat)}</td>
+        <td style="white-space:normal;min-width:170px">${two(vdSort(vdGroup(g.rows, r => r.op), 'amt')[0])}</td>
+        <td style="white-space:normal;min-width:150px">${two(vdSort(vdGroup(g.rows, r => r.style), 'amt')[0])}</td>
+        <td style="white-space:normal;min-width:170px" title="${vdEsc(ex.join(', '))}">${ex.length
+          ? `<b style="color:#059669">${ex.length} operation(s)</b><small>${vdEsc(ex.slice(0, 2).join(', '))}${ex.length > 2 ? ' …' : ''}</small>` : '<span style="color:#cbd5e1">—</span>'}</td>
+        <td class="n">${new Set(g.rows.map(r => r.op)).size}</td><td class="n">${new Set(g.rows.map(r => r.style)).size}</td><td class="n">${g.days.size}</td>
+        <td class="n">${vdN(g.pcs)}</td><td class="n"><b>${vdRs(g.amt)}</b></td><td class="n">${vdRs(g.amt / g.days.size)}</td></tr>`; }).join('')
+    || '<tr><td colspan="12" style="text-align:center;color:#94a3b8;padding:24px">Nothing found</td></tr>'}</tbody></table></div>`;
+}
+
+// 6. Ek operation ya style chuno — us par saare kariger aamne-saamne
+function vdPaintCmp() {
+  const el = document.getElementById('vdSecCmp'); if (!el) return;
+  const key = _vd.cmpBy, by = _vd.rank, items = vdSort(vdGroup(vdFilter(), r => r[key]), 'amt');
+  if (!items.some(g => g.key === _vd.cmpSel)) _vd.cmpSel = items[0] ? items[0].key : '';
+  const g = items.find(x => x.key === _vd.cmpSel), ks = g ? vdSort(vdGroup(g.rows, r => r.k), by) : [], tot = g ? vdVal(g, by) || 1 : 1;
+  el.innerHTML = `<div class="vd-hd"><div class="od-attn-bar" style="margin:0">${vdChips([['op', 'Operation'], ['style', 'Style']], key, 'vdSetCmpBy')}</div>
+      <select class="vd-sel" onchange="_vd.cmpSel=this.value;vdPaintCmp()">${items.map(x => `<option value="${vdEsc(x.key)}" ${x.key === _vd.cmpSel ? 'selected' : ''}>${vdEsc(x.key)} — ${new Set(x.rows.map(r => r.k)).size} kariger(s)</option>`).join('')}</select>
+      <div class="od-attn-bar" style="margin:0">${vdChips([['amt', 'By amount'], ['pcs', 'By pieces']], by, 'vdSetRank')}</div></div>
+    <div class="od-attn-wrap"><table class="own-tbl od-tbl vd-tbl"><thead><tr><th>Rank</th><th>Kariger</th><th>Category</th><th class="n">Pcs</th><th class="n">Amount</th>
+      <th class="n">Days</th><th class="n">Avg pcs / day</th><th class="n">Rate</th><th>Share</th></tr></thead><tbody>${
+    ks.map((k, i) => {
+      const rates = [...new Set(k.rows.map(r => r.rate))].sort((a, b) => a - b), sh = vdVal(k, by) / tot * 100;
+      return `<tr><td>${vdMedal(i)}</td><td>${vdName(k.key)}</td><td>${vdCatB(k.rows[0].cat)}</td><td class="n">${vdN(k.pcs)}</td><td class="n"><b>${vdRs(k.amt)}</b></td>
+        <td class="n">${k.days.size}</td><td class="n">${vdN(k.pcs / k.days.size)}</td>
+        <td class="n">${rates.length > 1 ? vdN(rates[0]) + '–' + vdN(rates[rates.length - 1]) : vdN(rates[0])}</td>
+        <td><div class="vd-shr"><i style="width:${Math.max(3, Math.round(sh))}px"></i>${sh.toFixed(1)}%</div></td></tr>`; }).join('')}</tbody></table></div>`;
+}
+function vdSetCmpBy(v) { _vd.cmpBy = v; _vd.cmpSel = ''; vdPaintCmp(); }
+
+// 7. Kariger ki poori history — saare style, operation, rate, pcs, amount (filter se bahar, sab din)
+function vdHist(k, date) {
+  const rows = _vd.rows.filter(r => r.k === k && (!date || r.date === date));
+  if (!rows.length) return;
+  const r0 = rows[0], ds = [...new Set(rows.map(r => r.date))].sort();
+  _vd.pop = { k, date: date || '', rows, tab: date ? 'day' : 'sum', q: '' };
+  let el = document.getElementById('vdPop');
+  if (!el) { el = document.createElement('div'); el.id = 'vdPop'; el.className = 'od-pop'; el.addEventListener('click', e => { if (e.target === el) vdPopClose(); }); document.body.appendChild(el); }
+  el.innerHTML = `<div class="od-pop-box" role="dialog" aria-modal="true"><div class="od-pop-hd"><div class="ic">👷</div><div class="tx"><h3>${vdEsc(k)}${date ? ' — ' + vdD(date) : ''}</h3>
+      <p>${r0.card ? 'Card ' + vdEsc(r0.card) + ' · ' : ''}${vdCatB(r0.cat)} · ${vdN(rows.reduce((n, r) => n + r.pcs, 0))} pcs · ${ds.length} day(s)${date ? '' : ` (${vdD(ds[0])} – ${vdD(ds[ds.length - 1])})`}
+        · ${new Set(rows.map(r => r.style)).size} style(s) · ${new Set(rows.map(r => r.op)).size} operation(s)</p></div>
+      <div class="big">${vdRs(rows.reduce((n, r) => n + r.amt, 0))}</div><button type="button" class="od-pop-x" onclick="vdPopClose()" aria-label="Close">✕</button></div>
+    <div class="od-pop-bar"><div class="od-pop-tabs" id="vdPopTabs"></div>
+      <input class="od-search" placeholder="🔍 Style, operation, buyer, date…" oninput="_vd.pop.q=this.value;vdPopPaint()"></div>
+    <div class="od-pop-body" id="vdPopBody"></div><div class="od-pop-ft" id="vdPopFt"></div></div>`;
+  el.classList.add('open'); document.body.style.overflow = 'hidden';
+  vdPopPaint();
+}
+function vdPopPaint() {
+  const p = _vd.pop; if (!p) return;
+  const tabs = document.getElementById('vdPopTabs');
+  if (tabs) tabs.innerHTML = vdChips([['sum', 'Style &amp; operation summary'], ['date', 'Date-wise total'], ['day', 'All entries']], p.tab, 'vdPopTab');
+  const q = p.q.toLowerCase().trim();
+  const rows = q ? p.rows.filter(r => [r.style, r.op, r.buyer, r.product, r.line, vdD(r.date)].some(v => String(v || '').toLowerCase().includes(q))) : p.rows;
+  let head, body, num;
+  if (p.tab === 'sum') {
+    const gs = vdGroup(rows, r => [r.style, r.op, r.rate].join('\u0001'))
+      .sort((a, b) => String(a.rows[0].style).localeCompare(String(b.rows[0].style)) || b.amt - a.amt);
+    head = ['Style', 'Product', 'Operation', 'Op no.', 'Rate', 'Pcs', 'Amount', 'Days']; num = [4, 5, 6, 7];
+    body = gs.map(g => { const r = g.rows[0]; return [vdEsc(r.style), vdEsc(r.product), vdEsc(r.op), vdEsc(r.opNo), vdN(r.rate), vdN(g.pcs), `<b>${vdRs(g.amt)}</b>`, g.days.size]; });
+  } else if (p.tab === 'date') {
+    head = ['Date', 'Styles', 'Operations', 'Pcs', 'Amount']; num = [2, 3, 4];
+    body = vdGroup(rows, r => r.date).sort((a, b) => b.key.localeCompare(a.key))
+      .map(g => [vdD(g.key), vdEsc([...new Set(g.rows.map(r => r.style))].join(', ')), new Set(g.rows.map(r => r.op)).size, vdN(g.pcs), `<b>${vdRs(g.amt)}</b>`]);
+  } else {
+    head = ['Date', 'Buyer', 'Style', 'Product', 'Line', 'Operation', 'Op no.', 'Rate', 'Pcs', 'Amount', 'Sheet row']; num = [7, 8, 9, 10];
+    body = rows.slice().sort((a, b) => b.date.localeCompare(a.date) || a.r - b.r)
+      .map(r => [vdD(r.date), vdEsc(r.buyer), vdEsc(r.style), vdEsc(r.product), vdEsc(r.line), vdEsc(r.op), vdEsc(r.opNo), vdN(r.rate), vdN(r.pcs), `<b>${vdRs(r.amt)}</b>`, r.r]);
+  }
+  const B = document.getElementById('vdPopBody'), F = document.getElementById('vdPopFt');
+  if (B) B.innerHTML = body.length ? `<table class="own-tbl od-tbl"><thead><tr>${head.map((h, i) => `<th class="${num.includes(i) ? 'n' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${
+    body.map(c => `<tr>${c.map((v, i) => `<td class="${num.includes(i) ? 'n' : ''}">${v}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<div class="od-pop-empty">Nothing found</div>';
+  if (F) F.innerHTML = `<span>${vdN(rows.length)} entr${rows.length === 1 ? 'y' : 'ies'} · ${vdN(rows.reduce((n, r) => n + r.pcs, 0))} pcs · ${vdRs(rows.reduce((n, r) => n + r.amt, 0))}</span>` +
+    (p.date ? `<button class="btn btn-outline btn-sm" data-k="${vdEsc(p.k)}" onclick="vdHist(this.dataset.k)">Show full history</button>` : '');
+}
+function vdPopTab(t) { if (_vd.pop) { _vd.pop.tab = t; vdPopPaint(); } }
+function vdPopClose() {
+  const el = document.getElementById('vdPop'); if (el) { el.classList.remove('open'); el.innerHTML = ''; }
+  document.body.style.overflow = ''; _vd.pop = null;
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && _vd.pop) vdPopClose(); });
 
 // ══════════════════════════════════════════════════════
 // PRODUCTION MANAGEMENT — "All PMS Level 2 KLM" sheet ke "NEW PMS" tab ka data

@@ -6113,6 +6113,102 @@ const kpNorm = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toUpp
 const kpDMY = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '')); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
 const kpNum = v => { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return Number.isFinite(n) ? n : 0; };
 
+// ── Voucher Dashboard (Owner Dashboard ka button) — Harsh, 14 Nov 2026 ──
+// "ALL LINE DATA ENTRY" ki har row = ek kariger ne ek din ek operation ke itne pcs kiye (amount = pcs x rate).
+// Skilled / Semi-Skilled usi sheet ke "KARIGER CATEGORY" tab se aata hai (Kariger Name | Category) —
+// tab na ho to sab "Not set". Sirf padhna: dono tab ek hi batchGet me, 2 min cache.
+const KP_CAT_TAB = 'KARIGER CATEGORY';
+const VD_COLS = ['r', 'k', 'card', 'buyer', 'style', 'color', 'size', 'product', 'date', 'line', 'op', 'opNo', 'rate', 'pcs', 'amt', 'cat'];
+let _vdCache = null, _vdBusy = null;
+const vdCat = v => /semi/i.test(v) ? 'Semi-Skilled' : (/skill/i.test(v) && !/un\s*-?\s*skill/i.test(v)) ? 'Skilled' : '';
+const vdCard = name => { const m = /-\s*(\d+)\s*$/.exec(String(name || '')); return m ? m[1] : ''; };
+const vdISO = v => {
+  const m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/.exec(String(v == null ? '' : v).trim());
+  return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : '';
+};
+async function vdLoad(force) {
+  if (!force && _vdCache && Date.now() - _vdCache.at < 120000) return _vdCache;
+  if (_vdBusy) return _vdBusy;
+  _vdBusy = (async () => {
+    const api = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    const get = async ranges => {
+      for (let i = 0; ; i++) {
+        try { return await api.spreadsheets.values.batchGet({ spreadsheetId: KP_SHEET_ID, ranges }); }
+        catch (e) {
+          if (!SHEETS_RETRY_CODES.has(e.code || e.status) || i >= 2) throw e;
+          await new Promise(r => setTimeout(r, 400 * Math.pow(2, i) + Math.floor(Math.random() * 250)));
+        }
+      }
+    };
+    const main = `'${KP_TAB}'!A1:Z`, catR = `'${KP_CAT_TAB}'!A1:D`;
+    let r, catTab = true;
+    try { r = await get([main, catR]); }
+    catch (e) {
+      if (!/Unable to parse range/i.test(String(e.message))) throw e;
+      catTab = false; r = await get([main]);           // category tab abhi bana nahi
+    }
+    const vr = r.data.valueRanges || [];
+    const v = (vr[0] && vr[0].values) || [];
+    // heading wali row (row 2) naam se dhoondo — column aage-peeche ho jaayein to bhi chale
+    let hi = v.findIndex((row, i) => i < 6 && (row || []).some(c => kpNorm(c) === 'KARIGER NAME'));
+    if (hi < 0) throw new Error(`"KARIGER NAME" heading not found in the ${KP_TAB} tab`);
+    const H = (v[hi] || []).map(kpNorm), col = n => H.indexOf(n);
+    const c = { k: col('KARIGER NAME'), buyer: col('BUYER NAME'), style: col('STYLE'), color: col('COLOR'), size: col('SIZE'),
+      product: col('PRODUCT NAME'), date: col('ISSUE DATE'), line: col('LINE MAN'), op: col('OPERATION'), opNo: col('OPERATION NO'),
+      rate: col('KARIGER RATE'), pcs: col('NO OF PCS'), amt: col('TOTAL AMOUNT'), card: col('CARD NO') };
+    // category: naam se, aur naam me card no ho (AASHU-885) to card se bhi
+    const byName = new Map(), byCard = new Map();
+    let catCount = 0;
+    if (catTab) {
+      const cv = (vr[1] && vr[1].values) || [];
+      const hdr = row => {
+        const h = (row || []).map(x => String(x || '')), iC = h.findIndex(x => /categ/i.test(x));
+        const iN = h.findIndex((x, j) => j !== iC && /kariger|karigar|name/i.test(x));
+        return iC >= 0 && iN >= 0 ? { iC, iN, iCard: h.findIndex((x, j) => j !== iC && j !== iN && /card/i.test(x)) } : null;
+      };
+      const chi = cv.findIndex((row, i) => i < 6 && hdr(row));
+      const { iN, iC, iCard } = chi >= 0 ? hdr(cv[chi]) : { iN: 0, iC: 1, iCard: -1 };   // heading na ho: A = naam, B = category
+      for (const row of cv.slice(chi >= 0 ? chi + 1 : 0)) {
+        const name = String((row || [])[iN] || '').trim(), cat = vdCat(String((row || [])[iC] || ''));
+        if (!name || !cat) continue;
+        catCount++;
+        byName.set(kpNorm(name), cat);
+        const cd = String((iCard >= 0 && row[iCard]) || vdCard(name)).trim();
+        if (cd) byCard.set(cd, cat);
+      }
+    }
+    const s = (row, i) => i < 0 ? '' : String((row || [])[i] == null ? '' : row[i]).trim();
+    const rows = [];
+    for (let n = hi + 1; n < v.length; n++) {
+      const row = v[n], k = s(row, c.k);
+      if (!k) continue;
+      const date = vdISO(s(row, c.date)), pcs = kpNum(s(row, c.pcs)), rate = kpNum(s(row, c.rate));
+      const amtTxt = s(row, c.amt), amt = amtTxt ? kpNum(amtTxt) : Math.round(pcs * rate * 100) / 100;
+      if (!date || (!pcs && !amt)) continue;           // sirf "received" wali ya adhoori row
+      const card = s(row, c.card) || vdCard(k);
+      rows.push([n + 1, k, card, s(row, c.buyer), s(row, c.style), s(row, c.color), s(row, c.size), s(row, c.product), date,
+        s(row, c.line), s(row, c.op), s(row, c.opNo), rate, pcs, amt, byName.get(kpNorm(k)) || (card && byCard.get(card)) || '']);
+    }
+    _vdCache = { at: Date.now(), cols: VD_COLS, rows, catTab, catCount, catTabName: KP_CAT_TAB,
+      url: `https://docs.google.com/spreadsheets/d/${KP_SHEET_ID}/edit?gid=${KP_GID}#gid=${KP_GID}` };
+    return _vdCache;
+  })();
+  try { return await _vdBusy; } finally { _vdBusy = null; }
+}
+app.get('/api/voucher-dash', requireAuth, async (req, res) => {
+  try {
+    if (!(await isOwnerUser(req))) return res.status(403).json({ error: 'Only Owner Dashboard users can open the Voucher Dashboard' });
+    res.json(await vdLoad(req.query.force === '1'));
+  } catch (err) {
+    const busy = SHEETS_RETRY_CODES.has(err.code || err.status) || /quota/i.test(String(err.message));
+    if (busy && _vdCache) return res.json({ ..._vdCache, stale: true });   // purana data, upar "old data" likha aata hai
+    console.error('Voucher dashboard FAILED:', err.message);
+    res.status(busy ? 503 : 500).json({ error: busy
+      ? 'Google Sheets is busy right now (too many reads this minute). Please wait a few seconds and click Refresh.'
+      : err.message });
+  }
+});
+
 // Payload -> sheet rows ({ HEADING: value }). Ek operation x ek issue date = ek row.
 function kpBuildRows(p, who, savedOn) {
   const h = p.head || {}, out = [];
