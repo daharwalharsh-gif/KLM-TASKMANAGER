@@ -2952,11 +2952,13 @@ tbody tr:last-child td{border-bottom:none;}
       <div style="display:flex;gap:8px;align-items:center">
         <a id="pmSheetLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener"
            href="https://docs.google.com/spreadsheets/d/1ZMZg07n062X4FErgQ4uxAo2mW17P2X8VWBCco7Ti8jY/edit?gid=1595875426#gid=1595875426">📄 Open Google Sheet ↗</a>
+        <a class="btn btn-outline btn-sm" target="_blank" rel="noopener"
+           href="https://sites.google.com/e-marketing.io/all--pms-level-2-klm--sheet-2/all-pms-level-2-klm-sheet-2">📈 Dashboard PPC vs Actual ↗</a>
         <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe"
           onclick="exportProductionPDF()">📄 PDF</button>
         <button class="btn btn-outline btn-sm" onclick="pmCSV()">⬇ Export CSV</button>
         <button class="btn btn-outline btn-sm" onclick="loadProduction()">🔄 Refresh</button>
-        <button class="btn btn-primary btn-sm" onclick="showPPC()">🧵 PPC</button>
+        <button class="btn btn-primary btn-sm" onclick="showPPC()">🧵 TAT</button>
       </div>
     </div>
 
@@ -2984,7 +2986,7 @@ tbody tr:last-child td{border-bottom:none;}
     <!-- ── PPC — NEW PMS sheet (All PMS Level 2 KLM) ── -->
     <div id="ppcWrap" style="display:none">
       <div class="page-header" style="margin-bottom:14px">
-        <h2 style="font-size:19px">🧵 PPC</h2>
+        <h2 style="font-size:19px">🧵 TAT</h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <a id="ppcSheetLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="#">📄 Open Google Sheet ↗</a>
           <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="exportPPCPDF()">📄 PDF</button>
@@ -18559,7 +18561,7 @@ let _ppcLoading = false;
 function showPPC() {
   document.getElementById('pmMain').style.display = 'none';
   document.getElementById('ppcWrap').style.display = '';
-  document.getElementById('topbarTitle').textContent = 'PPC';
+  document.getElementById('topbarTitle').textContent = 'TAT';
   ppcView(_ppcMode || 'dash');
 }
 function hidePPC() {
@@ -19789,9 +19791,8 @@ function downloadPcrPdf() {
 // Sirf ek dropdown — form chunte hi wahi form khulta hai. Jis form ki
 // permission nahi, wo dropdown me aata hi nahi.
 const SHORT_OPT = '__shortdetails__';
-// Harsh (1 Oct 2026): do aur link — naye tab me khulte hain
-const PMSL2_OPT = '__pmslevel2__';
-const PPCDASH_OPT = '__ppcdashboard__';
+// Harsh (16 Nov 2026): "All PMS Level 2 KLM" aur "Dashboard PPC vs Actual" yahan se hataye —
+// dashboard ka link ab Production Management ke header me hai
 function formsCatalogue() {
   return [
     { key: PCR_OPT,   icon: '🗂️', name: 'Daily PC Report',                 show: canSeePcReport() },
@@ -19799,11 +19800,7 @@ function formsCatalogue() {
     { key: LEGAL_OPT, icon: '⚖️', name: 'Legal Case Form',                 show: canSeeLegal() },
     { key: FB_OPT,    icon: '💬', name: 'Employee Feedback Form',          show: true },
     { key: SHORT_OPT, icon: '📋', name: 'Invincible Short Details Form',   show: true,
-      url: 'https://sites.google.com/e-marketing.io/invincible-short-details-forms' },
-    { key: PMSL2_OPT, icon: '📊', name: 'All PMS Level 2 KLM',             show: true,
-      url: 'https://docs.google.com/spreadsheets/d/1jlknTV4aSBMHSkMbVH9OXgI5FiQH01_cxzxR6OG0ztU/edit?gid=432659505#gid=432659505' },
-    { key: PPCDASH_OPT, icon: '📈', name: 'Dashboard PPC vs Actual',       show: true,
-      url: 'https://sites.google.com/e-marketing.io/all--pms-level-2-klm--sheet-2/all-pms-level-2-klm-sheet-2' }
+      url: 'https://sites.google.com/e-marketing.io/invincible-short-details-forms' }
   ].filter(f => f.show);
 }
 
