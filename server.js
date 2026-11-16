@@ -4322,9 +4322,10 @@ const FULL_VIEW_KAJAL = {
 };
 // Mr. Tribhuvan Tyagi (Production Manager) — Merchant O2D FMS sirf DEKHNE ke liye:
 // saare steps + saari rows, par Done nahi (viewOnly). Harsh (28 Oct 2026).
+// All PMS Level 2 KLM bhi, waise hi sirf dekhne ke liye (Harsh, 16 Nov 2026).
 const FULL_VIEW_TYAGI = {
-  ids: [4],
-  names: ['merchant o2d fms'],
+  ids: [4, 18],
+  names: ['merchant o2d fms', 'all  pms level 2 klm', 'all pms level 2 klm'],
   viewOnly: true
 };
 const FMS_FULL_VIEW = {
