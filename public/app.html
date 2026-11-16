@@ -2958,7 +2958,7 @@ tbody tr:last-child td{border-bottom:none;}
           onclick="exportProductionPDF()">📄 PDF</button>
         <button class="btn btn-outline btn-sm" onclick="pmCSV()">⬇ Export CSV</button>
         <button class="btn btn-outline btn-sm" onclick="loadProduction()">🔄 Refresh</button>
-        <button class="btn btn-primary btn-sm" onclick="showPPC()">🧵 TAT</button>
+        <button class="btn btn-primary btn-sm" onclick="showPPC()">🧵 PPC</button>
       </div>
     </div>
 
@@ -2986,7 +2986,7 @@ tbody tr:last-child td{border-bottom:none;}
     <!-- ── PPC — NEW PMS sheet (All PMS Level 2 KLM) ── -->
     <div id="ppcWrap" style="display:none">
       <div class="page-header" style="margin-bottom:14px">
-        <h2 style="font-size:19px">🧵 TAT</h2>
+        <h2 style="font-size:19px">🧵 PPC</h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <a id="ppcSheetLink" class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="#">📄 Open Google Sheet ↗</a>
           <button class="btn btn-outline btn-sm" style="color:#4f46e5;border-color:#c7d2fe" onclick="exportPPCPDF()">📄 PDF</button>
@@ -2997,7 +2997,7 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
 
       <div class="ppc-tabs" id="ppcViewTabs">
-        <div class="ppc-tab active" id="ppcViewDash" onclick="ppcView('dash')">📊 PPC vs Actual</div>
+        <div class="ppc-tab active" id="ppcViewDash" onclick="ppcView('dash')">📊 TAT vs Actual</div>
         <div class="ppc-tab" id="ppcViewDashM" onclick="ppcView('dashm')"
           title="Same report, but the plan date is the PPC Date (Production page / Orders tab)">🗓️ PPC vs Actual (Manual Date)</div>
         <div class="ppc-tab" id="ppcViewOrders" onclick="ppcView('orders')">📋 Orders</div>
@@ -18561,7 +18561,7 @@ let _ppcLoading = false;
 function showPPC() {
   document.getElementById('pmMain').style.display = 'none';
   document.getElementById('ppcWrap').style.display = '';
-  document.getElementById('topbarTitle').textContent = 'TAT';
+  document.getElementById('topbarTitle').textContent = 'PPC';
   ppcView(_ppcMode || 'dash');
 }
 function hidePPC() {
@@ -19792,10 +19792,9 @@ function downloadPcrPdf() {
 // permission nahi, wo dropdown me aata hi nahi.
 const SHORT_OPT = '__shortdetails__';
 // Harsh (16 Nov 2026): "All PMS Level 2 KLM" aur "Dashboard PPC vs Actual" yahan se hataye —
-// dashboard ka link ab Production Management ke header me hai
+// dashboard ka link ab Production Management ke header me hai. "Daily PC Report" bhi dropdown se hataya.
 function formsCatalogue() {
   return [
-    { key: PCR_OPT,   icon: '🗂️', name: 'Daily PC Report',                 show: canSeePcReport() },
     { key: CHAL_OPT,  icon: '📝', name: 'Invincible Open Challenges Form', show: canSeeChallenges() },
     { key: LEGAL_OPT, icon: '⚖️', name: 'Legal Case Form',                 show: canSeeLegal() },
     { key: FB_OPT,    icon: '💬', name: 'Employee Feedback Form',          show: true },
