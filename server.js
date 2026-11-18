@@ -5209,7 +5209,10 @@ app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
       ]);
       orders.push({ uid, buyer, piNo, code: String(row[2] || '').trim(),
         size: String(row[3] || '').trim(), colour: String(row[4] || '').trim(),
-        qty, piApprovalDate: ppcIsoDate(row[11]), s: st });
+        qty, piApprovalDate: ppcIsoDate(row[11]), s: st,
+        // TAT vs Actual dashboard ke filter + line item ki details (sheet row se) — Harsh, 18 Nov 2026
+        row: rowNo, merchant: String(row[7] || '').trim(), product: String(row[6] || '').trim(),
+        type: String(row[12] || '').trim(), ostatus: String(row[16] || '').trim() });
     }
 
     const inRange = (d, a, b) => !!d && (!a || d >= a) && (!b || d <= b);
@@ -5247,6 +5250,74 @@ app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error('PPC dashboard FAILED:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── TAT vs Actual: har step ki sheet wali details (Harsh, 18 Nov 2026) ──
+// Dashboard me step chuno to uske line items ke saath sheet ke us step ke saare column
+// (TAT, Time delay, Status, Line, PPC Date, Qty…) dikhte hain; line item par click = uski poori
+// row (saare step). ?step=S3 -> us step ke column har row ke · ?row=123 -> ek row. Sirf padhna.
+// Step ke column = sheet me "STEP-n" wale column se agle step se pehle tak (header row 7).
+const PPC_STEP_BLOCK = { S2: [18, 23], S3: [24, 34], S4: [35, 39], S5: [40, 51], S6: [52, 57], S7: [58, 75], S8: [76, 90], S9: [91, 100] };
+const PPC_LAST_IDX = 100;   // CW
+async function ppcBatchGet(api, ranges, tries = 3) {
+  let lastErr;
+  for (let i = 0; i < tries; i++) {
+    try { return await api.spreadsheets.values.batchGet({ spreadsheetId: PPC_SHEETS.newpms.id, ranges }); }
+    catch (e) {
+      lastErr = e;
+      if (!SHEETS_RETRY_CODES.has(e.code || e.status) || i === tries - 1) break;
+      await new Promise(r => setTimeout(r, 400 * Math.pow(2, i) + Math.floor(Math.random() * 250)));
+    }
+  }
+  throw lastErr;
+}
+app.get('/api/ppc/detail', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const step = String(req.query.step || '').trim().toUpperCase();
+    const rowNo = parseInt(req.query.row, 10) || 0;
+    const blk = PPC_STEP_BLOCK[step];
+    if (!blk && rowNo <= PPC_HEADER_ROW) return res.status(400).json({ error: 'Choose a step or a line item' });
+    const last = idxToCol(PPC_LAST_IDX);
+    const api = await getSheetsClient(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    // ek hi request: sheet ki row 2-7 (What/Who/How/When + headings) aur data
+    // step wale me B / K / P bhi (Buyer, PI, Unique ID) — dashboard ki tarah khaali formula wali row chhodne ke liye
+    const d0 = PPC_HEADER_ROW + 1;
+    const r = await ppcBatchGet(api, [`${PPC_TAB}!A2:${last}${PPC_HEADER_ROW}`,
+      blk ? `${PPC_TAB}!${idxToCol(blk[0])}${d0}:${idxToCol(blk[1])}` : `${PPC_TAB}!A${rowNo}:${last}${rowNo}`]
+      .concat(blk ? [`${PPC_TAB}!B${d0}:B`, `${PPC_TAB}!K${d0}:K`, `${PPC_TAB}!P${d0}:P`] : []));
+    const vr = r.data.valueRanges || [];
+    const head = (vr[0] && vr[0].values) || [];            // index 0 = sheet row 2
+    const cell = (n, c) => String(((head[n] || [])[c]) == null ? '' : head[n][c]).replace(/\s+/g, ' ').trim();
+    const lbl = PPC_HEADER_ROW - 2;                         // row 7 = headings
+    const info = [];                                        // order ke column (A..R)
+    for (let c = 0; c < 18; c++) info.push({ i: c, col: idxToCol(c), label: cell(lbl, c) || idxToCol(c) });
+    const steps = PPC_NEW_STEPS.map(s => {
+      const [a, b] = PPC_STEP_BLOCK[s.code];
+      const cols = [];
+      for (let c = a; c <= b; c++) cols.push({ i: c, col: idxToCol(c), label: cell(lbl, c) || idxToCol(c) });
+      // What / Who / How / When = sheet ki row 2-5 — step ke column me pehla bhara hua ("What" jaisa label chhod kar)
+      const meta = {};
+      ['what', 'who', 'how', 'when'].forEach((k, n) => {
+        for (let c = a; c <= b; c++) { const v = cell(n, c); if (v && v.toLowerCase() !== k) { meta[k] = v; break; } }
+      });
+      return { code: s.code, name: s.name, from: a, to: b, planIdx: s.planIdx, actIdx: s.actIdx, cols, meta };
+    });
+    const vals = (vr[1] && vr[1].values) || [];
+    const str = v => String(v == null ? '' : v).trim();
+    if (blk) {
+      const rows = {}, has = n => [2, 3, 4].some(k => str(((((vr[k] || {}).values || [])[n]) || [])[0]));
+      vals.forEach((row, n) => {
+        if (!has(n)) return;
+        const a = row.map(str); while (a.length && !a[a.length - 1]) a.pop();
+        if (a.length) rows[PPC_HEADER_ROW + 1 + n] = a;
+      });
+      return res.json({ step, steps, info, rows });
+    }
+    res.json({ row: rowNo, steps, info, values: (vals[0] || []).map(str) });
+  } catch (err) {
+    console.error('PPC detail FAILED:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -2672,6 +2672,63 @@ tbody tr:last-child td{border-bottom:none;}
     .pd-per button{padding:5px 13px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;
       font-size:12px;font-weight:600;color:#475569;font-family:'Inter',sans-serif}
     .pd-per button.on{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
+    /* ── TAT vs Actual — Power BI jaisa ek screen (Harsh, 18 Nov 2026); panel/KPI = Voucher Dashboard wale vd-* ── */
+    .pb-cv{display:grid;grid-template-rows:auto minmax(0,1fr) minmax(0,1.3fr);gap:10px;min-width:0;min-height:0}
+    .pb-cv .vd-kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
+    .pb-cv .vd-k .v{font-size:21px}
+    /* KPI ka rang — .vd-k (baad me likha) har card ko neela kar deta tha */
+    .pb-cv .vd-k.od-c-blue{--a:#2563eb;--as:37,99,235;--tint:#eff6ff} .pb-cv .vd-k.od-c-green{--a:#059669;--as:5,150,105;--tint:#ecfdf5}
+    .pb-cv .vd-k.od-c-amber{--a:#d97706;--as:217,119,6;--tint:#fffbeb} .pb-cv .vd-k.od-c-violet{--a:#7c3aed;--as:124,58,237;--tint:#f5f3ff}
+    .pb-cv .vd-k.od-c-red{--a:#dc2626;--as:220,38,38;--tint:#fef2f2} .pb-cv .vd-k.od-c-rose{--a:#e11d48;--as:225,29,72;--tint:#fff1f2}
+    .pb-s12{grid-column:span 12}
+    .pb-per{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+    .pb-per button{padding:5px 4px;border:1.5px solid #bfdbfe;border-radius:8px;background:#fff;cursor:pointer;font-size:11.5px;font-weight:700;color:#1e3a8a;font-family:inherit}
+    .pb-per button.on{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
+    .pb-cbox{position:relative;height:100%;min-height:130px}
+    .pb-sub{font-size:10.5px;color:#64748b;white-space:nowrap}
+    .pb-dt td,.pb-dt th{white-space:nowrap} .pb-dt td.n,.pb-dt th.n{text-align:right;font-variant-numeric:tabular-nums}
+    .pb-dt tbody tr{cursor:pointer} .pb-dt tbody tr.on td{background:#dbeafe !important;font-weight:700}
+    .pb-dt tr.tot td{font-weight:800;background:#f8fafc;color:#1e3a8a;border-top:2px solid #dbeafe;position:sticky;bottom:0}
+    .pb-dt .dn{max-width:170px;overflow:hidden;text-overflow:ellipsis}
+    #pbBody .pb-dt td{padding-top:4px;padding-bottom:4px}
+    /* panel patla ho (1366 jaisi screen) to table bhi patli — Achievement column na kate */
+    #pbP-dept{container-type:inline-size}
+    @container (max-width:420px){
+      #pbBody .pb-dt th,#pbBody .pb-dt td{padding-left:5px;padding-right:5px;font-size:11.5px}
+      .pb-dt .dn{max-width:96px} .pb-ach .bar{display:none}
+    }
+    .pb-ach{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+    .pb-ach .bar{width:46px;height:6px;border-radius:3px;background:#eef2f7;overflow:hidden;flex-shrink:0}
+    .pb-ach .bar i{display:block;height:100%;border-radius:3px}
+    .pb-b{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;white-space:nowrap}
+    .pb-b.ontime{background:#dcfce7;color:#166534} .pb-b.late{background:#fef3c7;color:#92400e}
+    .pb-b.overdue{background:#fee2e2;color:#b91c1c} .pb-b.due{background:#dbeafe;color:#1e40af}
+    .pb-it tbody tr{cursor:pointer}
+    .pb-it th:first-child,.pb-it td:first-child{position:sticky;left:0;z-index:1;background:#fff;width:34px;min-width:34px;color:#94a3b8}
+    .pb-it th:nth-child(2),.pb-it td:nth-child(2){position:sticky;left:34px;z-index:1;background:#fff;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+    .pb-it thead th:first-child,.pb-it thead th:nth-child(2){z-index:3;background:#eff6ff}
+    .pb-it th.s{cursor:pointer;user-select:none} .pb-it th.s:hover{text-decoration:underline}
+    .pb-it th.sh{background:#f5f3ff;color:#6d28d9}
+    .pb-it td.pi{color:#1a56db;font-weight:700}
+    .pb-meta{display:flex;gap:3px 14px;flex-wrap:wrap;align-items:center;font-size:11px;color:#475569;background:#f8fafc;border:1px solid #eef2f7;border-radius:9px;padding:5px 9px;margin-bottom:6px}
+    .pb-meta b{color:#1e3a8a}
+    .pb-meta span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pb-more{display:block;margin:8px auto}
+    .pb-flash{animation:pbFlash 1.1s ease-out}
+    @keyframes pbFlash{0%{box-shadow:0 0 0 3px #2563eb}100%{box-shadow:0 4px 14px rgba(37,99,235,.06)}}
+    #pbPop{z-index:1070}
+    .pb-jr{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;padding:14px 18px}
+    .pb-jc{border:1px solid #e2e8f0;border-top:4px solid var(--c,#94a3b8);border-radius:12px;padding:9px 12px;background:#fff;min-width:0}
+    .pb-jc h4{margin:0 0 3px;font-size:12.5px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:6px;justify-content:space-between}
+    .pb-jc .who{font-size:10.5px;color:#64748b;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pb-kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 10px;font-size:12px}
+    .pb-kv span{color:#64748b;white-space:nowrap} .pb-kv b{font-weight:700;color:#0f172a;overflow-wrap:anywhere}
+    @media (max-width:1099px), (max-height:599px){
+      .pb-cv{grid-template-rows:none}
+      .pb-s12{grid-column:auto}
+      .pb-cv .vd-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+      #pbP-items:not(.vd-focus){height:520px}
+    }
     /* Order Master — har department ka apna block, halka alag rang */
     .om-tbl th,.om-tbl td{white-space:nowrap}
     .om-tbl th.om-dep{text-align:center;font-size:10.5px;letter-spacing:.4px;color:#1e3a8a;
@@ -18591,6 +18648,7 @@ function ppcView(mode) {
   document.getElementById('ppcDashContent').style.display = isDash ? '' : 'none';
   document.getElementById('ppcOrdersWrap').style.display = isDash ? 'none' : '';
   document.getElementById('ppcDashBar').style.display = isDash ? '' : 'none';
+  document.getElementById('ppcDashBar').parentElement.style.display = isDash ? 'none' : '';   // dashboard me date bayein filter me
   ['ppcOrdBar1', 'ppcOrdBar2', 'ppcOrdBar3', 'ppcOrdBarQ', 'ppcOrdBarM'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = isDash ? 'none' : '';
   });
@@ -18615,6 +18673,7 @@ async function loadPPCDash() {
     return;
   }
   _ppcDash = r;
+  _pb.det = {}; _pb.rowDet = {};      // Refresh / naya as-of -> sheet ke column dobara laao
   const sel = document.getElementById('ppcSheet');
   if (sel.options.length !== (r.sheets || []).length) {
     sel.innerHTML = (r.sheets || []).map(s => `<option value="${s.key}">${escapeHtml(s.label)}</option>`).join('');
@@ -18632,161 +18691,480 @@ const _pdNum = n => (parseInt(n, 10) || 0).toLocaleString('en-IN');
 const _pdDate = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : (s || '—'); };
 const _pdPill = st => `<span class="pd-pill ${st === 'RED' ? 'pd-red' : st === 'GREEN' ? 'pd-green' : 'pd-none'}">${st}</span>`;
 
-function renderPPCDash() {
-  const r = _ppcDash; if (!r) return;
-  const s = r.summary || {};
-  const secTotal = `
-    <div class="pd-sec">
-      <h4>TOTAL — DEPARTMENT WISE (all time)</h4>
-      <table><thead><tr>
-        <th>Department</th><th class="pd-n">Total Plan</th><th class="pd-n">Total Actual</th>
-        <th class="pd-n">Total Balance</th><th class="pd-c">Status</th></tr></thead>
-      <tbody>${(r.blocks.total || []).map(x => `<tr onclick="ppcOpenDept('total','${escapeHtml(x.code)}')">
-        <td>${escapeHtml(x.dept)}</td>
-        <td class="pd-n">${_pdNum(x.plan)}</td>
-        <td class="pd-n">${_pdNum(x.actual)}</td>
-        <td class="pd-n">${_pdNum(x.balance)}</td>
-        <td class="pd-c">${_pdPill(x.status)}</td></tr>`).join('')}
-        <tr class="pd-foot"><td>TOTAL</td>
-          <td class="pd-n">${_pdNum(s.plan)}</td><td class="pd-n">${_pdNum(s.actual)}</td>
-          <td class="pd-n">${_pdNum(s.balance)}</td><td class="pd-c">${s.achievement}%</td></tr>
-      </tbody></table>
-    </div>`;
-  const sec = (title, key) => {
-    const rows = r.blocks[key] || [];
-    const p = rows.reduce((a, x) => a + x.plan, 0), a2 = rows.reduce((a, x) => a + x.actual, 0);
-    return `<div class="pd-sec">
-      <h4>${title}</h4>
-      <table><thead><tr>
-        <th>Department</th><th class="pd-n">Plan</th><th class="pd-n">Actual</th><th class="pd-n">Balance</th>
-        <th class="pd-n">Achievement %</th><th class="pd-c">Status</th><th>Remarks</th></tr></thead>
-      <tbody>${rows.map(x => `<tr onclick="ppcOpenDept('${key}','${escapeHtml(x.code)}')">
-        <td>${escapeHtml(x.dept)}</td>
-        <td class="pd-n">${_pdNum(x.plan)}</td>
-        <td class="pd-n">${_pdNum(x.actual)}</td>
-        <td class="pd-n">${_pdNum(x.balance)}</td>
-        <td class="pd-n">${x.achievement.toFixed(2)}%</td>
-        <td class="pd-c">${_pdPill(x.status)}</td>
-        <td style="color:${x.status === 'RED' ? '#b91c1c' : '#64748b'}">${escapeHtml(x.remarks)}</td></tr>`).join('')}
-        <tr class="pd-foot"><td>TOTAL</td>
-          <td class="pd-n">${_pdNum(p)}</td><td class="pd-n">${_pdNum(a2)}</td>
-          <td class="pd-n">${_pdNum(p - a2)}</td>
-          <td class="pd-n">${p > 0 ? (a2 / p * 100).toFixed(2) : '0.00'}%</td>
-          <td colspan="2"></td></tr>
-      </tbody></table>
-    </div>`;
-  };
-  const per = ['total', 'daily', 'weekly', 'monthly'];
-  const perLbl = { total: 'Total', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
-  const charts = `
-    <div class="pd-per">${per.map(k =>
-      `<button class="${_ppcChartPer === k ? 'on' : ''}" onclick="ppcChartPeriod('${k}')">${perLbl[k]}</button>`).join('')}</div>
-    <div class="pd-charts">
-      <div class="pd-cwrap">
-        <h4>Plan vs Actual — department wise</h4>
-        <div class="s" id="ppcChart1Sub"></div>
-        <div class="pd-cbox"><canvas id="ppcChartPA"></canvas></div>
-      </div>
-      <div class="pd-cwrap">
-        <h4>Achievement % — department wise</h4>
-        <div class="s">Dotted line = 100% target</div>
-        <div class="pd-cbox"><canvas id="ppcChartAch"></canvas></div>
-      </div>
-    </div>`;
-  document.getElementById('ppcDashContent').innerHTML = `
-    <div class="pd-head">
-      <h3>PPC VS ACTUAL — DEPARTMENT WISE · ${escapeHtml(r.label)}</h3>
-      <div class="pd-meta">
-        <span>As-of Date: <b>${_pdDate(r.asOf)}</b></span>
-        <span>Week: <b>${escapeHtml(r.week)}</b> (${_pdDate(r.weekFrom)} → ${_pdDate(r.weekTo)})</span>
-        <span>Month: <b>${escapeHtml(r.month)}</b></span>
-      </div>
-    </div>
-    <div class="pd-cards">
-      <div class="pd-card"><div class="l">Total Plan</div><div class="v">${_pdNum(s.plan)}</div></div>
-      <div class="pd-card"><div class="l">Total Actual</div><div class="v" style="color:#15803d">${_pdNum(s.actual)}</div></div>
-      <div class="pd-card"><div class="l">Total Balance</div><div class="v" style="color:#b45309">${_pdNum(s.balance)}</div></div>
-      <div class="pd-card"><div class="l">Total Achievement</div><div class="v">${s.achievement}%</div></div>
-      <div class="pd-card"><div class="l">Red Dept.</div><div class="v" style="color:#b91c1c">${s.redDepts}</div></div>
-    </div>
-    ${charts}
-    <div class="pd-tip">Click any bar or department row — all its orders open in a popup.</div>
-    ${secTotal}
-    ${sec('DAILY — PLAN VS ACTUAL (' + _pdDate(r.asOf) + ')', 'daily')}
-    ${sec('WEEKLY — PLAN VS ACTUAL (' + _pdDate(r.weekFrom) + ' → ' + _pdDate(r.weekTo) + ')', 'weekly')}
-    ${sec('MONTHLY — PLAN VS ACTUAL (' + escapeHtml(r.month) + ')', 'monthly')}`;
-  ppcDrawCharts();
+// ══════════════════════════════════════════════════════
+// TAT VS ACTUAL — Power BI jaisa ek screen (Harsh, 18 Nov 2026)
+// Bayein filter (As-of date, period, department, buyer, merchant, type, order status), upar KPI
+// (click = neeche line items), beech me 3 panel: Plan vs Actual graph, department table, TAT status
+// graph; neeche Line items — chune hue step ke saath sheet ke us step ke saare column. Line item par
+// click = uske saare step ki poori detail. Har panel ka ⤢ use poori screen par kholta hai.
+// Badi screen (1100×600+) par page scroll nahi hota; chhoti par panel ek ke neeche ek.
+// Hisaab browser me, server ke orders se — filter lagte hi turant (server jaisa hi formula).
+// ══════════════════════════════════════════════════════
+const _pb = { per: 'total', step: '', st: 'all', q: '', f: { buyer: '', merchant: '', type: '', ost: '' },
+  sort: null, more: false, focus: '', det: {}, rowDet: {}, meta: null, info: null, charts: {}, fitT: 0, pop: 0 };
+const PB_PER = [['total', 'Total'], ['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']];
+const PB_TAT = { ontime: ['On time', '#16a34a'], late: ['Done late', '#f59e0b'], overdue: ['Overdue', '#dc2626'], due: ['Not due yet', '#93c5fd'] };
+const PB_ALL_LBL = { ontime: 'Completed', late: 'Completed · late', overdue: 'Overdue', due: 'In progress' };
+const PB_SEV = { overdue: 0, due: 1, late: 2, ontime: 3 };
+const PB_LIMIT = 300;
+const pbU = v => String(v || '').trim().toUpperCase();
+const pbShort = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+const pbMan = () => !!(_ppcDash && _ppcDash.basis === 'manual');
+
+// Filter (buyer / merchant / type / order status) ke baad ke orders
+function pbOrders() {
+  const r = _ppcDash, f = _pb.f;
+  return (r.orders || []).filter(o => (!f.buyer || o.buyer === f.buyer) && (!f.merchant || pbU(o.merchant) === f.merchant)
+    && (!f.type || pbU(o.type) === f.type) && (!f.ost || (pbU(o.ostatus) || '(NOT SET)') === f.ost));
+}
+function pbRange(per) {
+  const r = _ppcDash;
+  return per === 'daily' ? [r.asOf, r.asOf] : per === 'weekly' ? [r.weekFrom, r.weekTo] : per === 'monthly' ? [r.monthFrom, r.monthTo] : null;
+}
+function pbPerLabel(per) {
+  const r = _ppcDash;
+  return per === 'daily' ? _pdDate(r.asOf) : per === 'weekly' ? `${_pdDate(r.weekFrom)} → ${_pdDate(r.weekTo)}` : per === 'monthly' ? r.month : 'All time';
+}
+// Ek step par ek line item ki date — Manual Date report me actual tabhi jab PPC date ho
+function pbPA(o, i) { const x = o.s[i] || ['', '']; const p = x[0] || '', a = x[1] || ''; return [p, pbMan() && !p ? '' : a]; }
+// Ye line item is period me is step me aata hai? (plan ya actual date period me)
+function pbIn(o, i, rg) {
+  const [p, a] = pbPA(o, i), inR = d => !!d && (!rg || (d >= rg[0] && d <= rg[1]));
+  return inR(p) || inR(a);
+}
+// Department-wise Plan / Actual ek period ka — server wala hi hisaab
+function pbBlock(orders, per) {
+  const r = _ppcDash, rg = pbRange(per);
+  const inR = d => !!d && (!rg || (d >= rg[0] && d <= rg[1]));
+  return (r.steps || []).map((s, i) => {
+    let plan = 0, actual = 0;
+    for (const o of orders) { const [p, a] = pbPA(o, i); if (inR(p)) plan += o.qty; if (inR(a)) actual += o.qty; }
+    const ach = plan > 0 ? Math.round(actual / plan * 1000) / 10 : 0;
+    const status = plan <= 0 ? 'NO PLAN' : ach >= 100 ? 'GREEN' : 'RED';
+    return { code: s.code, dept: s.name, plan, actual, balance: plan - actual, achievement: ach, status,
+      remarks: status === 'RED' ? 'Immediate action' : 'On Track' };
+  });
+}
+function pbSum(rows) {
+  const plan = rows.reduce((a, x) => a + x.plan, 0), actual = rows.reduce((a, x) => a + x.actual, 0);
+  return { plan, actual, balance: plan - actual, achievement: plan > 0 ? Math.round(actual / plan * 1000) / 10 : 0,
+    redDepts: rows.filter(x => x.status === 'RED').length };
+}
+function pbFilterText() {
+  const f = _pb.f, p = [];
+  if (f.buyer) p.push('Buyer: ' + f.buyer); if (f.merchant) p.push('Merchant: ' + f.merchant);
+  if (f.type) p.push('Type: ' + f.type); if (f.ost) p.push('Order status: ' + f.ost);
+  return p.join(' · ');
+}
+// PDF / CSV — filter ke saath chaaron period
+function pbView() {
+  const o = pbOrders(), blocks = {};
+  PB_PER.forEach(([k]) => { blocks[k] = pbBlock(o, k); });
+  return { blocks, summary: { ...pbSum(blocks.total), orders: o.length }, filters: pbFilterText() };
+}
+// Ek step: On time / Done late / Overdue (plan nikal gaya, kaam nahi hua) / Not due yet
+function pbTat(p, a) {
+  if (a) return (!p || a <= p) ? 'ontime' : 'late';
+  if (!p) return '';
+  return p < _ppcDash.asOf ? 'overdue' : 'due';
 }
 
-// ── Graphs ── Plan vs Actual (grouped bars) aur Achievement % (100% target line ke saath).
-// Dono usi period ke hain jo upar button se chuna hai, aur data badalte hi dobara bante hain.
-let _ppcChartPer = 'total';
-let _ppcCharts = {};
-function ppcChartPeriod(p) { _ppcChartPer = p; renderPPCDash(); }
-// Bar par click -> us department ki details popup (department row par click jaisi)
-function ppcChartClick(els) {
-  const r = _ppcDash; if (!r || !els || !els.length) return;
-  const x = (r.blocks[_ppcChartPer] || [])[els[0].index];
-  if (x) ppcOpenDept(_ppcChartPer, x.code);
+function renderPPCDash() {
+  const r = _ppcDash, box = document.getElementById('ppcDashContent'); if (!r || !box) return;
+  Object.keys(_pb.charts).forEach(pbChartKill);
+  if (_pb.focus) { _pb.focus = ''; pbDim(false); }
+  if (_pb.step && !(r.steps || []).some(s => s.code === _pb.step)) _pb.step = '';
+  box.innerHTML = `<div class="vd-wrap" id="pbWrap"><div class="vd-flt" id="pbFilters"></div><div class="pb-cv" id="pbBody"></div></div>
+    <div class="vd-dim" id="pbDim" onclick="pbFocus('')"></div>
+    <div class="od-pop" id="pbPop" onclick="if (event.target === this) pbPopClose()"><div class="od-pop-box" id="pbPopBox"></div></div>`;
+  pbRenderFilters();
+  pbRenderBody();
 }
-const ppcChartHover = (e, els) => { const t = e && e.native && e.native.target; if (t) t.style.cursor = els && els.length ? 'pointer' : 'default'; };
-function ppcDrawCharts() {
-  const r = _ppcDash; if (!r || typeof Chart === 'undefined') return;
-  Object.values(_ppcCharts).forEach(c => { try { c.destroy(); } catch (e) {} });
-  _ppcCharts = {};
-  const rows = r.blocks[_ppcChartPer] || [];
-  const labels = rows.map(x => x.dept.length > 22 ? x.dept.slice(0, 21) + '…' : x.dept);
-  const sub = _ppcChartPer === 'total' ? 'All time'
-    : _ppcChartPer === 'daily' ? _pdDate(r.asOf)
-    : _ppcChartPer === 'weekly' ? `${_pdDate(r.weekFrom)} → ${_pdDate(r.weekTo)}` : r.month;
-  const s1 = document.getElementById('ppcChart1Sub'); if (s1) s1.textContent = sub + ' · quantity';
-  const grid = { color: '#eef2f7', drawTicks: false };
-  const ink = '#64748b';
-  const c1 = document.getElementById('ppcChartPA');
-  if (c1) _ppcCharts.pa = new Chart(c1, {
-    type: 'bar',
-    data: { labels, datasets: [
-      { label: 'Plan',   data: rows.map(x => x.plan),   backgroundColor: '#2a78d6', borderRadius: 4, borderSkipped: 'bottom' },
-      { label: 'Actual', data: rows.map(x => x.actual), backgroundColor: '#eb6834', borderRadius: 4, borderSkipped: 'bottom' }
-    ] },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      onClick: (e, els) => ppcChartClick(els), onHover: ppcChartHover,
-      categoryPercentage: 0.72, barPercentage: 0.9,
-      plugins: {
-        legend: { position: 'top', align: 'end', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'rectRounded', color: ink, font: { size: 11 } } },
-        tooltip: { callbacks: { label: c => `${c.dataset.label}: ${(c.parsed.y || 0).toLocaleString('en-IN')}` } }
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: ink, font: { size: 10.5 }, maxRotation: 40, minRotation: 0 } },
-        y: { beginAtZero: true, grid, border: { display: false },
-             ticks: { color: ink, font: { size: 10.5 }, callback: v => v >= 1000 ? (v / 1000) + 'k' : v } }
-      }
-    }
+
+function pbRenderFilters() {
+  const r = _ppcDash, f = _pb.f, all = r.orders || [], el = document.getElementById('pbFilters'); if (!el) return;
+  const uniq = fn => [...new Set(all.map(fn).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const opts = (vals, cur, lbl) => `<option value="">${lbl}</option>` +
+    vals.map(v => `<option value="${escapeHtml(v)}"${v === cur ? ' selected' : ''}>${escapeHtml(v)}</option>`).join('');
+  const sel = (k, vals, lbl) => `<select onchange="pbSet('${k}', this.value)">${opts(vals, f[k], lbl)}</select>`;
+  const any = f.buyer || f.merchant || f.type || f.ost || _pb.step || _pb.st !== 'all' || _pb.q;
+  el.innerHTML = `
+    <div><label>As-of date</label><input type="date" value="${escapeHtml(r.asOf || '')}" onchange="pbAsOf(this.value)"></div>
+    <div><label>Period</label><div class="pb-per">${PB_PER.map(([k, l]) =>
+      `<button type="button" class="${_pb.per === k ? 'on' : ''}" onclick="pbPer('${k}')">${l}</button>`).join('')}</div></div>
+    <div><label>Department</label><select onchange="pbStep(this.value)"><option value="">All departments</option>${(r.steps || []).map(s =>
+      `<option value="${s.code}"${s.code === _pb.step ? ' selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}</select></div>
+    <div><label>Buyer</label>${sel('buyer', uniq(o => o.buyer), 'All buyers')}</div>
+    <div><label>Merchant</label>${sel('merchant', uniq(o => pbU(o.merchant)), 'All merchants')}</div>
+    <div><label>Type</label>${sel('type', uniq(o => pbU(o.type)), 'All types')}</div>
+    <div><label>Order status</label>${sel('ost', uniq(o => pbU(o.ostatus) || '(NOT SET)'), 'All')}</div>
+    ${any ? '<button type="button" class="btn btn-outline btn-sm" onclick="pbClear()">✕ Clear filters</button>' : ''}
+    <div class="src" title="Click any bar, row or card to drill down">Week <b>${escapeHtml(r.week || '')}</b> ${_pdDate(r.weekFrom).slice(0, 5)} → ${_pdDate(r.weekTo).slice(0, 5)} · <b>${escapeHtml(r.month || '')}</b><br>
+      ${_pdNum(pbOrders().length)} / ${_pdNum(all.length)} line items · ${escapeHtml(r.label || '')}${pbMan() ? '<br>Plan date = PPC Date' : ''}</div>`;
+}
+
+function pbRenderBody() {
+  const body = document.getElementById('pbBody'); if (!body) return;
+  Object.keys(_pb.charts).forEach(pbChartKill);
+  const rows = pbBlock(pbOrders(), _pb.per), sel = _pb.step ? rows.find(x => x.code === _pb.step) : null;
+  const s = pbSum(sel ? [sel] : rows), red = rows.filter(x => x.status === 'RED');
+  const worst = red.slice().sort((a, b) => a.achievement - b.achievement)[0];
+  const over = pbItems().filter(x => x.t === 'overdue').length;
+  const scope = (sel ? sel.dept : rows.length + ' departments') + ' · ' + pbPerLabel(_pb.per);
+  const kp = (cls, label, val, sub, fn, tip) => `<button type="button" class="vd-k ${cls}" ${fn ? `onclick="${fn}"` : ''} title="${escapeHtml(tip)}">` +
+    `<div class="l">${label}</div><div class="v">${val}</div><div class="s">${escapeHtml(sub)}</div></button>`;
+  const kpis = [
+    kp('od-c-blue', 'Total plan', _pdNum(s.plan), scope, "pbKpi('all')", 'Show all line items'),
+    kp('od-c-green', 'Total actual', _pdNum(s.actual), (s.plan ? (s.actual / s.plan * 100).toFixed(1) : '0.0') + '% of plan', "pbKpi('done')", 'Show the line items that are done'),
+    kp('od-c-amber', 'Balance', _pdNum(s.balance), 'plan − actual', "pbKpi('pend')", 'Show the pending line items'),
+    kp('od-c-violet', 'Achievement', s.achievement + '%', 'target 100%', "pbFocus('dept')", 'Open the department table (all four periods)'),
+    kp('od-c-red', 'Red departments', red.length, `of ${rows.length} · below 100%`, worst ? `pbStep('${worst.code}')` : '',
+      worst ? 'Open the weakest department: ' + worst.dept : 'No red department'),
+    kp('od-c-rose', 'Overdue line items', _pdNum(over), sel ? 'planned date passed, not done' : 'current step past its planned date', "pbKpi('overdue')", 'Show the overdue line items')
+  ].join('');
+  const P = (id, cls, title, tip) => `<div class="vd-p ${cls}" id="pbP-${id}"><div class="vd-ph"><h3 id="pbT-${id}" title="${escapeHtml(tip)}">${title}</h3>` +
+    `<span class="vd-pc" id="pbC-${id}"></span><button type="button" class="vd-x" title="Open big" onclick="pbFocus(_pb.focus === '${id}' ? '' : '${id}')">⤢</button></div>` +
+    `<div class="vd-pb" id="pbB-${id}"></div></div>`;
+  body.innerHTML = `<div class="vd-kpis">${kpis}</div>
+    <div class="vd-row">${P('pa', 'vd-s4', 'Plan vs Actual', 'Department-wise plan and actual quantity — click a bar to open that department')}${
+      P('dept', 'vd-s4', 'Department-wise', 'Plan, actual and achievement — click a row to open that department; ⤢ shows all four periods')}${
+      P('tat', 'vd-s4', 'TAT status', 'Line items per department: on time, done late, overdue, not due yet — click a bar to see those line items')}</div>
+    <div class="vd-row">${P('items', 'pb-s12', 'Line items', 'Line items with the sheet columns of the chosen step — click a row for every step of that line item')}</div>`;
+  pbFit();
+  ['pa', 'dept', 'tat', 'items'].forEach(pbPaint);
+}
+function pbPaint(id) { ({ pa: pbPPa, dept: pbPDept, tat: pbPTat, items: pbPItems })[id](); }
+function pbChartKill(id) { const c = _pb.charts[id]; if (c) { try { c.destroy(); } catch (e) {} delete _pb.charts[id]; } }
+function pbSetP(id, ctrl, body) {
+  const c = document.getElementById('pbC-' + id), b = document.getElementById('pbB-' + id);
+  if (c) c.innerHTML = ctrl; if (b) b.innerHTML = body;
+}
+function pbFit() {
+  const w = document.getElementById('pbWrap'); if (!w) return;
+  if (window.innerWidth < 1100 || window.innerHeight < 600) { w.style.height = ''; return; }
+  const top = w.getBoundingClientRect().top + window.scrollY;
+  w.style.height = Math.max(440, window.innerHeight - top - 22) + 'px';
+}
+window.addEventListener('resize', () => {
+  const pw = document.getElementById('ppcWrap');
+  if (document.getElementById('pbWrap') && pw && pw.style.display !== 'none') { clearTimeout(_pb.fitT); _pb.fitT = setTimeout(pbFit, 120); }
+});
+// ⤢ — ek panel poori screen par (wahi panel bada roop me dobara banta hai)
+function pbFocus(id) {
+  const prev = _pb.focus; _pb.focus = id || '';
+  if (prev) { const p = document.getElementById('pbP-' + prev); if (p) p.classList.remove('vd-focus'); }
+  if (_pb.focus) { const p = document.getElementById('pbP-' + _pb.focus); if (p) p.classList.add('vd-focus'); else _pb.focus = ''; }
+  pbDim(!!_pb.focus);
+  document.querySelectorAll('#pbBody .vd-x').forEach(b => {
+    const on = b.closest('.vd-p').classList.contains('vd-focus'); b.textContent = on ? '✕' : '⤢'; b.title = on ? 'Close' : 'Open big';
   });
-  const c2 = document.getElementById('ppcChartAch');
-  if (c2) _ppcCharts.ach = new Chart(c2, {
-    data: { labels, datasets: [
-      { type: 'bar', label: 'Achievement %', data: rows.map(x => x.achievement),
-        backgroundColor: '#2a78d6', borderRadius: 4, borderSkipped: 'bottom' },
-      { type: 'line', label: 'Target 100%', data: rows.map(() => 100),
-        borderColor: '#94a3b8', borderDash: [5, 4], borderWidth: 2, pointRadius: 0, fill: false }
-    ] },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      onClick: (e, els) => ppcChartClick(els.filter(x => x.datasetIndex === 0)), onHover: (e, els) => ppcChartHover(e, els.filter(x => x.datasetIndex === 0)),
-      categoryPercentage: 0.7, barPercentage: 0.85,
-      plugins: {
-        legend: { position: 'top', align: 'end', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'rectRounded', color: ink, font: { size: 11 } } },
-        tooltip: { callbacks: { label: c => `${c.dataset.label}: ${(c.parsed.y || 0).toFixed(2)}%` } }
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: ink, font: { size: 10.5 }, maxRotation: 40 } },
-        y: { beginAtZero: true, grid, border: { display: false },
-             ticks: { color: ink, font: { size: 10.5 }, callback: v => v + '%' } }
-      }
-    }
+  if (prev && prev !== _pb.focus && document.getElementById('pbP-' + prev)) pbPaint(prev);
+  if (_pb.focus) pbPaint(_pb.focus);
+}
+function pbDim(on) {
+  const d = document.getElementById('pbDim'); if (d) d.classList.toggle('on', on);
+  document.body.style.overflow = on || _pb.pop ? 'hidden' : '';
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (_pb.pop) pbPopClose(); else if (_pb.focus) pbFocus('');
+});
+
+// ── Filter / click ──
+function pbAsOf(v) { const d = document.getElementById('ppcAsOf'); if (d) d.value = v || ''; loadPPCDash(); }
+function pbPer(k) { _pb.per = k; _pb.more = false; pbRenderFilters(); pbRenderBody(); }
+function pbSet(k, v) { _pb.f[k] = v; _pb.more = false; pbRenderFilters(); pbRenderBody(); }
+function pbStep(code, toggle) {
+  _pb.step = toggle && _pb.step === code ? '' : (code || '');
+  _pb.more = false; _pb.sort = null;
+  pbRenderFilters(); pbRenderBody();
+}
+function pbClear() {
+  _pb.f = { buyer: '', merchant: '', type: '', ost: '' }; _pb.step = ''; _pb.st = 'all'; _pb.q = ''; _pb.sort = null; _pb.more = false;
+  pbRenderFilters(); pbRenderBody();
+}
+// KPI card par click — neeche line items usi hisaab se
+function pbKpi(st) {
+  _pb.st = st; _pb.more = false;
+  if (_pb.focus && _pb.focus !== 'items') pbFocus('');
+  pbPItems();
+  const p = document.getElementById('pbP-items');
+  if (p) {
+    p.classList.remove('pb-flash'); void p.offsetWidth; p.classList.add('pb-flash');
+    if (window.innerWidth < 1100 || window.innerHeight < 600) p.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+// 1. Plan vs Actual — department wise (bar par click = wo department)
+function pbPPa() {
+  const rows = pbBlock(pbOrders(), _pb.per), si = rows.findIndex(x => x.code === _pb.step), full = _pb.focus === 'pa';
+  pbChartKill('pa');
+  pbSetP('pa', `<span class="pb-sub">${escapeHtml(pbPerLabel(_pb.per))} · qty</span>`, '<div class="pb-cbox"><canvas id="pbChPa"></canvas></div>');
+  if (typeof Chart === 'undefined') return;
+  const dim = (c, i) => si < 0 || i === si ? c : c + '40';
+  _pb.charts.pa = new Chart(document.getElementById('pbChPa'), { type: 'bar',
+    data: { labels: rows.map(x => pbShort(x.dept, full ? 34 : 13)), datasets: [
+      { label: 'Plan', data: rows.map(x => x.plan), backgroundColor: rows.map((x, i) => dim('#2a78d6', i)), borderRadius: 4, borderSkipped: 'bottom' },
+      { label: 'Actual', data: rows.map(x => x.actual), backgroundColor: rows.map((x, i) => dim('#eb6834', i)), borderRadius: 4, borderSkipped: 'bottom' }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, categoryPercentage: .76, barPercentage: .9,
+      // chart apne click ke beech me hi destroy na ho — isliye agle tick me
+      onClick: (e, els) => { if (els.length) { const c = rows[els[0].index].code; setTimeout(() => pbStep(c, true), 0); } },
+      onHover: (e, els) => { const t = e && e.native && e.native.target; if (t) t.style.cursor = els.length ? 'pointer' : 'default'; },
+      plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 9, boxHeight: 9, usePointStyle: true, pointStyle: 'rectRounded', font: { size: 10.5 } } },
+        tooltip: { callbacks: { title: x => rows[x[0].dataIndex].dept, label: c => `${c.dataset.label}: ${_pdNum(c.parsed.y)}`,
+          afterBody: x => { const d = rows[x[0].dataIndex]; return [`Balance: ${_pdNum(d.balance)}`, `Achievement: ${d.achievement}% (${d.status})`, 'Click to open this department']; } } } },
+      scales: { x: { grid: { display: false }, ticks: { font: { size: full ? 11 : 9.5 }, autoSkip: false, maxRotation: full ? 0 : 50 } },
+        y: { beginAtZero: true, grid: { color: '#eef2f7' }, border: { display: false }, ticks: { font: { size: 10 }, callback: v => v >= 1000 ? (v / 1000) + 'k' : v } } } } });
+}
+
+// 2. Department table — chuna hua period; bada karne par chaaron period ek saath
+function pbPDept() {
+  const orders = pbOrders(), full = _pb.focus === 'dept';
+  const achCell = x => { const c = x.status === 'GREEN' ? '#16a34a' : x.status === 'RED' ? '#dc2626' : '#94a3b8';
+    return `<div class="pb-ach"><span class="bar"><i style="width:${Math.min(100, x.achievement)}%;background:${c}"></i></span><b style="color:${c}">${x.achievement}%</b></div>`; };
+  const tr = (x, cells) => `<tr class="${x.code === _pb.step ? 'on' : ''}" onclick="pbStep('${x.code}', true)" title="${escapeHtml(x.dept)} — click to open">${cells}</tr>`;
+  if (!full) {
+    const rows = pbBlock(orders, _pb.per), s = pbSum(rows);
+    pbSetP('dept', `<span class="pb-sub">${escapeHtml(pbPerLabel(_pb.per))}</span>`, `<table class="own-tbl pb-dt"><thead><tr>
+      <th>Department</th><th class="n">Plan</th><th class="n">Actual</th><th class="n">Achievement</th></tr></thead><tbody>
+      ${rows.map(x => tr(x, `<td class="dn">${escapeHtml(x.dept)}</td><td class="n">${_pdNum(x.plan)}</td><td class="n">${_pdNum(x.actual)}</td><td class="n">${achCell(x)}</td>`)).join('')}
+      <tr class="tot"><td>TOTAL</td><td class="n">${_pdNum(s.plan)}</td><td class="n">${_pdNum(s.actual)}</td><td class="n">${s.achievement}%</td></tr></tbody></table>`);
+    return;
+  }
+  const B = {}; PB_PER.forEach(([k]) => { B[k] = pbBlock(orders, k); });
+  const tot = Object.fromEntries(PB_PER.map(([k]) => [k, pbSum(B[k])]));
+  const cur = B[_pb.per];
+  pbSetP('dept', `<span class="pb-sub">Status and remarks = ${escapeHtml(PB_PER.find(x => x[0] === _pb.per)[1])} (${escapeHtml(pbPerLabel(_pb.per))})</span>`,
+    `<table class="own-tbl pb-dt"><thead><tr><th rowspan="2">Department</th>${PB_PER.map(([k, l]) =>
+      `<th colspan="4" style="text-align:center;border-left:2px solid #dbeafe">${l} <small style="font-weight:600;text-transform:none">${escapeHtml(pbPerLabel(k))}</small></th>`).join('')}
+      <th rowspan="2" style="text-align:center">Status</th><th rowspan="2">Remarks</th></tr>
+      <tr>${PB_PER.map(() => '<th class="n" style="border-left:2px solid #dbeafe">Plan</th><th class="n">Actual</th><th class="n">Balance</th><th class="n">Ach %</th>').join('')}</tr></thead><tbody>
+      ${cur.map((x, i) => tr(x, `<td class="dn">${escapeHtml(x.dept)}</td>${PB_PER.map(([k]) => { const y = B[k][i];
+        return `<td class="n" style="border-left:2px solid #eef4fd">${_pdNum(y.plan)}</td><td class="n">${_pdNum(y.actual)}</td><td class="n">${_pdNum(y.balance)}</td><td class="n">${achCell(y)}</td>`; }).join('')}
+        <td style="text-align:center">${_pdPill(x.status)}</td><td style="color:${x.status === 'RED' ? '#b91c1c' : '#64748b'}">${escapeHtml(x.remarks)}</td>`)).join('')}
+      <tr class="tot"><td>TOTAL</td>${PB_PER.map(([k]) => `<td class="n" style="border-left:2px solid #dbeafe">${_pdNum(tot[k].plan)}</td><td class="n">${_pdNum(tot[k].actual)}</td><td class="n">${_pdNum(tot[k].balance)}</td><td class="n">${tot[k].achievement}%</td>`).join('')}
+      <td></td><td></td></tr></tbody></table>`);
+}
+
+// 3. TAT status — har department me kitne line item on time / late / overdue / abhi due nahi
+function pbPTat() {
+  const r = _ppcDash, rg = pbRange(_pb.per), orders = pbOrders(), full = _pb.focus === 'tat', si = (r.steps || []).findIndex(s => s.code === _pb.step);
+  const keys = Object.keys(PB_TAT);
+  const cnt = (r.steps || []).map((s, i) => {
+    const c = { ontime: 0, late: 0, overdue: 0, due: 0 };
+    for (const o of orders) { if (!pbIn(o, i, rg)) continue; const [p, a] = pbPA(o, i); const t = pbTat(p, a); if (t) c[t]++; }
+    return c;
   });
+  pbChartKill('tat');
+  pbSetP('tat', `<span class="pb-sub">line items · ${escapeHtml(pbPerLabel(_pb.per))}</span>`, '<div class="pb-cbox"><canvas id="pbChTat"></canvas></div>');
+  if (typeof Chart === 'undefined') return;
+  _pb.charts.tat = new Chart(document.getElementById('pbChTat'), { type: 'bar',
+    data: { labels: r.steps.map(s => pbShort(s.name, full ? 34 : 15)), datasets: keys.map(k => ({ label: PB_TAT[k][0], data: cnt.map(c => c[k]),
+      backgroundColor: cnt.map((c, i) => si < 0 || i === si ? PB_TAT[k][1] : PB_TAT[k][1] + '40'), borderWidth: 0, maxBarThickness: 26 })) },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+      onClick: (e, els) => { if (!els.length) return; const el = els[0];
+        setTimeout(() => { _pb.st = keys[el.datasetIndex]; pbStep(r.steps[el.index].code); }, 0); },
+      onHover: (e, els) => { const t = e && e.native && e.native.target; if (t) t.style.cursor = els.length ? 'pointer' : 'default'; },
+      plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 9, boxHeight: 9, usePointStyle: true, pointStyle: 'rectRounded', font: { size: 10 } } },
+        tooltip: { callbacks: { title: x => r.steps[x[0].dataIndex].name,
+          label: c => { const tot = keys.reduce((a, k) => a + cnt[c.dataIndex][k], 0);
+            return `${c.dataset.label}: ${_pdNum(c.parsed.x)} line item(s)${tot ? ` (${Math.round(c.parsed.x / tot * 100)}%)` : ''}`; },
+          footer: () => 'Click to see these line items' } } },
+      scales: { x: { stacked: true, beginAtZero: true, grid: { color: '#eef2f7' }, border: { display: false }, ticks: { font: { size: 10 } } },
+        y: { stacked: true, grid: { display: false }, ticks: { font: { size: full ? 11 : 9.5 }, autoSkip: false } } } } });
+}
+
+// 4. Line items — chuna hua step: uske sheet wale saare column; sab department: abhi kaunse step par hai
+function pbItems() {
+  const r = _ppcDash, rg = pbRange(_pb.per), orders = pbOrders(), steps = r.steps || [];
+  const si = _pb.step ? steps.findIndex(s => s.code === _pb.step) : -1, out = [];
+  for (const o of orders) {
+    if (si >= 0) {
+      if (!pbIn(o, si, rg)) continue;
+      const [p, a] = pbPA(o, si);
+      out.push({ o, p, a, t: pbTat(p, a) });
+      continue;
+    }
+    if (!steps.some((s, i) => pbIn(o, i, rg))) continue;
+    let cur = -1, done = 0, tot = 0, late = false;
+    steps.forEach((s, i) => {
+      const [p, a] = pbPA(o, i);
+      if (p || a) tot++;
+      if (a) { done++; if (p && a > p) late = true; } else if (p && cur < 0) cur = i;
+    });
+    const p = cur >= 0 ? pbPA(o, cur)[0] : '';
+    out.push({ o, cur, p, done, tot, t: cur >= 0 ? (p < r.asOf ? 'overdue' : 'due') : (late ? 'late' : 'ontime') });
+  }
+  return out;
+}
+function pbItemsData() {
+  const r = _ppcDash, steps = r.steps || [], si = _pb.step ? steps.findIndex(s => s.code === _pb.step) : -1;
+  const pl = pbMan() ? 'PPC Date' : 'Planned', st = _pb.st, q = _pb.q.trim().toLowerCase();
+  let list = pbItems().filter(x => st === 'all' || x.t === st || (st === 'done' && (x.t === 'ontime' || x.t === 'late'))
+    || (st === 'pend' && (x.t === 'overdue' || x.t === 'due')));
+  if (q) list = list.filter(x => [x.o.buyer, x.o.piNo, x.o.code, x.o.colour, x.o.size, x.o.uid, x.o.merchant, x.o.product]
+    .some(v => String(v || '').toLowerCase().includes(q)));
+  const base = [
+    { h: 'Buyer', g: x => x.o.buyer },
+    { h: 'PI No', g: x => x.o.piNo, c: 'pi' },
+    { h: 'Code', g: x => x.o.code },
+    { h: 'Colour', g: x => x.o.colour },
+    { h: 'Size', g: x => x.o.size },
+    { h: 'Qty', g: x => x.o.qty, n: 1, f: x => _pdNum(x.o.qty) }
+  ];
+  let cols;
+  if (si >= 0) {
+    const s = steps[si], det = _pb.det[s.code], ms = det && det.steps ? det.steps.find(x => x.code === s.code) : null;
+    const sheet = det && det.rows && ms ? ms.cols.filter(c => c.i !== ms.actIdx && (pbMan() || c.i !== ms.planIdx)).map(c => ({
+      h: c.label, tip: 'Sheet column ' + c.col, sh: 1, g: x => ((det.rows[x.o.row] || [])[c.i - ms.from]) || '' })) : [];
+    cols = base.concat([{ h: pl, g: x => x.p, d: 1 }, { h: 'Actual', g: x => x.a, d: 1 },
+      { h: 'TAT status', g: x => PB_SEV[x.t], f: x => x.t ? `<span class="pb-b ${x.t}">${PB_TAT[x.t][0]}</span>` : '—', csv: x => x.t ? PB_TAT[x.t][0] : '' }], sheet);
+  } else {
+    cols = base.concat([{ h: 'Merchant', g: x => x.o.merchant },
+      { h: 'Now at', g: x => x.cur >= 0 ? steps[x.cur].name : 'All steps done' },
+      { h: pl, g: x => x.p, d: 1 },
+      { h: 'Status', g: x => PB_SEV[x.t], f: x => `<span class="pb-b ${x.t}">${PB_ALL_LBL[x.t]}</span>`, csv: x => PB_ALL_LBL[x.t] },
+      { h: 'Steps done', g: x => x.done, n: 1, f: x => `${x.done} / ${x.tot}`, csv: x => `${x.done} / ${x.tot}` }]);
+  }
+  const srt = _pb.sort && cols[_pb.sort.i] ? _pb.sort : null;
+  if (srt) {
+    const g = cols[srt.i].g, num = v => typeof v === 'number' ? v : (/^-?[\d,.]+%?$/.test(String(v).trim()) && String(v).trim() ? parseFloat(String(v).replace(/[,%]/g, '')) : null);
+    list.sort((a, b) => {
+      const x = g(a), y = g(b), nx = num(x), ny = num(y);
+      const e1 = x === '' || x == null, e2 = y === '' || y == null;
+      if (e1 !== e2) return e1 ? 1 : -1;                       // khaali hamesha neeche
+      const c = nx != null && ny != null ? nx - ny : String(x).localeCompare(String(y));
+      return srt.dir * c;
+    });
+  } else {
+    list.sort((a, b) => (PB_SEV[a.t] - PB_SEV[b.t]) || String(a.p || '9999').localeCompare(String(b.p || '9999'))
+      || String(a.o.buyer).localeCompare(String(b.o.buyer)) || a.o.row - b.o.row);
+  }
+  return { list, cols, si };
+}
+function pbPItems() {
+  const r = _ppcDash, steps = r.steps || [], si = _pb.step ? steps.findIndex(s => s.code === _pb.step) : -1;
+  const t = document.getElementById('pbT-items');
+  if (t) t.textContent = si >= 0 ? `Line items — ${steps[si].name}` : 'Line items — all departments';
+  const so = si >= 0
+    ? [['all', 'All status'], ['done', 'Done'], ['ontime', '· On time'], ['late', '· Done late'], ['pend', 'Pending'], ['overdue', '· Overdue'], ['due', '· Not due yet']]
+    : [['all', 'All status'], ['done', 'Completed'], ['late', '· Completed late'], ['pend', 'In progress'], ['overdue', '· Overdue now'], ['due', '· Not due yet']];
+  if (!so.some(x => x[0] === _pb.st)) _pb.st = _pb.st === 'ontime' ? 'done' : 'all';
+  pbSetP('items', `<span class="pb-sub" id="pbItCnt"></span>
+    <select class="vd-sel" onchange="_pb.st = this.value; _pb.more = false; pbItemsTable()">${so.map(([k, l]) => `<option value="${k}"${_pb.st === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
+    <input class="od-search" type="search" placeholder="Search buyer / PI / code…" value="${escapeHtml(_pb.q)}" oninput="_pb.q = this.value; _pb.more = false; pbItemsTable()">
+    <button type="button" class="od-chip" onclick="pbItemsCSV()" title="Download these line items (all rows, all columns)">⬇ CSV</button>`, '<div id="pbItBody"></div>');
+  if (si >= 0 && !_pb.det[_pb.step]) pbLoadDet(_pb.step);
+  pbItemsTable();
+}
+function pbItemsTable() {
+  const box = document.getElementById('pbItBody'); if (!box) return;
+  const { list, cols, si } = pbItemsData(), r = _ppcDash;
+  const cnt = document.getElementById('pbItCnt');
+  if (cnt) cnt.textContent = `${_pdNum(list.length)} line item(s) · ${_pdNum(list.reduce((a, x) => a + x.o.qty, 0))} pcs`;
+  let top = '';
+  if (si >= 0) {
+    const code = r.steps[si].code, det = _pb.det[code], ms = (_pb.meta || []).find(x => x.code === code);
+    const m = ms && ms.meta ? ms.meta : null;
+    const bits = m ? [['What', m.what], ['Who', m.who], ['How', m.how], ['When', m.when]].filter(x => x[1]) : [];
+    top = `<div class="pb-meta">${bits.map(([k, v]) => `<span title="${escapeHtml(v)}"><b>${k}:</b> ${escapeHtml(v)}</span>`).join('')}${
+      !det || det.busy ? '<span>⏳ Loading this step’s columns from the sheet…</span>'
+      : det.error ? `<span style="color:#b91c1c">⚠ ${escapeHtml(det.error)} <button type="button" class="od-chip" onclick="delete _pb.det['${code}']; pbPItems()">Retry</button></span>` : ''}</div>`;
+  }
+  if (!list.length) { box.innerHTML = top + '<div class="vd-empty">No line items match these filters.</div>'; return; }
+  const shown = _pb.more ? list : list.slice(0, PB_LIMIT), srt = _pb.sort;
+  const head = cols.map((c, i) => `<th class="s${c.n ? ' n' : ''}${c.sh ? ' sh' : ''}" onclick="pbSort(${i})" title="${escapeHtml(c.tip || 'Sort')}">${escapeHtml(c.h)}${
+    srt && srt.i === i ? (srt.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('');
+  const cell = (c, x) => {
+    if (c.f) return c.f(x);
+    const v = c.g(x);
+    if (c.d) return v ? _pdDate(v) : '—';
+    return v === '' || v == null ? '<span style="color:#cbd5e1">—</span>' : escapeHtml(v);
+  };
+  box.innerHTML = top + `<table class="own-tbl vd-tbl pb-it"><thead><tr><th>#</th>${head}</tr></thead><tbody>${shown.map((x, n) =>
+    `<tr onclick="pbItem(${x.o.row})" title="Click for every step of this line item"><td>${n + 1}</td>${cols.map(c =>
+      `<td class="${c.n ? 'n' : ''}${c.c ? ' ' + c.c : ''}">${cell(c, x)}</td>`).join('')}</tr>`).join('')}</tbody></table>` +
+    (list.length > shown.length ? `<button type="button" class="btn btn-outline btn-sm pb-more" onclick="_pb.more = true; pbItemsTable()">Show all ${_pdNum(list.length)} line items</button>` : '');
+}
+function pbSort(i) {
+  const s = _pb.sort;
+  _pb.sort = s && s.i === i ? (s.dir > 0 ? { i, dir: -1 } : null) : { i, dir: 1 };
+  pbItemsTable();
+}
+async function pbLoadDet(code) {
+  if (_pb.det[code]) return;
+  _pb.det[code] = { busy: true };
+  const d = await api('/api/ppc/detail?step=' + encodeURIComponent(code));
+  _pb.det[code] = d && !d.error && d.rows ? d : { error: (d && d.error) || 'Could not load the sheet columns' };
+  if (d && d.steps) _pb.meta = d.steps;
+  if (d && d.info) _pb.info = d.info;
+  if (_pb.step === code && document.getElementById('pbItBody')) pbItemsTable();
+}
+function pbItemsCSV() {
+  const { list, cols, si } = pbItemsData(), r = _ppcDash;
+  if (!list.length) return showToast('Nothing to download', 'error');
+  const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const val = (c, x) => c.csv ? c.csv(x) : c.d ? (c.g(x) ? _pdDate(c.g(x)) : '') : c.g(x);
+  const lines = [['Sr No.', 'Sheet row'].concat(cols.map(c => c.h)).map(q).join(',')];
+  list.forEach((x, n) => lines.push([n + 1, x.o.row].concat(cols.map(c => val(c, x))).map(q).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Line-items-${si >= 0 ? r.steps[si].name : 'all-departments'}-${PB_PER.find(x => x[0] === _pb.per)[1]}`.replace(/[^A-Za-z0-9]+/g, '-') + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// ── Line item par click: uske saare step (sheet ki poori row) ──
+async function pbItem(row) {
+  const r = _ppcDash, o = (r.orders || []).find(x => x.row === row); if (!o) return;
+  _pb.pop = row;
+  const pop = document.getElementById('pbPop'); if (!pop) return;
+  pbPopPaint(o); pop.classList.add('open'); document.body.style.overflow = 'hidden';
+  if (!_pb.rowDet[row] || _pb.rowDet[row].error) {
+    _pb.rowDet[row] = null;
+    const d = await api('/api/ppc/detail?row=' + row);
+    _pb.rowDet[row] = d && !d.error && d.values ? d : { error: (d && d.error) || 'Could not load this row from the sheet' };
+    if (d && d.steps) _pb.meta = d.steps;
+    if (d && d.info) _pb.info = d.info;
+    if (_pb.pop === row) pbPopPaint(o);
+  }
+}
+function pbPopClose() {
+  _pb.pop = 0;
+  const p = document.getElementById('pbPop'); if (p) p.classList.remove('open');
+  document.body.style.overflow = _pb.focus ? 'hidden' : '';
+}
+function pbPopPaint(o) {
+  const r = _ppcDash, box = document.getElementById('pbPopBox'); if (!box) return;
+  const d = _pb.rowDet[o.row], ok = d && d.values, man = pbMan();
+  const val = i => ok ? String(d.values[i] == null ? '' : d.values[i]).trim() : '';
+  const metaOf = code => ((ok && d.steps) || _pb.meta || []).find(x => x.code === code);
+  let done = 0, tot = 0;
+  const cards = (r.steps || []).map((s, i) => {
+    const [p, a] = pbPA(o, i), t = pbTat(p, a), ms = metaOf(s.code);
+    if (p || a) tot++; if (a) done++;
+    const kv = ok && ms ? ms.cols.filter(c => c.i !== ms.actIdx && (man || c.i !== ms.planIdx)).map(c => [c.label, val(c.i)]).filter(x => x[1]) : [];
+    const pv = !man && ms ? val(ms.planIdx) : '', av = ms ? val(ms.actIdx) : '';
+    return `<div class="pb-jc" style="--c:${t ? PB_TAT[t][1] : '#cbd5e1'}">
+      <h4><span>Step ${escapeHtml(s.code.slice(1))} · ${escapeHtml(s.name)}</span>${t ? `<span class="pb-b ${t}">${PB_TAT[t][0]}</span>`
+        : '<span class="pb-b" style="background:#f1f5f9;color:#64748b">No plan</span>'}</h4>
+      ${ms && ms.meta && ms.meta.who ? `<div class="who" title="${escapeHtml(ms.meta.who)}">👤 ${escapeHtml(ms.meta.who)}</div>` : ''}
+      <div class="pb-kv"><span>${man ? 'PPC Date' : 'Planned'}</span><b>${escapeHtml(pv || (p ? _pdDate(p) : '—'))}</b>
+        <span>Actual</span><b>${escapeHtml(av || (a ? _pdDate(a) : '—'))}</b>
+        ${kv.map(([l, v]) => `<span>${escapeHtml(l)}</span><b>${escapeHtml(v)}</b>`).join('')}</div></div>`;
+  });
+  const info = ok && (d.info || _pb.info) ? (d.info || _pb.info).filter(c => ![1, 2, 3, 4, 5, 10].includes(c.i)).map(c => [c.label, val(c.i)]).filter(x => x[1]) : [];
+  const orderCard = `<div class="pb-jc" style="--c:#1e3a8a"><h4><span>Order details</span></h4><div class="pb-kv">
+    ${(info.length ? info : [['Merchant', o.merchant], ['Product', o.product], ['Type', o.type], ['Order status', o.ostatus], ['Unique ID', o.uid],
+      ['PI approval', o.piApprovalDate ? _pdDate(o.piApprovalDate) : '']].filter(x => x[1])).map(([l, v]) => `<span>${escapeHtml(l)}</span><b>${escapeHtml(v)}</b>`).join('')}</div></div>`;
+  const url = `https://docs.google.com/spreadsheets/d/${r.sheetId}/edit#gid=432659505&range=A${o.row}`;
+  box.innerHTML = `<div class="od-pop-hd" style="--a:#1e3a8a;--tint:#eff6ff"><div class="ic">🧵</div><div class="tx">
+      <h3>${escapeHtml(o.buyer || '—')}</h3><p>PI ${escapeHtml(o.piNo || '—')} · ${escapeHtml(o.code || '—')} · ${escapeHtml(o.colour || '—')} · Size ${escapeHtml(o.size || '—')} · Qty <b>${_pdNum(o.qty)}</b> · ${escapeHtml(o.uid || '')} · sheet row ${o.row}</p></div>
+      <div class="big" title="Steps done / steps planned">${done}/${tot}</div><button type="button" class="od-pop-x" onclick="pbPopClose()" title="Close">✕</button></div>
+    <div class="od-pop-body">${!d ? '<div class="pb-meta" style="margin:12px 18px 0"><span>⏳ Loading the full row from the sheet…</span></div>'
+      : d.error ? `<div class="vd-note" style="margin:12px 18px 0">⚠ ${escapeHtml(d.error)} — showing the dates only.</div>` : ''}<div class="pb-jr">${orderCard}${cards.join('')}</div></div>
+    <div class="od-pop-ft">Steps in sheet order · ${man ? 'plan date = PPC Date · ' : ''}status as of ${_pdDate(r.asOf)}
+      <a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="${url}">📄 Open this row in the sheet ↗</a></div>`;
 }
 
 // Department row par click — us period ke orders
@@ -18869,7 +19247,7 @@ function ppcDeptCSV() {
 function exportPPCDashPDF() {
   const r = _ppcDash;
   if (!r) return showToast('Pehle report load hone do', 'error');
-  const s = r.summary || {};
+  const v = pbView(), s = v.summary;
   const now = new Date();
   const stamp = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   const tbl = (title, rows, withAch) => `
@@ -18911,7 +19289,7 @@ function exportPPCDashPDF() {
 </style></head><body>
   <div class="head">
     <div><h1>PPC vs Actual — Department Wise</h1>
-      <div class="sub">${escapeHtml(r.label)} · As-of ${_pdDate(r.asOf)} · Week ${escapeHtml(r.week)} (${_pdDate(r.weekFrom)} → ${_pdDate(r.weekTo)}) · Month ${escapeHtml(r.month)}</div></div>
+      <div class="sub">${escapeHtml(r.label)} · As-of ${_pdDate(r.asOf)} · Week ${escapeHtml(r.week)} (${_pdDate(r.weekFrom)} → ${_pdDate(r.weekTo)}) · Month ${escapeHtml(r.month)}${v.filters ? ' · ' + escapeHtml(v.filters) : ''}</div></div>
     <div class="sub">${stamp}<br>${(s.orders || 0)} orders</div>
   </div>
   <div class="cards">
@@ -18921,10 +19299,10 @@ function exportPPCDashPDF() {
     <div class="card"><div class="l">Achievement</div><div class="v">${s.achievement}%</div></div>
     <div class="card"><div class="l">Red Dept.</div><div class="v">${s.redDepts}</div></div>
   </div>
-  ${tbl('TOTAL — DEPARTMENT WISE (all time)', r.blocks.total || [], false)}
-  ${tbl('DAILY — ' + _pdDate(r.asOf), r.blocks.daily || [], true)}
-  ${tbl('WEEKLY — ' + _pdDate(r.weekFrom) + ' to ' + _pdDate(r.weekTo), r.blocks.weekly || [], true)}
-  ${tbl('MONTHLY — ' + r.month, r.blocks.monthly || [], true)}
+  ${tbl('TOTAL — DEPARTMENT WISE (all time)', v.blocks.total || [], false)}
+  ${tbl('DAILY — ' + _pdDate(r.asOf), v.blocks.daily || [], true)}
+  ${tbl('WEEKLY — ' + _pdDate(r.weekFrom) + ' to ' + _pdDate(r.weekTo), v.blocks.weekly || [], true)}
+  ${tbl('MONTHLY — ' + r.month, v.blocks.monthly || [], true)}
   <div class="foot">KLM Task Manager · ${stamp}</div>
 </body></html>`;
   const w = window.open('', '_blank');
@@ -19160,15 +19538,17 @@ function exportPPCDashCSV() {
   const r = _ppcDash;
   if (!r || !r.blocks) return showToast('No data to export', 'error');
   const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const v = pbView();
   const lines = [[`PPC vs Actual — ${r.label}`].map(q).join(',')];
   lines.push([`As-of Date`, _pdDate(r.asOf), 'Week', r.week, 'Month', r.month].map(q).join(','));
+  if (v.filters) lines.push(['Filters', v.filters].map(q).join(','));
   const blocks = [['TOTAL (all time)', 'total'], [`DAILY (${_pdDate(r.asOf)})`, 'daily'],
     [`WEEKLY (${_pdDate(r.weekFrom)} - ${_pdDate(r.weekTo)})`, 'weekly'], [`MONTHLY (${r.month})`, 'monthly']];
   for (const [title, key] of blocks) {
     lines.push('');
     lines.push([title].map(q).join(','));
     lines.push(['Department', 'Plan', 'Actual', 'Balance', 'Achievement %', 'Status', 'Remarks'].map(q).join(','));
-    (r.blocks[key] || []).forEach(x => lines.push(
+    (v.blocks[key] || []).forEach(x => lines.push(
       [x.dept, x.plan, x.actual, x.balance, x.achievement.toFixed(2) + '%', x.status, x.remarks].map(q).join(',')));
   }
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
