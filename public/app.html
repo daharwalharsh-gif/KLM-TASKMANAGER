@@ -236,6 +236,77 @@ tbody tr:last-child td{border-bottom:none;}
 .chart-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:18px;}
 .chart-card h3{font-size:14px;font-weight:700;margin-bottom:14px;}
 .chart-wrap{position:relative;height:200px;}
+/* ── Dashboard — Power BI jaisa ek screen (Harsh, 18 Nov 2026) ── */
+.ov-card.overdue{--c:#e11d48;--cd:#be123c;--cs:225,29,72;--tint:#fff1f2;animation-delay:.1s}
+.ov-card.today{--c:#2563eb;--cd:#1d4ed8;--cs:37,99,235;--tint:#eff6ff;animation-delay:.12s}
+.ov-card.overdue .ov-ico{animation-delay:-.6s} .ov-card.today .ov-ico{animation-delay:-1.9s}
+.ov-card.db-click{cursor:pointer}
+.ov-card.db-on{border-color:var(--c);box-shadow:0 0 0 2.5px rgba(var(--cs),.55),0 14px 34px -16px rgba(var(--cs),.55)}
+#page-dashboard .overview-cards{grid-template-columns:repeat(5,minmax(0,1fr))}
+.db-tbl-wrap{overflow:auto;max-height:340px}
+.db-tasks .card-head{gap:8px;flex-wrap:wrap}
+.db-cnt{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;vertical-align:1px}
+.db-cnt:empty{display:none}
+.db-chips{display:flex;gap:6px;flex-wrap:wrap}
+.db-chips:empty{display:none}
+.db-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;background:#1e3a8a;color:#fff;cursor:pointer;border:none;font-family:inherit}
+.db-chip:hover{background:#1d4ed8}
+.db-search{margin-left:auto;padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12.5px;font-family:inherit;outline:none;width:190px;min-width:0}
+.db-search:focus{border-color:#1a56db}
+.db-side{margin-top:16px;display:grid;gap:16px}
+.db-side-top{display:grid;grid-template-columns:320px minmax(0,1fr);gap:16px}
+.db-by-sub{font-size:11px;color:#94a3b8;margin:-8px 0 6px}
+.db-by-box{position:relative;height:240px}
+.db-tasks tbody td:nth-child(4){white-space:nowrap}
+@media (max-width:768px){
+  #page-dashboard .overview-cards{grid-template-columns:repeat(3,1fr)}
+  .ov-card.overdue,.ov-card.today{background:linear-gradient(125deg,var(--tint) 0%,#ffffff 80%)!important}
+  .db-side-top{grid-template-columns:1fr}
+  .db-search{width:100%;margin-left:0;order:5}
+}
+/* Badi screen: sab ek screen me — upar ek line, KPI, bayein list, dayein graph + Performance */
+@media (min-width:1100px) and (min-height:600px){
+  #page-dashboard .db-head{display:flex;align-items:center;gap:8px 20px;flex-wrap:wrap;margin-bottom:12px}
+  #page-dashboard .db-head .dash-hello{margin-bottom:0}
+  #page-dashboard .db-head .dash-topbar{flex:1;min-width:0;margin-bottom:0;gap:10px;flex-wrap:wrap}
+  .db-grid{display:flex;flex-direction:column;gap:12px;min-height:0}
+  #page-dashboard .db-grid .overview-cards{gap:12px;margin-bottom:0;flex-shrink:0}
+  .db-grid .ov-card{padding:10px 16px;border-radius:14px}
+  .db-grid .ov-card .label{font-size:11px;margin-bottom:1px}
+  .db-grid .ov-card .number{font-size:29px}
+  .db-grid .ov-card .ov-sub{margin-top:1px;font-size:11px}
+  .db-grid .ov-card .ov-ico{width:40px;height:40px;margin-top:-20px;right:14px;border-radius:12px}
+  .db-grid .ov-card .ov-ico svg{width:20px;height:20px}
+  .db-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:12px}
+  .db-tasks{display:flex;flex-direction:column;min-height:0}
+  .db-tasks .card-head{padding:9px 14px}
+  .db-tasks .db-tbl-wrap{flex:1;min-height:0;max-height:none}
+  .db-tasks thead th{padding:8px 12px}
+  .db-tasks tbody td{padding:7px 12px}
+  .db-side{margin-top:0;grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:12px;min-height:0}
+  .db-side.noperf{grid-template-rows:minmax(0,1fr)}
+  .db-side-top{grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:12px;min-height:0}
+  .db-side .chart-card{display:flex;flex-direction:column;min-height:0;padding:11px 14px}
+  .db-side .chart-card h3{margin-bottom:6px}
+  .db-side .chart-wrap{flex:1;min-height:0;height:auto}
+  .db-by-sub{margin:-4px 0 4px}
+  .db-by-box{flex:1;min-height:0;height:auto}
+  #dashPerfWrap{display:flex;flex-direction:column;min-height:0}
+  #dashPerfWrap .card-head{padding:8px 12px}
+  #dashPerfWrap .card-head label{display:none}
+  #dashPerfWrap .card-head > div:last-child{flex-wrap:nowrap;gap:6px}
+  #dashPerfWrap .perf-date{padding:3px 5px;font-size:11px;width:112px}
+  #dashPerfWrap .perf-tab{padding:4px 6px;font-size:10px}
+  #dashPerfWrap .perf-grid{flex:1;min-height:0;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:8px 10px;overflow:auto}
+  #dashPerfWrap .perf-card{padding:8px 10px;min-width:0}
+  #dashPerfWrap .perf-card-title{font-size:11.5px;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #dashPerfWrap .perf-row{gap:6px;margin-bottom:5px}
+  #dashPerfWrap .perf-av{display:none}
+  #dashPerfWrap .perf-nm{width:78px;font-size:11.5px}
+  #dashPerfWrap .perf-track{height:12px}
+  #dashPerfWrap .perf-val{width:38px}
+  #dashPerfWrap .db-perf-note{display:none}
+}
 
 /* ══════════════════════════════════════
    ALL TASKS
@@ -762,9 +833,14 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 
   <!-- ── DASHBOARD ── -->
+  <!-- Power BI jaisa ek screen (Harsh, 18 Nov 2026): badi screen (1100×600+) par bina page scroll —
+       upar namaste + filter + button ek line me, 5 KPI (click = neeche list / All Tasks), bayein
+       pending tasks (search + filter), dayein Task Overview, "Pending by doer" graph (bar par click =
+       sirf uske task) aur Performance. Chhoti screen / phone par pehle jaisa ek ke neeche ek. -->
   <div id="page-dashboard" class="page active">
     <!-- Tyohaar / chhutti ke din chalti patti (festival.js) -->
     <div id="festRibbon"></div>
+    <div class="db-head" id="dbHead">
     <!-- Jo login hua uske liye "Good Morning, Naam 👋" (dashHello() bharta hai) -->
     <div class="dash-hello" id="dashHello" style="display:none">
       <span class="hl-wave">👋</span>
@@ -791,28 +867,38 @@ tbody tr:last-child td{border-bottom:none;}
       </div>
       <div class="dash-topbar-btns" id="dashBtns"></div>
     </div>
+    </div>
+    <div class="db-grid" id="dbGrid">
     <div class="overview-cards">
-      <div class="ov-card pending"><div class="label">Pending</div><div class="number" id="dPending">—</div>
+      <div class="ov-card pending db-click" id="dbKPending" onclick="dbKpi('pending')" title="Show all pending tasks"><div class="label">Pending</div><div class="number" id="dPending">—</div>
         <div class="ov-sub" id="dPendingSub"></div>
         <span class="ov-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span></div>
-      <div class="ov-card revised"><div class="label">Revised</div><div class="number" id="dRevised">—</div>
+      <div class="ov-card overdue db-click" id="dbKOverdue" onclick="dbKpi('overdue')" title="Show only the overdue tasks (due date passed)"><div class="label">Overdue</div><div class="number" id="dOverdue">—</div>
+        <div class="ov-sub" id="dOverdueSub"></div>
+        <span class="ov-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9.5 16.5h-19z"/><path d="M12 10v4"/><path d="M12 17.5v.01"/></svg></span></div>
+      <div class="ov-card today db-click" id="dbKToday" onclick="dbKpi('today')" title="Show only the tasks due today"><div class="label">Due today</div><div class="number" id="dToday">—</div>
+        <div class="ov-sub" id="dTodaySub"></div>
+        <span class="ov-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span></div>
+      <div class="ov-card revised db-click" onclick="dbKpi('revised')" title="Open the revised tasks in All Tasks"><div class="label">Revised</div><div class="number" id="dRevised">—</div>
         <div class="ov-sub" id="dRevisedSub"></div>
         <span class="ov-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.6-4.5M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.6 4.5M20 20v-4h-4"/></svg></span></div>
-      <div class="ov-card completed"><div class="label">Completed</div><div class="number" id="dCompleted">—</div>
+      <div class="ov-card completed db-click" onclick="dbKpi('completed')" title="Open the completed tasks in All Tasks"><div class="label">Completed</div><div class="number" id="dCompleted">—</div>
         <div class="ov-sub" id="dCompletedSub"></div>
         <span class="ov-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9.5"/></svg></span></div>
     </div>
-    <div class="dash-bottom">
-      <div class="task-table-card">
+    <div class="db-main">
+      <div class="task-table-card db-tasks" id="dbTasks">
         <div class="card-head">
-          <div class="card-head-title">All Pending Tasks</div>
+          <div class="card-head-title">All Pending Tasks <span class="db-cnt" id="dbCnt"></span></div>
+          <span class="db-chips" id="dbChips"></span>
+          <input type="search" class="db-search" id="dbSearch" placeholder="Search task / name…" oninput="dbSearch(this.value)">
           <div class="tab-group" id="dashTypeTabGroup">
             <div class="tab active" id="dashTabAll"   onclick="dashTab('all',this)">All</div>
             <div class="tab"        id="dashTabDel"   onclick="dashTab('delegation',this)">Delegation</div>
             <div class="tab"        id="dashTabChl"   onclick="dashTab('checklist',this)">Checklist</div>
           </div>
         </div>
-        <div style="overflow-x:auto;max-height:340px;overflow-y:auto;">
+        <div class="db-tbl-wrap">
           <table style="min-width:600px">
             <thead style="position:sticky;top:0;z-index:2;background:#f8fafc">
               <tr>
@@ -828,43 +914,53 @@ tbody tr:last-child td{border-bottom:none;}
           </table>
         </div>
       </div>
-      <div class="chart-card">
-        <h3>Task Overview</h3>
-        <div class="chart-wrap"><canvas id="dashChart"></canvas></div>
-        <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;font-size:11px;color:#64748b">
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:#10b981;display:inline-block"></span>Completed</span>
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:#ef4444;display:inline-block"></span>Pending</span>
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;display:inline-block"></span>Revised</span>
+      <div class="db-side noperf" id="dbSide">
+        <div class="db-side-top">
+          <div class="chart-card db-ov">
+            <h3>Task Overview</h3>
+            <div class="chart-wrap"><canvas id="dashChart"></canvas></div>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#64748b">
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:#10b981;display:inline-block"></span>Completed</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:#ef4444;display:inline-block"></span>Pending</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;display:inline-block"></span>Revised</span>
+            </div>
+          </div>
+          <div class="chart-card db-by">
+            <h3 id="dbByTitle" title="Click a bar to show only that person's pending tasks">Pending by doer</h3>
+            <div class="db-by-sub" id="dbBySub"></div>
+            <div class="db-by-box"><canvas id="dbByChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- "📊 FMS Pending Tasks" wala hissa dashboard se hata diya (Harsh, 8 Oct 2026) -->
+
+        <!-- ── Performance & Activity (Checklist + Delegation) ── -->
+        <div id="dashPerfWrap" class="task-table-card" style="display:none">
+          <div class="card-head" style="flex-wrap:wrap;gap:10px">
+            <div class="card-head-title" title="Minus % = (pending + revised) ÷ total × 100 — the same number as in the MIS Report. Lower is better (0% = everything done). Only tasks whose due date has arrived are counted · Most Active = tasks completed in this range">📈 Performance &amp; Activity</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto">
+              <div class="perf-tabs">
+                <span class="perf-tab active" id="perfTabBoth" onclick="perfSetType('both',this)">Checklist + Delegation</span>
+                <span class="perf-tab" id="perfTabChk" onclick="perfSetType('checklist',this)">Checklist</span>
+                <span class="perf-tab" id="perfTabDel" onclick="perfSetType('delegation',this)">Delegation</span>
+              </div>
+              <label style="font-size:12px;color:#64748b;font-weight:600">From</label>
+              <input type="date" id="perfFrom" onchange="loadDashPerf()" class="perf-date">
+              <label style="font-size:12px;color:#64748b;font-weight:600">To</label>
+              <input type="date" id="perfTo" onchange="loadDashPerf()" class="perf-date">
+            </div>
+          </div>
+          <div class="perf-grid">
+            <div class="perf-card"><div class="perf-card-title">🏆 Top 5 Performers <span style="font-weight:400;color:#94a3b8;font-size:10px">(lowest minus)</span></div><div id="perfTop"></div></div>
+            <div class="perf-card"><div class="perf-card-title">🌱 Bottom 5 Performers <span style="font-weight:400;color:#94a3b8;font-size:10px">(highest minus)</span></div><div id="perfBottom"></div></div>
+            <div class="perf-card"><div class="perf-card-title">🔥 Top 5 Most Active</div><div id="perfActive"></div></div>
+          </div>
+          <div class="db-perf-note" style="font-size:11px;color:#94a3b8;padding:0 16px 12px">
+            Minus % = (pending + revised) ÷ total × 100 — the same number as in the MIS Report. Lower is better (0% = everything done). Only tasks whose due date has arrived are counted · Most Active = tasks completed in this range
+          </div>
         </div>
       </div>
     </div>
-
-    <!-- "📊 FMS Pending Tasks" wala hissa dashboard se hata diya (Harsh, 8 Oct 2026) -->
-
-    <!-- ── Performance & Activity (Checklist + Delegation) ── -->
-    <div id="dashPerfWrap" class="task-table-card" style="display:none;margin-top:16px">
-      <div class="card-head" style="flex-wrap:wrap;gap:10px">
-        <div class="card-head-title">📈 Performance &amp; Activity</div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto">
-          <div class="perf-tabs">
-            <span class="perf-tab active" id="perfTabBoth" onclick="perfSetType('both',this)">Checklist + Delegation</span>
-            <span class="perf-tab" id="perfTabChk" onclick="perfSetType('checklist',this)">Checklist</span>
-            <span class="perf-tab" id="perfTabDel" onclick="perfSetType('delegation',this)">Delegation</span>
-          </div>
-          <label style="font-size:12px;color:#64748b;font-weight:600">From</label>
-          <input type="date" id="perfFrom" onchange="loadDashPerf()" class="perf-date">
-          <label style="font-size:12px;color:#64748b;font-weight:600">To</label>
-          <input type="date" id="perfTo" onchange="loadDashPerf()" class="perf-date">
-        </div>
-      </div>
-      <div class="perf-grid">
-        <div class="perf-card"><div class="perf-card-title">🏆 Top 5 Performers <span style="font-weight:400;color:#94a3b8;font-size:10px">(lowest minus)</span></div><div id="perfTop"></div></div>
-        <div class="perf-card"><div class="perf-card-title">🌱 Bottom 5 Performers <span style="font-weight:400;color:#94a3b8;font-size:10px">(highest minus)</span></div><div id="perfBottom"></div></div>
-        <div class="perf-card"><div class="perf-card-title">🔥 Top 5 Most Active</div><div id="perfActive"></div></div>
-      </div>
-      <div style="font-size:11px;color:#94a3b8;padding:0 16px 12px">
-        Minus % = (pending + revised) ÷ total × 100 — the same number as in the MIS Report. Lower is better (0% = everything done). Only tasks whose due date has arrived are counted · Most Active = tasks completed in this range
-      </div>
     </div>
 
   </div>
@@ -9451,6 +9547,7 @@ let _dashSeq = 0;
 async function loadDashboard() {
   const seq = ++_dashSeq; // sequence guard — stale response render na ho (blink fix)
   try { dashHello(); } catch (e) {}
+  dbFit();
   const empFilter = document.getElementById('dashEmployeeFilter');
   const empVal = empFilter ? empFilter.value : 'all';
   const isAdmin = ME.role === 'admin';
@@ -9549,10 +9646,14 @@ async function loadDashboard() {
   const chartData   = [combinedCompleted, combinedPending, combinedRevised];
   const chartColors = ['#10b981','#ef4444','#f59e0b'];
 
+  // Donut (beech me x% done) — slice par click: Pending = list, Revised / Completed = All Tasks
   dashChartInst = new Chart(document.getElementById('dashChart').getContext('2d'), {
-    type:'pie',
+    type:'doughnut', plugins:[dbCenter],
     data:{labels:chartLabels,datasets:[{data:chartData,backgroundColor:chartColors,borderWidth:3,borderColor:'#fff',hoverOffset:6}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.label}: ${c.raw}`}}}}
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+      onClick:(e,els)=>{ if (els.length) { const k = ['completed','pending','revised'][els[0].index]; setTimeout(() => dbKpi(k), 0); } },
+      onHover:(e,els)=>{ const t = e && e.native && e.native.target; if (t) t.style.cursor = els.length ? 'pointer' : 'default'; },
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.label}: ${c.raw}`}}}}
   });
 
   // Combine both types for the unified pending table
@@ -9560,6 +9661,7 @@ async function loadDashboard() {
   window._lastDashTasks = allTodayPending;
   // Keep sort state across reloads (don't reset)
   renderDashTable(allTodayPending, dashType);
+  dbFit();
 
   // loadDashFMS() aur loadDashPerf() upar hi chhod diye gaye hain
 }
@@ -9679,6 +9781,7 @@ let _perfBusy = false;
 async function loadDashPerf(force) {
   const wrap = document.getElementById('dashPerfWrap');
   if (!wrap) return;
+  const dbSide = document.getElementById('dbSide'); if (dbSide) dbSide.classList.toggle('noperf', !perfCanSee());
   if (!perfCanSee()) { wrap.style.display = 'none'; return; }
   wrap.style.display = '';
   const f = document.getElementById('perfFrom'), t = document.getElementById('perfTo');
@@ -9977,6 +10080,136 @@ function toggleDashDateSort() {
   if (window._lastDashTasks) renderDashTable(window._lastDashTasks, dashType);
 }
 
+// ══════════════════════════════════════════════════════
+// Dashboard — Power BI jaisa ek screen (Harsh, 18 Nov 2026)
+// KPI par click = neeche list usi hisaab se (Overdue / Due today), Revised / Completed = All Tasks.
+// "Pending by doer" graph ke bar par click = sirf us bande ke task. Search bhi.
+// Filter sirf dikhane ke liye — Done / N/A / Revise pehle jaise hi.
+// ══════════════════════════════════════════════════════
+const _dbF = { due: '', who: '', q: '' };
+let _dbByChart = null, _dbFitT = 0;
+const dbBig = () => window.innerWidth >= 1100 && window.innerHeight >= 600;
+const dbShort = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+const dbStaff = () => !!ME && (ME.role === 'admin' || ME.role === 'hod' || ME.role === 'pc');
+// Table me jo naam dikhta hai wahi (admin / HOD / PC = Doer, baaki = Assigned By)
+const dbWhoName = t => dbStaff() ? (t.assignedToName || '') : (t.assignedByName || '');
+const dbDue = t => String(t.due_date || t.date || '');
+// Checklist ka assigner aksar khaali ("—") — graph / chip me "Not set"
+const dbNm = n => !n || n === '—' ? 'Not set' : titleName(n);
+function dbToday() { const d = new Date(), p = x => String(x).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
+const dbActive = () => !!(_dbF.due || _dbF.who || _dbF.q.trim());
+
+// Badi screen par grid neeche tak — page scroll nahi
+function dbFit() {
+  const g = document.getElementById('dbGrid'), pg = document.getElementById('page-dashboard');
+  if (!g || !pg || !pg.classList.contains('active')) return;
+  if (!dbBig()) { g.style.height = ''; return; }
+  const top = g.getBoundingClientRect().top + window.scrollY;
+  g.style.height = Math.max(470, window.innerHeight - top - 22) + 'px';
+}
+window.addEventListener('resize', () => { clearTimeout(_dbFitT); _dbFitT = setTimeout(dbFit, 120); });
+// Tyohaar ki patti / button baad me aayein to bhi upar ka hissa badalta hai — tab dobara naapo
+if (window.ResizeObserver) {
+  try {
+    const ro = new ResizeObserver(() => { clearTimeout(_dbFitT); _dbFitT = setTimeout(dbFit, 60); });
+    ['festRibbon', 'dbHead'].forEach(id => { const e = document.getElementById(id); if (e) ro.observe(e); });
+  } catch (e) {}
+}
+
+function dbApply(list) {
+  const td = dbToday(), q = _dbF.q.trim().toLowerCase();
+  return list.filter(t => {
+    const d = dbDue(t);
+    if (_dbF.due === 'overdue' && !(d && d < td)) return false;
+    if (_dbF.due === 'today' && d !== td) return false;
+    if (_dbF.who && dbWhoName(t) !== _dbF.who) return false;
+    if (q && ![t.description, t.desc, t.assignedToName, t.assignedByName].some(v => String(v || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+// Overdue / Due today card, filter chip, ginti, aur "Pending by doer" graph
+function dbExtras(all, base, shown) {
+  const td = dbToday(), pend = (all || []).filter(t => t.status === 'pending' || !t.status);
+  const over = pend.filter(t => { const d = dbDue(t); return d && d < td; }).length;
+  const tod = pend.filter(t => dbDue(t) === td).length;
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  set('dOverdue', over); set('dToday', tod);
+  set('dOverdueSub', pend.length ? Math.round(over / pend.length * 100) + '% of pending' : '');
+  set('dTodaySub', tod ? 'to finish today' : 'nothing due today');
+  const k1 = document.getElementById('dbKOverdue'), k2 = document.getElementById('dbKToday');
+  if (k1) k1.classList.toggle('db-on', _dbF.due === 'overdue');
+  if (k2) k2.classList.toggle('db-on', _dbF.due === 'today');
+  set('dbCnt', shown.length === base.length ? String(base.length) : `${shown.length} of ${base.length}`);
+  const chips = document.getElementById('dbChips');
+  if (chips) chips.innerHTML = (_dbF.due ? `<button type="button" class="db-chip" onclick="dbClear('due')" title="Remove this filter">${_dbF.due === 'overdue' ? 'Overdue' : 'Due today'} ✕</button>` : '') +
+    (_dbF.who ? `<button type="button" class="db-chip" onclick="dbClear('who')" title="Remove this filter">${escapeHtml(dbShort(dbNm(_dbF.who), 22))} ✕</button>` : '');
+  dbByPaint(base);
+}
+function dbByPaint(base) {
+  const cv = document.getElementById('dbByChart'); if (!cv || typeof Chart === 'undefined') return;
+  const staff = dbStaff();
+  const t1 = document.getElementById('dbByTitle'); if (t1) t1.textContent = staff ? 'Pending by doer' : 'Pending by assigner';
+  const td = dbToday(), g = new Map();
+  base.forEach(t => {
+    const n = dbWhoName(t) || '—'; let x = g.get(n);
+    if (!x) { x = { n, o: 0, d: 0, u: 0 }; g.set(n, x); }
+    const d = dbDue(t); if (d && d < td) x.o++; else if (d === td) x.d++; else x.u++;
+  });
+  const all = [...g.values()].sort((a, b) => (b.o + b.d + b.u) - (a.o + a.d + a.u) || b.o - a.o || a.n.localeCompare(b.n));
+  const N = dbBig() ? 10 : 15, rows = all.slice(0, N);
+  const sub = document.getElementById('dbBySub');
+  if (sub) sub.textContent = !rows.length ? 'No pending tasks' : (all.length > N ? `Top ${N} of ${all.length}` : `${all.length} ${staff ? 'doer' : 'person'}${all.length === 1 ? '' : 's'}`) + ' · click a bar';
+  if (_dbByChart) { try { _dbByChart.destroy(); } catch (e) {} _dbByChart = null; }
+  if (!rows.length) return;
+  const sel = _dbF.who, col = (c, x) => !sel || x.n === sel ? c : c + '40';
+  const ds = (label, key, c) => ({ label, data: rows.map(x => x[key]), backgroundColor: rows.map(x => col(c, x)), borderWidth: 0, maxBarThickness: 18 });
+  _dbByChart = new Chart(cv, { type: 'bar',
+    data: { labels: rows.map(x => dbShort(dbNm(x.n), 16)), datasets: [ds('Overdue', 'o', '#ef4444'), ds('Due today', 'd', '#2563eb'), ds('Upcoming', 'u', '#94a3b8')] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+      // graph apne click ke beech me hi na mite — isliye agle tick me
+      onClick: (e, els) => { if (els.length) { const n = rows[els[0].index].n; setTimeout(() => dbWho(n), 0); } },
+      onHover: (e, els) => { const t = e && e.native && e.native.target; if (t) t.style.cursor = els.length ? 'pointer' : 'default'; },
+      plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 9, boxHeight: 9, usePointStyle: true, pointStyle: 'rectRounded', font: { size: 10 } } },
+        tooltip: { callbacks: { title: x => dbNm(rows[x[0].dataIndex].n),
+          footer: x => { const r = rows[x[0].dataIndex]; return `${r.o + r.d + r.u} pending — click to show only these`; } } } },
+      scales: { x: { stacked: true, beginAtZero: true, grid: { color: '#eef2f7' }, border: { display: false }, ticks: { precision: 0, font: { size: 10 } } },
+        y: { stacked: true, grid: { display: false }, ticks: { font: { size: 10.5 }, autoSkip: false } } } } });
+}
+function dbRerender(flash) {
+  if (window._lastDashTasks) renderDashTable(window._lastDashTasks, dashType);
+  if (!flash) return;
+  const p = document.getElementById('dbTasks');
+  if (p) { p.classList.remove('pb-flash'); void p.offsetWidth; p.classList.add('pb-flash'); if (!dbBig()) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+}
+function dbKpi(k) {
+  if (k === 'revised' || k === 'completed') {          // ye list dashboard par nahi — All Tasks me wahi tab
+    if (!pageAllowed('alltasks')) return;
+    navigate('alltasks', navEl('alltasks'));
+    const tab = document.getElementById(k === 'revised' ? 'statusTabRevised' : 'statusTabCompleted');
+    if (tab) filterTaskStatus(k, tab);
+    return;
+  }
+  if (k === 'pending') {
+    _dbF.due = ''; _dbF.who = ''; _dbF.q = '';
+    const s = document.getElementById('dbSearch'); if (s) s.value = '';
+  } else _dbF.due = _dbF.due === k ? '' : k;
+  dbRerender(true);
+}
+function dbWho(n) { _dbF.who = _dbF.who === n ? '' : n; dbRerender(true); }
+function dbSearch(v) { _dbF.q = v || ''; dbRerender(false); }
+function dbClear(k) { if (k === 'due') _dbF.due = ''; else if (k === 'who') _dbF.who = ''; dbRerender(false); }
+// Task Overview donut ke beech me "x% done"
+const dbCenter = { id: 'dbCenter', afterDraw(c) {
+  const d = (c.data.datasets[0] || {}).data || [], tot = d.reduce((a, b) => a + (+b || 0), 0), ar = c.chartArea;
+  if (!tot || !ar) return;
+  const ctx = c.ctx, x = (ar.left + ar.right) / 2, y = (ar.top + ar.bottom) / 2, r = Math.min(ar.right - ar.left, ar.bottom - ar.top) / 2;
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `800 ${Math.max(13, Math.min(22, Math.round(r * .3)))}px Inter, sans-serif`; ctx.fillStyle = '#0f172a';
+  ctx.fillText(Math.round((+d[0] || 0) / tot * 100) + '%', x, y - 6);
+  ctx.font = '600 10.5px Inter, sans-serif'; ctx.fillStyle = '#64748b'; ctx.fillText('done', x, y + 11);
+  ctx.restore();
+} };
+
 function renderDashTable(tasks, type) {
   // Show ALL pending tasks (delegation + checklist) combined
   const isAdmin = ME.role==='admin' || ME.role==='hod';
@@ -9988,6 +10221,10 @@ function renderDashTable(tasks, type) {
     const matchType = (!type || type === 'all') ? true : t.type === type;
     return matchType && (t.status === 'pending' || !t.status);
   });
+  // KPI / doer graph / search ka filter (Power BI jaisa) — graph aur ginti tab wali poori list se
+  const dbBase = allPending;
+  allPending = dbApply(allPending);
+  dbExtras(tasks, dbBase, allPending);
   // Apply date sort
   if (_dashDateSortState === 1) {
     // Ascending: oldest (earliest) date first — aaj ki pehle aaye
@@ -9996,7 +10233,9 @@ function renderDashTable(tasks, type) {
     // Descending: newest (latest) date first
     allPending = [...allPending].sort((a,b) => (b.due_date||b.date||'').localeCompare(a.due_date||a.date||''));
   }
-  if (!allPending.length) { tbody.innerHTML=`<tr><td colspan="6" class="empty">No pending tasks 🎉</td></tr>`; return; }
+  if (!allPending.length) { tbody.innerHTML = dbActive() && dbBase.length
+    ? `<tr><td colspan="6" class="empty">No pending task matches these filters — <a href="#" onclick="dbKpi('pending');return false">show all</a></td></tr>`
+    : `<tr><td colspan="6" class="empty">No pending tasks 🎉</td></tr>`; return; }
   const typeBadge = t => t.type==='checklist'
     ? `<span style="font-size:10px;background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:10px;font-weight:700;border:1px solid #bbf7d0">✅ Checklist</span>`
     : `<span style="font-size:10px;background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:10px;font-weight:700;border:1px solid #bfdbfe">📋 Delegation</span>`;
