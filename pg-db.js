@@ -183,6 +183,12 @@ const SCHEMA = {
   time_schedules: {
     cols: ['id','user_id','sch_date','start_time','end_time','title','remarks','status','created_at','completed_at'],
     autoFill: { created_at: 'NOW' }
+  },
+  // Voucher Data Entry Form — Kariger Name list ke badlav (asli 113 naam app.html me hain).
+  // kind 'add' = naya kariger juda, 'remove' = asli list ka naam dropdown se hataya (Harsh, 19 Nov 2026)
+  kariger_list: {
+    cols: ['id','label','kar_name','card_no','kind','created_by','created_at'],
+    autoFill: { created_at: 'NOW' }
   }
 };
 

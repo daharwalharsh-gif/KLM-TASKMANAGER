@@ -1234,6 +1234,8 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Meca Offline ka tab dikhe ya nahi
     rows[0].canMeca = req.session.role === 'admin' ||
       MECA_VIEW_EMAILS.has((rows[0].email || '').trim().toLowerCase());
+    // Voucher Dashboard sirf dekhne wale (sidebar me dikhe)
+    rows[0].canVoucherView = VD_VIEW_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -6270,14 +6272,34 @@ async function vdLoad(force) {
   })();
   try { return await _vdBusy; } finally { _vdBusy = null; }
 }
-app.get('/api/voucher-dash', requireAuth, async (req, res) => {
+// Voucher Dashboard sirf DEKHNE ke liye (Harsh, 19 Nov 2026) — inhe Google Sheet ka link nahi jaata,
+// taaki dashboard se sheet khol kar kuch edit / delete na ho. (Dashboard khud kuch likhta nahi.)
+const VD_VIEW_EMAILS = new Set([
+  'deo@klmahajan.com',          // Mr. Deepak Pal
+  'hrd@klmahajan.com',          // Mr. Dipanshu
+  'rohit@klmahajan.com',        // Mr. Rohit
+  'hr@klmahajan.com',           // Mr. Satyen Kumar
+  'operations@klmahajan.com',   // Mr. Shubham
+  'ttyagi@klmahajan.com',       // Mr. Tribhuvan Tyagi
+  'accounthelp@klmahajan.com'   // Mr. Vipul
+]);
+async function isVdViewer(req) {
   try {
-    // saare admin + Owner Dashboard wale (Harsh, 14 Nov 2026)
-    if (req.session.role !== 'admin' && !(await isOwnerUser(req))) return res.status(403).json({ error: 'Only admins can open the Voucher Dashboard' });
-    res.json(await vdLoad(req.query.force === '1'));
+    const [u] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    return VD_VIEW_EMAILS.has(String(u[0]?.email || '').trim().toLowerCase());
+  } catch (e) { return false; }
+}
+app.get('/api/voucher-dash', requireAuth, async (req, res) => {
+  let full = false;
+  try {
+    // saare admin + Owner Dashboard wale (Harsh, 14 Nov 2026) poora; VD_VIEW_EMAILS sirf dekhna (bina sheet link)
+    full = req.session.role === 'admin' || (await isOwnerUser(req));
+    if (!full && !(await isVdViewer(req))) return res.status(403).json({ error: 'Only admins can open the Voucher Dashboard' });
+    const d = await vdLoad(req.query.force === '1');
+    res.json(full ? d : { ...d, url: '' });
   } catch (err) {
     const busy = SHEETS_RETRY_CODES.has(err.code || err.status) || /quota/i.test(String(err.message));
-    if (busy && _vdCache) return res.json({ ..._vdCache, stale: true });   // purana data, upar "old data" likha aata hai
+    if (busy && _vdCache) return res.json({ ..._vdCache, stale: true, ...(full ? {} : { url: '' }) });   // purana data, upar "old data" likha aata hai
     console.error('Voucher dashboard FAILED:', err.message);
     res.status(busy ? 503 : 500).json({ error: busy
       ? 'Google Sheets is busy right now (too many reads this minute). Please wait a few seconds and click Refresh.'
@@ -6587,6 +6609,49 @@ app.get('/api/owner-deck/:id', requireAuth, async (req, res) => {
     if (r.headers.get('content-range')) res.setHeader('Content-Range', r.headers.get('content-range'));
     res.setHeader('Cache-Control', 'private, max-age=86400');
     res.end(buf);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Voucher Data Entry Form: Kariger list me naya kariger jodo / hatao (Harsh, 19 Nov 2026) ──
+// Asli list (KARIGER NAME LIST.pdf ke 113 naam) app.html me hai; yahan sirf badlav rehte hain.
+// base = naam asli list ka hai ya nahi (browser batata hai). Naya naam hatao to uski entry hi mit jaati hai;
+// asli naam hatao to 'remove' entry, wapas jodo to wo mit jaati hai. Sheet ka purana data waisa hi rehta hai.
+app.get('/api/ratelist/karigers', requireAuth, requireRateListEdit, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT id, label, kar_name, card_no, kind FROM kariger_list');
+    res.json({
+      added: rows.filter(r => r.kind === 'add').map(r => ({ label: r.label, name: r.kar_name || '', card: r.card_no || '' })),
+      removed: [...new Set(rows.filter(r => r.kind === 'remove').map(r => r.label))]
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/ratelist/karigers', requireAuth, requireRateListEdit, async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim().replace(/\s+/g, ' ').toUpperCase();
+    const card = String(req.body.card || '').trim();
+    if (!name) return res.status(400).json({ error: 'Enter the kariger name' });
+    if (card && !/^\d{1,6}$/.test(card)) return res.status(400).json({ error: 'Card No should be a number' });
+    const label = card ? `${name}-${card}` : name;
+    await db.query("DELETE FROM kariger_list WHERE label=? AND kind='remove'", [label]);
+    if (!req.body.base) {
+      const [ex] = await db.query("SELECT id FROM kariger_list WHERE label=? AND kind='add'", [label]);
+      if (!ex.length) await db.query('INSERT INTO kariger_list (label, kar_name, card_no, kind, created_by) VALUES (?,?,?,?,?)',
+        [label, name, card, 'add', req.session.userId]);
+    }
+    res.json({ success: true, label });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/ratelist/karigers/remove', requireAuth, requireRateListEdit, async (req, res) => {
+  try {
+    const label = String(req.body.label || '').trim();
+    if (!label) return res.status(400).json({ error: 'Select the kariger to remove' });
+    await db.query("DELETE FROM kariger_list WHERE label=? AND kind='add'", [label]);
+    if (req.body.base) {
+      const [ex] = await db.query("SELECT id FROM kariger_list WHERE label=? AND kind='remove'", [label]);
+      if (!ex.length) await db.query('INSERT INTO kariger_list (label, kar_name, card_no, kind, created_by) VALUES (?,?,?,?,?)',
+        [label, '', '', 'remove', req.session.userId]);
+    }
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -4733,8 +4733,8 @@ async function init() {
     if (OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
       document.getElementById('nav-owner').style.display = 'flex';
     }
-    // Voucher Dashboard — saare admin + Owner Dashboard wale
-    if (ME.role === 'admin' || OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase())) {
+    // Voucher Dashboard — saare admin + Owner Dashboard wale + sirf dekhne wale (canVoucherView, 19 Nov 2026)
+    if (ME.role === 'admin' || OWNER_EMAILS.includes(String(ME.email || '').trim().toLowerCase()) || ME.canVoucherView) {
       const nvd = document.getElementById('nav-voucher'); if (nvd) nvd.style.display = 'flex';
     }
     // In logon ko MIS ki saari reports dikhti hain (role user hi rehta hai —
@@ -20512,7 +20512,73 @@ function gsReset() {
 function gsOpen() {
   if (!_gs.ops.length) gsReset();
   gsRender();
+  gsKarLoad();
   if (!_gs.url) api('/api/ratelist/gsheet-info').then(r => { if (r && r.url) { _gs.url = r.url; const a = document.getElementById('gsLink'); if (a) a.href = r.url; } });
+}
+// ── Kariger list: naya jodo / hatao (sabke liye, server par) — Harsh, 19 Nov 2026 ──
+function gsKarMerge(d) {
+  const rem = new Set(d.removed || []), seen = new Set(), out = [];
+  const added = (d.added || []).map(a => ({ name: a.name, card: a.card, label: a.label, custom: 1 }));
+  for (const k of GS_KAR_BASE.concat(added)) {
+    if (!k.label || rem.has(k.label) || seen.has(k.label)) continue;
+    seen.add(k.label); out.push(k);
+  }
+  GS_KARIGERS = out;
+}
+async function gsKarLoad() {
+  const d = await api('/api/ratelist/karigers');
+  if (!d || d.error) return false;
+  gsKarMerge(d);
+  const dl = document.getElementById('gsKarList');
+  if (dl) dl.innerHTML = GS_KARIGERS.map(k => `<option value="${escapeHtml(k.label)}"></option>`).join('');
+  const h = document.getElementById('gsKarHint'); if (h) h.textContent = gsKarHint(_gs.head.kariger);
+  return true;
+}
+const gsKarIsBase = label => GS_KAR_BASE.some(k => k.label === label);
+function gsSetKariger(label) { const i = document.getElementById('gsH_kariger'); if (i) i.value = label; gsPickKariger(label); }
+function gsKarAdd() {
+  const cur = String(_gs.head.kariger || '').trim().replace(/\s+/g, ' ');
+  const inList = GS_KARIGERS.some(k => k.label === cur), m = !inList && cur.match(/^(.*?)\s*-\s*(\d+)\s*$/);
+  const nm = inList ? '' : (m ? m[1] : cur).toUpperCase(), cd = m ? m[2] : '';
+  let ov = document.getElementById('gsKarModal');
+  if (!ov) { ov = document.createElement('div'); ov.className = 'modal-overlay'; ov.id = 'gsKarModal'; document.body.appendChild(ov); }
+  ov.innerHTML = `<div class="modal" style="max-width:420px">
+    <h3 style="margin:0 0 4px">➕ Add new kariger</h3>
+    <div style="font-size:12px;color:#64748b;margin-bottom:14px">The name is added to the Kariger Name list for everyone who fills this form.</div>
+    <div class="form-group"><label>Kariger name *</label><input type="text" id="gsKarNm" value="${escapeHtml(nm)}" placeholder="e.g. RAMESH KUMAR" autocomplete="off" onkeydown="if (event.key === 'Enter') gsKarSave()"></div>
+    <div class="form-group"><label>Card No</label><input type="text" id="gsKarCd" inputmode="numeric" value="${escapeHtml(cd)}" placeholder="e.g. 512" autocomplete="off" onkeydown="if (event.key === 'Enter') gsKarSave()"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button type="button" class="btn btn-outline" onclick="closeModal('gsKarModal')">Cancel</button>
+      <button type="button" class="btn btn-primary" id="gsKarSaveBtn" onclick="gsKarSave()">＋ Add</button></div></div>`;
+  openModal('gsKarModal');
+  setTimeout(() => { const e = document.getElementById(nm ? 'gsKarCd' : 'gsKarNm'); if (e) e.focus(); }, 60);
+}
+async function gsKarSave() {
+  const nm = String(document.getElementById('gsKarNm').value || '').trim().replace(/\s+/g, ' ').toUpperCase();
+  const cd = String(document.getElementById('gsKarCd').value || '').trim();
+  if (!nm) { showToast('Enter the kariger name', 'error'); document.getElementById('gsKarNm').focus(); return; }
+  if (cd && !/^\d{1,6}$/.test(cd)) { showToast('Card No should be a number', 'error'); document.getElementById('gsKarCd').focus(); return; }
+  const label = cd ? `${nm}-${cd}` : nm;
+  if (GS_KARIGERS.some(k => k.label === label)) { closeModal('gsKarModal'); gsSetKariger(label); showToast(`${label} is already in the list`); return; }
+  const b = document.getElementById('gsKarSaveBtn'); if (b) { b.disabled = true; b.textContent = '⏳ Adding…'; }
+  const r = await api('/api/ratelist/karigers', 'POST', { name: nm, card: cd, base: gsKarIsBase(label) });
+  if (b) { b.disabled = false; b.textContent = '＋ Add'; }
+  if (!r || r.error) { showToast((r && r.error) || 'Could not add the kariger', 'error'); return; }
+  await gsKarLoad();
+  closeModal('gsKarModal');
+  gsSetKariger(label);
+  showToast(`✅ ${label} added to the kariger list`, 'success');
+}
+async function gsKarRemove() {
+  const cur = String(_gs.head.kariger || '').trim();
+  if (!cur) { showToast('First select the kariger you want to remove', 'error'); return; }
+  if (!GS_KARIGERS.some(k => k.label === cur)) { showToast(`"${cur}" is not in the list`, 'error'); return; }
+  if (!confirm(`Remove "${cur}" from the kariger list?\n\nOld entries in the Google Sheet stay as they are — the name just stops showing in this list.`)) return;
+  const r = await api('/api/ratelist/karigers/remove', 'POST', { label: cur, base: gsKarIsBase(cur) });
+  if (!r || r.error) { showToast((r && r.error) || 'Could not remove the kariger', 'error'); return; }
+  await gsKarLoad();
+  gsSetKariger('');
+  showToast(`🗑 ${cur} removed from the kariger list`, 'success');
 }
 function gsHead(k, v) { _gs.head[k] = v; }
 // AMOUNT = NO OF PCS x KARIGER RATE — apne aap, haath se nahi bharte (22 Oct 2026)
@@ -20630,15 +20696,26 @@ document.addEventListener('mousedown', e => {
   if (o) { e.preventDefault(); gsCsPick(o.dataset.id); }
 });
 // Dropdown ki list — "KARIGER NAME LIST.pdf" (21 Oct 2026). Kariger "NAAM-CARD" ke roop me (ek naam ke do log ho sakte hain).
-const GS_KARIGERS = 'SANTOSH BHAGAT|63,RAHI|64,SONU|114,RAJESH|126,JONI KUMAR|134,KHALEEL KHAN|173,SONU|206,SATISH|229,SUMBUL|307,ANJALI|310,MOHIT|333,TARUN KUMAR|357,AMIT KUMAR|364,AMIT KUMAR|429,LAXMI|447,VAHID|466,DEEPA|471,ANJU|472,SHADAB|473,SANDEEP|474,SHAHZAD AHMAD|493,AKSH SHARMA|517,SALEEM|531,FUL SAMANDRI|539,AASH MOHD|542,DEEPU|559,JOOLI GAUN|593,BHAVNA|604,MOHD AHAMAD|612,RAJA HUSAIN|616,RAVITA|627,URMILA|629,SUNITA|633,KAJAL|634,MOHIT|637,RAJPAL|638,SWATI|642,DEEPA|656,LAKHAN|667,NISHA|671,ASHOK KUMAR|680,SALONI SINGH|682,PARMILA|687,PANKAJ|691,ASHOK KUMAR|692,KANIKA|694,RAMARATAN|701,MAYANK KUMAR|703,ROHIT KUMAR|707,AVINASH TYAGI|711,SURESH KUMAR|725,HARISH|734,MOHIT YADAV|737,RAMAN|759,VIKASH|761,SAGAR|772,PRIYA|773,RAKHI|774,JYOTI|778,SAVITA|783,DHARMENDRA BHAGAT|788,RISHIPAL|793,POONAM DEVI|795,KAJAL|819,PAWAN|824,DHARMENDRA|830,MALIK|837,PRIYA|842,VINOD KUMAR|843,ANJU|848,LALIT|851,ASHU|860,RAJENDRA SINGH|865,DIPANSHU|868,PANKAJ|872,TRIVENI RATHORE|877,RADHA KASHYAP|878,RIYA|880,ABHISHEK|882,PINKI|883,AASHU|885,FOZIYA|886,VISHAL KUMAR|887,DEEPAK KUMAR|888,SAURAV PAL|889,SACHIT CHOUDHARY|890,ISHA KARNWAL|891,DEEPAK PAL|893,GAUTAM|895,ROHIT SOM|896,LAXMI|897,EKTA VISHVKARMA|900,MD ISRAIL|903,SHREECHAND|905,PARSHURAM YADAV|906,SURESH KUMAR|908,VIPUL KUMAR|909,SANGEETA|914,AKASH|915,JONI|916,PRIYANKA PANDEY|918,LUCKY|920,VIKAS|921,ANKIT KUMAR|922,MONIKA|925,NITIN KUMAR|926,ROHIT|927,ZAIB ISLAM|930,RINKI|932,MONIKA RANI|934,MEENU|935,SHALU SAINI|936,MINAKSHI THAKUR|940'
+const GS_KAR_BASE = 'SANTOSH BHAGAT|63,RAHI|64,SONU|114,RAJESH|126,JONI KUMAR|134,KHALEEL KHAN|173,SONU|206,SATISH|229,SUMBUL|307,ANJALI|310,MOHIT|333,TARUN KUMAR|357,AMIT KUMAR|364,AMIT KUMAR|429,LAXMI|447,VAHID|466,DEEPA|471,ANJU|472,SHADAB|473,SANDEEP|474,SHAHZAD AHMAD|493,AKSH SHARMA|517,SALEEM|531,FUL SAMANDRI|539,AASH MOHD|542,DEEPU|559,JOOLI GAUN|593,BHAVNA|604,MOHD AHAMAD|612,RAJA HUSAIN|616,RAVITA|627,URMILA|629,SUNITA|633,KAJAL|634,MOHIT|637,RAJPAL|638,SWATI|642,DEEPA|656,LAKHAN|667,NISHA|671,ASHOK KUMAR|680,SALONI SINGH|682,PARMILA|687,PANKAJ|691,ASHOK KUMAR|692,KANIKA|694,RAMARATAN|701,MAYANK KUMAR|703,ROHIT KUMAR|707,AVINASH TYAGI|711,SURESH KUMAR|725,HARISH|734,MOHIT YADAV|737,RAMAN|759,VIKASH|761,SAGAR|772,PRIYA|773,RAKHI|774,JYOTI|778,SAVITA|783,DHARMENDRA BHAGAT|788,RISHIPAL|793,POONAM DEVI|795,KAJAL|819,PAWAN|824,DHARMENDRA|830,MALIK|837,PRIYA|842,VINOD KUMAR|843,ANJU|848,LALIT|851,ASHU|860,RAJENDRA SINGH|865,DIPANSHU|868,PANKAJ|872,TRIVENI RATHORE|877,RADHA KASHYAP|878,RIYA|880,ABHISHEK|882,PINKI|883,AASHU|885,FOZIYA|886,VISHAL KUMAR|887,DEEPAK KUMAR|888,SAURAV PAL|889,SACHIT CHOUDHARY|890,ISHA KARNWAL|891,DEEPAK PAL|893,GAUTAM|895,ROHIT SOM|896,LAXMI|897,EKTA VISHVKARMA|900,MD ISRAIL|903,SHREECHAND|905,PARSHURAM YADAV|906,SURESH KUMAR|908,VIPUL KUMAR|909,SANGEETA|914,AKASH|915,JONI|916,PRIYANKA PANDEY|918,LUCKY|920,VIKAS|921,ANKIT KUMAR|922,MONIKA|925,NITIN KUMAR|926,ROHIT|927,ZAIB ISLAM|930,RINKI|932,MONIKA RANI|934,MEENU|935,SHALU SAINI|936,MINAKSHI THAKUR|940'
   .split(',').map(x => { const [name, card] = x.split('|'); return { name, card, label: name + '-' + card }; });
+// Dropdown ki asli list + jo naye kariger jode / hataye gaye (server: kariger_list) — Harsh, 19 Nov 2026
+let GS_KARIGERS = GS_KAR_BASE.slice();
 const GS_PRODUCTS = ['GLOVES', 'MMA GLOVES', 'SHIN GUARD', 'HEAD GUARD', 'COACHER PAD', 'T. SHIRT', 'LOWER', 'VEST', 'SHORTS', 'JACKET', 'SPORTS BRA', 'LEGGINGS', 'SAUNA SUIT'];
 const GS_LINEMEN = ['SHAHZAD LINE', 'SHADAB LINE', 'VAHID LINE', 'SANTOSH LINE', 'JONI LINE', 'HAND WRAP LINE', 'SAMPLE LINE', 'ALTER LINE'];
-// Kariger chunte hi Card No apne aap
+// Kariger chunte hi Card No apne aap. List me naam na ho to haath se bhi likh sakte hain (Harsh, 19 Nov 2026):
+// "NAAM-123" likha to 123 Card No, warna Card No khaali (pehle purane kariger ka card chipka reh jaata tha).
 function gsPickKariger(v) {
   _gs.head.kariger = v;
-  const k = GS_KARIGERS.find(x => x.label === String(v).trim());
-  if (k) { _gs.head.card = k.card; const c = document.getElementById('gsH_card'); if (c) c.value = k.card; }
+  const s = String(v).trim(), k = GS_KARIGERS.find(x => x.label === s), m = !k && s.match(/-\s*(\d+)\s*$/);
+  _gs.head.card = k ? k.card : (m ? m[1] : '');
+  const c = document.getElementById('gsH_card'); if (c) c.value = _gs.head.card;
+  const h = document.getElementById('gsKarHint'); if (h) h.textContent = gsKarHint(s);
+}
+function gsKarHint(s) {
+  s = String(s || '').trim();
+  if (!s || GS_KARIGERS.some(x => x.label === s)) return '';
+  const m = s.match(/-\s*(\d+)\s*$/);
+  return m ? `(new · card ${m[1]})` : '(new name)';
 }
 function gsRender() {
   const H = _gs.head, inp = (k, label, ph, w, type, list) => `<div style="flex:${w || 150} 1 0;min-width:0"><label>${label}</label><input type="${type || 'text'}" id="gsH_${k}" value="${escapeHtml(H[k])}" placeholder="${ph || label}"
@@ -20672,7 +20749,10 @@ function gsRender() {
           <span class="rl-cs-caret" onmousedown="event.preventDefault();gsCsToggle()">▾</span>
           <div class="rl-cs-list" id="gsCsList"></div>
         </div></div>
-      ${inp('kariger', 'Kariger Name *', '🔍 Select kariger', 190, '', 'gsKarList')}${inp('buyer', 'Buyer Name', 'Buyer', 140)}${inp('style', 'Style', 'Style', 170)}
+      <div style="flex:230 1 0;min-width:0"><label>Kariger Name * <span id="gsKarHint" class="gs-hint">${escapeHtml(gsKarHint(H.kariger))}</span></label>
+        <div class="gs-kar"><input type="text" id="gsH_kariger" value="${escapeHtml(H.kariger)}" placeholder="🔍 Select or type kariger" list="gsKarList" autocomplete="off" oninput="gsPickKariger(this.value)">
+          <button type="button" class="gs-kbtn" onclick="gsKarAdd()" title="Add a new kariger to the list">＋</button>
+          <button type="button" class="gs-kbtn del" onclick="gsKarRemove()" title="Remove the selected kariger from the list">🗑</button></div></div>${inp('buyer', 'Buyer Name', 'Buyer', 140)}${inp('style', 'Style', 'Style', 170)}
       ${inp('color', 'Color', 'Color', 100)}${inp('size', 'Size', 'Size', 75)}${inp('product', 'Product Name', '🔍 Select product', 160, '', 'gsProdList')}${inp('lineman', 'Line Man', '🔍 Select line', 140, '', 'gsLineList')}
       ${dl('gsKarList', GS_KARIGERS.map(k => k.label))}${dl('gsProdList', GS_PRODUCTS)}${dl('gsLineList', GS_LINEMEN)}
       </div>
@@ -20682,6 +20762,9 @@ function gsRender() {
       .gs-fields label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .gs-fields input[type=text]{height:38px;box-sizing:border-box}
       .gs-hint{font-size:10px;font-weight:600;color:#94a3b8;text-transform:none;letter-spacing:0}
+      .gs-kar{display:flex;gap:4px} .gs-kar input{flex:1;min-width:0;width:100%}
+      .gs-kbtn{height:38px;width:34px;flex-shrink:0;border:1.5px solid #bfdbfe;border-radius:9px;background:#fff;cursor:pointer;color:#2563eb;font-size:15px;font-weight:800;font-family:inherit;padding:0}
+      .gs-kbtn:hover{background:#eff6ff;border-color:#2563eb} .gs-kbtn.del{color:#dc2626;border-color:#fecaca;font-size:13px} .gs-kbtn.del:hover{background:#fef2f2;border-color:#dc2626}
       @media (max-width:1100px){ .gs-fields{flex-wrap:wrap} .gs-fields > div{flex-basis:170px !important} }
       .gs-frz{max-height:calc(100vh - 370px);min-height:260px;overflow:auto;position:relative}
       .gs-fillh{position:absolute;display:none;width:9px;height:9px;background:#4f46e5;border:2px solid #fff;border-radius:2px;
@@ -20801,8 +20884,9 @@ function gsFreezeHead() {
 async function gsSend() {
   const H = _gs.head;
   const gsBad = (id, msg) => { showToast(msg, 'error'); const e = document.getElementById(id); if (e) e.focus(); };
-  if (!String(H.kariger || '').trim()) return gsBad('gsH_kariger', 'Select the Kariger Name first');
-  if (!GS_KARIGERS.some(k => k.label === String(H.kariger).trim())) return gsBad('gsH_kariger', 'Select the Kariger Name from the list');
+  if (!String(H.kariger || '').trim()) return gsBad('gsH_kariger', 'Select or type the Kariger Name first');
+  // List ke bahar ka naam bhi chalta hai (haath se likha) — sheet me baaki naamon jaisa CAPITAL me, faltu space hata kar
+  H.kariger = String(H.kariger).trim().replace(/\s+/g, ' ').toUpperCase();
   if (String(H.product || '').trim() && !GS_PRODUCTS.includes(String(H.product).trim())) return gsBad('gsH_product', 'Select the Product Name from the list');
   if (String(H.lineman || '').trim() && !GS_LINEMEN.includes(String(H.lineman).trim())) return gsBad('gsH_lineman', 'Select the Line Man from the list');
   let no = 0;
@@ -21067,7 +21151,8 @@ async function loadVoucherDash(force) {
   }
   _vd.data = r;
   _vd.rows = r.rows.map(a => { const o = {}; r.cols.forEach((c, i) => { o[c] = a[i]; }); o.pcs = +o.pcs || 0; o.amt = +o.amt || 0; o.rate = +o.rate || 0; return o; });
-  const a = document.getElementById('vdSheetLink'); if (a && r.url) a.href = r.url;
+  // Sirf dekhne walon ko server sheet ka link bhejta hi nahi — unke liye button chhupa
+  const a = document.getElementById('vdSheetLink'); if (a) { a.style.display = r.url ? '' : 'none'; if (r.url) a.href = r.url; }
   vdStamp(); vdRenderFilters(); vdRender();
 }
 function vdStamp() {
