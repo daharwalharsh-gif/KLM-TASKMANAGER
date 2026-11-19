@@ -2805,6 +2805,7 @@ tbody tr:last-child td{border-bottom:none;}
     .pb-it thead th:first-child,.pb-it thead th:nth-child(2){z-index:3;background:#eff6ff}
     .pb-it th.s{cursor:pointer;user-select:none} .pb-it th.s:hover{text-decoration:underline}
     .pb-it th.sh{background:#f5f3ff;color:#6d28d9}
+    #pbBody .pb-it th.wr{white-space:normal;min-width:74px;line-height:1.25}
     .pb-it td.pi{color:#1a56db;font-weight:700}
     .pb-meta{display:flex;gap:3px 14px;flex-wrap:wrap;align-items:center;font-size:11px;color:#475569;background:#f8fafc;border:1px solid #eef2f7;border-radius:9px;padding:5px 9px;margin-bottom:6px}
     .pb-meta b{color:#1e3a8a}
@@ -19263,7 +19264,11 @@ function pbItemsData() {
       { h: 'Now at', g: x => x.cur >= 0 ? steps[x.cur].name : 'All steps done' },
       { h: pl, g: x => x.p, d: 1 },
       { h: 'Status', g: x => PB_SEV[x.t], f: x => `<span class="pb-b ${x.t}">${PB_ALL_LBL[x.t]}</span>`, csv: x => PB_ALL_LBL[x.t] },
-      { h: 'Steps done', g: x => x.done, n: 1, f: x => `${x.done} / ${x.tot}`, csv: x => `${x.done} / ${x.tot}` }]);
+      { h: 'Steps done', g: x => x.done, n: 1, f: x => `${x.done} / ${x.tot}`, csv: x => `${x.done} / ${x.tot}` },
+      // Sheet ke AD / AT / BL — line kaun si hai (Harsh, 19 Nov 2026)
+      { h: 'Cutting Line (AD)', tip: 'Sheet column AD — Cutting + Bundling: LINE/MASTER', sh: 1, wr: 1, g: x => x.o.cutLine || '' },
+      { h: 'Sticker / Print (AT)', tip: 'Sheet column AT — Sticker / Printing: LINE/MASTER', sh: 1, wr: 1, g: x => x.o.stkLine || '' },
+      { h: 'Stitching Line (BL)', tip: 'Sheet column BL — Issue For Stitching: Line', sh: 1, wr: 1, g: x => x.o.stLine || '' }]);
   }
   const srt = _pb.sort && cols[_pb.sort.i] ? _pb.sort : null;
   if (srt) {
@@ -19312,7 +19317,7 @@ function pbItemsTable() {
   }
   if (!list.length) { box.innerHTML = top + '<div class="vd-empty">No line items match these filters.</div>'; return; }
   const shown = _pb.more ? list : list.slice(0, PB_LIMIT), srt = _pb.sort;
-  const head = cols.map((c, i) => `<th class="s${c.n ? ' n' : ''}${c.sh ? ' sh' : ''}" onclick="pbSort(${i})" title="${escapeHtml(c.tip || 'Sort')}">${escapeHtml(c.h)}${
+  const head = cols.map((c, i) => `<th class="s${c.n ? ' n' : ''}${c.sh ? ' sh' : ''}${c.wr ? ' wr' : ''}" onclick="pbSort(${i})" title="${escapeHtml(c.tip || 'Sort')}">${escapeHtml(c.h)}${
     srt && srt.i === i ? (srt.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('');
   const cell = (c, x) => {
     if (c.f) return c.f(x);

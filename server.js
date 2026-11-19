@@ -5212,7 +5212,10 @@ app.get('/api/ppc/dashboard', requireAuth, requireAdmin, async (req, res) => {
         qty, piApprovalDate: ppcIsoDate(row[11]), s: st,
         // TAT vs Actual dashboard ke filter + line item ki details (sheet row se) — Harsh, 18 Nov 2026
         row: rowNo, merchant: String(row[7] || '').trim(), product: String(row[6] || '').trim(),
-        type: String(row[12] || '').trim(), ostatus: String(row[16] || '').trim() });
+        type: String(row[12] || '').trim(), ostatus: String(row[16] || '').trim(),
+        // AD = Cutting ka LINE/MASTER, AT = Sticker/Printing ka LINE/MASTER, BL = Issue For Stitching ki Line
+        // ("Line items — all departments" table me) — Harsh, 19 Nov 2026
+        cutLine: String(row[29] || '').trim(), stkLine: String(row[45] || '').trim(), stLine: String(row[63] || '').trim() });
     }
 
     const inRange = (d, a, b) => !!d && (!a || d >= a) && (!b || d <= b);
