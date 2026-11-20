@@ -20531,6 +20531,13 @@ async function gsKarLoad() {
   gsKarMerge(d);
   const dl = document.getElementById('gsKarList');
   if (dl) dl.innerHTML = GS_KARIGERS.map(k => `<option value="${escapeHtml(k.label)}"></option>`).join('');
+  const mergeOpt = (base, x) => { const rem = new Set((x && x.removed) || []), out = [];
+    for (const v of base.concat(((x && x.added) || []).map(a => a.label))) if (v && !rem.has(v) && !out.includes(v)) out.push(v);
+    return out; };
+  GS_PRODUCTS = mergeOpt(GS_PROD_BASE, d.product); GS_LINEMEN = mergeOpt(GS_LINE_BASE, d.lineman);
+  const opt = arr => arr.map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+  const dp = document.getElementById('gsProdList'); if (dp) dp.innerHTML = opt(GS_PRODUCTS);
+  const dm = document.getElementById('gsLineList'); if (dm) dm.innerHTML = opt(GS_LINEMEN);
   const h = document.getElementById('gsKarHint'); if (h) h.textContent = gsKarHint(_gs.head.kariger);
   return true;
 }
@@ -20579,6 +20586,58 @@ async function gsKarRemove() {
   await gsKarLoad();
   gsSetKariger('');
   showToast(`🗑 ${cur} removed from the kariger list`, 'success');
+}
+// ── Product Name / Line Man: naya jodo / hatao (Kariger jaisa, sabke liye) — 20 Nov 2026 ──
+const GS_OPT = {
+  product: { what: 'product', title: 'Product Name', list: () => GS_PRODUCTS, base: () => GS_PROD_BASE, ph: 'e.g. BOXING GLOVES' },
+  lineman: { what: 'line man', title: 'Line Man', list: () => GS_LINEMEN, base: () => GS_LINE_BASE, ph: 'e.g. RAJU LINE' }
+};
+function gsOptField(k, label, ph, w, list) {
+  const o = GS_OPT[k];
+  return `<div style="flex:${w} 1 0;min-width:0"><label>${label}</label><div class="gs-kar">
+    <input type="text" id="gsH_${k}" value="${escapeHtml(_gs.head[k])}" placeholder="${ph}" list="${list}" autocomplete="off" oninput="gsHead('${k}',this.value)">
+    <button type="button" class="gs-kbtn" onclick="gsOptAdd('${k}')" title="Add a new ${o.what} to the list">＋</button>
+    <button type="button" class="gs-kbtn del" onclick="gsOptRemove('${k}')" title="Remove the selected ${o.what} from the list">🗑</button></div></div>`;
+}
+function gsSetOpt(k, v) { const i = document.getElementById('gsH_' + k); if (i) i.value = v; gsHead(k, v); }
+function gsOptAdd(k) {
+  const o = GS_OPT[k], cur = String(_gs.head[k] || '').trim().replace(/\s+/g, ' ').toUpperCase();
+  const nm = o.list().includes(cur) ? '' : cur;
+  let ov = document.getElementById('gsKarModal');
+  if (!ov) { ov = document.createElement('div'); ov.className = 'modal-overlay'; ov.id = 'gsKarModal'; document.body.appendChild(ov); }
+  ov.innerHTML = `<div class="modal" style="max-width:420px">
+    <h3 style="margin:0 0 4px">➕ Add new ${o.what}</h3>
+    <div style="font-size:12px;color:#64748b;margin-bottom:14px">It is added to the ${o.title} list for everyone who fills this form.</div>
+    <div class="form-group"><label>${o.title} *</label><input type="text" id="gsOptNm" value="${escapeHtml(nm)}" placeholder="${o.ph}" autocomplete="off" onkeydown="if (event.key === 'Enter') gsOptSave('${k}')"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button type="button" class="btn btn-outline" onclick="closeModal('gsKarModal')">Cancel</button>
+      <button type="button" class="btn btn-primary" id="gsOptSaveBtn" onclick="gsOptSave('${k}')">＋ Add</button></div></div>`;
+  openModal('gsKarModal');
+  setTimeout(() => { const e = document.getElementById('gsOptNm'); if (e) e.focus(); }, 60);
+}
+async function gsOptSave(k) {
+  const o = GS_OPT[k], nm = String(document.getElementById('gsOptNm').value || '').trim().replace(/\s+/g, ' ').toUpperCase();
+  if (!nm) { showToast(`Enter the ${o.what} name`, 'error'); document.getElementById('gsOptNm').focus(); return; }
+  if (o.list().includes(nm)) { closeModal('gsKarModal'); gsSetOpt(k, nm); showToast(`${nm} is already in the list`); return; }
+  const b = document.getElementById('gsOptSaveBtn'); if (b) { b.disabled = true; b.textContent = '⏳ Adding…'; }
+  const r = await api('/api/ratelist/karigers', 'POST', { type: k, name: nm, base: o.base().includes(nm) });
+  if (b) { b.disabled = false; b.textContent = '＋ Add'; }
+  if (!r || r.error) { showToast((r && r.error) || `Could not add the ${o.what}`, 'error'); return; }
+  await gsKarLoad();
+  closeModal('gsKarModal');
+  gsSetOpt(k, nm);
+  showToast(`✅ ${nm} added to the ${o.title} list`, 'success');
+}
+async function gsOptRemove(k) {
+  const o = GS_OPT[k], cur = String(_gs.head[k] || '').trim();
+  if (!cur) { showToast(`First select the ${o.what} you want to remove`, 'error'); return; }
+  if (!o.list().includes(cur)) { showToast(`"${cur}" is not in the list`, 'error'); return; }
+  if (!confirm(`Remove "${cur}" from the ${o.title} list?\n\nOld entries in the Google Sheet stay as they are — it just stops showing in this list.`)) return;
+  const r = await api('/api/ratelist/karigers/remove', 'POST', { type: k, label: cur, base: o.base().includes(cur) });
+  if (!r || r.error) { showToast((r && r.error) || `Could not remove the ${o.what}`, 'error'); return; }
+  await gsKarLoad();
+  gsSetOpt(k, '');
+  showToast(`🗑 ${cur} removed from the ${o.title} list`, 'success');
 }
 function gsHead(k, v) { _gs.head[k] = v; }
 // AMOUNT = NO OF PCS x KARIGER RATE — apne aap, haath se nahi bharte (22 Oct 2026)
@@ -20700,8 +20759,10 @@ const GS_KAR_BASE = 'SANTOSH BHAGAT|63,RAHI|64,SONU|114,RAJESH|126,JONI KUMAR|13
   .split(',').map(x => { const [name, card] = x.split('|'); return { name, card, label: name + '-' + card }; });
 // Dropdown ki asli list + jo naye kariger jode / hataye gaye (server: kariger_list) — Harsh, 19 Nov 2026
 let GS_KARIGERS = GS_KAR_BASE.slice();
-const GS_PRODUCTS = ['GLOVES', 'MMA GLOVES', 'SHIN GUARD', 'HEAD GUARD', 'COACHER PAD', 'T. SHIRT', 'LOWER', 'VEST', 'SHORTS', 'JACKET', 'SPORTS BRA', 'LEGGINGS', 'SAUNA SUIT'];
-const GS_LINEMEN = ['SHAHZAD LINE', 'SHADAB LINE', 'VAHID LINE', 'SANTOSH LINE', 'JONI LINE', 'HAND WRAP LINE', 'SAMPLE LINE', 'ALTER LINE'];
+const GS_PROD_BASE = ['GLOVES', 'MMA GLOVES', 'SHIN GUARD', 'HEAD GUARD', 'COACHER PAD', 'T. SHIRT', 'LOWER', 'VEST', 'SHORTS', 'JACKET', 'SPORTS BRA', 'LEGGINGS', 'SAUNA SUIT'];
+const GS_LINE_BASE = ['SHAHZAD LINE', 'SHADAB LINE', 'VAHID LINE', 'SANTOSH LINE', 'JONI LINE', 'HAND WRAP LINE', 'SAMPLE LINE', 'ALTER LINE'];
+// Product Name / Line Man bhi waise hi — asli + jode − hataye (20 Nov 2026)
+let GS_PRODUCTS = GS_PROD_BASE.slice(), GS_LINEMEN = GS_LINE_BASE.slice();
 // Kariger chunte hi Card No apne aap. List me naam na ho to haath se bhi likh sakte hain (Harsh, 19 Nov 2026):
 // "NAAM-123" likha to 123 Card No, warna Card No khaali (pehle purane kariger ka card chipka reh jaata tha).
 function gsPickKariger(v) {
@@ -20742,18 +20803,18 @@ function gsRender() {
       <!-- Saare chunne wale dabbe ek line me (Card No / Rate Approved Date ke dabbe hataye — 27 Oct 2026;
            unki value ab bhi apne aap jaati hai: card no kariger se, date cost sheet se) -->
       <div class="gs-fields">
-      <div style="flex:230 1 0;min-width:0"><label>From Cost Sheet <span id="gsFromCostHint" class="gs-hint"></span></label>
+      <div style="flex:210 1 0;min-width:0"><label>From Cost Sheet <span id="gsFromCostHint" class="gs-hint"></span></label>
         <div class="rl-cs" id="gsCsBox" style="width:100%">
           <input type="text" id="gsFromCost" class="rl-cs-in" placeholder="🔍 Search cost sheet…" title="Search / load operations from a completed cost sheet" autocomplete="off"
             onfocus="gsCsOpen()" onclick="gsCsOpen()" oninput="gsCsOpen(true)" onkeydown="gsCsKey(event)" onblur="setTimeout(gsCsClose, 150)">
           <span class="rl-cs-caret" onmousedown="event.preventDefault();gsCsToggle()">▾</span>
           <div class="rl-cs-list" id="gsCsList"></div>
         </div></div>
-      <div style="flex:230 1 0;min-width:0"><label>Kariger Name * <span id="gsKarHint" class="gs-hint">${escapeHtml(gsKarHint(H.kariger))}</span></label>
+      <div style="flex:240 1 0;min-width:0"><label>Kariger Name * <span id="gsKarHint" class="gs-hint">${escapeHtml(gsKarHint(H.kariger))}</span></label>
         <div class="gs-kar"><input type="text" id="gsH_kariger" value="${escapeHtml(H.kariger)}" placeholder="🔍 Select or type kariger" list="gsKarList" autocomplete="off" oninput="gsPickKariger(this.value)">
           <button type="button" class="gs-kbtn" onclick="gsKarAdd()" title="Add a new kariger to the list">＋</button>
-          <button type="button" class="gs-kbtn del" onclick="gsKarRemove()" title="Remove the selected kariger from the list">🗑</button></div></div>${inp('buyer', 'Buyer Name', 'Buyer', 140)}${inp('style', 'Style', 'Style', 170)}
-      ${inp('color', 'Color', 'Color', 100)}${inp('size', 'Size', 'Size', 75)}${inp('product', 'Product Name', '🔍 Select product', 160, '', 'gsProdList')}${inp('lineman', 'Line Man', '🔍 Select line', 140, '', 'gsLineList')}
+          <button type="button" class="gs-kbtn del" onclick="gsKarRemove()" title="Remove the selected kariger from the list">🗑</button></div></div>${inp('buyer', 'Buyer Name', 'Buyer', 115)}${inp('style', 'Style', 'Style', 130)}
+      ${inp('color', 'Color', 'Color', 85)}${inp('size', 'Size', 'Size', 70)}${gsOptField('product', 'Product Name', '🔍 Select product', 225, 'gsProdList')}${gsOptField('lineman', 'Line Man', '🔍 Select line', 215, 'gsLineList')}
       ${dl('gsKarList', GS_KARIGERS.map(k => k.label))}${dl('gsProdList', GS_PRODUCTS)}${dl('gsLineList', GS_LINEMEN)}
       </div>
     </div>
@@ -20762,8 +20823,8 @@ function gsRender() {
       .gs-fields label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .gs-fields input[type=text]{height:38px;box-sizing:border-box}
       .gs-hint{font-size:10px;font-weight:600;color:#94a3b8;text-transform:none;letter-spacing:0}
-      .gs-kar{display:flex;gap:4px} .gs-kar input{flex:1;min-width:0;width:100%}
-      .gs-kbtn{height:38px;width:34px;flex-shrink:0;border:1.5px solid #bfdbfe;border-radius:9px;background:#fff;cursor:pointer;color:#2563eb;font-size:15px;font-weight:800;font-family:inherit;padding:0}
+      .gs-kar{display:flex;gap:3px} .gs-kar input{flex:1;min-width:0;width:100%}
+      .gs-kbtn{height:38px;width:28px;flex-shrink:0;border:1.5px solid #bfdbfe;border-radius:9px;background:#fff;cursor:pointer;color:#2563eb;font-size:15px;font-weight:800;font-family:inherit;padding:0}
       .gs-kbtn:hover{background:#eff6ff;border-color:#2563eb} .gs-kbtn.del{color:#dc2626;border-color:#fecaca;font-size:13px} .gs-kbtn.del:hover{background:#fef2f2;border-color:#dc2626}
       @media (max-width:1100px){ .gs-fields{flex-wrap:wrap} .gs-fields > div{flex-basis:170px !important} }
       .gs-frz{max-height:calc(100vh - 370px);min-height:260px;overflow:auto;position:relative}

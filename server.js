@@ -6612,45 +6612,55 @@ app.get('/api/owner-deck/:id', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Voucher Data Entry Form: Kariger list me naya kariger jodo / hatao (Harsh, 19 Nov 2026) ──
-// Asli list (KARIGER NAME LIST.pdf ke 113 naam) app.html me hai; yahan sirf badlav rehte hain.
+// ── Voucher Data Entry Form: Kariger / Product Name / Line Man list me naya jodo / hatao ──
+// (Kariger: Harsh 19 Nov 2026 · Product Name + Line Man: 20 Nov 2026)
+// Asli list (kariger: KARIGER NAME LIST.pdf ke 113 naam; product / line man) app.html me hai; yahan sirf badlav.
 // base = naam asli list ka hai ya nahi (browser batata hai). Naya naam hatao to uski entry hi mit jaati hai;
 // asli naam hatao to 'remove' entry, wapas jodo to wo mit jaati hai. Sheet ka purana data waisa hi rehta hai.
+// list_type: khaali / null = kariger (19 Nov ki rows), 'product', 'lineman'. Milaan JS me (SQL me null ka jhanjhat nahi).
+const KL_TYPES = ['kariger', 'product', 'lineman'];
+const klType = v => KL_TYPES.includes(String(v || '').trim()) ? String(v).trim() : 'kariger';
+const klRowType = r => (r.list_type === 'product' || r.list_type === 'lineman') ? r.list_type : 'kariger';
+const KL_WHAT = { kariger: 'kariger', product: 'product', lineman: 'line man' };
 app.get('/api/ratelist/karigers', requireAuth, requireRateListEdit, async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT id, label, kar_name, card_no, kind FROM kariger_list');
-    res.json({
-      added: rows.filter(r => r.kind === 'add').map(r => ({ label: r.label, name: r.kar_name || '', card: r.card_no || '' })),
-      removed: [...new Set(rows.filter(r => r.kind === 'remove').map(r => r.label))]
-    });
+    const [rows] = await db.query('SELECT id, label, kar_name, card_no, kind, list_type FROM kariger_list');
+    const pack = t => {
+      const rs = rows.filter(r => klRowType(r) === t);
+      return { added: rs.filter(r => r.kind === 'add').map(r => ({ label: r.label, name: r.kar_name || '', card: r.card_no || '' })),
+        removed: [...new Set(rs.filter(r => r.kind === 'remove').map(r => r.label))] };
+    };
+    res.json({ ...pack('kariger'), product: pack('product'), lineman: pack('lineman') });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/ratelist/karigers', requireAuth, requireRateListEdit, async (req, res) => {
   try {
+    const type = klType(req.body.type);
     const name = String(req.body.name || '').trim().replace(/\s+/g, ' ').toUpperCase();
-    const card = String(req.body.card || '').trim();
-    if (!name) return res.status(400).json({ error: 'Enter the kariger name' });
+    const card = type === 'kariger' ? String(req.body.card || '').trim() : '';
+    if (!name) return res.status(400).json({ error: `Enter the ${KL_WHAT[type]} name` });
     if (card && !/^\d{1,6}$/.test(card)) return res.status(400).json({ error: 'Card No should be a number' });
     const label = card ? `${name}-${card}` : name;
-    await db.query("DELETE FROM kariger_list WHERE label=? AND kind='remove'", [label]);
-    if (!req.body.base) {
-      const [ex] = await db.query("SELECT id FROM kariger_list WHERE label=? AND kind='add'", [label]);
-      if (!ex.length) await db.query('INSERT INTO kariger_list (label, kar_name, card_no, kind, created_by) VALUES (?,?,?,?,?)',
-        [label, name, card, 'add', req.session.userId]);
-    }
+    const [rows] = await db.query('SELECT id, label, kind, list_type FROM kariger_list');
+    const mine = rows.filter(r => klRowType(r) === type && r.label === label);
+    for (const r of mine.filter(r => r.kind === 'remove')) await db.query('DELETE FROM kariger_list WHERE id=?', [r.id]);
+    if (!req.body.base && !mine.some(r => r.kind === 'add'))
+      await db.query('INSERT INTO kariger_list (label, kar_name, card_no, kind, list_type, created_by) VALUES (?,?,?,?,?,?)',
+        [label, name, card, 'add', type === 'kariger' ? '' : type, req.session.userId]);
     res.json({ success: true, label });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/ratelist/karigers/remove', requireAuth, requireRateListEdit, async (req, res) => {
   try {
+    const type = klType(req.body.type);
     const label = String(req.body.label || '').trim();
-    if (!label) return res.status(400).json({ error: 'Select the kariger to remove' });
-    await db.query("DELETE FROM kariger_list WHERE label=? AND kind='add'", [label]);
-    if (req.body.base) {
-      const [ex] = await db.query("SELECT id FROM kariger_list WHERE label=? AND kind='remove'", [label]);
-      if (!ex.length) await db.query('INSERT INTO kariger_list (label, kar_name, card_no, kind, created_by) VALUES (?,?,?,?,?)',
-        [label, '', '', 'remove', req.session.userId]);
-    }
+    if (!label) return res.status(400).json({ error: `Select the ${KL_WHAT[type]} to remove` });
+    const [rows] = await db.query('SELECT id, label, kind, list_type FROM kariger_list');
+    const mine = rows.filter(r => klRowType(r) === type && r.label === label);
+    for (const r of mine.filter(r => r.kind === 'add')) await db.query('DELETE FROM kariger_list WHERE id=?', [r.id]);
+    if (req.body.base && !mine.some(r => r.kind === 'remove'))
+      await db.query('INSERT INTO kariger_list (label, kar_name, card_no, kind, list_type, created_by) VALUES (?,?,?,?,?,?)',
+        [label, '', '', 'remove', type === 'kariger' ? '' : type, req.session.userId]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
