@@ -20592,12 +20592,14 @@ const GS_OPT = {
   product: { what: 'product', title: 'Product Name', list: () => GS_PRODUCTS, base: () => GS_PROD_BASE, ph: 'e.g. BOXING GLOVES' },
   lineman: { what: 'line man', title: 'Line Man', list: () => GS_LINEMEN, base: () => GS_LINE_BASE, ph: 'e.g. RAJU LINE' }
 };
+// ＋ / 🗑 kisko dikhe — server batata hai (canKarList: rate list wale sab, Rohit ko chhod kar) — 20 Nov 2026
+const gsCanList = () => typeof ME !== 'undefined' && !!ME && !!ME.canKarList;
 function gsOptField(k, label, ph, w, list) {
   const o = GS_OPT[k];
   return `<div style="flex:${w} 1 0;min-width:0"><label>${label}</label><div class="gs-kar">
-    <input type="text" id="gsH_${k}" value="${escapeHtml(_gs.head[k])}" placeholder="${ph}" list="${list}" autocomplete="off" oninput="gsHead('${k}',this.value)">
+    <input type="text" id="gsH_${k}" value="${escapeHtml(_gs.head[k])}" placeholder="${ph}" list="${list}" autocomplete="off" oninput="gsHead('${k}',this.value)">` + (gsCanList() ? `
     <button type="button" class="gs-kbtn" onclick="gsOptAdd('${k}')" title="Add a new ${o.what} to the list">＋</button>
-    <button type="button" class="gs-kbtn del" onclick="gsOptRemove('${k}')" title="Remove the selected ${o.what} from the list">🗑</button></div></div>`;
+    <button type="button" class="gs-kbtn del" onclick="gsOptRemove('${k}')" title="Remove the selected ${o.what} from the list">🗑</button>` : '') + `</div></div>`;
 }
 function gsSetOpt(k, v) { const i = document.getElementById('gsH_' + k); if (i) i.value = v; gsHead(k, v); }
 function gsOptAdd(k) {
@@ -20811,9 +20813,9 @@ function gsRender() {
           <div class="rl-cs-list" id="gsCsList"></div>
         </div></div>
       <div style="flex:240 1 0;min-width:0"><label>Kariger Name * <span id="gsKarHint" class="gs-hint">${escapeHtml(gsKarHint(H.kariger))}</span></label>
-        <div class="gs-kar"><input type="text" id="gsH_kariger" value="${escapeHtml(H.kariger)}" placeholder="🔍 Select or type kariger" list="gsKarList" autocomplete="off" oninput="gsPickKariger(this.value)">
+        <div class="gs-kar"><input type="text" id="gsH_kariger" value="${escapeHtml(H.kariger)}" placeholder="🔍 Select or type kariger" list="gsKarList" autocomplete="off" oninput="gsPickKariger(this.value)">${gsCanList() ? `
           <button type="button" class="gs-kbtn" onclick="gsKarAdd()" title="Add a new kariger to the list">＋</button>
-          <button type="button" class="gs-kbtn del" onclick="gsKarRemove()" title="Remove the selected kariger from the list">🗑</button></div></div>${inp('buyer', 'Buyer Name', 'Buyer', 115)}${inp('style', 'Style', 'Style', 130)}
+          <button type="button" class="gs-kbtn del" onclick="gsKarRemove()" title="Remove the selected kariger from the list">🗑</button>` : ''}</div></div>${inp('buyer', 'Buyer Name', 'Buyer', 115)}${inp('style', 'Style', 'Style', 130)}
       ${inp('color', 'Color', 'Color', 85)}${inp('size', 'Size', 'Size', 70)}${gsOptField('product', 'Product Name', '🔍 Select product', 225, 'gsProdList')}${gsOptField('lineman', 'Line Man', '🔍 Select line', 215, 'gsLineList')}
       ${dl('gsKarList', GS_KARIGERS.map(k => k.label))}${dl('gsProdList', GS_PRODUCTS)}${dl('gsLineList', GS_LINEMEN)}
       </div>
@@ -20968,6 +20970,8 @@ async function gsSend() {
   if (!r || r.error) { alert((r && r.error) || 'Could not send'); return; }
   _gs.sent += r.added || 0; if (r.url) _gs.url = r.url;
   showToast(`✅ ${r.added} row(s) added to the Google Sheet` + (r.newColumns && r.newColumns.length ? ` · new columns: ${r.newColumns.join(', ')}` : ''), 'success');
+  // Bhej diya to form apne aap khaali — agla voucher naye (blank) page se (20 Nov 2026)
+  gsReset(); gsRender();
 }
 
 // ══════════════════════════════════════════════════════

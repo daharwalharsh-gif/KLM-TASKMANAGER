@@ -1231,6 +1231,8 @@ app.get('/api/me', requireAuth, async (req, res) => {
     // Master Rate List me kaam kar sakta hai ya sirf dekh sakta hai
     rows[0].canRateList = req.session.role === 'admin' ||
       RL_EDIT_EMAILS.has((rows[0].email || '').trim().toLowerCase());
+    // Voucher form me Kariger / Product Name / Line Man list ke ＋ / 🗑 dikhe ya nahi
+    rows[0].canKarList = rows[0].canRateList && !KL_NO_EDIT_EMAILS.has((rows[0].email || '').trim().toLowerCase());
     // Meca Offline ka tab dikhe ya nahi
     rows[0].canMeca = req.session.role === 'admin' ||
       MECA_VIEW_EMAILS.has((rows[0].email || '').trim().toLowerCase());
@@ -6633,7 +6635,7 @@ app.get('/api/ratelist/karigers', requireAuth, requireRateListEdit, async (req, 
     res.json({ ...pack('kariger'), product: pack('product'), lineman: pack('lineman') });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.post('/api/ratelist/karigers', requireAuth, requireRateListEdit, async (req, res) => {
+app.post('/api/ratelist/karigers', requireAuth, requireKarListEdit, async (req, res) => {
   try {
     const type = klType(req.body.type);
     const name = String(req.body.name || '').trim().replace(/\s+/g, ' ').toUpperCase();
@@ -6650,7 +6652,7 @@ app.post('/api/ratelist/karigers', requireAuth, requireRateListEdit, async (req,
     res.json({ success: true, label });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.post('/api/ratelist/karigers/remove', requireAuth, requireRateListEdit, async (req, res) => {
+app.post('/api/ratelist/karigers/remove', requireAuth, requireKarListEdit, async (req, res) => {
   try {
     const type = klType(req.body.type);
     const label = String(req.body.label || '').trim();
@@ -7865,6 +7867,19 @@ async function canEditRateList(req) {
 async function requireRateListEdit(req, res, next) {
   if (await canEditRateList(req)) return next();
   res.status(403).json({ error: 'Admin only' });
+}
+// Voucher form ki Kariger / Product Name / Line Man list me naya jodna / hatana (＋ / 🗑) —
+// rate list wale sab kar sakte hain, inko chhod kar: ye form bhar sakte hain, list sirf chun sakte hain (20 Nov 2026)
+const KL_NO_EDIT_EMAILS = new Set([
+  'rohit@klmahajan.com',
+]);
+async function requireKarListEdit(req, res, next) {
+  if (!(await canEditRateList(req))) return res.status(403).json({ error: 'Admin only' });
+  try {
+    const [rows] = await db.query('SELECT email FROM users WHERE id=? LIMIT 1', [req.session.userId]);
+    if (!KL_NO_EDIT_EMAILS.has((rows[0]?.email || '').trim().toLowerCase())) return next();
+  } catch (e) { return res.status(500).json({ error: e.message }); }
+  res.status(403).json({ error: 'You can pick from this list, but adding or removing names is not allowed' });
 }
 
 const RL_MAX_ROWS = 300;     // ek list me itni se zyada operation rows nahi
