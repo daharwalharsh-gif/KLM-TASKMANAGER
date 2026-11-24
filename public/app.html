@@ -460,27 +460,25 @@ tbody tr:last-child td{border-bottom:none;}
 .drag-handle{cursor:grab;color:#94a3b8;font-size:16px;padding:0 4px;}
 .drag-handle:active{cursor:grabbing;}
 
-/* FMS Tasks Train */
-.fms-train-track{background:#0f172a;border-radius:16px;padding:24px 0 36px;overflow:hidden;position:relative;margin-bottom:16px;}
-.fms-train-track::before{content:'';position:absolute;bottom:28px;left:0;right:0;height:5px;background:linear-gradient(90deg,#1e293b 0%,#475569 20%,#1e293b 40%,#475569 60%,#1e293b 80%,#475569 100%);border-radius:3px;}
-.fms-train-track::after{content:'';position:absolute;bottom:24px;left:0;right:0;height:12px;background:repeating-linear-gradient(90deg,#334155 0,#334155 30px,transparent 30px,transparent 50px);opacity:.5;}
-.fms-train-scroll{display:flex;align-items:flex-end;gap:6px;padding:0 30px 14px;width:max-content;animation:trainScroll var(--train-dur,18s) linear infinite;}
-.fms-train-scroll:hover{animation-play-state:paused;}
-@keyframes trainScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.fms-train-engine{flex-shrink:0;background:linear-gradient(135deg,#1e293b,#334155);border:2px solid #3b82f6;border-radius:10px 4px 4px 10px;padding:14px 18px;color:#fff;min-width:80px;text-align:center;font-size:24px;display:flex;flex-direction:column;align-items:center;position:relative;}
-.fms-train-engine::before,.fms-coach::before{content:'⬤';position:absolute;bottom:-14px;left:12px;color:#64748b;font-size:9px;}
-.fms-train-engine::after,.fms-coach::after{content:'⬤';position:absolute;bottom:-14px;right:12px;color:#64748b;font-size:9px;}
-.fms-coach{flex-shrink:0;border-radius:9px;padding:12px 14px;color:#fff;min-width:160px;max-width:200px;cursor:pointer;position:relative;transition:transform .2s,box-shadow .2s;border:2px solid rgba(255,255,255,.22);display:flex;flex-direction:column;gap:4px;background:#1e3a5f;box-shadow:0 8px 20px rgba(15,23,42,.42),0 2px 5px rgba(15,23,42,.3);}
-.fms-coach:hover{transform:translateY(-5px);box-shadow:0 14px 32px rgba(15,23,42,.5),0 3px 8px rgba(15,23,42,.35);}
-.fms-coach.active{border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.45),0 14px 30px rgba(15,23,42,.45);transform:translateY(-6px);}
-.fms-coach.not-mine{background:#1e293b;opacity:.55;cursor:not-allowed;pointer-events:none;}
-.fms-coach.mine{background:linear-gradient(135deg,#1a56db,#3b82f6);}
-.fms-coach-num{font-size:10.5px;font-weight:800;opacity:.95;text-transform:uppercase;letter-spacing:.6px;text-shadow:0 1px 2px rgba(0,0,0,.5);}
-.fms-coach-name{font-size:12.5px;font-weight:800;line-height:1.32;word-break:break-word;text-shadow:0 1px 3px rgba(0,0,0,.55);}
-.fms-coach-doers{font-size:10.5px;font-weight:600;opacity:.95;margin-top:2px;text-shadow:0 1px 2px rgba(0,0,0,.45);}
-.fms-coach-connector{width:20px;height:8px;background:#475569;border-radius:2px;flex-shrink:0;align-self:flex-end;margin-bottom:14px;}
-.fms-train-speed{display:flex;align-items:center;gap:12px;padding:10px 20px;background:#f8fafc;border-radius:0 0 12px 12px;font-size:12px;color:#64748b;}
-.fms-train-speed input[type=range]{flex:1;accent-color:#1a56db;}
+/* FMS Tasks — Process Flow: steps ki patti, chalti nahi — scroll / slide karo (train hataya, 23 Nov 2026) */
+.fms-flow{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:12px 16px 12px;box-shadow:0 1px 3px rgba(15,23,42,.05);}
+.fms-flow-head{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-bottom:10px;}
+.fms-flow-hint{font-size:12px;color:#64748b;margin-right:4px;}
+.fms-flow-nav{width:32px;height:32px;border-radius:50%;border:1.5px solid #cbd5e1;background:#fff;color:#1e293b;font-size:18px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 0 2px;font-family:inherit;}
+.fms-flow-nav:hover:not(:disabled){border-color:#3b82f6;color:#1d4ed8;background:#eff6ff;}
+.fms-flow-nav:disabled{opacity:.35;cursor:default;}
+.fms-train-scroll{display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;padding:4px 2px 6px;cursor:grab;user-select:none;-webkit-user-select:none;}
+.fms-train-scroll::-webkit-scrollbar{display:none;}
+.fms-train-scroll.drag{cursor:grabbing;}
+.fms-coach{flex:0 0 205px;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:transform .15s,box-shadow .15s,background .15s;border:1.5px solid #bfdbfe;background:linear-gradient(135deg,#eff6ff,#dbeafe);color:#1e3a8a;}
+.fms-coach.mine:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(37,99,235,.18);border-color:#60a5fa;}
+.fms-coach.active{background:linear-gradient(135deg,#60a5fa,#3b82f6);border-color:#2563eb;color:#fff;box-shadow:0 6px 18px rgba(37,99,235,.32);}
+.fms-coach.not-mine{background:#f8fafc;border-color:#e2e8f0;color:#94a3b8;cursor:not-allowed;}
+.fms-coach-num{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;opacity:.8;}
+.fms-coach-name{font-size:13px;font-weight:700;line-height:1.32;word-break:break-word;}
+.fms-coach-doers{font-size:11px;font-weight:600;opacity:.85;margin-top:2px;}
+.fms-flow-bar{height:4px;background:#e2e8f0;border-radius:4px;margin-top:10px;position:relative;overflow:hidden;}
+.fms-flow-bar span{position:absolute;top:0;bottom:0;left:0;width:0;background:#3b82f6;border-radius:4px;}
 .fms-step-rows-table{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;margin-top:4px;}
 .fms-step-rows-scroll{max-height:65vh;overflow:auto;}
 .fms-step-rows-table table{width:100%;border-collapse:separate;border-spacing:0;}
@@ -1404,24 +1402,23 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
 
     <!-- OPEN CHALLENGES — FMS dropdown se khulta hai -->
-    <!-- Train Container -->
+    <!-- Process Flow — steps ki patti: chalti nahi, scroll / slide karo (train hataya — 23 Nov 2026) -->
     <div id="fmsTrainContainer" style="display:none;margin-bottom:16px">
       <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">
         Process Flow — Click a step to view tasks
         <span id="fmsTrainLegend" style="margin-left:12px;font-weight:400;text-transform:none">
-          <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:linear-gradient(135deg,#1a56db,#3b82f6);display:inline-block"></span> Your step</span>
-          <span style="margin-left:10px;display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:#1e293b;display:inline-block;opacity:.5"></span> Other step</span>
+          <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;display:inline-block"></span> Your step</span>
+          <span style="margin-left:10px;display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:#f8fafc;border:1.5px solid #e2e8f0;display:inline-block"></span> Other step</span>
         </span>
       </div>
-      <div class="fms-train-track" id="fmsTrainTrack">
-        <div id="fmsTrainInner" class="fms-train-scroll"></div>
-      </div>
-      <div class="fms-train-speed">
-        <span>🐢</span>
-        <input type="range" id="fmsTrainSpeedSlider" min="5" max="60" value="18" oninput="setTrainSpeed(this.value)"/>
-        <span>🐇</span>
-        <span style="margin-left:8px;color:#1e293b;font-weight:600" id="fmsTrainSpeedLabel">18s</span>
-        <button class="btn btn-outline btn-sm" style="margin-left:auto" id="fmsTrainPauseBtn" onclick="toggleTrainPause()">⏸ Pause</button>
+      <div class="fms-flow">
+        <div class="fms-flow-head">
+          <span class="fms-flow-hint">Scroll or drag to see all steps</span>
+          <button type="button" class="fms-flow-nav" id="fmsFlowPrev" onclick="fmsFlowGo(-1)" title="Previous steps">‹</button>
+          <button type="button" class="fms-flow-nav" id="fmsFlowNext" onclick="fmsFlowGo(1)" title="Next steps">›</button>
+        </div>
+        <div id="fmsTrainInner" class="fms-train-scroll" onscroll="fmsFlowSync()"></div>
+        <div class="fms-flow-bar" id="fmsFlowBar"><span id="fmsFlowBarIn"></span></div>
       </div>
     </div>
 
@@ -1442,7 +1439,7 @@ tbody tr:last-child td{border-bottom:none;}
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <span id="fmsTaskRowCount" style="font-size:13px;color:#ef4444;font-weight:600"></span>
-          <button class="btn btn-outline btn-sm" onclick="loadFMSTaskRows()" id="fmsTaskLoadBtn">Load Tasks</button>
+          <button class="btn btn-outline btn-sm" onclick="loadFMSTaskRows(true)" id="fmsTaskLoadBtn">Load Tasks</button>
         </div>
       </div>
 
@@ -2852,12 +2849,20 @@ tbody tr:last-child td{border-bottom:none;}
     .ppc-quick button{padding:6px 11px;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;
       font-size:12px;font-weight:600;color:#475569;font-family:'Inter',sans-serif;white-space:nowrap}
     .ppc-quick button.on{background:#4f46e5;border-color:#4f46e5;color:#fff}
-    /* ── FMS bulk done (Garments / Boxing PMS) ── */
-    .fms-bulk-bar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:10px;
-      background:#0f172a;color:#fff;border-radius:11px;padding:10px 14px;margin-bottom:10px;
-      box-shadow:0 8px 22px rgba(15,23,42,.28)}
-    .fms-bulk-count{font-size:13px;font-weight:700;margin-right:auto}
+    /* ── FMS bulk done: rows tick karo -> side me Done popup (har FMS — 23 Nov 2026) ── */
+    .fms-bulk-side{position:fixed;right:18px;top:50%;transform:translateY(-50%);width:300px;max-height:calc(100vh - 150px);overflow:auto;z-index:900;
+      background:#fff;border:1.5px solid #bfdbfe;border-radius:14px;box-shadow:0 18px 40px rgba(15,23,42,.22);padding:14px 16px}
+    .fms-bs-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+    .fms-bulk-count{font-size:15px;font-weight:800;color:#1e293b;margin-right:auto}
+    .fms-bs-x{border:none;background:#f1f5f9;color:#475569;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:13px;flex-shrink:0}
+    .fms-bs-x:hover{background:#e2e8f0}
+    .fms-bs-sub{font-size:12px;color:#64748b;margin-bottom:12px;line-height:1.45}
+    .fms-bs-f{margin-bottom:10px}
+    .fms-bs-f label{font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px}
+    .fms-bs-f input,.fms-bs-f select{width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;
+      font-family:'Inter',sans-serif;outline:none;box-sizing:border-box;background:#fff}
     .fms-bulk-cb,.fms-bulk-cb-head{width:17px;height:17px;accent-color:#16a34a;cursor:pointer}
+    @media (max-width:700px){ .fms-bulk-side{top:auto;transform:none;bottom:76px;left:12px;right:12px;width:auto;max-height:60vh} }
     .pm-selcol{background:#eef2ff!important;box-shadow:inset 2px 0 0 #4f46e5,inset -2px 0 0 #4f46e5}
     .pm-tbl tfoot td{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:9px 10px}
     .pm-sum{background:#4f46e5;color:#fff;border-radius:9px;padding:9px 14px;font-size:13px;margin-bottom:12px}
@@ -4254,39 +4259,8 @@ tbody tr:last-child td{border-bottom:none;}
 
 <!-- Legal Case — Done (close case) -->
 <!-- Daily PC Report — remark add karo (kaam poora hone tak jitni baar chaho) -->
-<!-- Bulk Done — beech me proper confirm box (browser ka apna popup nahi) -->
-<div class="modal-overlay" id="fmsBulkModal">
-  <div class="modal" style="max-width:470px">
-    <h3>✅ Mark as Done</h3>
-    <div class="alert error" id="fmsBulkErr" style="display:none"></div>
-    <div style="font-size:14px;color:#1e293b;line-height:1.6">
-      Mark <b id="fmsBulkN">0</b> selected row(s) as Done?
-    </div>
-    <div style="margin-top:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px">
-      <div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px">
-        This will be written to the sheet
-      </div>
-      <div style="display:flex;gap:9px;padding:3px 0;font-size:13px;color:#334155">
-        <span style="min-width:120px;color:#64748b">Completed on</span>
-        <b id="fmsBulkStamp">—</b>
-      </div>
-      <div style="display:flex;gap:9px;padding:3px 0;font-size:13px;color:#334155">
-        <span style="min-width:120px;color:#64748b">Status</span>
-        <b style="color:#15803d">Done</b>
-      </div>
-    </div>
-    <div id="fmsBulkProgress" style="display:none;margin-top:12px">
-      <div style="font-size:12.5px;color:#4f46e5;font-weight:700" id="fmsBulkProgTxt">Saving…</div>
-      <div style="height:7px;background:#e2e8f0;border-radius:20px;overflow:hidden;margin-top:6px">
-        <div id="fmsBulkProgBar" style="height:100%;width:0%;background:#4f46e5;transition:width .25s"></div>
-      </div>
-    </div>
-    <div class="modal-footer" style="justify-content:space-between">
-      <button class="btn btn-outline" id="fmsBulkCancel" onclick="closeModal('fmsBulkModal')">Cancel</button>
-      <button class="btn btn-green" id="fmsBulkGo" onclick="fmsBulkDoneGo()">✅ Mark Done</button>
-    </div>
-  </div>
-</div>
+<!-- Bulk Done ab side popup me hai (FMS Tasks list ke saath banta hai — fmsBulkBar) -->
+
 
 <div class="modal-overlay" id="pcrRemarkModal">
   <div class="modal" style="max-width:520px">
@@ -16235,7 +16209,6 @@ async function saveFMS() {
 let fmsTasksActiveFmsId = null;
 let fmsTasksActiveStepId = null;
 let fmsTasksActiveStepData = null;
-let fmsTrainPaused = false;
 
 // FMS Google Sheet links — gid ke saath taaki sahi tab khule.
 // Map key = spreadsheet ID; naya FMS ho to fallback generic /edit link banta hai.
@@ -16381,13 +16354,13 @@ async function onFMSTasksSelect() {
 function buildFMSTrain(steps, sheet) {
   if (!steps || !steps.length) {
     document.getElementById('fmsTrainInner').innerHTML = '<div style="color:#64748b;font-size:12px;padding:20px">No steps configured for this FMS.</div>';
+    fmsFlowSync();
     return;
   }
   window._fmsAllSteps = steps; // Store all steps for modal use
   const isAdmin = ME.role === 'admin';
-  const uid = ME.id;
 
-  // Build double set for infinite scroll loop
+  // Steps ki patti — ek hi baar, chalti nahi (scroll / ‹ › / kheench kar) — 23 Nov 2026
   const buildCoaches = () => steps.map((s, i) => {
     const isMine = isAdmin || s.isMyStep;
     const doerNames = (s.doers || []).map(d => d.name).join(', ') || '—';
@@ -16401,25 +16374,65 @@ function buildFMSTrain(steps, sheet) {
         <div class="fms-coach-name">${s.step_name}</div>
         <div class="fms-coach-doers">👤 ${doerNames}</div>
         ${notSetUp ? '<div style="font-size:9px;margin-top:4px;background:#fbbf24;color:#78350f;font-weight:700;border-radius:4px;padding:1px 5px;display:inline-block">⚠ Not set up</div>'
-          : (isMine ? '<div style="font-size:9px;margin-top:4px;opacity:.7">▶ Click to open</div>' : '<div style="font-size:9px;margin-top:4px;opacity:.5">🔒 Not assigned</div>')}
-      </div>
-      ${i < steps.length - 1 ? '<div class="fms-coach-connector"></div>' : ''}`;
+          : (isMine ? '<div style="font-size:9px;margin-top:4px;opacity:.7">▶ Click to open</div>' : '<div style="font-size:9px;margin-top:4px;opacity:.7">🔒 Not assigned</div>')}
+      </div>`;
   }).join('');
 
-  const engine = `
-    <div class="fms-train-engine">
-      🚂
-      <div style="font-size:9px;margin-top:4px;opacity:.7;max-width:70px;text-align:center;word-break:break-word">${(document.getElementById('fmsTasksSelect').selectedOptions[0]?.text || '').substring(0,12)}</div>
-    </div>
-    <div class="fms-coach-connector"></div>`;
-
-  // Double the coaches for seamless loop
-  const coaches = buildCoaches();
-  document.getElementById('fmsTrainInner').innerHTML = engine + coaches + '<div style="width:30px;flex-shrink:0"></div>' + coaches;
-
-  // Set initial speed
-  setTrainSpeed(document.getElementById('fmsTrainSpeedSlider').value);
+  const box = document.getElementById('fmsTrainInner');
+  box.innerHTML = buildCoaches();
+  box.scrollLeft = 0;
+  fmsFlowSync();
 }
+
+// ── Process Flow patti: ‹ › se, mouse se kheench kar, ya touchpad / mouse wheel se scroll (23 Nov 2026) ──
+function fmsFlowSync() {
+  const el = document.getElementById('fmsTrainInner'); if (!el) return;
+  const max = el.scrollWidth - el.clientWidth;
+  const prev = document.getElementById('fmsFlowPrev'), next = document.getElementById('fmsFlowNext');
+  if (prev) prev.disabled = el.scrollLeft <= 2;
+  if (next) next.disabled = el.scrollLeft >= max - 2;
+  const bar = document.getElementById('fmsFlowBar'), inn = document.getElementById('fmsFlowBarIn');
+  if (bar) bar.style.visibility = max > 2 ? '' : 'hidden';
+  if (inn && el.scrollWidth) {
+    inn.style.width = (el.clientWidth / el.scrollWidth * 100) + '%';
+    inn.style.left = (el.scrollLeft / el.scrollWidth * 100) + '%';
+  }
+}
+function fmsFlowGo(dir) {
+  const el = document.getElementById('fmsTrainInner'); if (!el) return;
+  el.scrollBy({ left: dir * Math.max(220, el.clientWidth * 0.8), behavior: 'smooth' });
+}
+(function fmsFlowInit() {
+  // Mouse se pakad kar kheencho = slide. 5px se zyada khiska to card ka click nahi chalta.
+  let down = null, moved = false;
+  document.addEventListener('pointerdown', e => {
+    moved = false;
+    const el = e.target.closest && e.target.closest('#fmsTrainInner');
+    if (!el || e.pointerType !== 'mouse' || e.button !== 0) return;
+    down = { el, x: e.clientX, left: el.scrollLeft };
+  });
+  document.addEventListener('pointermove', e => {
+    if (!down) return;
+    const dx = e.clientX - down.x;
+    if (!moved && Math.abs(dx) < 5) return;
+    moved = true; down.el.classList.add('drag'); down.el.scrollLeft = down.left - dx;
+  });
+  document.addEventListener('pointerup', () => { if (down) down.el.classList.remove('drag'); down = null; });
+  document.addEventListener('click', e => {
+    if (moved && e.target.closest && e.target.closest('#fmsTrainInner')) { e.stopPropagation(); e.preventDefault(); }
+    moved = false;
+  }, true);
+  // Mouse wheel patti par = aage / peeche; kinare par pahunch kar page apna scroll kare
+  document.addEventListener('wheel', e => {
+    const el = e.target.closest && e.target.closest('#fmsTrainInner');
+    if (!el || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    const max = el.scrollWidth - el.clientWidth;
+    if ((e.deltaY > 0 && el.scrollLeft >= max - 1) || (e.deltaY < 0 && el.scrollLeft <= 0)) return;
+    e.preventDefault();
+    el.scrollLeft += e.deltaY;
+  }, { passive: false });
+  window.addEventListener('resize', fmsFlowSync);
+})();
 
 function selectFMSStep(stepId, stepName, doerNames) {
   fmsTasksActiveStepId = stepId;
@@ -16434,14 +16447,16 @@ function selectFMSStep(stepId, stepName, doerNames) {
   document.getElementById('fmsTaskStepName').textContent = stepName;
   document.getElementById('fmsTaskStepDoers').textContent = '👤 ' + doerNames;
   document.getElementById('fmsTaskRowCount').textContent = '';
+  // Step par click karte hi tasks aa jaate hain — "Load Tasks" dabana nahi padta (23 Nov 2026)
   document.getElementById('fmsTaskRowsContainer').innerHTML = `
     <div class="empty" style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
-      Click "Load Tasks" to fetch pending rows for this step
+      ⏳ Loading tasks for this step…
     </div>`;
   _fmsLinkEdit = false;
   renderFmsStepLink();
   document.getElementById('fmsTaskStepPanel').style.display = 'block';
   document.getElementById('fmsTaskStepPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  loadFMSTaskRows();
 }
 
 // ── Step ka Google Drive reference link ──
@@ -16514,13 +16529,21 @@ function clearFmsStepLink() {
   saveFmsStepLink('');
 }
 
-async function loadFMSTaskRows() {
+// Server sheet ko 1 minute yaad rakhta hai (step badalna tez). Refresh button, aur is FMS me
+// abhi-abhi (1 min ke andar) Done hua ho to seedha sheet se — Done wali row wapas na dikhe.
+function fmsMarkWrote(fmsId) { (window._fmsWroteAt = window._fmsWroteAt || {})[String(fmsId)] = Date.now(); }
+async function loadFMSTaskRows(fresh) {
   if (!fmsTasksActiveFmsId || !fmsTasksActiveStepId) return;
   const btn = document.getElementById('fmsTaskLoadBtn');
   btn.textContent = '⏳ Loading...';
   btn.disabled = true;
 
-  const r = await api(`/api/fms-tasks/${fmsTasksActiveFmsId}/steps/${fmsTasksActiveStepId}/rows`);
+  const askedFms = fmsTasksActiveFmsId, askedStep = fmsTasksActiveStepId;
+  const wroteAt = (window._fmsWroteAt || {})[String(askedFms)] || 0;
+  const useFresh = fresh === true || Date.now() - wroteAt < 65000;
+  const r = await api(`/api/fms-tasks/${fmsTasksActiveFmsId}/steps/${fmsTasksActiveStepId}/rows` + (useFresh ? '?fresh=1' : ''));
+  // Beech me doosra step / FMS chun liya to ye purana jawab chhod do (naya wala apne aap aayega)
+  if (askedFms !== fmsTasksActiveFmsId || askedStep !== fmsTasksActiveStepId) return;
   btn.textContent = 'Refresh';
   btn.disabled = false;
 
@@ -16564,23 +16587,32 @@ async function loadFMSTaskRows() {
   window._fmsCurrentColKeys = colKeys;
   // Reset per-column filters on every fresh load
   window._fmsColFilters = {};
-  // Bulk done sirf Garments/Boxing PMS me — har fresh load par selection saaf
+  // Bulk done har FMS me (view-only ko nahi) — har fresh load par selection saaf
   const bulkOn = fmsBulkAllowed();
   window._fmsSel = new Set();
+  window._fmsBulkFiles = {};
 
   document.getElementById('fmsTaskRowsContainer').innerHTML = `
     <div class="fms-search-bar">
       <span style="font-size:14px">🔍</span>
       <input type="text" id="fmsRowSearch" placeholder="Search tasks (kisi bhi column me)..."
-        oninput="filterFMSTaskRows()" autocomplete="off"/>
+        oninput="fmsSearchSoon()" autocomplete="off"/>
       <span class="fms-search-count" id="fmsRowSearchCount">${r.rows.length} row(s)</span>
       <button class="fms-search-clear" onclick="clearFMSRowSearch()" style="display:none" id="fmsRowSearchClearBtn">✕ Clear</button>
     </div>
-    <div id="fmsBulkBar" class="fms-bulk-bar" style="display:none">
-      <span id="fmsBulkCount" class="fms-bulk-count"></span>
-      <button class="btn btn-green btn-sm" id="fmsBulkBtn" onclick="fmsBulkDone()">✅ All Done</button>
-      <button class="btn btn-outline btn-sm" onclick="fmsClearSel()">✕ Clear</button>
-    </div>
+    ${bulkOn ? `<div id="fmsBulkBar" class="fms-bulk-side" style="display:none">
+      <div class="fms-bs-head"><span id="fmsBulkCount" class="fms-bulk-count"></span>
+        <button type="button" class="fms-bs-x" onclick="fmsClearSel()" title="Clear selection">✕</button></div>
+      <div class="fms-bs-sub">All ticked tasks are marked Done together. The time is saved when you press Done.</div>
+      ${fmsBulkFieldsHtml()}
+      <div class="alert error" id="fmsBulkErr" style="display:none;margin:0 0 10px"></div>
+      <div id="fmsBulkProgress" style="display:none;margin-bottom:10px">
+        <div style="font-size:12px;color:#2563eb;font-weight:700" id="fmsBulkProgTxt">Saving…</div>
+        <div style="height:6px;background:#e2e8f0;border-radius:20px;overflow:hidden;margin-top:5px">
+          <div id="fmsBulkProgBar" style="height:100%;width:0%;background:#16a34a;transition:width .25s"></div></div>
+      </div>
+      <button type="button" class="btn btn-green" id="fmsBulkGo" style="width:100%;justify-content:center" onclick="fmsBulkDoneGo()">✅ Done</button>
+    </div>` : ''}
     <div class="fms-step-rows-table">
       <div class="fms-step-rows-scroll" id="fmsRowsScroll">
         <table>
@@ -16605,21 +16637,46 @@ async function loadFMSTaskRows() {
 }
 
 // Render a (possibly filtered) subset of FMS task rows
-function renderFMSTaskRows(rowsToShow) {
+// Badi list (2000+ rows) ek saath banane me browser 4-5 second atak jaata tha — ab pehle 150 rows,
+// neeche scroll karo to agli 150 apne aap (23 Nov 2026). Search / filter / select-all poori list par.
+const FMS_ROWS_CHUNK = 150;
+// keep = true (ek row Done hone ke baad): jitni rows khuli thi utni hi aur scroll wahin
+function renderFMSTaskRows(rowsToShow, keep) {
   const colKeys = window._fmsCurrentColKeys || [];
   const allRows = window._fmsCurrentRows || [];
-  // Map rowsToShow back to original indices (so Done button refers to the right row)
   const tbody = document.getElementById('fmsRowsTbody');
   if (!tbody) return;
+  const prevShown = keep ? (window._fmsShown || 0) : 0;
+  const sc = document.getElementById('fmsRowsScroll');
+  const top = sc ? sc.scrollTop : 0;
+  window._fmsFiltered = rowsToShow;
+  window._fmsShown = 0;
+  // Done button ko asli row ka number (rowsToShow filtered ho sakti hai)
+  window._fmsIdx = new Map(allRows.map((r, i) => [r, i]));
   if (!rowsToShow.length) {
     tbody.innerHTML = `<tr><td colspan="${colKeys.length + (fmsBulkAllowed() ? 3 : 2)}" style="padding:24px;text-align:center;color:#94a3b8;font-size:13px">No matching rows. Try a different search.</td></tr>`;
+    fmsSyncBulkBar();
     return;
   }
+  tbody.innerHTML = '';
+  fmsAppendRows();
+  while (window._fmsShown < prevShown && window._fmsShown < rowsToShow.length) fmsAppendRows();
+  if (sc) sc.scrollTop = keep ? top : 0;
+  fmsSyncBulkBar();
+}
+// Agli 150 rows neeche jodo (scroll se ya "Show more" se)
+function fmsAppendRows() {
+  const tbody = document.getElementById('fmsRowsTbody'); if (!tbody) return;
+  const list = window._fmsFiltered || [], from = window._fmsShown || 0;
+  if (from >= list.length) return;
+  const to = Math.min(list.length, from + FMS_ROWS_CHUNK);
+  const colKeys = window._fmsCurrentColKeys || [];
   const bulkOn = fmsBulkAllowed();
   // View-only access (sirf dekhne ke liye) — Done button nahi
   const viewOnly = !!(window._fmsActiveStepData && window._fmsActiveStepData.viewOnly);
-  tbody.innerHTML = rowsToShow.map(row => {
-    const origIdx = allRows.indexOf(row);
+  const more = document.getElementById('fmsRowsMore'); if (more) more.remove();
+  tbody.insertAdjacentHTML('beforeend', list.slice(from, to).map(row => {
+    const origIdx = window._fmsIdx.get(row);
     const rn = String(row.sheetRowNumber);
     const cb = bulkOn
       ? `<td><input type="checkbox" class="fms-bulk-cb" data-row="${rn}" ${window._fmsSel.has(rn) ? 'checked' : ''}
@@ -16632,9 +16689,22 @@ function renderFMSTaskRows(rowsToShow) {
       ${colKeys.map(k => `<td>${row.data[k] || '—'}</td>`).join('')}
       <td><span class="fms-status-badge">⏳ Pending</span></td>
     </tr>`;
-  }).join('');
-  fmsSyncBulkBar();
+  }).join('') + (to < list.length
+    ? `<tr id="fmsRowsMore"><td colspan="${colKeys.length + (bulkOn ? 3 : 2)}" style="padding:14px;text-align:left;color:#64748b;font-size:12.5px">
+        Showing ${to} of ${list.length} rows — scroll down for more
+        <button type="button" class="btn btn-outline btn-sm" style="margin-left:8px" onclick="fmsAppendRows()">Show more</button></td></tr>`
+    : ''));
+  window._fmsShown = to;
 }
+// Table ke neeche pahunchne se pehle hi agli rows aa jaayein
+document.addEventListener('scroll', e => {
+  const sc = e.target;
+  if (!sc || sc.id !== 'fmsRowsScroll') return;
+  if (sc.scrollTop + sc.clientHeight > sc.scrollHeight - 600) fmsAppendRows();
+}, true);
+// Search box: har akshar par nahi — likhna rukte hi (0.2 s) list chhanti hai
+let _fmsSearchT = null;
+function fmsSearchSoon() { clearTimeout(_fmsSearchT); _fmsSearchT = setTimeout(filterFMSTaskRows, 200); }
 
 // Convert a cell value to the canonical string used by the per-column
 // filter (empty → "(blank)" so users can include/exclude empty cells).
@@ -16647,7 +16717,7 @@ function _fmsCellKey(v) {
 // Filter rows by global search AND per-column dropdown filters. Both apply
 // together — a row must pass the global query AND every active column
 // filter (each column filter is a Set of accepted values, Sheets-style).
-function filterFMSTaskRows() {
+function filterFMSTaskRows(keep) {
   const q = (document.getElementById('fmsRowSearch')?.value || '').trim().toLowerCase();
   const all = window._fmsCurrentRows || [];
   const clearBtn = document.getElementById('fmsRowSearchClearBtn');
@@ -16687,7 +16757,7 @@ function filterFMSTaskRows() {
   document.querySelectorAll('.fms-col-filter-icon').forEach(ic => {
     ic.classList.toggle('active', !!colFilters[ic.dataset.col]);
   });
-  renderFMSTaskRows(filtered);
+  renderFMSTaskRows(filtered, keep === true);
 }
 
 function clearFMSRowSearch() {
@@ -17153,6 +17223,7 @@ async function saveFMSDone() {
 
   if (r.error) { errEl.textContent = r.error; errEl.style.display = 'block'; return; }
 
+  fmsMarkWrote(fmsId);
   closeModal('fmsDoneModal');
   // Diagnostic: show exactly where it wrote + how many cells updated
   const where = (r.wroteTo && r.wroteTo.length) ? r.wroteTo.join(', ') : '?';
@@ -17163,6 +17234,7 @@ async function saveFMSDone() {
   // ── OPTIMISTIC REMOVE: Google Sheet se dobara load karne ki zaroorat nahi ──
   // Done hua row ko seedha memory se hataao aur table re-render karo
   const doneRowNum = parseInt(rowNum);
+  if (window._fmsSel) window._fmsSel.delete(String(doneRowNum));   // tick thi to bulk popup se bhi hatao
   if (window._fmsCurrentRows) {
     window._fmsCurrentRows = window._fmsCurrentRows.filter(row => row.sheetRowNumber !== doneRowNum);
     const remaining = window._fmsCurrentRows.length;
@@ -17176,29 +17248,9 @@ async function saveFMSDone() {
       document.getElementById('fmsTaskRowsContainer').innerHTML =
         `<div style="padding:32px;text-align:center;color:#22c55e;font-size:16px;font-weight:600">🎉 Sab tasks complete ho gaye!</div>`;
     } else {
-      filterFMSTaskRows(); // search filter bhi apply rehta hai
+      filterFMSTaskRows(true); // search filter bhi apply rehta hai; scroll wahin
     }
   }
-}
-
-function setTrainSpeed(val) {
-  const dur = parseInt(val);
-  document.getElementById('fmsTrainSpeedLabel').textContent = dur + 's';
-  const scroll = document.getElementById('fmsTrainInner');
-  if (scroll) {
-    scroll.style.setProperty('--train-dur', dur + 's');
-    scroll.style.animationDuration = dur + 's';
-  }
-  const track = document.getElementById('fmsTrainTrack');
-  if (track) track.style.setProperty('--train-dur', dur + 's');
-}
-
-function toggleTrainPause() {
-  fmsTrainPaused = !fmsTrainPaused;
-  const scroll = document.getElementById('fmsTrainInner');
-  const btn = document.getElementById('fmsTrainPauseBtn');
-  if (scroll) scroll.style.animationPlayState = fmsTrainPaused ? 'paused' : 'running';
-  if (btn) btn.textContent = fmsTrainPaused ? '▶ Play' : '⏸ Pause';
 }
 
 // ══════════════════════════════════════════════════════
@@ -18733,20 +18785,59 @@ function loadDepartment() {
 }
 
 // ══════════════════════════════════════════════════════
-// BULK DONE — sirf Garments PMS aur Boxing PMS
+// BULK DONE — har FMS me (23 Nov 2026; pehle sirf Garments / Boxing PMS)
 // ══════════════════════════════════════════════════════
-// Har row ke Done button ke saath ek checkbox. Jaise hi koi tick hota hai
-// upar ek "All Done" patti aa jaati hai — ek click me sabhi chuni hui rows
-// sheet par Done ho jaati hain (Status column me "Done" bhi likh jaata hai).
-const FMS_BULK_SHEETS = [
-  '1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg',   // Garments PMS
-  '1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM'    // Boxing PMS
-];
+// Har row ke Done button ke saath ek checkbox. Jaise hi koi tick hota hai side me
+// Done popup aata hai — us step ke field (Status, Remarks …) ek baar bharo, ek click
+// me sabhi chuni hui rows sheet par Done (wahi values har row par). View-only ko nahi.
 const FMS_BULK_CHUNK = 100;
 window._fmsSel = new Set();
 
 function fmsBulkAllowed() {
-  return FMS_BULK_SHEETS.includes(fmsSheetIdOf(fmsTasksActiveFmsId));
+  return !(window._fmsActiveStepData && window._fmsActiveStepData.viewOnly);
+}
+
+// Side popup ke field — wahi jo ek row ke Done popup me aate hain (file chhod kar sab zaroori)
+function fmsBulkFieldRows() {
+  const st = window._fmsActiveStepData;
+  return (st && st.extraRows ? st.extraRows : []).filter(r => r.col_letter);
+}
+function fmsBulkFieldsHtml() {
+  return fmsBulkFieldRows().map((r, i) => {
+    const label = _fmsEscHtml(r.label || r.row_label || r.col_letter || `Field ${i + 1}`);
+    const type = r.field_type || 'text';
+    let inp;
+    if (type === 'dropdown') {
+      const opts = String(r.dropdown_options || '').split(',').map(o => o.trim()).filter(Boolean);
+      const def = opts.find(o => /^done$/i.test(o)) || '';   // Status me "Done" pehle se chuna
+      inp = `<select id="fmsBulkX_${i}"><option value="">-- Select --</option>` +
+        opts.map(o => `<option value="${_fmsEscAttr(o)}"${o === def ? ' selected' : ''}>${_fmsEscHtml(o)}</option>`).join('') + '</select>';
+    } else if (type === 'file') {
+      inp = `<input type="file" id="fmsBulkX_${i}" accept="image/*,application/pdf" onchange="fmsBulkFile(${i}, this)">
+        <div id="fmsBulkFileMsg_${i}" style="font-size:11px;color:#94a3b8;margin-top:3px">Image or PDF (max 3MB) — the same file goes on every selected row</div>`;
+    } else {
+      const t = { number: 'number', date: 'date', link: 'url' }[type] || 'text';
+      inp = `<input type="${t}" id="fmsBulkX_${i}" placeholder="${type === 'link' ? 'https://...' : 'Same value for all selected rows'}">`;
+    }
+    const mark = type === 'file' ? '<span style="color:#94a3b8;font-weight:400">(optional)</span>' : '<span style="color:#ef4444">*</span>';
+    return `<div class="fms-bs-f"><label>${label} ${mark}</label>${inp}</div>`;
+  }).join('');
+}
+// File chunte hi padh lo (OneDrive wali file save ke waqt lock na ho)
+async function fmsBulkFile(i, el) {
+  const msg = document.getElementById('fmsBulkFileMsg_' + i);
+  const set = (t, c) => { if (msg) { msg.textContent = t; msg.style.color = c; } };
+  window._fmsBulkFiles = window._fmsBulkFiles || {};
+  delete window._fmsBulkFiles[i];
+  const file = el.files && el.files[0];
+  if (!file) { set('Image or PDF (max 3MB) — the same file goes on every selected row', '#94a3b8'); return; }
+  if (file.size > 3 * 1024 * 1024) { el.value = ''; set(`❌ File is ${(file.size / 1024 / 1024).toFixed(1)}MB — max 3MB`, '#ef4444'); return; }
+  if (!file.size) { el.value = ''; set('❌ File is 0 KB — download it to the computer first, then choose it', '#ef4444'); return; }
+  set('⏳ Reading file…', '#64748b');
+  try {
+    window._fmsBulkFiles[i] = { name: file.name, type: file.type || 'application/octet-stream', b64: await fmsReadFileBase64(file) };
+    set(`✅ ${file.name} ready`, '#16a34a');
+  } catch (e) { el.value = ''; set('❌ Could not read the file — please choose it again', '#ef4444'); }
 }
 
 function fmsToggleRow(rowNum, on) {
@@ -18754,12 +18845,13 @@ function fmsToggleRow(rowNum, on) {
   fmsSyncBulkBar();
 }
 
-// Header wala checkbox — jo rows abhi dikh rahi hain unhe select/deselect
+// Header wala checkbox — search / filter ke baad jo rows list me hain (neeche scroll wali bhi) unhe select/deselect
 function fmsToggleAllVisible(on) {
-  document.querySelectorAll('#fmsRowsTbody .fms-bulk-cb').forEach(cb => {
-    cb.checked = on;
-    if (on) window._fmsSel.add(String(cb.dataset.row)); else window._fmsSel.delete(String(cb.dataset.row));
+  (window._fmsFiltered || []).forEach(r => {
+    const rn = String(r.sheetRowNumber);
+    if (on) window._fmsSel.add(rn); else window._fmsSel.delete(rn);
   });
+  document.querySelectorAll('#fmsRowsTbody .fms-bulk-cb').forEach(cb => { cb.checked = on; });
   fmsSyncBulkBar();
 }
 
@@ -18771,51 +18863,63 @@ function fmsClearSel() {
   fmsSyncBulkBar();
 }
 
-// Upar ki patti — tabhi dikhti hai jab kam se kam ek row tick ho
+// Side ka Done popup — tabhi dikhta hai jab kam se kam ek row tick ho
 function fmsSyncBulkBar() {
   const bar = document.getElementById('fmsBulkBar');
   if (!bar) return;
   const n = window._fmsSel.size;
   bar.style.display = n ? '' : 'none';
   const c = document.getElementById('fmsBulkCount');
-  if (c) c.textContent = n + ' row' + (n === 1 ? '' : 's') + ' selected';
+  if (c) c.textContent = n + ' task' + (n === 1 ? '' : 's') + ' selected';
+  const go = document.getElementById('fmsBulkGo');
+  if (go && !go.disabled) go.textContent = `✅ Done (${n})`;
   const head = document.getElementById('fmsBulkAll');
   if (head) {
-    const boxes = [...document.querySelectorAll('#fmsRowsTbody .fms-bulk-cb')];
-    head.checked = boxes.length > 0 && boxes.every(b => b.checked);
+    const list = window._fmsFiltered || [];
+    head.checked = list.length > 0 && list.every(r => window._fmsSel.has(String(r.sheetRowNumber)));
   }
 }
 
-// Confirm box kholo — browser ka apna popup nahi
-function fmsBulkDone() {
-  const rows = [...window._fmsSel];
-  if (!rows.length) return showToast('Please select at least one row', 'error');
-  const now = new Date(); const pad = n => String(n).padStart(2, '0');
-  window._fmsBulkStamp = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-  document.getElementById('fmsBulkN').textContent = rows.length;
-  document.getElementById('fmsBulkStamp').textContent = window._fmsBulkStamp;
-  document.getElementById('fmsBulkErr').style.display = 'none';
-  document.getElementById('fmsBulkProgress').style.display = 'none';
-  document.getElementById('fmsBulkProgBar').style.width = '0%';
-  document.getElementById('fmsBulkGo').disabled = false;
-  document.getElementById('fmsBulkCancel').disabled = false;
-  openModal('fmsBulkModal');
-}
-
+// Side popup ka Done — field check, file ek baar upload, phir 100-100 rows ke batch me
 async function fmsBulkDoneGo() {
   const rows = [...window._fmsSel];
   const err = document.getElementById('fmsBulkErr');
   const go = document.getElementById('fmsBulkGo');
-  const cancel = document.getElementById('fmsBulkCancel');
   const prog = document.getElementById('fmsBulkProgress');
   const bar = document.getElementById('fmsBulkProgBar');
   const txt = document.getElementById('fmsBulkProgTxt');
-  if (!rows.length) return closeModal('fmsBulkModal');
-
+  if (!rows.length) return showToast('Please select at least one row', 'error');
+  const fail = (m, el) => {
+    err.textContent = m; err.style.display = 'block';
+    go.disabled = false; prog.style.display = 'none'; fmsSyncBulkBar();
+    if (el) { el.style.borderColor = '#ef4444'; el.focus(); }
+  };
   err.style.display = 'none';
-  go.disabled = true; cancel.disabled = true;
-  prog.style.display = '';
-  const actualValue = window._fmsBulkStamp;
+
+  // Field — ek row ke Done jaisa: file chhod kar sab bharna zaroori
+  const fields = fmsBulkFieldRows(), extraInputs = [];
+  for (let i = 0; i < fields.length; i++) {
+    const r = fields[i], el = document.getElementById('fmsBulkX_' + i);
+    if (!el || (r.field_type || 'text') === 'file') continue;
+    el.style.borderColor = '';
+    const v = el.value.trim();
+    if (!v) return fail(`Please fill "${r.label || r.row_label || r.col_letter}"`, el);
+    extraInputs.push({ colLetter: r.col_letter, value: v });
+  }
+  go.disabled = true;
+  // File ek hi baar upload — wahi link har chuni hui row par
+  for (let i = 0; i < fields.length; i++) {
+    const f = (fields[i].field_type || 'text') === 'file' && (window._fmsBulkFiles || {})[i];
+    if (!f) continue;
+    go.textContent = '⏳ Uploading file…';
+    const up = await api('/api/fms-tasks/upload-file', 'POST', { filename: f.name, mimeType: f.type, dataBase64: f.b64 });
+    if (!up || up.error || !up.link) return fail('File upload failed: ' + ((up && up.error) || 'unknown error'));
+    extraInputs.push({ colLetter: fields[i].col_letter, value: up.link });
+  }
+  const now = new Date(), pad = n => String(n).padStart(2, '0');
+  const actualValue = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  go.textContent = '⏳ Saving…';
+  prog.style.display = ''; bar.style.width = '0%';
 
   let done = 0;
   for (let i = 0; i < rows.length; i += FMS_BULK_CHUNK) {
@@ -18828,22 +18932,23 @@ async function fmsBulkDoneGo() {
       if (rr && rr.rowKey !== undefined) rowKeys[rn] = rr.rowKey;
     }
     const r = await api(`/api/fms-tasks/${fmsTasksActiveFmsId}/steps/${fmsTasksActiveStepId}/bulk-done`,
-      'POST', { rowNumbers: chunk, rowKeys, actualValue });
-    if (r && r.error) {
-      go.disabled = false; cancel.disabled = false;
-      prog.style.display = 'none';
-      err.textContent = done ? `${done} row(s) saved, then failed: ${r.error}` : r.error;
-      err.style.display = 'block';
-      if (done) { fmsClearSel(); await loadFMSTaskRows(); }
+      'POST', { rowNumbers: chunk, rowKeys, actualValue, extraInputs });
+    if (!r || r.error) {
+      const msg = (r && r.error) || 'Could not save';
+      if (!done) return fail(msg);
+      // kuch rows ho chuki — list taaza karo, baat toast me (popup list ke saath hat jaata hai)
+      fmsMarkWrote(fmsTasksActiveFmsId);
+      fmsClearSel(); showToast(`${done} task(s) saved, then failed: ${msg}`, 'error', 12000);
+      await loadFMSTaskRows(true);
       return;
     }
     done += chunk.length;
     bar.style.width = Math.round((done / rows.length) * 100) + '%';
   }
-  closeModal('fmsBulkModal');
+  fmsMarkWrote(fmsTasksActiveFmsId);
   fmsClearSel();
-  showToast(`✅ ${done} row(s) marked Done`, 'success');
-  await loadFMSTaskRows();
+  showToast(`✅ ${done} task(s) marked Done`, 'success');
+  await loadFMSTaskRows(true);
 }
 
 // ══════════════════════════════════════════════════════

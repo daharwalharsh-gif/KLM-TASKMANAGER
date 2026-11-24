@@ -781,6 +781,32 @@ function rowDoerUids(row, f, stepDoerIds) {
 
 const _fmsSheetCache = new Map(); // key: spreadsheetId|range  -> { rows, ts }
 const FMS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min — FMS sheets slowly change; kam baar heavy read
+// FMS Tasks list (/rows) tez — 23 Nov 2026: ek FMS ke saare steps ek hi sheet read se, 60s tak.
+// Done / bulk Done is spreadsheet ka cache turant saaf karte hain (aur _fmsSheetGen badhate hain,
+// taaki likhne se pehle shuru hua purana read cache me na baithe). ?fresh=1 = seedha sheet se.
+const FMS_ROWS_TTL_MS = 60 * 1000;
+const _fmsSheetGen = new Map();      // spreadsheetId -> kitni baar likha gaya
+const _fmsRowsInflight = new Map();  // ek saath aaye same read ek hi baar
+function fmsSheetWritten(spreadsheetId) {
+  _fmsSheetGen.set(spreadsheetId, (_fmsSheetGen.get(spreadsheetId) || 0) + 1);
+}
+async function fmsRowsSheetRead(sheetsApi, spreadsheetId, range, fresh) {
+  const key = `${spreadsheetId}|rows|${range}`;
+  const g0 = _fmsSheetGen.get(spreadsheetId) || 0;
+  const hit = _fmsSheetCache.get(key);
+  if (!fresh && hit && hit.gen === g0 && Date.now() - hit.ts < FMS_ROWS_TTL_MS) return hit.rows;
+  const fk = `${key}|${g0}`;
+  if (!fresh && _fmsRowsInflight.has(fk)) return _fmsRowsInflight.get(fk);
+  const p = (async () => {
+    const ts = Date.now();
+    const r = await sheetsValuesGetRetry(sheetsApi, spreadsheetId, range);
+    const rows = r.data.values || [];
+    if ((_fmsSheetGen.get(spreadsheetId) || 0) === g0) _fmsSheetCache.set(key, { rows, ts, gen: g0 });
+    return rows;
+  })();
+  if (!fresh) { _fmsRowsInflight.set(fk, p); p.finally(() => _fmsRowsInflight.delete(fk)).catch(() => {}); }
+  return p;
+}
 
 // MIS ek saath 16 FMS sheets padhta hai, isliye Google kabhi-kabhi 429 (quota)
 // ya 5xx de deta hai. Pehle aisi ek-do reads chup-chaap fail ho jaati thi aur
@@ -4502,13 +4528,26 @@ app.get('/api/fms-tasks/:fmsId/steps/:stepId/rows', requireAuth, async (req, res
     // Optimized: fetch only up to the furthest needed column
     // holdIdx bhi jodo — warna status column range se bahar reh jaata aur Hold pakda hi na jaata
     const maxIdx = Math.max(planIdx, actualIdx, ...doerFilterIdxs, holdIdx, ...(showCols.length ? showCols : [0]));
-    const lastCol = maxIdx >= 0 ? idxToCol(maxIdx) : 'Z';
-    const range = `${tabName}!A:${lastCol}`;
+    const lastIdx = maxIdx >= 0 ? maxIdx : colToIdx('Z');
+    // Sheet ek hi baar padho — is FMS ke sab steps jitni chaudi, taaki agla step cache se turant aaye (23 Nov 2026)
+    let wideIdx = lastIdx;
+    try {
+      const [allSt] = await db.query('SELECT plan_col, actual_col, show_cols, doer_filter_col FROM fms_steps WHERE fms_id=?', [sheet.id]);
+      const [allEx] = await db.query('SELECT col_letter FROM fms_extra_rows WHERE step_id IN (SELECT id FROM fms_steps WHERE fms_id=?)', [sheet.id]);
+      const idxs = (allEx || []).map(r => colToIdx(r.col_letter));
+      for (const s of allSt || []) {
+        let sc = []; try { sc = JSON.parse(s.show_cols || '[]'); } catch (e) {}
+        idxs.push(colToIdx(s.plan_col), colToIdx(s.actual_col), ...String(s.doer_filter_col || '').split('|').map(c => colToIdx(c.trim())),
+          ...(Array.isArray(sc) ? sc.map(Number) : []));
+      }
+      for (const i of idxs) if (Number.isInteger(i) && i > wideIdx && i < 702) wideIdx = i;
+    } catch (e) { wideIdx = lastIdx; }
+    const range = `${tabName}!A:${idxToCol(wideIdx)}`;
 
-    const response = await sheetsApi.spreadsheets.values.get({ spreadsheetId, range });
-    const allRows = response.data.values || [];
+    const allRows = await fmsRowsSheetRead(sheetsApi, spreadsheetId, range, req.query.fresh === '1');
     const headerRowIdx = (sheet.header_row || 1) - 1;
-    const headers = allRows[headerRowIdx] || [];
+    // Is step ki apni chaudai tak hi heading (chaudi read se baaki columns list me na aa jaayein)
+    const headers = (allRows[headerRowIdx] || []).slice(0, lastIdx + 1);
     const dataRows = allRows.slice(headerRowIdx + 1);
 
     const matchedRows = [];
@@ -5454,7 +5493,7 @@ app.post('/api/ppc/manual-date', requireAuth, requireAdmin, async (req, res) => 
       const out = date ? `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(0, 4)}` : '';
       await wapi.spreadsheets.values.update({ spreadsheetId: PPC_SHEETS[sheet].id, range: `'${tab}'!${idxToCol(stDef.ppcIdx)}${rowN}`,
         valueInputOption: 'USER_ENTERED', requestBody: { values: [[out]] } });
-      _pms2Cache = null;
+      _pms2Cache = null; fmsSheetWritten(PPC_SHEETS[sheet].id);
       return res.json({ success: true, date, sheet: true });
     }
     // step_no par SQL me barabari nahi lagate — '0' jaisi value match nahi hoti.
@@ -6084,7 +6123,7 @@ app.put('/api/production/ppc-date', requireAuth, requireAdmin, async (req, res) 
     if (bad.length) return res.status(409).json({ error: 'The sheet has changed — refresh and try again (nothing was saved).', rows: bad.slice(0, 10) });
     await wapi.spreadsheets.values.batchUpdate({ spreadsheetId: PMS2_SHEET_ID,
       requestBody: { valueInputOption: 'USER_ENTERED', data } });
-    _pms2Cache = null;
+    _pms2Cache = null; fmsSheetWritten(PMS2_SHEET_ID);
     res.json({ success: true, count: data.length });
   } catch (err) {
     console.error('NEW PMS PPC date save FAILED:', err.message);
@@ -7151,14 +7190,10 @@ app.get('/f/:id', async (req, res) => {
 });
 
 // Mark row as done — writes actual (date only) + delay reason to sheet
-// ── BULK DONE — sirf Garments PMS aur Boxing PMS ──
-// In dono sheet ke har step me ek "Status" dropdown (Done,Cancel) hai. Bulk me
-// har chuni hui row par actual date, doer name aur Status = "Done" likh dete
-// hain — baaki koi FMS is route se nahi chalta.
-const BULK_DONE_SHEETS = new Set([
-  '1FvkfDw4yZd-obtigUSw53L8q67kKZp2EJAFsw7wNdhg',   // Garments PMS
-  '1ipaNTZFEbcEGKCVF5FRHo40tR8g-kaRme-SsU99ZAmM'    // Boxing PMS
-]);
+// ── BULK DONE — har FMS me (23 Nov 2026; pehle sirf Garments / Boxing PMS) ──
+// Screen par rows tick karo -> side popup me us step ke field (Status, Remarks …) ek baar
+// bharo -> har chuni hui row par actual date, doer name aur wahi field values likh dete hain.
+// Single Done jaisa hi: view-only wala nahi kar sakta, row aage-peeche / pehle se Done ho to kuch nahi likhte.
 const BULK_DONE_MAX = 500;
 
 app.post('/api/fms-tasks/:fmsId/steps/:stepId/bulk-done', requireAuth, async (req, res) => {
@@ -7174,22 +7209,42 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/bulk-done', requireAuth, async (re
     if (!sheets[0]) return res.status(404).json({ error: 'FMS not found' });
     const sheet = sheets[0];
     const spreadsheetId = extractSpreadsheetId(sheet.sheet_id);
-    if (!BULK_DONE_SHEETS.has(spreadsheetId)) {
-      return res.status(403).json({ error: 'Bulk done is available only for Garments PMS and Boxing PMS' });
-    }
 
     const [steps] = await db.query('SELECT * FROM fms_steps WHERE id=? AND fms_id=?', [req.params.stepId, req.params.fmsId]);
     if (!steps[0]) return res.status(404).json({ error: 'Step not found' });
     const step = steps[0];
+    // View-only user (sirf dekhne wala) — is step ka doer nahi to Done nahi (single Done jaisa)
+    if (req.session.role !== 'admin') {
+      const voCfg = await fmsFullViewCfg(req.session.userId);
+      if (voCfg && voCfg.viewOnly && fmsInFullView(voCfg, sheet)) {
+        const [ds] = await db.query('SELECT user_id FROM fms_step_doers WHERE step_id=?', [step.id]);
+        if (!ds.some(d => String(d.user_id) === String(req.session.userId))) {
+          return res.status(403).json({ error: 'You have view-only access to this FMS' });
+        }
+      }
+    }
     const actualCol = (step.actual_col || '').toUpperCase();
     if (!actualCol) return res.status(400).json({ error: 'Actual column not configured for this step' });
 
-    // Status wala dropdown — jisme "Done" option ho
+    // Popup ke field (Status, Remarks, file link …) — sirf isi step ke column me, har row par wahi value
     const [extras] = await db.query('SELECT * FROM fms_extra_rows WHERE step_id=?', [step.id]);
-    const statusCols = extras
-      .filter(r => String(r.field_type || '') === 'dropdown' && r.col_letter &&
-        String(r.dropdown_options || '').split(',').map(o => o.trim().toLowerCase()).includes('done'))
-      .map(r => String(r.col_letter).toUpperCase());
+    const stepCols = new Set(extras.filter(r => r.col_letter).map(r => String(r.col_letter).trim().toUpperCase()));
+    let extraCells = [];
+    if (Array.isArray(req.body.extraInputs)) {
+      for (const ei of req.body.extraInputs) {
+        const c = String((ei && ei.colLetter) || '').trim().toUpperCase();
+        const v = ei && ei.value != null ? String(ei.value).trim() : '';
+        if (!c || !v) continue;
+        if (!stepCols.has(c)) return res.status(400).json({ error: `Column ${c} is not a field of this step` });
+        extraCells.push([c, v]);
+      }
+    } else {
+      // purana (cache wala) page fields nahi bhejta — pehle jaisa: "Done" wale Status dropdown me Done
+      extraCells = extras
+        .filter(r => String(r.field_type || '') === 'dropdown' && r.col_letter &&
+          String(r.dropdown_options || '').split(',').map(o => o.trim().toLowerCase()).includes('done'))
+        .map(r => [String(r.col_letter).trim().toUpperCase(), 'Done']);
+    }
 
     let doerName = '';
     if (step.doer_name_col) {
@@ -7225,26 +7280,39 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/bulk-done', requireAuth, async (re
     const batchData = [];
     for (const rowNumber of rows) {
       batchData.push({ range: `${tabName}!${actualCol}${rowNumber}`, values: [[actualValue]] });
-      for (const c of statusCols) batchData.push({ range: `${tabName}!${c}${rowNumber}`, values: [['Done']] });
+      for (const [c, v] of extraCells) batchData.push({ range: `${tabName}!${c}${rowNumber}`, values: [[v]] });
       if (doerName && step.doer_name_col) {
         batchData.push({ range: `${tabName}!${String(step.doer_name_col).toUpperCase()}${rowNumber}`, values: [[doerName]] });
       }
     }
 
-    const writeResp = await sheetsApi.spreadsheets.values.batchUpdate({
-      spreadsheetId,
-      requestBody: { valueInputOption: 'USER_ENTERED', data: batchData }
-    });
+    // Google busy (429/5xx) ho to thoda ruk kar dobara — wahi cells, wahi value, isliye dobara likhna safe
+    let writeResp;
+    for (let i = 0; ; i++) {
+      try {
+        writeResp = await sheetsApi.spreadsheets.values.batchUpdate({
+          spreadsheetId,
+          requestBody: { valueInputOption: 'USER_ENTERED', data: batchData }
+        });
+        break;
+      } catch (e) {
+        if (!SHEETS_RETRY_CODES.has(e.code || e.status) || i === 2) throw e;
+        await new Promise(r => setTimeout(r, 500 * Math.pow(2, i) + Math.floor(Math.random() * 250)));
+      }
+    }
 
     // Cache saaf — warna 60s tak wahi rows dobara pending me dikhengi
+    fmsSheetWritten(spreadsheetId);
     for (const key of _fmsSheetCache.keys()) {
       if (key.startsWith(spreadsheetId + '|')) _fmsSheetCache.delete(key);
     }
 
-    res.json({ success: true, count: rows.length, statusCols,
+    res.json({ success: true, count: rows.length, cols: extraCells.map(x => x[0]),
       updatedCells: writeResp.data?.totalUpdatedCells || 0 });
   } catch (err) {
     console.error('FMS bulk done FAILED:', err.message);
+    if ((err.code || err.status) === 429 || /quota/i.test(String(err.message)))
+      return res.status(503).json({ error: 'Google Sheets is busy right now — nothing was saved. Please press Done again in a few seconds.' });
     res.status(500).json({ error: err.message });
   }
 });
@@ -7355,6 +7423,7 @@ app.post('/api/fms-tasks/:fmsId/steps/:stepId/done', requireAuth, async (req, re
     // "pending" wali row hai. Isse na hataya to done ke 60s tak refresh/dobre-load pe
     // wo row wapas pending me dikhti hai (doer ki row list badal jaati hai). Ab is
     // spreadsheet ke saare cache entries clear — agli load fresh (done reflected).
+    fmsSheetWritten(spreadsheetId);
     for (const key of _fmsSheetCache.keys()) {
       if (key.startsWith(spreadsheetId + '|')) _fmsSheetCache.delete(key);
     }
